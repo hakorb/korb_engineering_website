@@ -3,23 +3,186 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>F-Zero Lite</title>
-  <link rel="stylesheet" href="style.css">
+  <title>F-Zero Lite — Korb Engineering</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a12;
+      color: #ddd;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .game-shell {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Canvas area */
+    .board-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Overlay */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.75);
+      z-index: 10;
+    }
+    .overlay.hidden { display: none; }
+    .overlay h1 {
+      font-size: 48px;
+      color: #00d4ff;
+      text-shadow: 0 0 20px rgba(0,212,255,0.6);
+      margin-bottom: 12px;
+    }
+    .overlay p {
+      font-size: 18px;
+      color: #88aacc;
+    }
+
+    /* Side panel */
+    .panel {
+      width: 220px;
+      background: #111118;
+      border-left: 2px solid #1a1a2e;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .panel h1 {
+      font-size: 20px;
+      color: #00d4ff;
+      text-shadow: 0 0 8px rgba(0,212,255,0.4);
+      letter-spacing: 0.1em;
+    }
+    .panel h2 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #556;
+      margin-top: 8px;
+    }
+
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .stat span { color: #778; }
+    .stat strong { color: #00d4ff; font-variant-numeric: tabular-nums; }
+
+    .hud-bar {
+      height: 6px;
+      background: #1a1a2e;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .hud-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #00ff88);
+      border-radius: 3px;
+      transition: width 0.1s;
+    }
+    .hud-bar-fill.boost {
+      background: linear-gradient(90deg, #ff8800, #ffcc00);
+    }
+
+    button {
+      padding: 8px 12px;
+      background: #1a1a2e;
+      color: #88aacc;
+      border: 1px solid #2a2a3e;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #2a2a3e; }
+
+    .touch-controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .touch-row { display: flex; gap: 4px; }
+    .control {
+      width: 56px;
+      height: 40px;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    ul {
+      list-style: none;
+      font-size: 11px;
+      color: #556;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 640px) {
+      .game-shell { flex-direction: column; }
+      .panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 8px 12px;
+        gap: 8px;
+        border-left: none;
+        border-top: 2px solid #1a1a2e;
+      }
+      .panel h2, .panel ul { display: none; }
+      .touch-controls { flex-direction: row; }
+    }
+  </style>
 </head>
 <body>
   <main class="game-shell">
     <section class="board-wrap">
-      <canvas id="game" width="480" height="480" aria-label="Racing track"></canvas>
-      <div id="overlay" class="overlay hidden">
-        <h1 id="overlay-title">Paused</h1>
-        <p id="overlay-text">Press P to resume</p>
+      <canvas id="game" aria-label="F-Zero racing game"></canvas>
+      <div id="overlay" class="overlay">
+        <h1 id="overlay-title">F-Zero Lite</h1>
+        <p id="overlay-text">Press ENTER or tap to start</p>
       </div>
     </section>
 
     <aside class="panel">
       <h1>F-Zero Lite</h1>
       <div class="stat"><span>Score</span><strong id="score">0</strong></div>
-      <div class="stat"><span>Speed</span><strong id="length">0</strong></div>
+      <div class="stat"><span>Speed</span><strong id="speed">0</strong></div>
+      <div class="stat"><span>Lap</span><strong id="lap">1</strong></div>
+
+      <div>
+        <h2>Energy</h2>
+        <div class="hud-bar"><div class="hud-bar-fill" id="energyBar" style="width:100%"></div></div>
+      </div>
+      <div>
+        <h2>Boost</h2>
+        <div class="hud-bar"><div class="hud-bar-fill boost" id="boostBar" style="width:100%"></div></div>
+      </div>
 
       <button id="restart" type="button">Restart (R)</button>
       <button id="pause" type="button">Pause (P)</button>
@@ -35,14 +198,589 @@
 
       <h2>Controls</h2>
       <ul>
-        <li>A / D or Left / Right: Steer</li>
-        <li>W / S or Up / Down: Boost / Brake</li>
-        <li>P: Pause</li>
-        <li>R: Restart</li>
+        <li>A / D or Arrow Keys: Steer</li>
+        <li>W or Up: Boost</li>
+        <li>S or Down: Brake</li>
+        <li>P: Pause &nbsp; R: Restart</li>
       </ul>
     </aside>
   </main>
 
-  <script src="script.js"></script>
+<script>
+/* ================================================
+   F-Zero Lite — Pseudo-3D Racing Game
+   Korb Engineering
+   ================================================ */
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// --- Resize ---
+function resize() {
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Game State ---
+let state = 'title'; // title, racing, paused, gameover
+let score = 0;
+let lapCount = 1;
+let energy = 100;
+let boostFuel = 100;
+let playerX = 0;       // -1 to 1 (road position)
+let playerSpeed = 0;   // current speed
+let playerZ = 0;       // distance traveled
+let steerInput = 0;
+let accelInput = 0;
+let brakeInput = 0;
+let boostInput = 0;
+
+const MAX_SPEED = 320;
+const ACCEL = 180;
+const BRAKE_FORCE = 280;
+const STEER_SPEED = 2.8;
+const ROAD_WIDTH = 2200;
+const SEG_LENGTH = 200;
+const DRAW_DIST = 180;
+const NUM_SEGMENTS = 1600;
+
+// --- Track Generation ---
+let segments = [];
+
+function buildTrack() {
+  segments = [];
+  for (let i = 0; i < NUM_SEGMENTS; i++) {
+    let curve = 0;
+    let hill = 0;
+
+    // Curves
+    if (i > 20 && i < 60) curve = 2.5;
+    else if (i > 80 && i < 130) curve = -3;
+    else if (i > 160 && i < 200) curve = 4;
+    else if (i > 250 && i < 320) curve = -2;
+    else if (i > 350 && i < 400) curve = 1.5;
+    else if (i > 450 && i < 530) curve = -3.5;
+    else if (i > 600 && i < 700) curve = 2;
+    else if (i > 750 && i < 850) curve = -2.5;
+    else if (i > 900 && i < 1000) curve = 3;
+    else if (i > 1100 && i < 1200) curve = -1.5;
+    else if (i > 1300 && i < 1400) curve = 4;
+    else if (i > 1450 && i < 1550) curve = -3;
+
+    // Hills
+    if (i > 40 && i < 70) hill = 25;
+    else if (i > 100 && i < 120) hill = -30;
+    else if (i > 200 && i < 240) hill = 20;
+    else if (i > 300 && i < 340) hill = -15;
+    else if (i > 500 && i < 560) hill = 30;
+    else if (i > 700 && i < 740) hill = -20;
+    else if (i > 1000 && i < 1060) hill = 25;
+    else if (i > 1200 && i < 1250) hill = -25;
+
+    segments.push({
+      curve,
+      hill,
+      z: i * SEG_LENGTH,
+      clip: 0,
+      // Obstacles (other racers)
+      obstacle: null,
+    });
+  }
+
+  // Place obstacles
+  for (let i = 0; i < 80; i++) {
+    const idx = 30 + Math.floor(Math.random() * (NUM_SEGMENTS - 60));
+    if (!segments[idx].obstacle) {
+      segments[idx].obstacle = {
+        x: (Math.random() - 0.5) * 1.4,
+        color: ['#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#f39c12'][Math.floor(Math.random() * 5)],
+        speed: 80 + Math.random() * 100,
+      };
+    }
+  }
+}
+buildTrack();
+
+// --- Input ---
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === 'Enter' && state === 'title') startGame();
+  if (e.key.toLowerCase() === 'r') restartGame();
+  if (e.key.toLowerCase() === 'p') togglePause();
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// Touch controls
+function bindTouch(id, action) {
+  const el = document.getElementById(id);
+  el.addEventListener('mousedown', () => action(true));
+  el.addEventListener('mouseup', () => action(false));
+  el.addEventListener('mouseleave', () => action(false));
+  el.addEventListener('touchstart', e => { e.preventDefault(); action(true); });
+  el.addEventListener('touchend', e => { e.preventDefault(); action(false); });
+}
+bindTouch('left', v => keys['arrowleft'] = v);
+bindTouch('right', v => keys['arrowright'] = v);
+bindTouch('up', v => keys['arrowup'] = v);
+bindTouch('down', v => keys['arrowdown'] = v);
+
+document.getElementById('restart').onclick = restartGame;
+document.getElementById('pause').onclick = togglePause;
+
+// Overlay click to start
+document.getElementById('overlay').addEventListener('click', () => {
+  if (state === 'title' || state === 'gameover') startGame();
+});
+
+function readInput() {
+  steerInput = 0;
+  accelInput = 0;
+  brakeInput = 0;
+  boostInput = 0;
+  if (keys['a'] || keys['arrowleft']) steerInput = -1;
+  if (keys['d'] || keys['arrowright']) steerInput = 1;
+  if (keys['w'] || keys['arrowup']) boostInput = 1;
+  if (keys['s'] || keys['arrowdown']) brakeInput = 1;
+}
+
+// --- Game Control ---
+function startGame() {
+  state = 'racing';
+  score = 0;
+  lapCount = 1;
+  energy = 100;
+  boostFuel = 100;
+  playerX = 0;
+  playerSpeed = 0;
+  playerZ = 0;
+  buildTrack();
+  hideOverlay();
+}
+
+function restartGame() {
+  startGame();
+}
+
+function togglePause() {
+  if (state === 'racing') {
+    state = 'paused';
+    showOverlay('Paused', 'Press P to resume');
+  } else if (state === 'paused') {
+    state = 'racing';
+    hideOverlay();
+  }
+}
+
+function gameOver() {
+  state = 'gameover';
+  showOverlay('Game Over', `Score: ${score} — Press ENTER or tap to retry`);
+}
+
+function showOverlay(title, text) {
+  const ov = document.getElementById('overlay');
+  document.getElementById('overlay-title').textContent = title;
+  document.getElementById('overlay-text').textContent = text;
+  ov.classList.remove('hidden');
+}
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+// --- Projection ---
+function project(z, camZ, camY, screenW, screenH) {
+  const d = z - camZ;
+  if (d <= 0) return null;
+  const scale = 300 / d;
+  return {
+    scale,
+    x: screenW / 2,
+    y: screenH / 2 - scale * camY,
+    w: scale * ROAD_WIDTH,
+  };
+}
+
+// --- Render ---
+function drawSky(w, h) {
+  const grad = ctx.createLinearGradient(0, 0, 0, h / 2);
+  grad.addColorStop(0, '#0a0020');
+  grad.addColorStop(0.5, '#1a0040');
+  grad.addColorStop(1, '#300060');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h / 2);
+
+  // Stars
+  const starSeed = 42;
+  for (let i = 0; i < 60; i++) {
+    const sx = ((starSeed * i * 7 + 13) % 1000) / 1000 * w;
+    const sy = ((starSeed * i * 3 + 47) % 1000) / 1000 * h * 0.45;
+    const sr = ((i * 13) % 3) * 0.4 + 0.5;
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + (i % 5) * 0.12})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawGround(w, h) {
+  ctx.fillStyle = '#1a1a0a';
+  ctx.fillRect(0, h / 2, w, h / 2);
+}
+
+function drawSegment(x1, y1, w1, x2, y2, w2, idx, clip) {
+  // Road
+  const dark = idx % 2 === 0;
+  ctx.fillStyle = dark ? '#333340' : '#3a3a4a';
+  drawTrapezoid(x1, y1, w1, x2, y2, w2, clip);
+
+  // Rumble strip
+  ctx.fillStyle = dark ? '#cc0000' : '#ffffff';
+  drawTrapezoid(x1, y1, w1 * 1.15, x2, y2, w2 * 1.15, clip);
+  ctx.fillStyle = dark ? '#333340' : '#3a3a4a';
+  drawTrapezoid(x1, y1, w1, x2, y2, w2, clip);
+
+  // Center line
+  if (!dark) {
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    drawTrapezoid(x1, y1, w1 * 0.02, x2, y2, w2 * 0.02, clip);
+  }
+
+  // Lane markers
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)';
+  for (let lane = -1; lane <= 1; lane += 2) {
+    const off = lane * 0.33;
+    drawTrapezoid(x1 + w1 * off, y1, w1 * 0.008, x2 + w2 * off, y2, w2 * 0.008, clip);
+  }
+
+  // Grass
+  ctx.fillStyle = dark ? '#0a3a0a' : '#0d4a0d';
+  const W = canvas.width;
+  // Left grass
+  fillQuad(0, y2, x2 - w2 * 0.58, y2, x1 - w1 * 0.58, y1, 0, y1, clip);
+  // Right grass
+  fillQuad(x2 + w2 * 0.58, y2, W, y2, W, y1, x1 + w1 * 0.58, y1, clip);
+}
+
+function drawTrapezoid(cx1, y1, w1, cx2, y2, w2, clip) {
+  ctx.beginPath();
+  ctx.moveTo(cx1 - w1 / 2, y1);
+  ctx.lineTo(cx1 + w1 / 2, y1);
+  ctx.lineTo(cx2 + w2 / 2, y2);
+  ctx.lineTo(cx2 - w2 / 2, y2);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function fillQuad(x1, y1, x2, y2, x3, y3, x4, y4, clip) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.lineTo(x3, y3);
+  ctx.lineTo(x4, y4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPlayer(w, h) {
+  const cx = w / 2 + steerInput * 20;
+  const baseY = h * 0.82;
+  const pw = 50;
+  const ph = 22;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY + 12, pw * 0.8, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#00aaff';
+  ctx.beginPath();
+  ctx.moveTo(cx - pw, baseY);
+  ctx.lineTo(cx + pw, baseY);
+  ctx.lineTo(cx + pw * 0.6, baseY - ph);
+  ctx.lineTo(cx - pw * 0.6, baseY - ph);
+  ctx.closePath();
+  ctx.fill();
+
+  // Canopy
+  ctx.fillStyle = '#003366';
+  ctx.beginPath();
+  ctx.moveTo(cx - pw * 0.3, baseY - ph);
+  ctx.lineTo(cx + pw * 0.3, baseY - ph);
+  ctx.lineTo(cx + pw * 0.15, baseY - ph - 10);
+  ctx.lineTo(cx - pw * 0.15, baseY - ph - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Nose
+  ctx.fillStyle = '#0088dd';
+  ctx.beginPath();
+  ctx.moveTo(cx - pw * 0.15, baseY - ph - 10);
+  ctx.lineTo(cx + pw * 0.15, baseY - ph - 10);
+  ctx.lineTo(cx, baseY - ph - 18);
+  ctx.closePath();
+  ctx.fill();
+
+  // Engine glow
+  if (playerSpeed > 50) {
+    const glow = boostInput && boostFuel > 0 ? 'rgba(255,150,0,0.8)' : 'rgba(0,180,255,0.5)';
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, baseY + 2);
+    ctx.lineTo(cx + 12, baseY + 2);
+    ctx.lineTo(cx, baseY + 8 + Math.random() * 6);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Side wings
+  ctx.fillStyle = '#0077cc';
+  // Left wing
+  ctx.beginPath();
+  ctx.moveTo(cx - pw, baseY);
+  ctx.lineTo(cx - pw - 15, baseY + 3);
+  ctx.lineTo(cx - pw + 5, baseY - 5);
+  ctx.closePath();
+  ctx.fill();
+  // Right wing
+  ctx.beginPath();
+  ctx.moveTo(cx + pw, baseY);
+  ctx.lineTo(cx + pw + 15, baseY + 3);
+  ctx.lineTo(cx + pw - 5, baseY - 5);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawObstacle(seg, p, idx) {
+  if (!seg.obstacle) return;
+  const ob = seg.obstacle;
+  const ox = p.x + p.w * ob.x;
+  const oy = p.y;
+  const size = p.scale * 600;
+  if (size < 2 || size > 400) return;
+
+  // Simple racer shape
+  ctx.fillStyle = ob.color;
+  ctx.beginPath();
+  ctx.moveTo(ox - size / 2, oy);
+  ctx.lineTo(ox + size / 2, oy);
+  ctx.lineTo(ox + size / 3, oy - size * 0.5);
+  ctx.lineTo(ox - size / 3, oy - size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.moveTo(ox - size / 5, oy - size * 0.5);
+  ctx.lineTo(ox + size / 5, oy - size * 0.5);
+  ctx.lineTo(ox, oy - size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// --- HUD ---
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('speed').textContent = Math.round(playerSpeed);
+  document.getElementById('lap').textContent = lapCount;
+  document.getElementById('energyBar').style.width = energy + '%';
+  document.getElementById('boostBar').style.width = boostFuel + '%';
+}
+
+// --- Update ---
+function update(dt) {
+  if (state !== 'racing') return;
+  readInput();
+
+  // Acceleration
+  const onRoad = Math.abs(playerX) < 0.9;
+  const speedMult = onRoad ? 1 : 0.6;
+  const baseAccel = ACCEL * speedMult;
+
+  if (brakeInput) {
+    playerSpeed -= BRAKE_FORCE * dt;
+  } else {
+    // Auto accelerate, boost adds more
+    playerSpeed += baseAccel * dt * 0.5;
+    if (boostInput && boostFuel > 0) {
+      playerSpeed += baseAccel * dt * 1.5;
+      boostFuel -= 25 * dt;
+      if (boostFuel < 0) boostFuel = 0;
+    }
+  }
+
+  // Boost recharge (slow)
+  if (!boostInput && boostFuel < 100) {
+    boostFuel += 5 * dt;
+  }
+
+  playerSpeed = Math.max(0, Math.min(MAX_SPEED, playerSpeed));
+
+  // Steering
+  const steerFactor = 1 - playerSpeed / MAX_SPEED * 0.4;
+  playerX += steerInput * STEER_SPEED * dt * steerFactor;
+
+  // Track curve pulls player
+  const segIdx = Math.floor(playerZ / SEG_LENGTH) % NUM_SEGMENTS;
+  const seg = segments[segIdx];
+  playerX -= seg.curve * playerSpeed * 0.00003 * dt * 60;
+
+  // Clamp / off-road penalty
+  if (Math.abs(playerX) > 1.3) {
+    playerX = Math.sign(playerX) * 1.3;
+    energy -= 20 * dt;
+    playerSpeed *= 0.95;
+  } else if (!onRoad) {
+    energy -= 5 * dt;
+  }
+
+  // Move forward
+  playerZ += playerSpeed * dt * SEG_LENGTH * 0.01;
+
+  // Collision with obstacles
+  for (let i = 0; i < 10; i++) {
+    const ci = (segIdx + i) % NUM_SEGMENTS;
+    const cseg = segments[ci];
+    if (!cseg.obstacle) continue;
+    const dz = cseg.z - playerZ;
+    if (dz > 0 && dz < SEG_LENGTH * 0.8) {
+      const dx = Math.abs(playerX - cseg.obstacle.x);
+      if (dx < 0.25) {
+        energy -= 30;
+        playerSpeed *= 0.5;
+        cseg.obstacle.x += (playerX < cseg.obstacle.x ? 0.5 : -0.5);
+        break;
+      }
+    }
+  }
+
+  // Move obstacles forward slightly
+  segments.forEach(s => {
+    if (s.obstacle) {
+      // They drift slowly
+      s.obstacle.x += (Math.sin(playerZ * 0.001 + s.z * 0.01) * 0.001);
+      s.obstacle.x = Math.max(-0.8, Math.min(0.8, s.obstacle.x));
+    }
+  });
+
+  // Score & laps
+  score = Math.floor(playerZ / SEG_LENGTH);
+  const newLap = Math.floor(playerZ / (NUM_SEGMENTS * SEG_LENGTH)) + 1;
+  if (newLap > lapCount) {
+    lapCount = newLap;
+    energy = Math.min(100, energy + 30);
+  }
+
+  // Energy
+  if (energy <= 0) {
+    energy = 0;
+    gameOver();
+  }
+
+  updateHUD();
+}
+
+// --- Render Frame ---
+function renderFrame() {
+  const W = canvas.width;
+  const H = canvas.height;
+
+  ctx.clearRect(0, 0, W, H);
+  drawSky(W, H);
+  drawGround(W, H);
+
+  const camZ = playerZ;
+  const camY = 1200;
+  let maxY = H;
+  let x = 0;
+  let dx = 0;
+
+  const baseIdx = Math.floor(camZ / SEG_LENGTH);
+
+  // Project and draw back-to-front
+  const projections = [];
+  for (let i = DRAW_DIST; i >= 1; i--) {
+    const idx = (baseIdx + i) % NUM_SEGMENTS;
+    const seg = segments[idx];
+    const z = seg.z > camZ ? seg.z : seg.z + NUM_SEGMENTS * SEG_LENGTH;
+
+    const hillOffset = seg.hill * (i / DRAW_DIST);
+    const p = project(z, camZ, camY + hillOffset * 30, W, H);
+    if (!p) continue;
+
+    x += dx;
+    p.x += x - playerX * p.w;
+    dx += seg.curve * p.scale * 2;
+
+    projections.push({ seg, p, idx: i });
+  }
+
+  // Draw segments
+  for (let i = 0; i < projections.length - 1; i++) {
+    const cur = projections[i];
+    const next = projections[i + 1];
+
+    if (cur.p.y >= maxY && next.p.y >= maxY) continue;
+
+    drawSegment(
+      next.p.x, next.p.y, next.p.w,
+      cur.p.x, cur.p.y, cur.p.w,
+      cur.idx, maxY
+    );
+
+    // Obstacles
+    drawObstacle(cur.seg, cur.p, cur.idx);
+
+    if (cur.p.y < maxY) maxY = cur.p.y;
+  }
+
+  // Speed lines effect
+  if (playerSpeed > 150) {
+    const alpha = (playerSpeed - 150) / (MAX_SPEED - 150) * 0.15;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const lx = W * 0.1 + Math.random() * W * 0.8;
+      const ly = H * 0.5 + Math.random() * H * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx + (lx - W / 2) * 0.3, ly + 30 + Math.random() * 20);
+      ctx.stroke();
+    }
+  }
+
+  drawPlayer(W, H);
+
+  // HUD on canvas
+  ctx.fillStyle = 'rgba(0,212,255,0.8)';
+  ctx.font = 'bold 28px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${Math.round(playerSpeed)} km/h`, 16, 36);
+
+  ctx.font = 'bold 14px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillText(`LAP ${lapCount}`, 16, 56);
+}
+
+// --- Game Loop ---
+let lastTime = 0;
+function loop(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  update(dt);
+  renderFrame();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(time => {
+  lastTime = time;
+  loop(time);
+});
+</script>
 </body>
 </html>
