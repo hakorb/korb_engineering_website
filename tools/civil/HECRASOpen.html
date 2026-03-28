@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HEC-RAS Open — Hydraulic Analysis</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:#0f172a;color:#e2e8f0;overflow:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#1e293b}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#64748b}
+input[type=number],input[type=text],select,textarea{
+  background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:4px 8px;
+  border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#38bdf8}
+button{cursor:pointer;transition:all 0.15s}
+.btn{padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;border:none}
+.btn-primary{background:#38bdf8;color:#0f172a}.btn-primary:hover{background:#7dd3fc}
+.btn-danger{background:#ef4444;color:white}.btn-danger:hover{background:#f87171}
+.btn-ghost{background:transparent;color:#94a3b8;border:1px solid #334155}.btn-ghost:hover{background:#1e293b}
+.btn-amber{background:#f59e0b;color:#0f172a}.btn-amber:hover{background:#fbbf24}
+.tab{padding:6px 16px;font-size:12px;font-weight:500;border-bottom:2px solid transparent;color:#94a3b8;cursor:pointer;background:none;border-top:none;border-left:none;border-right:none}
+.tab:hover{color:#e2e8f0}.tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
+table.data{width:100%;border-collapse:collapse;font-size:11px;font-family:'JetBrains Mono',monospace}
+table.data th{background:#1e293b;padding:4px 8px;text-align:right;color:#94a3b8;font-weight:500;position:sticky;top:0;z-index:1;border-bottom:1px solid #334155}
+table.data td{padding:3px 8px;text-align:right;border-bottom:1px solid #1e293b}
+table.data tr:hover{background:#1e293b}
+.warn-row{background:rgba(245,158,11,0.1)!important}
+.err-row{background:rgba(239,68,68,0.1)!important}
+canvas{display:block}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useReducer,useRef,useEffect,useMemo,useCallback,Fragment}=React;
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+const G=32.174,GAMMA=62.4,MK=1.486,MAX_ITER=50,TOL=0.001;
+const COLORS={bg:'#0f172a',panel:'#1e293b',border:'#334155',accent:'#38bdf8',
+  amber:'#f59e0b',text:'#e2e8f0',muted:'#94a3b8',grid:'#1e293b',
+  gridMinor:'rgba(56,189,248,0.05)',gridMajor:'rgba(56,189,248,0.12)',
+  ground:'#a8a29e',water:'rgba(56,189,248,0.35)',waterLine:'#38bdf8',
+  egl:'#f59e0b',critical:'#ef4444',lob:'#22d3ee',rob:'#a78bfa',
+  profiles:['#38bdf8','#22d3ee','#34d399','#a78bfa','#f472b6','#fbbf24','#fb923c','#f87171','#818cf8','#2dd4bf']};
+
+// ═══════════════════════════════════════════════════════════════
+// MANNING'S N REFERENCE (Chow 1959)
+// ═══════════════════════════════════════════════════════════════
+const MANNINGS_N=[
+  {cat:'Natural - Minor Streams',items:[
+    {d:'Clean, straight, no pools',n:[.025,.030,.033]},{d:'Same, stones & weeds',n:[.030,.035,.040]},
+    {d:'Clean, winding, some pools',n:[.033,.040,.045]},{d:'Same, lower stages, more stones',n:[.040,.048,.055]},
+    {d:'Sluggish reaches, deep pools',n:[.050,.070,.080]},{d:'Very weedy, deep pools',n:[.075,.100,.150]}]},
+  {cat:'Natural - Floodplain',items:[
+    {d:'Pasture, short grass',n:[.025,.030,.035]},{d:'Pasture, high grass',n:[.030,.035,.050]},
+    {d:'Cultivated, no crop',n:[.020,.030,.040]},{d:'Cultivated, mature crop',n:[.030,.040,.050]},
+    {d:'Scattered brush & weeds',n:[.035,.050,.070]},{d:'Light brush & trees',n:[.040,.060,.080]},
+    {d:'Medium to dense brush',n:[.045,.070,.110]},{d:'Dense trees',n:[.080,.100,.160]}]},
+  {cat:'Excavated / Dredged',items:[
+    {d:'Earth, straight, clean',n:[.016,.018,.020]},{d:'Earth, straight, grass',n:[.022,.027,.033]},
+    {d:'Earth, winding, no veg',n:[.023,.025,.030]},{d:'Rock cuts, smooth',n:[.025,.035,.040]},
+    {d:'Rock cuts, jagged',n:[.035,.040,.050]},{d:'Dredged, no vegetation',n:[.025,.028,.033]}]},
+  {cat:'Lined Channels',items:[
+    {d:'Concrete, troweled',n:[.011,.013,.015]},{d:'Concrete, float finish',n:[.013,.015,.016]},
+    {d:'Concrete, unfinished',n:[.014,.017,.020]},{d:'Shotcrete, good section',n:[.016,.019,.023]},
+    {d:'Riprap',n:[.020,.030,.035]},{d:'Gabions',n:[.025,.028,.030]},
+    {d:'Grass-lined, maintained',n:[.025,.030,.035]},{d:'Corrugated metal',n:[.021,.025,.030]}]},
+  {cat:'Mountain Streams',items:[
+    {d:'Gravel, cobbles, few boulders',n:[.030,.040,.050]},{d:'Cobbles, large boulders',n:[.040,.050,.070]}]}
+];
+
+// ═══════════════════════════════════════════════════════════════
+// HYDRAULIC ENGINE
+// ═══════════════════════════════════════════════════════════════
+function lerp(s1,e1,s2,e2,s){return s2===s1?Math.min(e1,e2):e1+(e2-e1)*(s-s1)/(s2-s1)}
+
+function subProps(sta,elev,wse,sL,sR){
+  let pts=[];
+  for(let i=0;i<sta.length;i++){
+    if(sta[i]>=sL&&sta[i]<=sR) pts.push({s:sta[i],e:elev[i]});
+    if(i>0){
+      if((sta[i-1]<sL&&sta[i]>sL)||(sta[i-1]>sL&&sta[i]<sL))
+        pts.push({s:sL,e:lerp(sta[i-1],elev[i-1],sta[i],elev[i],sL)});
+      if((sta[i-1]<sR&&sta[i]>sR)||(sta[i-1]>sR&&sta[i]<sR))
+        pts.push({s:sR,e:lerp(sta[i-1],elev[i-1],sta[i],elev[i],sR)});
+    }
+  }
+  pts.sort((a,b)=>a.s-b.s);
+  pts=pts.filter((p,i)=>i===0||Math.abs(p.s-pts[i-1].s)>1e-6);
+  if(pts.length<2) return {A:0,P:0,T:0,R:0,D:0};
+  let A=0,P=0,T=0;
+  for(let i=0;i<pts.length-1;i++){
+    const s1=pts[i].s,e1=pts[i].e,s2=pts[i+1].s,e2=pts[i+1].e,ds=s2-s1;
+    if(ds<=0)continue;
+    const d1=Math.max(0,wse-e1),d2=Math.max(0,wse-e2);
+    if(d1<=0&&d2<=0)continue;
+    if(d1>0&&d2>0){A+=ds*(d1+d2)/2;P+=Math.sqrt(ds*ds+(e2-e1)*(e2-e1));T+=ds;}
+    else if(d1>0){const t=(wse-e1)/(e2-e1),sx=s1+t*ds,seg=sx-s1;A+=seg*d1/2;P+=Math.sqrt(seg*seg+d1*d1);T+=seg;}
+    else{const t=(wse-e1)/(e2-e1),sx=s1+t*ds,seg=s2-sx;A+=seg*d2/2;P+=Math.sqrt(seg*seg+d2*d2);T+=seg;}
+  }
+  return {A,P,T,R:P>0?A/P:0,D:T>0?A/T:0};
+}
+
+function xsHydraulics(xs,wse){
+  const{stations:sta,elevations:elev,bankStations:bs,manningN:mn}=xs;
+  const[lb,rb]=bs,[nL,nC,nR]=mn;
+  const sMin=Math.min(...sta),sMax=Math.max(...sta),minE=Math.min(...elev);
+  if(wse<=minE)return{area:0,P:0,T:0,R:0,D:0,K:0,v:0,Fr:0,alpha:1,
+    aL:0,aC:0,aR:0,kL:0,kC:0,kR:0,vL:0,vC:0,vR:0,tL:0,tC:0,tR:0};
+  const L=subProps(sta,elev,wse,sMin,lb),C=subProps(sta,elev,wse,lb,rb),R=subProps(sta,elev,wse,rb,sMax);
+  const kL=nL>0&&L.A>0&&L.R>0?(MK/nL)*L.A*Math.pow(L.R,2/3):0;
+  const kC=nC>0&&C.A>0&&C.R>0?(MK/nC)*C.A*Math.pow(C.R,2/3):0;
+  const kR=nR>0&&R.A>0&&R.R>0?(MK/nR)*R.A*Math.pow(R.R,2/3):0;
+  const K=kL+kC+kR,A=L.A+C.A+R.A,P=L.P+C.P+R.P,T=L.T+C.T+R.T;
+  let alpha=1;
+  if(K>0&&A>0){
+    let s=0;
+    if(L.A>0)s+=Math.pow(kL,3)/Math.pow(L.A,2);
+    if(C.A>0)s+=Math.pow(kC,3)/Math.pow(C.A,2);
+    if(R.A>0)s+=Math.pow(kR,3)/Math.pow(R.A,2);
+    const den=Math.pow(K,3)/Math.pow(A,2);
+    alpha=den>0?s/den:1;
+  }
+  return{area:A,P,T,R:P>0?A/P:0,D:T>0?A/T:0,K,v:0,Fr:0,alpha,
+    aL:L.A,aC:C.A,aR:R.A,kL,kC,kR,vL:0,vC:0,vR:0,tL:L.T,tC:C.T,tR:R.T};
+}
+
+function flowProps(xs,wse,Q){
+  const p=xsHydraulics(xs,wse);
+  if(p.area<=0)return p;
+  const vT=Q/p.area;
+  const vC=p.aC>0&&p.K>0?Q*(p.kC/p.K)/p.aC:0;
+  const vL=p.aL>0&&p.K>0?Q*(p.kL/p.K)/p.aL:0;
+  const vR=p.aR>0&&p.K>0?Q*(p.kR/p.K)/p.aR:0;
+  const dH=p.tC>0?p.aC/p.tC:p.D;
+  const Fr=dH>0?Math.abs(vC)/Math.sqrt(G*dH):0;
+  return{...p,v:vT,vC,vL,vR,Fr};
+}
+
+function critDepth(xs,Q){
+  const minE=Math.min(...xs.elevations),maxE=Math.max(...xs.elevations);
+  let lo=minE,hi=maxE+50;
+  for(let i=0;i<80;i++){
+    const mid=(lo+hi)/2,p=xsHydraulics(xs,mid);
+    if(p.area<=0||p.T<=0){lo=mid;continue;}
+    Q*Q*p.T>G*Math.pow(p.area,3)?lo=mid:hi=mid;
+    if(hi-lo<1e-5)break;
+  }
+  return(lo+hi)/2;
+}
+
+function normDepth(xs,Q,S){
+  if(S<=0)return null;
+  const minE=Math.min(...xs.elevations),maxE=Math.max(...xs.elevations);
+  let lo=minE,hi=maxE+50;const tK=Q/Math.sqrt(S);
+  for(let i=0;i<80;i++){
+    const mid=(lo+hi)/2,p=xsHydraulics(xs,mid);
+    p.K<tK?lo=mid:hi=mid;
+    if(hi-lo<1e-5)break;
+  }
+  return(lo+hi)/2;
+}
+
+function standardStep(xsList,Q,startWSE,contrC=0.1,expC=0.3){
+  // Subcritical: march upstream from downstream BC
+  const n=xsList.length,results=[],warnings=[];
+  let pWSE=startWSE,pP=null;
+  for(let k=n-1;k>=0;k--){
+    const xs=xsList[k];
+    if(k===n-1){
+      const p=flowProps(xs,pWSE,Q),minE=Math.min(...xs.elevations);
+      const sf=p.K>0?Math.pow(Q/p.K,2):0;
+      const egl=pWSE+p.alpha*p.v*p.v/(2*G);
+      results[k]={sta:xs.river_station,wse:pWSE,egl,critWse:critDepth(xs,Q),
+        v:p.v,vC:p.vC,vL:p.vL,vR:p.vR,area:p.area,aC:p.aC,aL:p.aL,aR:p.aR,
+        T:p.T,P:p.P,D:p.D,R:p.R,K:p.K,kL:p.kL,kC:p.kC,kR:p.kR,
+        Fr:p.Fr,alpha:p.alpha,Sf:sf,
+        tau:GAMMA*p.R*sf,omega:GAMMA*Q*sf,minE,ok:true,iter:0};
+      pP=p;continue;
+    }
+    const rl=xsList[k+1].reachLengths||[500,500,500];
+    let avgL=rl[1];
+    if(pP&&pP.K>0){const wL=pP.kL/pP.K,wC=pP.kC/pP.K,wR=pP.kR/pP.K;avgL=wL*rl[0]+wC*rl[1]+wR*rl[2];}
+    if(avgL<=0)avgL=500;
+    const minE=Math.min(...xs.elevations);
+    let wG=pWSE,ok=false,iters=0;
+    for(let it=0;it<MAX_ITER;it++){
+      iters=it+1;
+      const p=flowProps(xs,wG,Q);
+      if(p.area<=0){wG+=0.5;continue;}
+      const vh1=pP.alpha*pP.v*pP.v/(2*G),vh2=p.alpha*p.v*p.v/(2*G);
+      const sf1=pP.K>0?Math.pow(Q/pP.K,2):0,sf2=p.K>0?Math.pow(Q/p.K,2):0;
+      const hf=(sf1+sf2)/2*avgL;
+      const Ce=vh1>vh2?contrC:expC;
+      const he=Ce*Math.abs(vh2-vh1);
+      let wC=pWSE+vh1-vh2+hf+he;
+      if(wC<=minE)wC=minE+0.01;
+      if(Math.abs(wC-wG)<TOL){wG=wC;ok=true;break;}
+      wG=0.5*wG+0.5*wC;
+    }
+    if(!ok)warnings.push(`XS ${xs.river_station}: no convergence (${MAX_ITER} iter)`);
+    const fp=flowProps(xs,wG,Q),sf=fp.K>0?Math.pow(Q/fp.K,2):0;
+    const egl=wG+fp.alpha*fp.v*fp.v/(2*G);
+    results[k]={sta:xs.river_station,wse:wG,egl,critWse:critDepth(xs,Q),
+      v:fp.v,vC:fp.vC,vL:fp.vL,vR:fp.vR,area:fp.area,aC:fp.aC,aL:fp.aL,aR:fp.aR,
+      T:fp.T,P:fp.P,D:fp.D,R:fp.R,K:fp.K,kL:fp.kL,kC:fp.kC,kR:fp.kR,
+      Fr:fp.Fr,alpha:fp.alpha,Sf:sf,tau:GAMMA*fp.R*sf,omega:GAMMA*Q*sf,minE,ok,iter:iters};
+    pWSE=wG;pP=fp;
+  }
+  return{results,warnings};
+}
+
+// Bridge: Class A low flow (energy method) + pressure/weir check
+function bridgeHydraulics(br,upXS,dnXS,Q,upWSE,dnWSE){
+  const{lowChord,highChord,deckWidth,clearSpan,weirC=2.6}=br;
+  const opening=clearSpan||50;
+  // Simplified: treat bridge as constricted section
+  const aOpen=opening*(Math.min(upWSE,lowChord)-Math.min(...dnXS.elevations));
+  if(aOpen<=0)return{hw:upWSE,tw:dnWSE,hl:0,type:'dry',qWeir:0};
+  const vBr=Q/Math.max(aOpen,1);
+  const hl=1.0*vBr*vBr/(2*G); // simplified headloss
+  let hw=dnWSE+hl,type='low_flow',qWeir=0;
+  // Pressure flow check
+  if(hw>lowChord){type='pressure';hw=lowChord+Q*Q/(2*G*aOpen*aOpen*0.8);}
+  // Weir flow over road
+  if(hw>highChord){
+    const hOver=hw-highChord;
+    qWeir=weirC*deckWidth*Math.pow(hOver,1.5);
+    type='overtopping';
+  }
+  return{hw,tw:dnWSE,hl:hw-dnWSE,type,qWeir};
+}
+
+// Culvert: simplified inlet/outlet control (FHWA HDS-5)
+function culvertHydraulics(cu,Q){
+  const{shape='circular',diameter=3,width=0,height=0,length=100,
+    manningN=0.013,slope=0.01,inletType='square',numBarrels=1}=cu;
+  const Qb=Q/Math.max(numBarrels,1);
+  let D=diameter,A0,R0;
+  if(shape==='circular'){A0=Math.PI*D*D/4;R0=D/4;}
+  else{A0=(width||D)*(height||D);const pw=2*((width||D)+(height||D));R0=A0/pw;D=height||diameter;}
+  // Inlet control (submerged): HW/D = c*(Q/(A*D^0.5))^2 + Y - 0.5*S
+  const c=inletType==='projecting'?0.0398:0.0347;
+  const Y=inletType==='projecting'?0.69:0.50;
+  const Qi=Qb/(A0*Math.sqrt(D));
+  const hwdInlet=c*Qi*Qi+Y-0.5*slope;
+  const hwInlet=hwdInlet*D;
+  // Outlet control (full flow): HW = ho + H - L*S
+  const H=(MK>0?Qb*Qb*length*manningN*manningN/(Math.pow(A0,2)*Math.pow(R0,4/3)*2.22):0)
+    +1.0*Qb*Qb/(2*G*A0*A0);
+  const ho=D; // simplified: assume TW at crown
+  const hwOutlet=ho+H-length*slope;
+  const governing=hwInlet>hwOutlet?'inlet':'outlet';
+  const hw=Math.max(hwInlet,hwOutlet);
+  return{hw,hwD:hw/D,governing,hwInlet,hwOutlet,numBarrels};
+}
+
+// Run all profiles for a reach
+function computeReach(reach,flowData,bcData){
+  const xsList=reach.xsections;
+  if(!xsList||xsList.length<2)return{profileResults:[],warnings:['Need at least 2 cross-sections']};
+  const allResults=[],allWarnings=[];
+  const bc=bcData[reach.name]||{};
+  const dsBc=bc.downstream||{type:'Normal Depth',slope:0.001};
+
+  (flowData.profiles||[]).forEach((prof,pi)=>{
+    const Q=prof.flows[reach.name]||0;
+    if(Q<=0){allWarnings.push(`Profile "${prof.name}": Q=0 for ${reach.name}`);return;}
+    let startWSE;
+    if(dsBc.type==='Known WSE')startWSE=dsBc.wse||0;
+    else if(dsBc.type==='Critical Depth')startWSE=critDepth(xsList[xsList.length-1],Q);
+    else if(dsBc.type==='Normal Depth')startWSE=normDepth(xsList[xsList.length-1],Q,dsBc.slope||0.001);
+    else startWSE=critDepth(xsList[xsList.length-1],Q);
+    if(startWSE===null)startWSE=critDepth(xsList[xsList.length-1],Q);
+    const{results,warnings}=standardStep(xsList,Q,startWSE,
+      xsList[0].contrCoeff||0.1,xsList[0].expCoeff||0.3);
+    allResults.push({profileName:prof.name,Q,results});
+    warnings.forEach(w=>allWarnings.push(`[${prof.name}] ${w}`));
+    // Check warnings
+    results.forEach(r=>{
+      if(!r)return;
+      if(r.Fr>=1.0)allWarnings.push(`[${prof.name}] XS ${r.sta}: Fr=${r.Fr.toFixed(2)} ≥ 1.0 (supercritical)`);
+      if(!r.ok)allWarnings.push(`[${prof.name}] XS ${r.sta}: did not converge`);
+      if(r.wse<r.minE+0.01)allWarnings.push(`[${prof.name}] XS ${r.sta}: WSE at/below channel bottom`);
+    });
+  });
+  return{profileResults:allResults,warnings:allWarnings};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEFAULT PROJECT DATA — Sugar Creek example
+// ═══════════════════════════════════════════════════════════════
+function makeXS(rivSta,bedElev){
+  const shape=[0,50,100,125,138,145,150,155,162,175,200,250,300];
+  const rel=[12,10,8,4,1.5,0.3,0,0.3,1.5,4,8,10,12];
+  return{
+    river_station:rivSta,
+    stations:shape,
+    elevations:rel.map(r=>r+bedElev),
+    bankStations:[138,162],
+    manningN:[0.06,0.035,0.06],
+    reachLengths:[500,500,500],
+    contrCoeff:0.1,expCoeff:0.3
+  };
+}
+
+function defaultProject(){
+  const xsList=[];
+  for(let i=0;i<10;i++){
+    const sta=10000-i*500;
+    const bed=50-i*0.5;
+    xsList.push(makeXS(sta,bed));
+  }
+  return{
+    name:'Sugar Creek Example',units:'english',
+    reaches:[{name:'Sugar Creek',xsections:xsList,bridges:[],culverts:[]}],
+    flowData:{profiles:[
+      {name:'10-yr',flows:{'Sugar Creek':2000}},
+      {name:'50-yr',flows:{'Sugar Creek':5000}},
+      {name:'100-yr',flows:{'Sugar Creek':8000}},
+    ]},
+    bcData:{'Sugar Creek':{
+      upstream:{type:'(computed)'},
+      downstream:{type:'Normal Depth',slope:0.001}
+    }}
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+const INIT={
+  project:defaultProject(),
+  activeReach:0,activeXS:0,activeProfile:0,
+  view:'xs',rightTab:'geometry',
+  results:null,warnings:[],
+  showWarnings:false,showMannings:false,
+  undoStack:[],redoStack:[]
+};
+
+function reducer(s,a){
+  switch(a.type){
+    case 'SET_PROJECT':return{...s,project:a.project,results:null,warnings:[]};
+    case 'SET_REACH':return{...s,activeReach:a.i,activeXS:0};
+    case 'SET_XS':return{...s,activeXS:a.i};
+    case 'SET_PROFILE':return{...s,activeProfile:a.i};
+    case 'SET_VIEW':return{...s,view:a.v};
+    case 'SET_TAB':return{...s,rightTab:a.t};
+    case 'TOGGLE_WARNINGS':return{...s,showWarnings:!s.showWarnings};
+    case 'TOGGLE_MANNINGS':return{...s,showMannings:!s.showMannings};
+    case 'UPDATE_XS':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      const xs=p.reaches[s.activeReach].xsections[s.activeXS];
+      Object.assign(xs,a.data);
+      return{...s,project:p,undoStack:[...s.undoStack,s.project].slice(-30),redoStack:[]};
+    }
+    case 'ADD_XS':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      const r=p.reaches[s.activeReach];
+      const newSta=r.xsections.length>0?r.xsections[r.xsections.length-1].river_station-500:1000;
+      r.xsections.push(makeXS(newSta,Math.min(...r.xsections[r.xsections.length-1].elevations)));
+      return{...s,project:p,activeXS:r.xsections.length-1};
+    }
+    case 'DEL_XS':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      const r=p.reaches[s.activeReach];
+      if(r.xsections.length<=2)return s;
+      r.xsections.splice(s.activeXS,1);
+      return{...s,project:p,activeXS:Math.min(s.activeXS,r.xsections.length-1),
+        undoStack:[...s.undoStack,s.project].slice(-30),redoStack:[]};
+    }
+    case 'UPDATE_FLOW':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      p.flowData.profiles[a.pi].flows[a.reach]=a.Q;
+      return{...s,project:p};
+    }
+    case 'ADD_PROFILE':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      const nm=`Profile ${p.flowData.profiles.length+1}`;
+      const flows={};p.reaches.forEach(r=>flows[r.name]=0);
+      p.flowData.profiles.push({name:nm,flows});
+      return{...s,project:p};
+    }
+    case 'DEL_PROFILE':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      if(p.flowData.profiles.length<=1)return s;
+      p.flowData.profiles.splice(a.pi,1);
+      return{...s,project:p,activeProfile:Math.min(s.activeProfile,p.flowData.profiles.length-1)};
+    }
+    case 'RENAME_PROFILE':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      p.flowData.profiles[a.pi].name=a.name;
+      return{...s,project:p};
+    }
+    case 'UPDATE_BC':{
+      const p=JSON.parse(JSON.stringify(s.project));
+      if(!p.bcData[a.reach])p.bcData[a.reach]={upstream:{type:'(computed)'},downstream:{type:'Normal Depth',slope:0.001}};
+      p.bcData[a.reach][a.end]={...p.bcData[a.reach][a.end],...a.data};
+      return{...s,project:p};
+    }
+    case 'COMPUTE':{
+      const r=s.project.reaches[s.activeReach];
+      const{profileResults,warnings}=computeReach(r,s.project.flowData,s.project.bcData);
+      return{...s,results:profileResults,warnings,rightTab:'results'};
+    }
+    case 'UNDO':{
+      if(s.undoStack.length===0)return s;
+      const prev=s.undoStack[s.undoStack.length-1];
+      return{...s,project:prev,undoStack:s.undoStack.slice(0,-1),redoStack:[...s.redoStack,s.project],results:null};
+    }
+    case 'REDO':{
+      if(s.redoStack.length===0)return s;
+      const next=s.redoStack[s.redoStack.length-1];
+      return{...s,project:next,redoStack:s.redoStack.slice(0,-1),undoStack:[...s.undoStack,s.project],results:null};
+    }
+    case 'RENAME_PROJECT':{const p={...s.project,name:a.name};return{...s,project:p};}
+    default:return s;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CANVAS UTILITIES
+// ═══════════════════════════════════════════════════════════════
+function niceRange(min,max,ticks=6){
+  if(max<=min){max=min+1;}
+  const range=max-min;
+  const rough=range/ticks;
+  const mag=Math.pow(10,Math.floor(Math.log10(rough)));
+  const norm=rough/mag;
+  let step;
+  if(norm<=1.5)step=1*mag;else if(norm<=3)step=2*mag;else if(norm<=7)step=5*mag;else step=10*mag;
+  const lo=Math.floor(min/step)*step;
+  const hi=Math.ceil(max/step)*step;
+  const vals=[];for(let v=lo;v<=hi+step*0.5;v+=step)vals.push(+v.toFixed(10));
+  return{lo,hi,step,vals};
+}
+
+function drawEngGrid(ctx,W,H,pad,xR,yR){
+  // Minor grid
+  ctx.strokeStyle=COLORS.gridMinor;ctx.lineWidth=0.5;
+  const xStep2=xR.step/5,yStep2=yR.step/5;
+  ctx.beginPath();
+  for(let x=xR.lo;x<=xR.hi;x+=xStep2){
+    const cx=pad+(x-xR.lo)/(xR.hi-xR.lo)*(W-2*pad);
+    ctx.moveTo(cx,pad);ctx.lineTo(cx,H-pad);
+  }
+  for(let y=yR.lo;y<=yR.hi;y+=yStep2){
+    const cy=pad+(yR.hi-y)/(yR.hi-yR.lo)*(H-2*pad);
+    ctx.moveTo(pad,cy);ctx.lineTo(W-pad,cy);
+  }
+  ctx.stroke();
+  // Major grid
+  ctx.strokeStyle=COLORS.gridMajor;ctx.lineWidth=0.5;
+  ctx.beginPath();
+  xR.vals.forEach(x=>{const cx=pad+(x-xR.lo)/(xR.hi-xR.lo)*(W-2*pad);ctx.moveTo(cx,pad);ctx.lineTo(cx,H-pad);});
+  yR.vals.forEach(y=>{const cy=pad+(yR.hi-y)/(yR.hi-yR.lo)*(H-2*pad);ctx.moveTo(pad,cy);ctx.lineTo(W-pad,cy);});
+  ctx.stroke();
+  // Axis labels
+  ctx.fillStyle=COLORS.muted;ctx.font='10px "JetBrains Mono"';ctx.textAlign='center';
+  xR.vals.forEach(x=>{
+    const cx=pad+(x-xR.lo)/(xR.hi-xR.lo)*(W-2*pad);
+    ctx.fillText(x%1===0?x.toFixed(0):x.toFixed(1),cx,H-pad+14);
+  });
+  ctx.textAlign='right';
+  yR.vals.forEach(y=>{
+    const cy=pad+(yR.hi-y)/(yR.hi-yR.lo)*(H-2*pad);
+    ctx.fillText(y%1===0?y.toFixed(0):y.toFixed(1),pad-6,cy+3);
+  });
+}
+
+function tx(x,xR,W,pad){return pad+(x-xR.lo)/(xR.hi-xR.lo)*(W-2*pad)}
+function ty(y,yR,H,pad){return pad+(yR.hi-y)/(yR.hi-yR.lo)*(H-2*pad)}
+
+// ═══════════════════════════════════════════════════════════════
+// CROSS-SECTION CANVAS COMPONENT
+// ═══════════════════════════════════════════════════════════════
+function XSCanvas({xs,results,activeProfile,width,height}){
+  const ref=useRef(null);
+  const[hover,setHover]=useState(null);
+
+  useEffect(()=>{
+    const c=ref.current;if(!c)return;
+    const ctx=c.getContext('2d');
+    const W=width,H=height,pad=55;
+    c.width=W*devicePixelRatio;c.height=H*devicePixelRatio;
+    c.style.width=W+'px';c.style.height=H+'px';
+    ctx.scale(devicePixelRatio,devicePixelRatio);
+    ctx.fillStyle=COLORS.bg;ctx.fillRect(0,0,W,H);
+    if(!xs||!xs.stations||xs.stations.length<2)return;
+
+    const sta=xs.stations,elev=xs.elevations;
+    const[lb,rb]=xs.bankStations;
+    let yMin=Math.min(...elev)-2,yMax=Math.max(...elev)+5;
+    // Extend yMax for water
+    const pr=results&&results[activeProfile];
+    const res=pr?pr.results.find(r=>r&&r.sta===xs.river_station):null;
+    if(res){yMax=Math.max(yMax,res.wse+3,res.egl+2);}
+
+    const xR=niceRange(Math.min(...sta)-5,Math.max(...sta)+5,8);
+    const yR=niceRange(yMin,yMax,6);
+    drawEngGrid(ctx,W,H,pad,xR,yR);
+
+    // Axis titles
+    ctx.fillStyle=COLORS.muted;ctx.font='11px "IBM Plex Sans"';ctx.textAlign='center';
+    ctx.fillText('Station (ft)',W/2,H-4);
+    ctx.save();ctx.translate(12,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('Elevation (ft)',0,0);ctx.restore();
+
+    // Bank stations
+    ctx.setLineDash([6,4]);ctx.strokeStyle=COLORS.lob;ctx.lineWidth=1;
+    ctx.beginPath();let bx=tx(lb,xR,W,pad);ctx.moveTo(bx,pad);ctx.lineTo(bx,H-pad);ctx.stroke();
+    ctx.strokeStyle=COLORS.rob;
+    ctx.beginPath();bx=tx(rb,xR,W,pad);ctx.moveTo(bx,pad);ctx.lineTo(bx,H-pad);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Water surface fill
+    if(res&&res.wse>Math.min(...elev)){
+      ctx.fillStyle=COLORS.water;
+      ctx.beginPath();
+      let started=false;
+      for(let i=0;i<sta.length;i++){
+        const e=Math.min(elev[i],res.wse);
+        const cx=tx(sta[i],xR,W,pad),cy=ty(e,yR,H,pad);
+        if(!started){ctx.moveTo(cx,cy);started=true;}else ctx.lineTo(cx,cy);
+      }
+      // Close along water surface line back
+      for(let i=sta.length-1;i>=0;i--){
+        if(elev[i]<res.wse){
+          const cx=tx(sta[i],xR,W,pad),cy=ty(res.wse,yR,H,pad);
+          ctx.lineTo(cx,cy);
+        }
+      }
+      ctx.closePath();ctx.fill();
+
+      // Water surface line
+      ctx.strokeStyle=COLORS.waterLine;ctx.lineWidth=2;
+      ctx.beginPath();
+      // Find left and right water edges
+      let wLeft=null,wRight=null;
+      for(let i=0;i<sta.length-1;i++){
+        if(elev[i]>=res.wse&&elev[i+1]<res.wse){
+          const t=(res.wse-elev[i])/(elev[i+1]-elev[i]);
+          wLeft=sta[i]+t*(sta[i+1]-sta[i]);
+        }
+        if(elev[i]<res.wse&&elev[i+1]>=res.wse){
+          const t=(res.wse-elev[i])/(elev[i+1]-elev[i]);
+          wRight=sta[i]+t*(sta[i+1]-sta[i]);
+        }
+      }
+      if(wLeft!==null&&wRight!==null){
+        ctx.moveTo(tx(wLeft,xR,W,pad),ty(res.wse,yR,H,pad));
+        ctx.lineTo(tx(wRight,xR,W,pad),ty(res.wse,yR,H,pad));
+      }else{
+        ctx.moveTo(tx(sta[0],xR,W,pad),ty(res.wse,yR,H,pad));
+        ctx.lineTo(tx(sta[sta.length-1],xR,W,pad),ty(res.wse,yR,H,pad));
+      }
+      ctx.stroke();
+
+      // EGL line
+      if(res.egl>res.wse){
+        ctx.setLineDash([8,4]);ctx.strokeStyle=COLORS.egl;ctx.lineWidth=1.5;
+        const eglY=ty(res.egl,yR,H,pad);
+        ctx.beginPath();ctx.moveTo(pad,eglY);ctx.lineTo(W-pad,eglY);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Labels
+      ctx.font='bold 11px "JetBrains Mono"';ctx.textAlign='left';
+      ctx.fillStyle=COLORS.waterLine;
+      ctx.fillText(`WSE ${res.wse.toFixed(2)} ft`,pad+8,ty(res.wse,yR,H,pad)-6);
+      ctx.fillStyle=COLORS.egl;
+      if(res.egl>res.wse)
+        ctx.fillText(`EGL ${res.egl.toFixed(2)} ft`,pad+8,ty(res.egl,yR,H,pad)-6);
+      ctx.fillStyle=res.Fr>=1?COLORS.amber:COLORS.text;
+      ctx.textAlign='right';
+      ctx.fillText(`Fr = ${res.Fr.toFixed(3)}`,W-pad-8,pad+16);
+      ctx.fillStyle=COLORS.text;
+      ctx.fillText(`V = ${res.v.toFixed(2)} ft/s`,W-pad-8,pad+30);
+    }
+
+    // Ground line
+    ctx.strokeStyle=COLORS.ground;ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<sta.length;i++){
+      const cx=tx(sta[i],xR,W,pad),cy=ty(elev[i],yR,H,pad);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    }
+    ctx.stroke();
+    // Ground fill
+    ctx.fillStyle='rgba(168,162,158,0.12)';
+    ctx.beginPath();ctx.moveTo(tx(sta[0],xR,W,pad),ty(elev[0],yR,H,pad));
+    for(let i=1;i<sta.length;i++)ctx.lineTo(tx(sta[i],xR,W,pad),ty(elev[i],yR,H,pad));
+    ctx.lineTo(tx(sta[sta.length-1],xR,W,pad),H-pad);
+    ctx.lineTo(tx(sta[0],xR,W,pad),H-pad);ctx.closePath();ctx.fill();
+
+    // Ground points
+    ctx.fillStyle=COLORS.ground;
+    for(let i=0;i<sta.length;i++){
+      const cx=tx(sta[i],xR,W,pad),cy=ty(elev[i],yR,H,pad);
+      ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fill();
+    }
+
+    // Title
+    ctx.fillStyle=COLORS.text;ctx.font='bold 13px "IBM Plex Sans"';ctx.textAlign='left';
+    ctx.fillText(`Cross-Section — River Station ${xs.river_station}`,pad+4,18);
+
+    // Hover tooltip
+    if(hover){
+      const{x,y}=hover;
+      const dataX=xR.lo+(x-pad)/(W-2*pad)*(xR.hi-xR.lo);
+      const dataY=yR.hi-(y-pad)/(H-2*pad)*(yR.hi-yR.lo);
+      ctx.fillStyle='rgba(30,41,59,0.9)';ctx.fillRect(x+10,y-30,140,24);
+      ctx.strokeStyle=COLORS.border;ctx.strokeRect(x+10,y-30,140,24);
+      ctx.fillStyle=COLORS.text;ctx.font='10px "JetBrains Mono"';ctx.textAlign='left';
+      ctx.fillText(`Sta: ${dataX.toFixed(1)}  El: ${dataY.toFixed(2)}`,x+16,y-14);
+    }
+
+    // Bank station labels
+    ctx.font='9px "JetBrains Mono"';ctx.fillStyle=COLORS.lob;ctx.textAlign='center';
+    ctx.fillText('LOB',tx(lb,xR,W,pad),pad-4);
+    ctx.fillStyle=COLORS.rob;
+    ctx.fillText('ROB',tx(rb,xR,W,pad),pad-4);
+  },[xs,results,activeProfile,width,height,hover]);
+
+  const onMove=useCallback(e=>{
+    const r=ref.current.getBoundingClientRect();
+    setHover({x:e.clientX-r.left,y:e.clientY-r.top});
+  },[]);
+  const onLeave=useCallback(()=>setHover(null),[]);
+
+  return <canvas ref={ref} onMouseMove={onMove} onMouseLeave={onLeave}
+    style={{width,height,cursor:'crosshair'}}/>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROFILE CANVAS COMPONENT
+// ═══════════════════════════════════════════════════════════════
+function ProfileCanvas({xsList,results,width,height}){
+  const ref=useRef(null);
+  const[hover,setHover]=useState(null);
+
+  useEffect(()=>{
+    const c=ref.current;if(!c)return;
+    const ctx=c.getContext('2d');
+    const W=width,H=height,pad=55;
+    c.width=W*devicePixelRatio;c.height=H*devicePixelRatio;
+    c.style.width=W+'px';c.style.height=H+'px';
+    ctx.scale(devicePixelRatio,devicePixelRatio);
+    ctx.fillStyle=COLORS.bg;ctx.fillRect(0,0,W,H);
+    if(!xsList||xsList.length<2)return;
+
+    const stations=xsList.map(x=>x.river_station);
+    const minElevs=xsList.map(x=>Math.min(...x.elevations));
+    const maxElevs=xsList.map(x=>Math.max(...x.elevations));
+
+    let yMin=Math.min(...minElevs)-3,yMax=Math.max(...maxElevs)+5;
+    if(results&&results.length>0){
+      results.forEach(pr=>{
+        pr.results.forEach(r=>{if(r){yMax=Math.max(yMax,r.wse+3,r.egl+2);}});
+      });
+    }
+
+    // X axis: station, reversed (upstream on right)
+    const xMin=Math.min(...stations)-200,xMax=Math.max(...stations)+200;
+    const xR=niceRange(xMin,xMax,8);
+    const yR=niceRange(yMin,yMax,6);
+    drawEngGrid(ctx,W,H,pad,xR,yR);
+
+    ctx.fillStyle=COLORS.muted;ctx.font='11px "IBM Plex Sans"';ctx.textAlign='center';
+    ctx.fillText('River Station (ft)',W/2,H-4);
+    ctx.save();ctx.translate(12,H/2);ctx.rotate(-Math.PI/2);ctx.fillText('Elevation (ft)',0,0);ctx.restore();
+
+    // Thalweg (min channel elevation)
+    ctx.fillStyle='rgba(168,162,158,0.1)';
+    ctx.beginPath();
+    const sorted=[...xsList].sort((a,b)=>a.river_station-b.river_station);
+    sorted.forEach((xs,i)=>{
+      const cx=tx(xs.river_station,xR,W,pad),cy=ty(Math.min(...xs.elevations),yR,H,pad);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    });
+    ctx.lineTo(tx(sorted[sorted.length-1].river_station,xR,W,pad),H-pad);
+    ctx.lineTo(tx(sorted[0].river_station,xR,W,pad),H-pad);ctx.closePath();ctx.fill();
+
+    // Channel bed line
+    ctx.strokeStyle=COLORS.ground;ctx.lineWidth=2;
+    ctx.beginPath();
+    sorted.forEach((xs,i)=>{
+      const cx=tx(xs.river_station,xR,W,pad),cy=ty(Math.min(...xs.elevations),yR,H,pad);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    });
+    ctx.stroke();
+
+    // Max ground (top of banks)
+    ctx.strokeStyle='rgba(168,162,158,0.4)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    sorted.forEach((xs,i)=>{
+      const cx=tx(xs.river_station,xR,W,pad),cy=ty(Math.max(...xs.elevations),yR,H,pad);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    });
+    ctx.stroke();ctx.setLineDash([]);
+
+    // Profile results
+    if(results&&results.length>0){
+      results.forEach((pr,pi)=>{
+        const color=COLORS.profiles[pi%COLORS.profiles.length];
+        const pts=pr.results.filter(Boolean).sort((a,b)=>a.sta-b.sta);
+        if(pts.length<2)return;
+
+        // WSE line
+        ctx.strokeStyle=color;ctx.lineWidth=2;
+        ctx.beginPath();
+        pts.forEach((r,i)=>{
+          const cx=tx(r.sta,xR,W,pad),cy=ty(r.wse,yR,H,pad);
+          i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+        });
+        ctx.stroke();
+
+        // EGL dashed
+        ctx.setLineDash([6,3]);ctx.lineWidth=1;ctx.strokeStyle=color;ctx.globalAlpha=0.5;
+        ctx.beginPath();
+        pts.forEach((r,i)=>{
+          const cx=tx(r.sta,xR,W,pad),cy=ty(r.egl,yR,H,pad);
+          i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+        });
+        ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+
+        // Critical WSE
+        ctx.setLineDash([3,3]);ctx.strokeStyle=COLORS.critical;ctx.lineWidth=1;ctx.globalAlpha=0.4;
+        ctx.beginPath();
+        pts.forEach((r,i)=>{
+          const cx=tx(r.sta,xR,W,pad),cy=ty(r.critWse,yR,H,pad);
+          i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+        });
+        ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+
+        // Station points
+        pts.forEach(r=>{
+          ctx.fillStyle=r.Fr>=1?COLORS.amber:color;
+          const cx=tx(r.sta,xR,W,pad),cy=ty(r.wse,yR,H,pad);
+          ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fill();
+        });
+      });
+
+      // Legend
+      const lx=pad+10,ly=pad+10;
+      ctx.fillStyle='rgba(15,23,42,0.85)';
+      ctx.fillRect(lx,ly,160,16+results.length*16);
+      ctx.strokeStyle=COLORS.border;ctx.strokeRect(lx,ly,160,16+results.length*16);
+      ctx.font='10px "JetBrains Mono"';
+      results.forEach((pr,pi)=>{
+        const color=COLORS.profiles[pi%COLORS.profiles.length];
+        const y2=ly+12+pi*16;
+        ctx.strokeStyle=color;ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(lx+8,y2);ctx.lineTo(lx+28,y2);ctx.stroke();
+        ctx.fillStyle=COLORS.text;ctx.textAlign='left';
+        ctx.fillText(`${pr.profileName} (${pr.Q.toLocaleString()} cfs)`,lx+34,y2+3);
+      });
+
+      ctx.font='9px "JetBrains Mono"';ctx.fillStyle=COLORS.critical;ctx.textAlign='left';
+      const cy2=ly+12+results.length*16;
+      ctx.setLineDash([3,3]);ctx.strokeStyle=COLORS.critical;ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(lx+8,cy2);ctx.lineTo(lx+28,cy2);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillText('Critical WSE',lx+34,cy2+3);
+    }
+
+    // Title
+    ctx.fillStyle=COLORS.text;ctx.font='bold 13px "IBM Plex Sans"';ctx.textAlign='left';
+    ctx.fillText('Water Surface Profile',pad+4,18);
+
+    if(hover){
+      const{x,y}=hover;
+      const dataX=xR.lo+(x-pad)/(W-2*pad)*(xR.hi-xR.lo);
+      const dataY=yR.hi-(y-pad)/(H-2*pad)*(yR.hi-yR.lo);
+      ctx.fillStyle='rgba(30,41,59,0.9)';ctx.fillRect(x+10,y-30,150,24);
+      ctx.strokeStyle=COLORS.border;ctx.strokeRect(x+10,y-30,150,24);
+      ctx.fillStyle=COLORS.text;ctx.font='10px "JetBrains Mono"';ctx.textAlign='left';
+      ctx.fillText(`Sta: ${dataX.toFixed(0)}  El: ${dataY.toFixed(2)}`,x+16,y-14);
+    }
+  },[xsList,results,width,height,hover]);
+
+  const onMove=useCallback(e=>{
+    const r=ref.current.getBoundingClientRect();
+    setHover({x:e.clientX-r.left,y:e.clientY-r.top});
+  },[]);
+
+  return <canvas ref={ref} onMouseMove={onMove} onMouseLeave={()=>setHover(null)}
+    style={{width,height,cursor:'crosshair'}}/>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════════════
+function Sidebar({state,dispatch}){
+  const{project:p,activeReach:ar,activeXS:ax}=state;
+  const reach=p.reaches[ar];
+  return(
+    <div className="flex flex-col h-full">
+      <div className="p-3 border-b border-slate-700">
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span className="font-bold text-sm text-sky-400">HEC-RAS Open</span>
+        </div>
+        <input className="w-full text-xs" value={p.name}
+          onChange={e=>dispatch({type:'RENAME_PROJECT',name:e.target.value})}/>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 text-xs">
+        <div className="text-slate-400 font-semibold mb-1 uppercase tracking-wider" style={{fontSize:10}}>Reaches</div>
+        {p.reaches.map((r,ri)=>(
+          <div key={ri}>
+            <div className={`px-2 py-1 rounded cursor-pointer flex items-center gap-1 ${ri===ar?'bg-sky-900/40 text-sky-300':'hover:bg-slate-800'}`}
+              onClick={()=>dispatch({type:'SET_REACH',i:ri})}>
+              <span>🌊</span><span className="font-medium">{r.name}</span>
+              <span className="ml-auto text-slate-500">{r.xsections.length} XS</span>
+            </div>
+            {ri===ar&&(
+              <div className="ml-4 mt-1">
+                <div className="text-slate-500 mb-1">Cross-Sections:</div>
+                {r.xsections.map((xs,xi)=>(
+                  <div key={xi} className={`px-2 py-0.5 rounded cursor-pointer mono ${xi===ax?'bg-slate-700 text-sky-300':'hover:bg-slate-800 text-slate-400'}`}
+                    onClick={()=>{dispatch({type:'SET_XS',i:xi});dispatch({type:'SET_VIEW',v:'xs'});}}>
+                    RS {xs.river_station}
+                  </div>
+                ))}
+                <div className="flex gap-1 mt-1">
+                  <button className="btn btn-ghost text-[10px] py-0.5 px-2" onClick={()=>dispatch({type:'ADD_XS'})}>+ Add</button>
+                  <button className="btn btn-ghost text-[10px] py-0.5 px-2 text-red-400"
+                    onClick={()=>dispatch({type:'DEL_XS'})}
+                    disabled={reach.xsections.length<=2}>- Del</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <div className="text-slate-400 font-semibold mt-3 mb-1 uppercase tracking-wider" style={{fontSize:10}}>Flow Profiles</div>
+        {p.flowData.profiles.map((pr,pi)=>(
+          <div key={pi} className={`px-2 py-0.5 rounded cursor-pointer ${pi===state.activeProfile?'bg-slate-700 text-sky-300':'hover:bg-slate-800 text-slate-400'}`}
+            onClick={()=>dispatch({type:'SET_PROFILE',i:pi})}>
+            <span className="inline-block w-2 h-2 rounded-full mr-1" style={{background:COLORS.profiles[pi%COLORS.profiles.length]}}/>
+            {pr.name}
+          </div>
+        ))}
+      </div>
+      <div className="p-2 border-t border-slate-700 flex flex-col gap-1">
+        <button className="btn btn-primary w-full text-xs" onClick={()=>dispatch({type:'COMPUTE'})}>
+          ▶ Compute
+        </button>
+        <div className="flex gap-1">
+          <button className="btn btn-ghost flex-1 text-[10px]" onClick={()=>{
+            const j=JSON.stringify(state.project,null,2);
+            const b=new Blob([j],{type:'application/json'});
+            const u=URL.createObjectURL(b);const a=document.createElement('a');
+            a.href=u;a.download=(state.project.name||'project')+'.json';a.click();URL.revokeObjectURL(u);
+          }}>💾 Save</button>
+          <button className="btn btn-ghost flex-1 text-[10px]" onClick={()=>{
+            const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+            inp.onchange=e=>{const f=e.target.files[0];if(!f)return;
+              const rd=new FileReader();rd.onload=ev=>{
+                try{const p=JSON.parse(ev.target.result);dispatch({type:'SET_PROJECT',project:p});}
+                catch(err){alert('Invalid project file');}
+              };rd.readAsText(f);
+            };inp.click();
+          }}>📂 Load</button>
+        </div>
+        <div className="flex gap-1">
+          <button className="btn btn-ghost flex-1 text-[10px]" title="Undo (Ctrl+Z)"
+            onClick={()=>dispatch({type:'UNDO'})} disabled={state.undoStack.length===0}>↩ Undo</button>
+          <button className="btn btn-ghost flex-1 text-[10px]" title="Redo (Ctrl+Y)"
+            onClick={()=>dispatch({type:'REDO'})} disabled={state.redoStack.length===0}>↪ Redo</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GEOMETRY EDITOR
+// ═══════════════════════════════════════════════════════════════
+function GeomEditor({xs,dispatch,state}){
+  if(!xs)return null;
+  const upd=(k,v)=>dispatch({type:'UPDATE_XS',data:{[k]:v}});
+  const updPt=(i,field,val)=>{
+    const arr=[...(field==='stations'?xs.stations:xs.elevations)];
+    arr[i]=parseFloat(val)||0;
+    upd(field,arr);
+  };
+  const addPt=()=>{
+    const s=[...xs.stations,xs.stations[xs.stations.length-1]+10];
+    const e=[...xs.elevations,xs.elevations[xs.elevations.length-1]];
+    dispatch({type:'UPDATE_XS',data:{stations:s,elevations:e}});
+  };
+  const delPt=i=>{
+    if(xs.stations.length<=3)return;
+    const s=xs.stations.filter((_,j)=>j!==i);
+    const e=xs.elevations.filter((_,j)=>j!==i);
+    dispatch({type:'UPDATE_XS',data:{stations:s,elevations:e}});
+  };
+  return(
+    <div className="text-xs">
+      <div className="flex items-center gap-2 mb-2">
+        <label className="text-slate-400">River Station:</label>
+        <input type="number" className="w-24" value={xs.river_station}
+          onChange={e=>upd('river_station',parseFloat(e.target.value)||0)}/>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <div><label className="text-slate-400 block">n (LOB)</label>
+          <input type="number" step="0.001" className="w-full" value={xs.manningN[0]}
+            onChange={e=>{const n=[...xs.manningN];n[0]=parseFloat(e.target.value)||0.06;upd('manningN',n);}}/></div>
+        <div><label className="text-slate-400 block">n (Chan)</label>
+          <input type="number" step="0.001" className="w-full" value={xs.manningN[1]}
+            onChange={e=>{const n=[...xs.manningN];n[1]=parseFloat(e.target.value)||0.035;upd('manningN',n);}}/></div>
+        <div><label className="text-slate-400 block">n (ROB)</label>
+          <input type="number" step="0.001" className="w-full" value={xs.manningN[2]}
+            onChange={e=>{const n=[...xs.manningN];n[2]=parseFloat(e.target.value)||0.06;upd('manningN',n);}}/></div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <div><label className="text-slate-400 block">Left Bank Sta</label>
+          <input type="number" className="w-full" value={xs.bankStations[0]}
+            onChange={e=>{const b=[...xs.bankStations];b[0]=parseFloat(e.target.value)||0;upd('bankStations',b);}}/></div>
+        <div><label className="text-slate-400 block">Right Bank Sta</label>
+          <input type="number" className="w-full" value={xs.bankStations[1]}
+            onChange={e=>{const b=[...xs.bankStations];b[1]=parseFloat(e.target.value)||0;upd('bankStations',b);}}/></div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <div><label className="text-slate-400 block">Len LOB</label>
+          <input type="number" className="w-full" value={(xs.reachLengths||[500,500,500])[0]}
+            onChange={e=>{const r=[...(xs.reachLengths||[500,500,500])];r[0]=parseFloat(e.target.value)||0;upd('reachLengths',r);}}/></div>
+        <div><label className="text-slate-400 block">Len Chan</label>
+          <input type="number" className="w-full" value={(xs.reachLengths||[500,500,500])[1]}
+            onChange={e=>{const r=[...(xs.reachLengths||[500,500,500])];r[1]=parseFloat(e.target.value)||0;upd('reachLengths',r);}}/></div>
+        <div><label className="text-slate-400 block">Len ROB</label>
+          <input type="number" className="w-full" value={(xs.reachLengths||[500,500,500])[2]}
+            onChange={e=>{const r=[...(xs.reachLengths||[500,500,500])];r[2]=parseFloat(e.target.value)||0;upd('reachLengths',r);}}/></div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div><label className="text-slate-400 block">Contr. Coeff</label>
+          <input type="number" step="0.05" className="w-full" value={xs.contrCoeff||0.1}
+            onChange={e=>upd('contrCoeff',parseFloat(e.target.value)||0.1)}/></div>
+        <div><label className="text-slate-400 block">Expan. Coeff</label>
+          <input type="number" step="0.05" className="w-full" value={xs.expCoeff||0.3}
+            onChange={e=>upd('expCoeff',parseFloat(e.target.value)||0.3)}/></div>
+      </div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-slate-400 font-semibold">Station–Elevation Points</span>
+        <div className="flex gap-1">
+          <button className="btn btn-ghost py-0 px-2 text-[10px]" onClick={()=>{
+            const inp=document.createElement('input');inp.type='file';inp.accept='.csv';
+            inp.onchange=ev=>{const f=ev.target.files[0];if(!f)return;
+              const rd=new FileReader();rd.onload=e2=>{
+                const lines=e2.target.result.trim().split('\n');
+                const s=[],el=[];
+                lines.forEach(l=>{const p=l.split(',').map(Number);if(p.length>=2&&!isNaN(p[0])&&!isNaN(p[1])){s.push(p[0]);el.push(p[1]);}});
+                if(s.length>=3)dispatch({type:'UPDATE_XS',data:{stations:s,elevations:el}});
+              };rd.readAsText(f);
+            };inp.click();
+          }}>CSV Import</button>
+          <button className="btn btn-ghost py-0 px-2 text-[10px]" onClick={addPt}>+ Point</button>
+        </div>
+      </div>
+      <div className="max-h-64 overflow-y-auto border border-slate-700 rounded">
+        <table className="data">
+          <thead><tr><th>#</th><th>Station (ft)</th><th>Elevation (ft)</th><th></th></tr></thead>
+          <tbody>
+            {xs.stations.map((s,i)=>(
+              <tr key={i}>
+                <td className="text-slate-500">{i+1}</td>
+                <td><input type="number" className="w-full border-0 bg-transparent text-right p-0"
+                  value={s} onChange={e=>updPt(i,'stations',e.target.value)}/></td>
+                <td><input type="number" className="w-full border-0 bg-transparent text-right p-0"
+                  value={xs.elevations[i]} onChange={e=>updPt(i,'elevations',e.target.value)}/></td>
+                <td><button className="text-red-400 hover:text-red-300 px-1" onClick={()=>delPt(i)}
+                  disabled={xs.stations.length<=3}>×</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FLOW DATA EDITOR
+// ═══════════════════════════════════════════════════════════════
+function FlowEditor({state,dispatch}){
+  const{project:p}=state;
+  return(
+    <div className="text-xs">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-slate-400 font-semibold">Flow Profiles</span>
+        <button className="btn btn-ghost py-0 px-2 text-[10px]" onClick={()=>dispatch({type:'ADD_PROFILE'})}>+ Profile</button>
+      </div>
+      {p.flowData.profiles.map((pr,pi)=>(
+        <div key={pi} className="mb-3 p-2 border border-slate-700 rounded">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full" style={{background:COLORS.profiles[pi%COLORS.profiles.length]}}/>
+            <input className="flex-1" value={pr.name} onChange={e=>dispatch({type:'RENAME_PROFILE',pi,name:e.target.value})}/>
+            {p.flowData.profiles.length>1&&(
+              <button className="text-red-400 hover:text-red-300 text-xs" onClick={()=>dispatch({type:'DEL_PROFILE',pi})}>×</button>
+            )}
+          </div>
+          {p.reaches.map((r,ri)=>(
+            <div key={ri} className="flex items-center gap-2 mt-1">
+              <span className="text-slate-400 w-24 truncate">{r.name}:</span>
+              <input type="number" className="flex-1" value={pr.flows[r.name]||0}
+                onChange={e=>dispatch({type:'UPDATE_FLOW',pi,reach:r.name,Q:parseFloat(e.target.value)||0})}/>
+              <span className="text-slate-500">cfs</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOUNDARY CONDITIONS EDITOR
+// ═══════════════════════════════════════════════════════════════
+function BCEditor({state,dispatch}){
+  const{project:p}=state;
+  const bcTypes=['Normal Depth','Critical Depth','Known WSE'];
+  return(
+    <div className="text-xs">
+      <div className="text-slate-400 font-semibold mb-2">Boundary Conditions</div>
+      <p className="text-slate-500 mb-2 text-[10px]">Subcritical flow: downstream BC is the starting condition.</p>
+      {p.reaches.map((r,ri)=>{
+        const bc=p.bcData[r.name]||{upstream:{type:'(computed)'},downstream:{type:'Normal Depth',slope:0.001}};
+        return(
+          <div key={ri} className="mb-3 p-2 border border-slate-700 rounded">
+            <div className="font-medium text-sky-300 mb-2">{r.name}</div>
+            <div className="mb-2">
+              <div className="text-slate-400 mb-1">Downstream (Starting BC):</div>
+              <select className="w-full mb-1" value={bc.downstream?.type||'Normal Depth'}
+                onChange={e=>dispatch({type:'UPDATE_BC',reach:r.name,end:'downstream',data:{type:e.target.value}})}>
+                {bcTypes.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              {bc.downstream?.type==='Normal Depth'&&(
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-slate-400">Slope:</span>
+                  <input type="number" step="0.0001" className="flex-1" value={bc.downstream.slope||0.001}
+                    onChange={e=>dispatch({type:'UPDATE_BC',reach:r.name,end:'downstream',data:{slope:parseFloat(e.target.value)||0.001}})}/>
+                </div>
+              )}
+              {bc.downstream?.type==='Known WSE'&&(
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-slate-400">WSE (ft):</span>
+                  <input type="number" className="flex-1" value={bc.downstream.wse||0}
+                    onChange={e=>dispatch({type:'UPDATE_BC',reach:r.name,end:'downstream',data:{wse:parseFloat(e.target.value)||0}})}/>
+                </div>
+              )}
+            </div>
+            <div className="text-slate-500 text-[10px]">Upstream: computed by standard step</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RESULTS TABLE
+// ═══════════════════════════════════════════════════════════════
+function ResultsTable({results,activeProfile,dispatch}){
+  if(!results||results.length===0)return(
+    <div className="text-center text-slate-500 py-8 text-xs">
+      No results. Click <b>▶ Compute</b> to run analysis.
+    </div>
+  );
+  const pr=results[activeProfile]||results[0];
+  if(!pr)return null;
+  const rows=pr.results.filter(Boolean).sort((a,b)=>b.sta-a.sta);
+
+  const exportCSV=()=>{
+    const hdr='Station,WSE,EGL,CritWSE,Velocity,VelChan,Area,AreaChan,TopWidth,WetPerim,HydDepth,HydRad,Conveyance,Froude,Alpha,FrictionSlope,ShearStress,StreamPower,Converged,Iterations';
+    const lines=rows.map(r=>
+      [r.sta,r.wse.toFixed(3),r.egl.toFixed(3),r.critWse.toFixed(3),r.v.toFixed(3),r.vC.toFixed(3),
+       r.area.toFixed(2),r.aC.toFixed(2),r.T.toFixed(2),r.P.toFixed(2),r.D.toFixed(3),r.R.toFixed(3),
+       r.K.toFixed(1),r.Fr.toFixed(4),r.alpha.toFixed(3),r.Sf.toExponential(4),
+       r.tau.toFixed(3),r.omega.toFixed(3),r.ok?'Y':'N',r.iter].join(',')
+    );
+    const csv=hdr+'\n'+lines.join('\n');
+    const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);
+    const a=document.createElement('a');a.href=u;a.download=`results_${pr.profileName}.csv`;a.click();URL.revokeObjectURL(u);
+  };
+
+  return(
+    <div className="text-xs">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 font-semibold">Results:</span>
+          <select className="text-xs" value={activeProfile} onChange={e=>dispatch({type:'SET_PROFILE',i:parseInt(e.target.value)})}>
+            {results.map((r,i)=><option key={i} value={i}>{r.profileName} ({r.Q.toLocaleString()} cfs)</option>)}
+          </select>
+        </div>
+        <button className="btn btn-ghost py-0 px-2 text-[10px]" onClick={exportCSV}>📥 CSV</button>
+      </div>
+      <div className="overflow-auto border border-slate-700 rounded" style={{maxHeight:'calc(100vh - 220px)'}}>
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Station</th><th>WSE (ft)</th><th>EGL (ft)</th><th>Crit WSE</th>
+              <th>Vel (ft/s)</th><th>V Chan</th><th>Area (ft²)</th><th>A Chan</th>
+              <th>Top W (ft)</th><th>Hyd D (ft)</th><th>Hyd R (ft)</th><th>Conv</th>
+              <th>Froude</th><th>α</th><th>Sf</th><th>τ (lb/ft²)</th><th>Ω</th>
+              <th>OK</th><th>Iter</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r,i)=>(
+              <tr key={i} className={!r.ok?'err-row':r.Fr>=1?'warn-row':''}>
+                <td className="font-medium text-sky-300 cursor-pointer hover:underline"
+                  onClick={()=>{
+                    const reach=results[0]?.results;
+                    if(reach){
+                      // Find XS index by station
+                      dispatch({type:'SET_VIEW',v:'xs'});
+                      // Find matching XS
+                    }
+                  }}>{r.sta}</td>
+                <td>{r.wse.toFixed(2)}</td><td>{r.egl.toFixed(2)}</td><td>{r.critWse.toFixed(2)}</td>
+                <td>{r.v.toFixed(2)}</td><td>{r.vC.toFixed(2)}</td>
+                <td>{r.area.toFixed(1)}</td><td>{r.aC.toFixed(1)}</td>
+                <td>{r.T.toFixed(1)}</td><td>{r.D.toFixed(2)}</td><td>{r.R.toFixed(2)}</td>
+                <td>{r.K.toFixed(0)}</td>
+                <td className={r.Fr>=1?'text-amber-400 font-bold':''}>{r.Fr.toFixed(3)}</td>
+                <td>{r.alpha.toFixed(2)}</td><td>{r.Sf.toExponential(3)}</td>
+                <td>{r.tau.toFixed(2)}</td><td>{r.omega.toFixed(1)}</td>
+                <td className={r.ok?'text-green-400':'text-red-400'}>{r.ok?'✓':'✗'}</td>
+                <td>{r.iter}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MANNING'S N LOOKUP
+// ═══════════════════════════════════════════════════════════════
+function ManningsLookup({onSelect,onClose}){
+  const[search,setSearch]=useState('');
+  const filtered=MANNINGS_N.map(g=>({
+    ...g,items:g.items.filter(it=>it.d.toLowerCase().includes(search.toLowerCase()))
+  })).filter(g=>g.items.length>0);
+  return(
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-600 w-[500px] max-h-[70vh] flex flex-col"
+        onClick={e=>e.stopPropagation()}>
+        <div className="p-3 border-b border-slate-700 flex items-center justify-between">
+          <span className="font-bold text-sm">Manning's n Reference (Chow 1959)</span>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <div className="p-2">
+          <input className="w-full" placeholder="Search description..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 text-xs">
+          {filtered.map((g,gi)=>(
+            <div key={gi} className="mb-3">
+              <div className="text-sky-400 font-semibold mb-1">{g.cat}</div>
+              <table className="data">
+                <thead><tr><th className="text-left">Description</th><th>Min</th><th>Typical</th><th>Max</th><th></th></tr></thead>
+                <tbody>
+                  {g.items.map((it,ii)=>(
+                    <tr key={ii} className="cursor-pointer hover:bg-sky-900/30" onClick={()=>onSelect(it.n[1])}>
+                      <td className="text-left text-slate-300">{it.d}</td>
+                      <td>{it.n[0].toFixed(3)}</td><td className="font-bold text-sky-300">{it.n[1].toFixed(3)}</td>
+                      <td>{it.n[2].toFixed(3)}</td>
+                      <td className="text-sky-400">Select</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WARNING PANEL
+// ═══════════════════════════════════════════════════════════════
+function WarningPanel({warnings,show,onToggle}){
+  if(!show)return null;
+  return(
+    <div className="border-t border-slate-700 bg-slate-900 max-h-48 overflow-y-auto text-xs">
+      <div className="flex items-center justify-between px-3 py-1 bg-slate-800 sticky top-0">
+        <span className="font-semibold text-amber-400">⚠ Warnings & Errors ({warnings.length})</span>
+        <button onClick={onToggle} className="text-slate-400 hover:text-white text-xs">✕</button>
+      </div>
+      <div className="p-2">
+        {warnings.length===0?<div className="text-slate-500">No warnings.</div>:
+          warnings.map((w,i)=>(
+            <div key={i} className="py-0.5 px-2 text-amber-300/80 mono">{w}</div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════
+function App(){
+  const[state,dispatch]=useReducer(reducer,INIT);
+  const centerRef=useRef(null);
+  const[dims,setDims]=useState({w:800,h:500});
+
+  useEffect(()=>{
+    const obs=new ResizeObserver(entries=>{
+      for(const e of entries){
+        setDims({w:Math.floor(e.contentRect.width),h:Math.floor(e.contentRect.height)});
+      }
+    });
+    if(centerRef.current)obs.observe(centerRef.current);
+    return()=>obs.disconnect();
+  },[]);
+
+  // Keyboard shortcuts
+  useEffect(()=>{
+    const handler=e=>{
+      if(e.ctrlKey&&e.key==='z'){e.preventDefault();dispatch({type:'UNDO'});}
+      if(e.ctrlKey&&e.key==='y'){e.preventDefault();dispatch({type:'REDO'});}
+      if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();dispatch({type:'COMPUTE'});}
+    };
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[]);
+
+  const{project:p,activeReach:ar,activeXS:ax,activeProfile:ap,view,rightTab,results,warnings}=state;
+  const reach=p.reaches[ar];
+  const xs=reach?.xsections[ax];
+
+  const tabs=[
+    {id:'geometry',label:'Geometry'},
+    {id:'flow',label:'Flow Data'},
+    {id:'bc',label:'Boundary'},
+    {id:'results',label:'Results'},
+  ];
+
+  const viewTabs=[
+    {id:'xs',label:'Cross-Section'},
+    {id:'profile',label:'Profile'},
+    {id:'split',label:'Split View'},
+  ];
+
+  return(
+    <div className="flex flex-col h-screen">
+      {/* Main layout */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left sidebar */}
+        <div className="w-56 border-r border-slate-700 flex-shrink-0 bg-slate-900/50 flex flex-col min-h-0">
+          <Sidebar state={state} dispatch={dispatch}/>
+        </div>
+
+        {/* Center canvas */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {/* View tabs + toolbar */}
+          <div className="flex items-center border-b border-slate-700 px-2 bg-slate-900/80">
+            {viewTabs.map(t=>(
+              <button key={t.id} className={`tab ${view===t.id?'active':''}`}
+                onClick={()=>dispatch({type:'SET_VIEW',v:t.id})}>{t.label}</button>
+            ))}
+            <div className="ml-auto flex items-center gap-2 text-xs text-slate-400">
+              <span className="mono">{reach?.name}</span>
+              <span>|</span>
+              <span className="mono">RS {xs?.river_station}</span>
+              <span>|</span>
+              <span className="mono">{p.flowData.profiles[ap]?.name}</span>
+            </div>
+          </div>
+
+          <div ref={centerRef} className="flex-1 min-h-0 bg-slate-950 overflow-hidden">
+            {view==='xs'&&xs&&(
+              <XSCanvas xs={xs} results={results} activeProfile={ap} width={dims.w} height={dims.h}/>
+            )}
+            {view==='profile'&&reach&&(
+              <ProfileCanvas xsList={reach.xsections} results={results} width={dims.w} height={dims.h}/>
+            )}
+            {view==='split'&&xs&&reach&&(
+              <div className="flex flex-col h-full">
+                <div style={{height:dims.h/2}} className="border-b border-slate-700">
+                  <XSCanvas xs={xs} results={results} activeProfile={ap} width={dims.w} height={Math.floor(dims.h/2)}/>
+                </div>
+                <div style={{height:dims.h/2}}>
+                  <ProfileCanvas xsList={reach.xsections} results={results} width={dims.w} height={Math.floor(dims.h/2)}/>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div className="w-96 border-l border-slate-700 flex-shrink-0 flex flex-col min-h-0 bg-slate-900/50">
+          <div className="flex border-b border-slate-700">
+            {tabs.map(t=>(
+              <button key={t.id} className={`tab ${rightTab===t.id?'active':''}`}
+                onClick={()=>dispatch({type:'SET_TAB',t:t.id})}>{t.label}</button>
+            ))}
+            <button className="tab" onClick={()=>dispatch({type:'TOGGLE_MANNINGS'})}
+              title="Manning's n Lookup">📖</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 min-h-0">
+            {rightTab==='geometry'&&<GeomEditor xs={xs} dispatch={dispatch} state={state}/>}
+            {rightTab==='flow'&&<FlowEditor state={state} dispatch={dispatch}/>}
+            {rightTab==='bc'&&<BCEditor state={state} dispatch={dispatch}/>}
+            {rightTab==='results'&&<ResultsTable results={results} activeProfile={ap} dispatch={dispatch}/>}
+          </div>
+        </div>
+      </div>
+
+      {/* Warnings panel */}
+      <WarningPanel warnings={warnings} show={state.showWarnings} onToggle={()=>dispatch({type:'TOGGLE_WARNINGS'})}/>
+
+      {/* Status bar */}
+      <div className="h-7 border-t border-slate-700 bg-slate-900 flex items-center px-3 text-[11px] mono gap-4 flex-shrink-0">
+        <span className="text-sky-400 font-semibold">HEC-RAS Open v1.0</span>
+        <span className="text-slate-500">|</span>
+        <span className="text-slate-400">Reach: <span className="text-slate-200">{reach?.name}</span></span>
+        <span className="text-slate-400">Station: <span className="text-slate-200">{xs?.river_station}</span></span>
+        {results&&results[ap]&&(()=>{
+          const r=results[ap].results.find(r=>r&&r.sta===xs?.river_station);
+          if(!r)return null;
+          return(<>
+            <span className="text-slate-400">WSE: <span className="text-sky-300">{r.wse.toFixed(2)} ft</span></span>
+            <span className="text-slate-400">Froude: <span className={r.Fr>=1?'text-amber-400 font-bold':'text-slate-200'}>{r.Fr.toFixed(3)}</span></span>
+            <span className="text-slate-400">Regime: <span className={r.Fr>=1?'text-amber-400':'text-green-400'}>{r.Fr>=1?'Supercritical':'Subcritical'}</span></span>
+          </>);
+        })()}
+        <div className="ml-auto flex items-center gap-2">
+          {warnings.length>0&&(
+            <button className="text-amber-400 hover:text-amber-300 flex items-center gap-1"
+              onClick={()=>dispatch({type:'TOGGLE_WARNINGS'})}>
+              ⚠ {warnings.length} warning{warnings.length>1?'s':''}
+            </button>
+          )}
+          {results&&<span className="text-green-400">✓ Computed</span>}
+          <span className="text-slate-500">Ctrl+Enter: Compute | Ctrl+Z/Y: Undo/Redo</span>
+        </div>
+      </div>
+
+      {/* Manning's n lookup modal */}
+      {state.showMannings&&(
+        <ManningsLookup
+          onSelect={n=>{
+            // Apply to current XS channel Manning's n
+            if(xs){
+              const mn=[...xs.manningN];mn[1]=n;
+              dispatch({type:'UPDATE_XS',data:{manningN:mn}});
+            }
+            dispatch({type:'TOGGLE_MANNINGS'});
+          }}
+          onClose={()=>dispatch({type:'TOGGLE_MANNINGS'})}
+        />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
