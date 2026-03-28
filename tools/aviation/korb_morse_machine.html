@@ -338,7 +338,7 @@ footer { background: var(--panel); border-top: 1px solid var(--border); padding:
     <div class="stitle">Input Mode [Ctrl+T]</div>
     <div class="mode-tabs">
       <div class="mtab active" id="mt-key" onclick="setMode('key')">Telegraph Key</div>
-      <div class="mtab"        id="mt-kbd" onclick="setMode('kbd')">Keyboard Live</div>
+      <div class="mtab"        id="mt-kbd" onclick="setMode('kbd')">Keyboard Compose</div>
     </div>
   </div>
 
@@ -377,10 +377,10 @@ footer { background: var(--panel); border-top: 1px solid var(--border); padding:
     </div>
   </div>
 
-  <!-- Batch transmit -->
+  <!-- Compose & Transmit -->
   <div class="sec">
-    <div class="stitle">Batch Transmit</div>
-    <textarea id="batch-txt" rows="3" placeholder="Type or paste message to transmit…"></textarea>
+    <div class="stitle">Compose Message</div>
+    <textarea id="batch-txt" rows="3" placeholder="Type full message here, then press TRANSMIT…"></textarea>
     <div class="meta"><span id="b-chars">0 chars</span><span id="b-time">~0.0s</span></div>
     <div id="tx-status"><span id="tx-txt">STANDBY</span></div>
     <div class="btn-row">
@@ -388,6 +388,7 @@ footer { background: var(--panel); border-top: 1px solid var(--border); padding:
       <button class="btn" onclick="stopTx()">STOP</button>
       <button class="btn red" onclick="clearBatch()">CLEAR</button>
     </div>
+    <div style="font-size:9px;color:var(--dim);margin-top:4px">Type your full message, then press TRANSMIT to play as Morse audio. Encryption applies if enabled.</div>
   </div>
 
   <!-- Shortcuts -->
@@ -401,10 +402,10 @@ footer { background: var(--panel); border-top: 1px solid var(--border); padding:
       <span>Ctrl+R</span><span>Reference chart</span>
       <span>Ctrl+L</span><span>Clear history</span>
       <span>↓ / Space</span><span>Telegraph key (hold=dash)</span>
-      <span>A–Z / 0–9</span><span>Live Morse (kbd mode)</span>
-      <span>Enter</span><span>Commit to history</span>
-      <span>Escape</span><span>Clear queue/buffer</span>
-      <span>Backspace</span><span>Remove last queued char</span>
+      <span>A–Z / 0–9</span><span>Type into compose (kbd mode)</span>
+      <span>Enter</span><span>Transmit composed message</span>
+      <span>Escape</span><span>Stop / clear queue</span>
+      <span>Backspace</span><span>Delete last character</span>
     </div>
   </div>
 
@@ -442,6 +443,21 @@ footer { background: var(--panel); border-top: 1px solid var(--border); padding:
 
 <!-- ======== RIGHT COLUMN ======== -->
 <div class="col" id="right-col">
+
+  <!-- Enigma Workbench -->
+  <div class="sec">
+    <div class="stitle">Enigma Workbench — Manual Encrypt / Decrypt</div>
+    <div style="font-size:9px;color:var(--dim);margin-bottom:4px">Type plaintext below. Each letter is encrypted through the Enigma rotors in real-time. To decrypt, use the same rotor settings and type the ciphertext.</div>
+    <textarea id="enigma-input" rows="2" placeholder="Type plaintext to encrypt…" oninput="enigmaWorkbench()"></textarea>
+    <div style="font-size:8px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-top:4px">Encrypted Output</div>
+    <div id="enigma-output" style="font-family:var(--fh);font-size:14px;letter-spacing:4px;color:var(--green);text-shadow:var(--glow-g);padding:8px;background:#0a0a0a;border:1px solid var(--border);border-radius:var(--r);min-height:32px;word-break:break-all">—</div>
+    <div id="enigma-rotor-state" style="font-family:var(--fh);font-size:9px;letter-spacing:1px;color:var(--cyan);margin-top:2px">Rotors: A A A</div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn" onclick="copyEnigmaOutput()">COPY OUTPUT</button>
+      <button class="btn" onclick="sendToCompose()">SEND TO COMPOSE</button>
+      <button class="btn red" onclick="clearEnigmaWB()">CLEAR</button>
+    </div>
+  </div>
 
   <!-- Enigma engine -->
   <div class="sec">
@@ -1122,6 +1138,47 @@ function setEncrypt(v){
 }
 
 /* ============================================================
+   ENIGMA WORKBENCH
+============================================================ */
+function enigmaWorkbench(){
+  const input=document.getElementById('enigma-input').value.toUpperCase();
+  if(!input){ document.getElementById('enigma-output').textContent='—'; document.getElementById('enigma-rotor-state').textContent='Rotors: A A A'; return; }
+  // Reset rotors to initial position for full re-encryption
+  S.E.resetToInit();
+  let out='';
+  for(const c of input){
+    if(/[A-Z]/.test(c)){
+      out+=S.E.encode(c);
+    } else {
+      out+=c; // spaces/punctuation pass through
+    }
+  }
+  document.getElementById('enigma-output').textContent=out;
+  // Show current rotor positions
+  const alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  document.getElementById('enigma-rotor-state').textContent=
+    `Rotors: ${alpha[S.E.pL]} ${alpha[S.E.pM]} ${alpha[S.E.pR]}`;
+  // Reset for next use
+  S.E.resetToInit();
+}
+function copyEnigmaOutput(){
+  const txt=document.getElementById('enigma-output').textContent;
+  if(txt&&txt!=='—') navigator.clipboard?.writeText(txt);
+}
+function sendToCompose(){
+  const txt=document.getElementById('enigma-output').textContent;
+  if(txt&&txt!=='—'){
+    document.getElementById('batch-txt').value=txt;
+    updateBatchMeta();
+  }
+}
+function clearEnigmaWB(){
+  document.getElementById('enigma-input').value='';
+  document.getElementById('enigma-output').textContent='—';
+  document.getElementById('enigma-rotor-state').textContent='Rotors: A A A';
+}
+
+/* ============================================================
    PRESET MANAGEMENT
 ============================================================ */
 function savePreset(){
@@ -1510,7 +1567,7 @@ function setMode(m){
   document.getElementById('mt-key').classList.toggle('active',m==='key');
   document.getElementById('mt-kbd').classList.toggle('active',m==='kbd');
   document.getElementById('d-mode').className='dot'+(m==='kbd'?'  on':'');
-  document.getElementById('mode-label').textContent=m==='key'?'Key Mode':'Kbd Mode';
+  document.getElementById('mode-label').textContent=m==='key'?'Key Mode':'Compose Mode';
   if(m==='kbd') document.getElementById('batch-txt').focus();
 }
 
@@ -1576,16 +1633,20 @@ document.addEventListener('keydown', e=>{
   }
 
   if(S.mode==='kbd'&&!inForm){
-    if(e.key==='Enter'){ e.preventDefault(); commitMsg(); return; }
+    if(e.key==='Enter'){ e.preventDefault(); transmitBatch(); return; }
     if(e.key==='Backspace'){
       e.preventDefault();
-      if(S.queue.length>0) S.queue.pop();
-      else if(S.liveChars.length>0){ S.liveChars.pop(); S.liveBuf=S.liveBuf.slice(0,-1); renderDecode(); }
+      const ta=document.getElementById('batch-txt');
+      if(ta.value.length>0){ ta.value=ta.value.slice(0,-1); updateBatchMeta(); }
       return;
     }
-    if(e.key===' '){ e.preventDefault(); if(S.ready) enqueueChar(' '); return; }
-    if(/^[A-Za-z0-9.,?!'\/():;&=+\-_"$@]$/.test(e.key)){
-      e.preventDefault(); if(S.ready) enqueueChar(e.key); return;
+    if(e.key===' '||/^[A-Za-z0-9.,?!'\/():;&=+\-_"$@]$/.test(e.key)){
+      e.preventDefault();
+      const ta=document.getElementById('batch-txt');
+      ta.value+=e.key;
+      updateBatchMeta();
+      ta.scrollTop=ta.scrollHeight;
+      return;
     }
   }
 

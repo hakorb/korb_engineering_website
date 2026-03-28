@@ -34,7 +34,6 @@ const SECTIONS = {
       { name: 'Meeting Note Taker', file: './tools/aviation/AI assisted-meeting-note-taker-korb-engineering.html' },
       { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
-      { name: 'Morse Code Decoder', file: './tools/aviation/Morse_Code_Decoder.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
     ]
   },
