@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DXF Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0d0f12;
+    --surface: #161a1f;
+    --border: #252c35;
+    --accent: #f0a500;
+    --accent2: #3ab8ff;
+    --text: #d4dce8;
+    --text-dim: #5c6e80;
+    --panel-w: 220px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .logo span { color: var(--text-dim); font-weight: 400; }
+
+  .file-drop-zone {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    font-size: 12px;
+    color: var(--text-dim);
+    max-width: 400px;
+    min-height: 38px;
+  }
+
+  .file-drop-zone:hover, .file-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(240,165,0,0.06);
+    color: var(--text);
+  }
+
+  .file-drop-zone svg { flex-shrink: 0; }
+
+  #file-input { display: none; }
+
+  .toolbar-btn {
+    background: var(--border);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 6px 11px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .toolbar-btn:hover {
+    background: #2a3340;
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .toolbar-btn.active {
+    background: rgba(240,165,0,0.15);
+    color: var(--accent);
+    border-color: rgba(240,165,0,0.3);
+  }
+
+  .zoom-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 52px;
+    text-align: right;
+  }
+
+  /* ─── MAIN LAYOUT ─── */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── CANVAS AREA ─── */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(58,184,255,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(240,165,0,0.04) 0%, transparent 60%),
+      var(--bg);
+  }
+
+  canvas {
+    display: block;
+    cursor: crosshair;
+    image-rendering: crisp-edges;
+  }
+
+  .canvas-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .canvas-hint.hidden { opacity: 0; }
+
+  .hint-icon {
+    width: 64px;
+    height: 64px;
+    opacity: 0.15;
+  }
+
+  .canvas-hint p {
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  .canvas-hint .hint-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    letter-spacing: 1px;
+  }
+
+  /* ─── SIDE PANEL ─── */
+  .side-panel {
+    width: var(--panel-w);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: width 0.2s;
+  }
+
+  .panel-section {
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+    font-size: 11px;
+  }
+
+  .stat-key { color: var(--text-dim); }
+  .stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent2);
+    font-size: 11px;
+  }
+
+  /* ─── LAYERS ─── */
+  .layers-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0 8px;
+  }
+
+  .layers-list::-webkit-scrollbar { width: 4px; }
+  .layers-list::-webkit-scrollbar-track { background: transparent; }
+  .layers-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .layer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+    font-size: 11px;
+  }
+
+  .layer-item:hover { background: rgba(255,255,255,0.03); }
+  .layer-item.hidden-layer { opacity: 0.4; }
+
+  .layer-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .layer-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  .layer-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  .eye-icon { flex-shrink: 0; opacity: 0.5; }
+  .layer-item:not(.hidden-layer) .eye-icon { opacity: 0.8; }
+
+  /* ─── COORDINATES BAR ─── */
+  .coord-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 5px 14px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .coord-bar span { color: var(--accent2); }
+
+  /* ─── LOADING ─── */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(13,15,18,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    z-index: 20;
+    display: none;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(240,165,0,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── ERROR TOAST ─── */
+  .toast {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: #3a1a1a;
+    border: 1px solid #7a2a2a;
+    color: #ff8a8a;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 30;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ─── LAYERS HEADER ─── */
+  .layers-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .layers-toggle-all {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 2px;
+    transition: color 0.15s;
+  }
+
+  .layers-toggle-all:hover { color: var(--accent); }
+
+  /* Grid dot background for canvas area */
+  .canvas-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DXF<span>/DWG</span> VIEW</div>
+
+  <label class="file-drop-zone" id="drop-zone">
+    <svg class="hint-icon" style="width:16px;height:16px;opacity:1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5-5 5 5M12 6v10"/>
+    </svg>
+    <span id="file-label">Drop .dxf file here or click to open</span>
+    <input type="file" id="file-input" accept=".dxf,.DXF">
+  </label>
+
+  <button class="toolbar-btn" id="btn-fit" title="Fit to view">FIT</button>
+  <button class="toolbar-btn" id="btn-zoom-in" title="Zoom in">+</button>
+  <button class="toolbar-btn" id="btn-zoom-out" title="Zoom out">−</button>
+  <button class="toolbar-btn" id="btn-dark" title="Toggle background">BG</button>
+  <div class="zoom-display" id="zoom-label">100%</div>
+</header>
+
+<div class="workspace">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+
+    <div class="canvas-hint" id="canvas-hint">
+      <svg class="hint-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.2">
+        <rect x="8" y="8" width="48" height="48" rx="2"/>
+        <path d="M20 44 L20 20 L32 32 L38 20 L38 44"/>
+        <line x1="16" y1="44" x2="48" y2="44"/>
+      </svg>
+      <p>No file loaded<br>Drop a <strong style="color:var(--accent)">.dxf</strong> file or click <strong style="color:var(--accent)">OPEN</strong></p>
+      <div class="hint-label">DWG → export as DXF from Civil 3D / AutoCAD</div>
+    </div>
+
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      PARSING DXF…
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="side-panel">
+    <div class="panel-section">
+      <div class="panel-label">File Info</div>
+      <div class="stat-row"><span class="stat-key">Name</span><span class="stat-val" id="info-name">—</span></div>
+      <div class="stat-row"><span class="stat-key">Entities</span><span class="stat-val" id="info-entities">—</span></div>
+      <div class="stat-row"><span class="stat-key">Layers</span><span class="stat-val" id="info-layers">—</span></div>
+      <div class="stat-row"><span class="stat-key">Extents X</span><span class="stat-val" id="info-extx">—</span></div>
+      <div class="stat-row"><span class="stat-key">Extents Y</span><span class="stat-val" id="info-exty">—</span></div>
+    </div>
+
+    <div class="layers-header">
+      <div class="panel-label" style="margin:0">Layers</div>
+      <button class="layers-toggle-all" id="btn-all-layers">ALL ON</button>
+    </div>
+
+    <div class="layers-list" id="layers-list">
+      <div style="padding:16px 14px;font-size:11px;color:var(--text-dim)">Load a file to see layers</div>
+    </div>
+  </div>
+</div>
+
+<div class="coord-bar">
+  X: <span id="cx">—</span> &nbsp; Y: <span id="cy">—</span>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  Scroll: zoom &nbsp;|&nbsp; Drag: pan &nbsp;|&nbsp; Click layer to toggle
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Minimal DXF parser — handles LINE, LWPOLYLINE, POLYLINE,
+// ARC, CIRCLE, TEXT, MTEXT, INSERT, SPLINE entities
+// ─────────────────────────────────────────────────────────────
+
+const ACI_COLORS = {
+  1:'#ff0000',2:'#ffff00',3:'#00ff00',4:'#00ffff',
+  5:'#0000ff',6:'#ff00ff',7:'#ffffff',8:'#808080',9:'#c0c0c0',
+  10:'#ff0000',11:'#ff7f7f',20:'#ff7f00',21:'#ffbf7f',
+  30:'#ffff00',31:'#ffff7f',40:'#7fff00',41:'#bfff7f',
+  50:'#00ff00',51:'#7fff7f',60:'#00ff7f',70:'#7fffbf',
+  80:'#00ffff',81:'#7fffff',90:'#007fff',91:'#7fbfff',
+  100:'#0000ff',101:'#7f7fff',110:'#7f00ff',111:'#bf7fff',
+  120:'#ff00ff',121:'#ff7fff',130:'#ff007f',131:'#ff7fbf',
+  140:'#ff7f7f',150:'#ff9f5f',160:'#af5f00',170:'#7f5f00',
+  180:'#7f7f00',190:'#5f7f00',200:'#007f00',210:'#005f00',
+  220:'#003f00',230:'#007f3f',240:'#005f5f',250:'#c0c0c0',
+  251:'#a0a0a0',252:'#808080',253:'#606060',254:'#404040',255:'#202020'
+};
+
+function aciToHex(aci){
+  if(aci===0) return null; // BYBLOCK
+  if(aci===256) return null; // BYLAYER
+  return ACI_COLORS[aci] || '#c0c0c0';
+}
+
+function parseDXF(text){
+  const lines = text.split(/\r?\n/);
+  let i = 0;
+  const pairs = [];
+  while(i < lines.length-1){
+    const code = parseInt(lines[i].trim(),10);
+    const val  = lines[i+1];
+    pairs.push([code, val.trim()]);
+    i += 2;
+  }
+
+  const entities = [];
+  const layerTable = {};
+  let section = '', subsec = '';
+  let j = 0;
+
+  while(j < pairs.length){
+    const [c,v] = pairs[j];
+    if(c===0 && v==='SECTION'){ j++; section = pairs[j][1]; j++; continue; }
+    if(c===0 && v==='ENDSEC'){ section=''; j++; continue; }
+
+    // ── TABLES section → gather layer colors ──
+    if(section==='TABLES'){
+      if(c===0 && v==='TABLE'){ j++; subsec=pairs[j][1]; j++; continue; }
+      if(c===0 && v==='ENDTAB'){ subsec=''; j++; continue; }
+      if(subsec==='LAYER' && c===0 && v==='LAYER'){
+        j++;
+        let lname='0', lcolor=7;
+        while(j<pairs.length && pairs[j][0]!==0){
+          const [lc,lv]=pairs[j];
+          if(lc===2) lname=lv;
+          if(lc===62) lcolor=parseInt(lv,10);
+          j++;
+        }
+        layerTable[lname] = lcolor;
+        continue;
+      }
+    }
+
+    // ── ENTITIES section ──
+    if(section==='ENTITIES' || section==='BLOCKS'){
+      if(c===0){
+        const type = v;
+        j++;
+        const ent = {type, layer:'0', color:null, props:{}};
+        while(j<pairs.length && pairs[j][0]!==0){
+          const [ec,ev] = pairs[j];
+          if(ec===8)  ent.layer = ev;
+          if(ec===62) ent.color = parseInt(ev,10);
+          ent.props[ec] = ent.props[ec] !== undefined
+            ? (Array.isArray(ent.props[ec]) ? [...ent.props[ec], ev] : [ent.props[ec], ev])
+            : ev;
+          j++;
+        }
+        if(['LINE','LWPOLYLINE','POLYLINE','VERTEX','ARC','CIRCLE',
+            'TEXT','MTEXT','SPLINE','POINT'].includes(type)){
+          entities.push(ent);
+        }
+        continue;
+      }
+    }
+
+    j++;
+  }
+
+  // Build layer list with colors
+  const layerColors = {};
+  entities.forEach(e => {
+    if(!layerColors[e.layer]){
+      const lc = layerTable[e.layer];
+      layerColors[e.layer] = lc ? (aciToHex(Math.abs(lc)) || '#c0c0c0') : '#c0c0c0';
+    }
+  });
+
+  return { entities, layerColors };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Geometry helpers
+// ─────────────────────────────────────────────────────────────
+
+function getEntityPoints(ent){
+  // Returns array of {x,y} for bounding box computation
+  const p = ent.props;
+  switch(ent.type){
+    case 'LINE':
+      return [{x:parseFloat(p[10]||0),y:parseFloat(p[20]||0)},
+              {x:parseFloat(p[11]||0),y:parseFloat(p[21]||0)}];
+    case 'CIRCLE': case 'ARC': {
+      const cx=parseFloat(p[10]||0), cy=parseFloat(p[20]||0), r=parseFloat(p[40]||0);
+      return [{x:cx-r,y:cy-r},{x:cx+r,y:cy+r}];
+    }
+    case 'TEXT': case 'MTEXT':
+      return [{x:parseFloat(p[10]||0),y:parseFloat(p[20]||0)}];
+    case 'POINT':
+      return [{x:parseFloat(p[10]||0),y:parseFloat(p[20]||0)}];
+    case 'LWPOLYLINE': {
+      const xs = Array.isArray(p[10]) ? p[10].map(Number) : [Number(p[10]||0)];
+      const ys = Array.isArray(p[20]) ? p[20].map(Number) : [Number(p[20]||0)];
+      return xs.map((x,i)=>({x,y:ys[i]||0}));
+    }
+    case 'SPLINE': {
+      const xs = Array.isArray(p[10]) ? p[10].map(Number) : [Number(p[10]||0)];
+      const ys = Array.isArray(p[20]) ? p[20].map(Number) : [Number(p[20]||0)];
+      return xs.map((x,i)=>({x,y:ys[i]||0}));
+    }
+    default: return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Canvas renderer
+// ─────────────────────────────────────────────────────────────
+
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const wrap    = document.getElementById('canvas-wrap');
+
+let dxfData   = null;
+let hiddenLayers = new Set();
+let darkBg    = true;
+
+// viewport
+let vpX=0, vpY=0, vpScale=1;
+let dragging=false, dragStart={x:0,y:0}, dragVP={x:0,y:0};
+
+function resizeCanvas(){
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  render();
+}
+
+function worldToScreen(wx,wy){
+  return { x: vpX + wx*vpScale, y: vpY - wy*vpScale };
+}
+
+function screenToWorld(sx,sy){
+  return { x:(sx-vpX)/vpScale, y:-(sy-vpY)/vpScale };
+}
+
+function render(){
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = darkBg ? '#0d0f12' : '#f8f7f2';
+  ctx.fillRect(0,0,W,H);
+
+  if(!dxfData) return;
+
+  const { entities, layerColors } = dxfData;
+
+  entities.forEach(ent => {
+    if(hiddenLayers.has(ent.layer)) return;
+
+    const p = ent.props;
+    let color = ent.color ? aciToHex(ent.color) : null;
+    if(!color) color = layerColors[ent.layer] || '#c0c0c0';
+    // Lighten white lines on dark bg
+    if(color==='#ffffff' && !darkBg) color='#111111';
+    if(color==='#000000' || color==='#202020') color = darkBg ? '#c0c0c0':'#111111';
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = Math.max(0.5, 1/vpScale);
+
+    switch(ent.type){
+      case 'LINE': {
+        const x1=parseFloat(p[10]||0), y1=parseFloat(p[20]||0);
+        const x2=parseFloat(p[11]||0), y2=parseFloat(p[21]||0);
+        const s1=worldToScreen(x1,y1), s2=worldToScreen(x2,y2);
+        ctx.beginPath(); ctx.moveTo(s1.x,s1.y); ctx.lineTo(s2.x,s2.y); ctx.stroke();
+        break;
+      }
+      case 'CIRCLE': {
+        const cx=parseFloat(p[10]||0), cy=parseFloat(p[20]||0), r=parseFloat(p[40]||0);
+        const sc=worldToScreen(cx,cy);
+        ctx.beginPath(); ctx.arc(sc.x,sc.y,r*vpScale,0,Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'ARC': {
+        const cx=parseFloat(p[10]||0), cy=parseFloat(p[20]||0), r=parseFloat(p[40]||0);
+        const a1=parseFloat(p[50]||0)*Math.PI/180;
+        const a2=parseFloat(p[51]||360)*Math.PI/180;
+        const sc=worldToScreen(cx,cy);
+        ctx.beginPath();
+        ctx.arc(sc.x, sc.y, r*vpScale, -a2, -a1, false);
+        ctx.stroke();
+        break;
+      }
+      case 'LWPOLYLINE': {
+        const xs = Array.isArray(p[10]) ? p[10].map(Number) : [Number(p[10]||0)];
+        const ys = Array.isArray(p[20]) ? p[20].map(Number) : [Number(p[20]||0)];
+        if(!xs.length) break;
+        ctx.beginPath();
+        const s0 = worldToScreen(xs[0],ys[0]);
+        ctx.moveTo(s0.x,s0.y);
+        for(let k=1;k<xs.length;k++){
+          const sk=worldToScreen(xs[k],ys[k]);
+          ctx.lineTo(sk.x,sk.y);
+        }
+        // Check closed flag (group 70, bit 1)
+        const flag = parseInt(p[70]||0,10);
+        if(flag & 1){ ctx.closePath(); }
+        ctx.stroke();
+        break;
+      }
+      case 'SPLINE': {
+        const xs = Array.isArray(p[10]) ? p[10].map(Number) : [Number(p[10]||0)];
+        const ys = Array.isArray(p[20]) ? p[20].map(Number) : [Number(p[20]||0)];
+        if(xs.length<2) break;
+        ctx.beginPath();
+        const s0=worldToScreen(xs[0],ys[0]);
+        ctx.moveTo(s0.x,s0.y);
+        // Approximate with line segments through control points
+        for(let k=1;k<xs.length;k++){
+          const sk=worldToScreen(xs[k],ys[k]);
+          ctx.lineTo(sk.x,sk.y);
+        }
+        ctx.stroke();
+        break;
+      }
+      case 'POINT': {
+        const px=parseFloat(p[10]||0), py=parseFloat(p[20]||0);
+        const sp=worldToScreen(px,py);
+        ctx.beginPath(); ctx.arc(sp.x,sp.y,2,0,Math.PI*2); ctx.fill();
+        break;
+      }
+      case 'TEXT': case 'MTEXT': {
+        const tx=parseFloat(p[10]||0), ty=parseFloat(p[20]||0);
+        const st=worldToScreen(tx,ty);
+        const h = parseFloat(p[40]||2.5)*vpScale;
+        if(h < 4) break; // too small to draw
+        const txt = (p[1]||'').replace(/\\P/g,' ').replace(/\{[^}]*\}/g,'').replace(/\\[A-Za-z][^;]*;/g,'');
+        ctx.font = `${Math.min(h,24)}px 'IBM Plex Mono', monospace`;
+        ctx.fillText(txt, st.x, st.y);
+        break;
+      }
+    }
+  });
+
+  document.getElementById('zoom-label').textContent = Math.round(vpScale*100)+'%';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Fit to view
+// ─────────────────────────────────────────────────────────────
+function fitToView(){
+  if(!dxfData) return;
+  const all = dxfData.entities.flatMap(e =>
+    hiddenLayers.has(e.layer) ? [] : getEntityPoints(e)
+  );
+  if(!all.length) return;
+
+  const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const W=canvas.width, H=canvas.height;
+  const pad=40;
+  const dX=maxX-minX||1, dY=maxY-minY||1;
+  vpScale = Math.min((W-pad*2)/dX, (H-pad*2)/dY);
+  vpX = pad + ((W-pad*2) - dX*vpScale)/2 - minX*vpScale;
+  vpY = H - pad - ((H-pad*2) - dY*vpScale)/2 + minY*vpScale;
+  render();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Layers panel
+// ─────────────────────────────────────────────────────────────
+function buildLayersPanel(){
+  const list = document.getElementById('layers-list');
+  list.innerHTML = '';
+
+  const layerNames = Object.keys(dxfData.layerColors).sort();
+  const entityCount = {};
+  dxfData.entities.forEach(e => entityCount[e.layer]=(entityCount[e.layer]||0)+1);
+
+  layerNames.forEach(name => {
+    const div = document.createElement('div');
+    div.className = 'layer-item' + (hiddenLayers.has(name)?' hidden-layer':'');
+    div.innerHTML = `
+      <svg class="eye-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+      <div class="layer-swatch" style="background:${dxfData.layerColors[name]}"></div>
+      <span class="layer-name" title="${name}">${name}</span>
+      <span class="layer-count">${entityCount[name]||0}</span>
+    `;
+    div.addEventListener('click', () => {
+      if(hiddenLayers.has(name)) hiddenLayers.delete(name);
+      else hiddenLayers.add(name);
+      div.classList.toggle('hidden-layer');
+      render();
+    });
+    list.appendChild(div);
+  });
+
+  document.getElementById('info-layers').textContent = layerNames.length;
+}
+
+// ─────────────────────────────────────────────────────────────
+// File loading
+// ─────────────────────────────────────────────────────────────
+function loadDXF(text, filename){
+  showLoading(true);
+  setTimeout(()=>{
+    try {
+      dxfData = parseDXF(text);
+      hiddenLayers.clear();
+
+      document.getElementById('info-name').textContent =
+        filename.length>14 ? filename.slice(0,12)+'…' : filename;
+      document.getElementById('info-entities').textContent = dxfData.entities.length;
+
+      const all = dxfData.entities.flatMap(e => getEntityPoints(e));
+      if(all.length){
+        const xs=all.map(p=>p.x), ys=all.map(p=>p.y);
+        const minX=Math.min(...xs), maxX=Math.max(...xs);
+        const minY=Math.min(...ys), maxY=Math.max(...ys);
+        document.getElementById('info-extx').textContent =
+          `${minX.toFixed(1)} → ${maxX.toFixed(1)}`;
+        document.getElementById('info-exty').textContent =
+          `${minY.toFixed(1)} → ${maxY.toFixed(1)}`;
+      }
+
+      buildLayersPanel();
+      document.getElementById('canvas-hint').classList.add('hidden');
+      fitToView();
+    } catch(e){
+      showToast('Parse error: '+e.message);
+    } finally {
+      showLoading(false);
+    }
+  }, 50);
+}
+
+// ─────────────────────────────────────────────────────────────
+// UI helpers
+// ─────────────────────────────────────────────────────────────
+function showLoading(on){
+  document.getElementById('loading').style.display = on ? 'flex' : 'none';
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3500);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Events: zoom / pan / hover
+// ─────────────────────────────────────────────────────────────
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const mx=e.offsetX, my=e.offsetY;
+  vpX = mx + (vpX - mx) * factor;
+  vpY = my + (vpY - my) * factor;
+  vpScale *= factor;
+  render();
+}, {passive:false});
+
+canvas.addEventListener('mousedown', e => {
+  dragging=true;
+  dragStart={x:e.clientX,y:e.clientY};
+  dragVP={x:vpX,y:vpY};
+  canvas.style.cursor='grabbing';
+});
+
+canvas.addEventListener('mousemove', e => {
+  if(dragging){
+    vpX = dragVP.x + (e.clientX - dragStart.x);
+    vpY = dragVP.y + (e.clientY - dragStart.y);
+    render();
+  }
+  // World coords
+  const w = screenToWorld(e.offsetX, e.offsetY);
+  document.getElementById('cx').textContent = w.x.toFixed(2);
+  document.getElementById('cy').textContent = w.y.toFixed(2);
+});
+
+canvas.addEventListener('mouseup',  ()=>{ dragging=false; canvas.style.cursor='crosshair'; });
+canvas.addEventListener('mouseleave',()=>{ dragging=false; canvas.style.cursor='crosshair'; });
+
+// Touch pan/pinch
+let lastTouches = null;
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  lastTouches = e.touches;
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(e.touches.length===1 && lastTouches && lastTouches.length===1){
+    vpX += e.touches[0].clientX - lastTouches[0].clientX;
+    vpY += e.touches[0].clientY - lastTouches[0].clientY;
+    render();
+  } else if(e.touches.length===2 && lastTouches && lastTouches.length===2){
+    const d1 = Math.hypot(lastTouches[0].clientX-lastTouches[1].clientX, lastTouches[0].clientY-lastTouches[1].clientY);
+    const d2 = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    const f  = d2/d1;
+    const mx = (e.touches[0].clientX+e.touches[1].clientX)/2;
+    const my = (e.touches[0].clientY+e.touches[1].clientY)/2;
+    vpX = mx + (vpX - mx) * f;
+    vpY = my + (vpY - my) * f;
+    vpScale *= f;
+    render();
+  }
+  lastTouches = e.touches;
+}, {passive:false});
+
+// ─────────────────────────────────────────────────────────────
+// File input / drag-drop
+// ─────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('file-label').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => loadDXF(ev.target.result, file.name);
+  reader.readAsText(file);
+});
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if(!file) return;
+  if(!file.name.toLowerCase().endsWith('.dxf')){
+    showToast('Please drop a .dxf file. Export from AutoCAD/Civil 3D via File → Save As → AutoCAD DXF.');
+    return;
+  }
+  document.getElementById('file-label').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = ev => loadDXF(ev.target.result, file.name);
+  reader.readAsText(file);
+});
+
+// ─────────────────────────────────────────────────────────────
+// Toolbar buttons
+// ─────────────────────────────────────────────────────────────
+document.getElementById('btn-fit').addEventListener('click', fitToView);
+document.getElementById('btn-zoom-in').addEventListener('click', () => {
+  const cx=canvas.width/2, cy=canvas.height/2;
+  vpX = cx + (vpX - cx)*1.3; vpY = cy + (vpY - cy)*1.3; vpScale*=1.3; render();
+});
+document.getElementById('btn-zoom-out').addEventListener('click', () => {
+  const cx=canvas.width/2, cy=canvas.height/2;
+  vpX = cx + (vpX - cx)*0.77; vpY = cy + (vpY - cy)*0.77; vpScale*=0.77; render();
+});
+document.getElementById('btn-dark').addEventListener('click', () => {
+  darkBg = !darkBg;
+  document.getElementById('btn-dark').classList.toggle('active', !darkBg);
+  render();
+});
+
+document.getElementById('btn-all-layers').addEventListener('click', () => {
+  const btn = document.getElementById('btn-all-layers');
+  if(hiddenLayers.size > 0){
+    hiddenLayers.clear();
+    btn.textContent = 'ALL ON';
+  } else if(dxfData){
+    Object.keys(dxfData.layerColors).forEach(l => hiddenLayers.add(l));
+    btn.textContent = 'ALL OFF';
+  }
+  document.querySelectorAll('.layer-item').forEach((el,i) => {
+    const name = Object.keys(dxfData.layerColors).sort()[i];
+    el.classList.toggle('hidden-layer', hiddenLayers.has(name));
+  });
+  render();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────
+const ro = new ResizeObserver(resizeCanvas);
+ro.observe(wrap);
+resizeCanvas();
+</script>
+</body>
+</html>
