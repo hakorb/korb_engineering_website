@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nutrition Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4fbf8;
+      --card: #ffffff;
+      --ink: #153229;
+      --muted: #5f7a70;
+      --line: #dbeae3;
+      --accent: #2aa876;
+      --accent-2: #1f8f66;
+      --good: #169b62;
+      --warn: #d39b00;
+      --bad: #c23b3b;
+      --shadow: 0 10px 30px rgba(21, 50, 41, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 20% 0%, #e9f8f1, #f4fbf8 45%, #eef7f3);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.1rem; }
+    h3 { font-size: 1rem; }
+    p { margin: 6px 0; color: var(--muted); }
+
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    input, textarea, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+
+    input, textarea {
+      padding: 10px;
+      background: #fcfffe;
+      color: var(--ink);
+    }
+
+    textarea { width: 100%; min-height: 74px; resize: vertical; }
+
+    button {
+      padding: 10px 12px;
+      background: var(--accent);
+      border: 0;
+      color: white;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    button:hover { background: var(--accent-2); transform: translateY(-1px); }
+    button.secondary { background: #e8f6f0; color: #196f52; border: 1px solid #cdeadd; }
+    button.danger { background: #f6e4e4; color: #8d2e2e; border: 1px solid #efc7c7; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fdfffe;
+    }
+    .metric-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.92rem;
+      margin-bottom: 6px;
+      color: #325346;
+    }
+    .progress {
+      background: #e6f2ed;
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+      background: linear-gradient(90deg, #33bb83, #1f8f66);
+    }
+
+    .status {
+      margin-top: 10px;
+      border-radius: 12px;
+      border-left: 5px solid var(--line);
+      padding: 10px;
+      font-weight: 600;
+      background: #f8fcfa;
+    }
+    .status.good { border-left-color: var(--good); background: #ecf8f2; color: #16563d; }
+    .status.warn { border-left-color: var(--warn); background: #fff8e8; color: #725200; }
+    .status.bad { border-left-color: var(--bad); background: #fdeeee; color: #722929; }
+    .status small { display: block; margin-top: 6px; font-weight: 500; color: inherit; opacity: 0.92; }
+
+    .log-list { list-style: none; padding: 0; margin: 0; max-height: 360px; overflow: auto; }
+    .log-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      padding: 10px;
+      background: #fdfffe;
+    }
+    .log-item strong { display: block; margin-bottom: 4px; }
+    .log-item .meta { font-size: 0.88rem; color: var(--muted); }
+
+    .facts {
+      border: 1px dashed #bbdfce;
+      border-radius: 12px;
+      padding: 12px;
+      background: linear-gradient(135deg, #f6fcf9, #eef8f3);
+      min-height: 95px;
+    }
+
+    .tips {
+      font-size: 0.93rem;
+      line-height: 1.45;
+      color: #35574b;
+    }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+    .error {
+      margin-top: 8px;
+      background: #fdeeee;
+      border: 1px solid #f3cbcb;
+      color: #7a2525;
+      padding: 8px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    .small { font-size: 0.9rem; color: var(--muted); }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid #cae7dc;
+      background: #f0fbf6;
+      color: #2d7257;
+      margin: 3px 4px 0 0;
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 960px) {
+      .wrap { grid-template-columns: 1fr; }
+      .grid2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card topbar">
+      <div>
+        <h1>Nutrition Tracker</h1>
+        <p>Log food in plain English, track macros, and get next-day corrections.</p>
+      </div>
+      <div class="row">
+        <label class="small">Date <input id="dateInput" type="date" /></label>
+        <label class="small">Calorie Goal <input id="calorieGoal" type="number" min="1200" max="6000" step="50" /></label>
+        <button id="saveGoalBtn" class="secondary">Save Goal</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Add Food Entry</h2>
+      <p>Example: <span class="mono">two scrambled eggs and a slice of toast with butter</span></p>
+      <textarea id="foodInput" placeholder="What did you eat?"></textarea>
+      <div class="row" style="margin-top:10px;">
+        <button id="addFoodBtn">Parse & Add</button>
+        <button id="apiKeyBtn" class="secondary">Set API Key</button>
+        <button id="closeDayBtn" class="secondary">Generate Next-Day Plan</button>
+        <button id="downloadBtn" class="secondary">Download Report</button>
+        <button id="clearBtn" class="danger">Clear Day</button>
+      </div>
+      <div id="errorBox" class="error"></div>
+    </section>
+
+    <section class="card">
+      <h2>Daily Totals</h2>
+      <div class="grid2" id="metrics"></div>
+      <div id="dietStatus" class="status"></div>
+      <p class="small" id="microSummary"></p>
+    </section>
+
+    <section class="card">
+      <h2>Macro Split Chart (30/30/40 target)</h2>
+      <canvas id="macroChart" height="220"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>Food Log</h2>
+      <ul id="foodLog" class="log-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Next-Day Recommendations</h2>
+      <p id="recommendations" class="tips"></p>
+    </section>
+
+    <section class="card" style="grid-column: 1 / -1;">
+      <h2>Last 7 Days Summary</h2>
+      <p class="small">Rolling view ending on the selected date.</p>
+      <div id="weeklyAverages" class="tips"></div>
+      <div id="weeklySummary" class="tips" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card">
+      <h2>Nutrition Education</h2>
+      <div class="facts" id="factPanel"></div>
+      <p class="tips"><strong>Why 30/30/40 can work:</strong> roughly 30% protein helps muscle retention and satiety, 30% fat supports hormones and slower digestion, and 40% carbs can support training output and steadier daily energy.</p>
+      <p class="tips"><strong>Label tips:</strong> check serving size first, compare sugar per serving to total servings, and scan ingredient order for hidden sugars (syrups, maltodextrin, juice concentrates).</p>
+      <p class="tips"><strong>Myths:</strong> "fat makes you fat" is false in isolation, "all carbs are bad" is false, and "detox teas cleanse toxins" is mostly marketing.</p>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "nutrition-tracker-v1";
+    const DEFAULT_GOAL = 2000;
+    const facts = [
+      "Protein has the highest thermic effect of food: digestion can burn about 20-30% of its calories.",
+      "High-fiber meals can blunt post-meal glucose spikes and improve fullness.",
+      "Omega-3 fats (EPA/DHA) support cardiovascular and brain function.",
+      "Your gut microbiome can shift in days based on fiber diversity and fermented foods.",
+      "A lower glycemic load meal can improve energy stability for many people.",
+      "Pairing carbs with protein and fat often slows digestion and smooths blood sugar response."
+    ];
+
+    const micronutrientKeywords = [
+      "vitamin a","vitamin c","vitamin d","vitamin e","vitamin k","b12","folate","iron","magnesium",
+      "potassium","calcium","zinc","selenium","iodine","choline","omega-3"
+    ];
+
+    let state = loadState();
+    let macroChart = null;
+    let factIndex = 0;
+    let autoCloseTimer = null;
+
+    const els = {
+      dateInput: document.getElementById("dateInput"),
+      calorieGoal: document.getElementById("calorieGoal"),
+      saveGoalBtn: document.getElementById("saveGoalBtn"),
+      foodInput: document.getElementById("foodInput"),
+      addFoodBtn: document.getElementById("addFoodBtn"),
+      apiKeyBtn: document.getElementById("apiKeyBtn"),
+      closeDayBtn: document.getElementById("closeDayBtn"),
+      downloadBtn: document.getElementById("downloadBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      foodLog: document.getElementById("foodLog"),
+      metrics: document.getElementById("metrics"),
+      dietStatus: document.getElementById("dietStatus"),
+      recommendations: document.getElementById("recommendations"),
+      weeklySummary: document.getElementById("weeklySummary"),
+      weeklyAverages: document.getElementById("weeklyAverages"),
+      errorBox: document.getElementById("errorBox"),
+      factPanel: document.getElementById("factPanel"),
+      microSummary: document.getElementById("microSummary")
+    };
+
+    init();
+
+    function init() {
+      const today = new Date().toISOString().slice(0, 10);
+      if (!state.currentDate) state.currentDate = today;
+      if (!state.logs) state.logs = {};
+      if (!state.recommendations) state.recommendations = {};
+      if (!state.calorieGoal) state.calorieGoal = DEFAULT_GOAL;
+      if (!state.logs[state.currentDate]) state.logs[state.currentDate] = [];
+      saveState();
+
+      els.dateInput.value = state.currentDate;
+      els.calorieGoal.value = state.calorieGoal;
+      renderFact();
+      setInterval(nextFact, 10000);
+      scheduleAutoCloseAt1130PM();
+      bindEvents();
+      renderAll();
+    }
+
+    function bindEvents() {
+      els.saveGoalBtn.addEventListener("click", () => {
+        const goal = Number(els.calorieGoal.value);
+        if (!goal || goal < 1200) return showError("Please enter a realistic daily calorie goal.");
+        state.calorieGoal = goal;
+        saveState();
+        renderAll();
+      });
+
+      els.dateInput.addEventListener("change", () => {
+        state.currentDate = els.dateInput.value;
+        if (!state.logs[state.currentDate]) state.logs[state.currentDate] = [];
+        saveState();
+        scheduleAutoCloseAt1130PM();
+        renderAll();
+      });
+
+      els.apiKeyBtn.addEventListener("click", () => {
+        const existing = state.apiKey ? "API key is already set. Replace it?" : "Enter your Anthropic API key:";
+        const input = prompt(existing, state.apiKey || "");
+        if (input === null) return;
+        const trimmed = input.trim();
+        if (!trimmed) return showError("API key was empty. Nothing changed.");
+        state.apiKey = trimmed;
+        saveState();
+        clearError();
+      });
+
+      els.addFoodBtn.addEventListener("click", addFoodEntry);
+      els.closeDayBtn.addEventListener("click", () => {
+        const plan = generateRecommendations(getTotalsForDate(state.currentDate));
+        state.recommendations[state.currentDate] = plan;
+        saveState();
+        renderRecommendations();
+      });
+      els.clearBtn.addEventListener("click", () => {
+        if (!confirm("Clear all entries for this day?")) return;
+        state.logs[state.currentDate] = [];
+        delete state.recommendations[state.currentDate];
+        saveState();
+        renderAll();
+      });
+      els.downloadBtn.addEventListener("click", downloadReport);
+    }
+
+    async function addFoodEntry() {
+      clearError();
+      const text = els.foodInput.value.trim();
+      if (!text) return showError("Please type what you ate.");
+      if (!state.apiKey) return showError("Set your Anthropic API key first.");
+
+      els.addFoodBtn.disabled = true;
+      els.addFoodBtn.textContent = "Parsing...";
+
+      try {
+        const parsed = await parseFoodWithClaude(text, state.apiKey);
+        if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+          throw new Error("No valid food items were returned.");
+        }
+        parsed.items.forEach((item) => {
+          state.logs[state.currentDate].push({
+            food_item: safeNumOrText(item.food_item),
+            calories: toNum(item.calories),
+            protein_g: toNum(item.protein_g),
+            fat_g: toNum(item.fat_g),
+            carbs_g: toNum(item.carbs_g),
+            fiber_g: toNum(item.fiber_g),
+            sugar_g: toNum(item.sugar_g),
+            notes: String(item.notes || ""),
+            timestamp: new Date().toISOString()
+          });
+        });
+        delete state.recommendations[state.currentDate];
+        els.foodInput.value = "";
+        saveState();
+        renderAll();
+      } catch (err) {
+        showError("Could not parse entry. " + userFriendlyError(err));
+      } finally {
+        els.addFoodBtn.disabled = false;
+        els.addFoodBtn.textContent = "Parse & Add";
+      }
+    }
+
+    async function parseFoodWithClaude(entryText, apiKey) {
+      const system = "You are a nutrition parser. Return strict JSON only.";
+      const user = [
+        "Parse this food log into nutrition JSON.",
+        "If multiple foods are present, split them into separate items.",
+        "Use this schema exactly:",
+        "{\"items\":[{\"food_item\":\"string\",\"calories\":number,\"protein_g\":number,\"fat_g\":number,\"carbs_g\":number,\"fiber_g\":number,\"sugar_g\":number,\"notes\":\"string\"}]}",
+        "Notes should include key vitamins/minerals if known (e.g., iron, vitamin C, calcium).",
+        "No markdown, no explanation, JSON only.",
+        "Food entry:",
+        entryText
+      ].join("\n");
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system,
+          messages: [{ role: "user", content: user }]
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data && data.error && data.error.message ? data.error.message : "API request failed.";
+        throw new Error(msg);
+      }
+      const text = (data.content || [])
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n")
+        .trim();
+      return extractJson(text);
+    }
+
+    function extractJson(raw) {
+      const cleaned = raw.replace(/```json|```/gi, "").trim();
+      const first = cleaned.indexOf("{");
+      const last = cleaned.lastIndexOf("}");
+      if (first === -1 || last === -1) throw new Error("No JSON object found in model response.");
+      const chunk = cleaned.slice(first, last + 1);
+      return JSON.parse(chunk);
+    }
+
+    function renderAll() {
+      renderLog();
+      renderMetricsAndStatus();
+      renderChart();
+      renderRecommendations();
+      renderWeeklySummary();
+    }
+
+    function renderLog() {
+      const entries = state.logs[state.currentDate] || [];
+      els.foodLog.innerHTML = "";
+      if (!entries.length) {
+        els.foodLog.innerHTML = "<li class='small'>No entries yet for this day.</li>";
+        return;
+      }
+      entries.forEach((e) => {
+        const li = document.createElement("li");
+        li.className = "log-item";
+        li.innerHTML =
+          "<strong>" + escapeHtml(e.food_item) + "</strong>" +
+          "<div class='meta'>" +
+          `${e.calories.toFixed(0)} kcal | P ${e.protein_g.toFixed(1)}g | F ${e.fat_g.toFixed(1)}g | C ${e.carbs_g.toFixed(1)}g | Fiber ${e.fiber_g.toFixed(1)}g | Sugar ${e.sugar_g.toFixed(1)}g` +
+          "</div>" +
+          (e.notes ? "<div class='small'>" + escapeHtml(e.notes) + "</div>" : "");
+        els.foodLog.appendChild(li);
+      });
+    }
+
+    function renderMetricsAndStatus() {
+      const t = getTotalsForDate(state.currentDate);
+      const targets = macroTargets(state.calorieGoal);
+      const metrics = [
+        ["Calories", t.calories, state.calorieGoal, "kcal"],
+        ["Protein", t.protein_g, targets.protein_g, "g"],
+        ["Fat", t.fat_g, targets.fat_g, "g"],
+        ["Carbs", t.carbs_g, targets.carbs_g, "g"],
+        ["Fiber", t.fiber_g, 30, "g"],
+        ["Sugar", t.sugar_g, 50, "g max"]
+      ];
+
+      els.metrics.innerHTML = "";
+      metrics.forEach(([label, value, target, unit]) => {
+        const pct = Math.max(0, Math.min((value / target) * 100, 140));
+        const item = document.createElement("div");
+        item.className = "metric";
+        item.innerHTML =
+          `<div class="metric-head"><span>${label}</span><span>${value.toFixed(1)} / ${target.toFixed(1)} ${unit}</span></div>` +
+          `<div class="progress"><div class="fill" style="width:${pct}%;"></div></div>`;
+        els.metrics.appendChild(item);
+      });
+
+      const status = evaluateDietStatus(t, state.calorieGoal);
+      const cls = status.level === "green" ? "good" : status.level === "yellow" ? "warn" : "bad";
+      els.dietStatus.className = "status " + cls;
+      els.dietStatus.innerHTML = "<div>" + status.title + "</div><small>" + status.message + "</small>";
+
+      const micros = summarizeMicronutrients(state.logs[state.currentDate] || []);
+      els.microSummary.innerHTML = micros.length
+        ? "Key vitamins/minerals seen today: " + micros.map((m) => `<span class="pill">${escapeHtml(m)}</span>`).join("")
+        : "No key vitamin/mineral mentions detected yet.";
+    }
+
+    function evaluateDietStatus(totals, calorieGoal) {
+      const pCal = totals.protein_g * 4;
+      const fCal = totals.fat_g * 9;
+      const cCal = totals.carbs_g * 4;
+      const macroTotal = Math.max(1, pCal + fCal + cCal);
+      const proteinPct = (pCal / macroTotal) * 100;
+      const carbsPct = (cCal / macroTotal) * 100;
+      const fatPct = (fCal / macroTotal) * 100;
+      const sugarRatio = totals.sugar_g / Math.max(1, calorieGoal / 100);
+      let score = 0;
+
+      if (proteinPct < 22) score += 2;
+      else if (proteinPct < 27) score += 1;
+      if (totals.fiber_g < 18) score += 2;
+      else if (totals.fiber_g < 25) score += 1;
+      if (totals.sugar_g > 60) score += 2;
+      else if (totals.sugar_g > 45) score += 1;
+      if (carbsPct > 55 || fatPct > 42 || proteinPct > 40) score += 1;
+      if (totals.notesBlob.match(/ultra-processed|soda|candy|chips|pastry|fast food/i)) score += 2;
+      if (sugarRatio > 3.2) score += 1;
+
+      const frank = "Modern food information and options make better nutrition largely preventable for most people; food insecurity remains a real and important exception.";
+      if (score <= 2) {
+        return {
+          level: "green",
+          title: "On track",
+          message: "Your day looks balanced. Keep protein steady, fiber high, and sugars moderate."
+        };
+      }
+      if (score <= 5) {
+        return {
+          level: "yellow",
+          title: "Approaching poor diet pattern",
+          message: "You are drifting off-target. Tighten protein/fiber and reduce added sugar before this becomes a poor-quality pattern. " + frank
+        };
+      }
+      return {
+        level: "red",
+        title: "Poor diet day flag",
+        message: "Current intake is materially off-target (likely low protein/fiber and/or high sugar/processed foods). Correct tomorrow with specific swaps. " + frank
+      };
+    }
+
+    function renderChart() {
+      const t = getTotalsForDate(state.currentDate);
+      const pCal = t.protein_g * 4;
+      const fCal = t.fat_g * 9;
+      const cCal = t.carbs_g * 4;
+      const ctx = document.getElementById("macroChart");
+
+      if (macroChart) macroChart.destroy();
+      macroChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Protein kcal", "Fat kcal", "Carbs kcal", "Target 30/30/40"],
+          datasets: [
+            {
+              data: [pCal, fCal, cCal, 0.0001],
+              backgroundColor: ["#2aa876", "#f39c3d", "#4aa3ff", "#d9e8e1"],
+              borderWidth: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: "bottom" },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(0)} kcal` } }
+          },
+          cutout: "62%"
+        }
+      });
+    }
+
+    function renderRecommendations() {
+      const t = getTotalsForDate(state.currentDate);
+      const existing = state.recommendations[state.currentDate];
+      if (existing) {
+        els.recommendations.innerHTML = existing;
+        return;
+      }
+      els.recommendations.innerHTML = generateRecommendations(t);
+    }
+
+    function renderWeeklySummary() {
+      const dates = getLastNDates(state.currentDate, 7);
+      const rows = dates.map((date) => {
+        const totals = getTotalsForDate(date);
+        const status = evaluateDietStatus(totals, state.calorieGoal);
+        return { date, totals, status };
+      });
+
+      const agg = rows.reduce((acc, r) => {
+        acc.calories += r.totals.calories;
+        acc.protein_g += r.totals.protein_g;
+        acc.fat_g += r.totals.fat_g;
+        acc.carbs_g += r.totals.carbs_g;
+        acc.fiber_g += r.totals.fiber_g;
+        acc.sugar_g += r.totals.sugar_g;
+        if (r.status.level === "green") acc.green += 1;
+        if (r.status.level === "yellow") acc.yellow += 1;
+        if (r.status.level === "red") acc.red += 1;
+        return acc;
+      }, {
+        calories: 0, protein_g: 0, fat_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0,
+        green: 0, yellow: 0, red: 0
+      });
+
+      const d = Math.max(rows.length, 1);
+      els.weeklyAverages.innerHTML =
+        `<strong>7-day averages:</strong> ` +
+        `Calories ${ (agg.calories / d).toFixed(0) } kcal/day | ` +
+        `Protein ${ (agg.protein_g / d).toFixed(1) }g | ` +
+        `Fat ${ (agg.fat_g / d).toFixed(1) }g | ` +
+        `Carbs ${ (agg.carbs_g / d).toFixed(1) }g | ` +
+        `Fiber ${ (agg.fiber_g / d).toFixed(1) }g | ` +
+        `Sugar ${ (agg.sugar_g / d).toFixed(1) }g<br>` +
+        `<strong>Diet quality days:</strong> ` +
+        `<span class="pill">Green ${agg.green}</span>` +
+        `<span class="pill">Yellow ${agg.yellow}</span>` +
+        `<span class="pill">Red ${agg.red}</span>`;
+
+      let html = "<div style='overflow:auto'><table style='width:100%;border-collapse:collapse;font-size:0.92rem;'>";
+      html += "<thead><tr style='text-align:left;border-bottom:1px solid #dbeae3;'>" +
+        "<th style='padding:8px 6px;'>Date</th>" +
+        "<th style='padding:8px 6px;'>Calories</th>" +
+        "<th style='padding:8px 6px;'>Protein</th>" +
+        "<th style='padding:8px 6px;'>Fat</th>" +
+        "<th style='padding:8px 6px;'>Carbs</th>" +
+        "<th style='padding:8px 6px;'>Fiber</th>" +
+        "<th style='padding:8px 6px;'>Sugar</th>" +
+        "<th style='padding:8px 6px;'>Status</th></tr></thead><tbody>";
+
+      rows.forEach((r) => {
+        const label = r.status.level === "green" ? "On track" : r.status.level === "yellow" ? "Approaching poor" : "Poor day";
+        const color = r.status.level === "green" ? "#169b62" : r.status.level === "yellow" ? "#d39b00" : "#c23b3b";
+        html += "<tr style='border-bottom:1px solid #eef4f0;'>" +
+          `<td style='padding:8px 6px;'>${r.date}</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.calories.toFixed(0)}</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.protein_g.toFixed(1)}g</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.fat_g.toFixed(1)}g</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.carbs_g.toFixed(1)}g</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.fiber_g.toFixed(1)}g</td>` +
+          `<td style='padding:8px 6px;'>${r.totals.sugar_g.toFixed(1)}g</td>` +
+          `<td style='padding:8px 6px;color:${color};font-weight:700;'>${label}</td>` +
+          "</tr>";
+      });
+
+      html += "</tbody></table></div>";
+      els.weeklySummary.innerHTML = html;
+    }
+
+    function generateRecommendations(t) {
+      const goal = state.calorieGoal;
+      const target = macroTargets(goal);
+      const out = [];
+      const proteinGap = target.protein_g - t.protein_g;
+      const fatGap = target.fat_g - t.fat_g;
+      const carbsGap = target.carbs_g - t.carbs_g;
+
+      out.push("<strong>Tomorrow correction plan:</strong>");
+
+      if (proteinGap > 15) {
+        out.push(`Add ${Math.round(proteinGap)}g protein: include 1 chicken breast at lunch or 1 cup Greek yogurt + whey post-workout.`);
+      } else if (proteinGap < -20) {
+        out.push("Protein is already high. Keep portions similar and avoid adding extra shakes.");
+      } else {
+        out.push("Protein is near target. Keep one high-protein anchor in each meal.");
+      }
+
+      if (fatGap > 12) {
+        out.push("Healthy fats are low: add 1 tbsp olive oil on vegetables or 30g nuts.");
+      } else if (fatGap < -15) {
+        out.push("Fat is high: reduce oils, butter, and fried sides tomorrow.");
+      }
+
+      if (carbsGap > 25) {
+        out.push("Carbs are low: add oats, beans, fruit, or potatoes around activity.");
+      } else if (carbsGap < -35) {
+        out.push("Carbs are high: replace one refined carb serving with vegetables or legumes.");
+      }
+
+      if (t.fiber_g < 25) {
+        out.push("Fiber is low: add 1 cup beans or lentils, berries, and a large salad.");
+      }
+      if (t.sugar_g > 50) {
+        out.push("Sugar is high: avoid sugary drinks/pastries; swap dessert for fruit + yogurt.");
+      }
+      if (/ultra-processed|chips|candy|soda|fast food/i.test(t.notesBlob)) {
+        out.push("Ultra-processed intake was elevated: base meals on whole foods and cook one simple meal at home.");
+      }
+      if (out.length === 1) {
+        out.push("Intake is broadly balanced. Keep meal structure and hydration consistent.");
+      }
+      out.push("Affordable template: eggs + oats breakfast, chicken/beans/rice lunch, tuna-potato-salad dinner.");
+      return out.join("<br>");
+    }
+
+    function downloadReport() {
+      clearError();
+      const { jsPDF } = window.jspdf;
+      if (!jsPDF) return showError("PDF library failed to load.");
+
+      const t = getTotalsForDate(state.currentDate);
+      const status = evaluateDietStatus(t, state.calorieGoal);
+      const rec = state.recommendations[state.currentDate] || generateRecommendations(t);
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      let y = 40;
+
+      const add = (txt, step = 18, size = 11, bold = false) => {
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(size);
+        const lines = doc.splitTextToSize(txt, 520);
+        doc.text(lines, 40, y);
+        y += lines.length * step;
+      };
+
+      add("Nutrition Tracker Daily Report", 20, 18, true);
+      add(`Date: ${state.currentDate}`, 16, 11, false);
+      add(`Calorie Goal: ${state.calorieGoal} kcal`, 16, 11, false);
+      y += 8;
+      add("Totals", 18, 13, true);
+      add(`Calories: ${t.calories.toFixed(0)} | Protein: ${t.protein_g.toFixed(1)}g | Fat: ${t.fat_g.toFixed(1)}g | Carbs: ${t.carbs_g.toFixed(1)}g`, 16);
+      add(`Fiber: ${t.fiber_g.toFixed(1)}g | Sugar: ${t.sugar_g.toFixed(1)}g`, 16);
+      y += 8;
+      add("Diet Quality Alert", 18, 13, true);
+      add(`${status.title}: ${status.message}`, 16);
+      y += 8;
+      add("Food Log", 18, 13, true);
+      const entries = state.logs[state.currentDate] || [];
+      if (!entries.length) {
+        add("No items logged.");
+      } else {
+        entries.forEach((e, i) => {
+          add(`${i + 1}. ${e.food_item} - ${e.calories.toFixed(0)} kcal, P ${e.protein_g.toFixed(1)}g, F ${e.fat_g.toFixed(1)}g, C ${e.carbs_g.toFixed(1)}g`, 15);
+        });
+      }
+      y += 8;
+      add("Next-Day Recommendations", 18, 13, true);
+      add(stripHtml(rec), 15);
+
+      doc.save(`nutrition-report-${state.currentDate}.pdf`);
+    }
+
+    function getTotalsForDate(date) {
+      const entries = state.logs[date] || [];
+      return entries.reduce((acc, e) => {
+        acc.calories += toNum(e.calories);
+        acc.protein_g += toNum(e.protein_g);
+        acc.fat_g += toNum(e.fat_g);
+        acc.carbs_g += toNum(e.carbs_g);
+        acc.fiber_g += toNum(e.fiber_g);
+        acc.sugar_g += toNum(e.sugar_g);
+        acc.notesBlob += " " + (e.notes || "");
+        return acc;
+      }, { calories: 0, protein_g: 0, fat_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, notesBlob: "" });
+    }
+
+    function summarizeMicronutrients(entries) {
+      const text = entries.map((e) => (e.notes || "").toLowerCase()).join(" ");
+      return micronutrientKeywords.filter((k) => text.includes(k)).map((k) => k.replace("vitamin ", "Vitamin "));
+    }
+
+    function macroTargets(calGoal) {
+      return {
+        protein_g: (calGoal * 0.30) / 4,
+        fat_g: (calGoal * 0.30) / 9,
+        carbs_g: (calGoal * 0.40) / 4
+      };
+    }
+
+    function getLastNDates(endDateStr, n) {
+      const endDate = new Date(endDateStr + "T12:00:00");
+      const dates = [];
+      for (let i = n - 1; i >= 0; i -= 1) {
+        const d = new Date(endDate);
+        d.setDate(endDate.getDate() - i);
+        dates.push(d.toISOString().slice(0, 10));
+      }
+      return dates;
+    }
+
+    function renderFact() {
+      els.factPanel.innerHTML = "<strong>Did You Know?</strong><br>" + facts[factIndex];
+    }
+    function nextFact() {
+      factIndex = (factIndex + 1) % facts.length;
+      renderFact();
+    }
+
+    function scheduleAutoCloseAt1130PM() {
+      if (autoCloseTimer) clearTimeout(autoCloseTimer);
+      const now = new Date();
+      const target = new Date();
+      target.setHours(23, 30, 0, 0);
+      if (now >= target) target.setDate(target.getDate() + 1);
+      autoCloseTimer = setTimeout(() => {
+        autoCloseToday();
+        scheduleAutoCloseAt1130PM();
+      }, target.getTime() - now.getTime());
+    }
+
+    function autoCloseToday() {
+      const today = new Date().toISOString().slice(0, 10);
+      const lastAutoClosed = state.lastAutoClosedDate || "";
+      if (lastAutoClosed === today) return;
+      if (!state.logs[today]) state.logs[today] = [];
+      const plan = generateRecommendations(getTotalsForDate(today));
+      state.recommendations[today] = plan;
+      state.lastAutoClosedDate = today;
+      if (state.currentDate === today) renderRecommendations();
+      saveState();
+    }
+
+    function loadState() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      } catch {
+        return {};
+      }
+    }
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function toNum(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+    function safeNumOrText(v) {
+      if (typeof v === "string") return v;
+      if (v === undefined || v === null) return "Unknown food";
+      return String(v);
+    }
+    function showError(msg) {
+      els.errorBox.style.display = "block";
+      els.errorBox.textContent = msg;
+    }
+    function clearError() {
+      els.errorBox.style.display = "none";
+      els.errorBox.textContent = "";
+    }
+    function userFriendlyError(err) {
+      const msg = err && err.message ? err.message : String(err);
+      if (/401|403|invalid x-api-key|authentication/i.test(msg)) return "API key was rejected.";
+      if (/429|rate/i.test(msg)) return "Rate limit reached. Try again in a moment.";
+      if (/network|failed to fetch|load/i.test(msg)) return "Network error while contacting Anthropic.";
+      return msg;
+    }
+    function stripHtml(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      return (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
+    }
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+  </script>
+</body>
+</html>
