@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1a1a;
+    --paper: #f5f0e8;
+    --cream: #ede8dc;
+    --accent: #c8511a;
+    --muted: #7a7570;
+    --border: #ccc5b5;
+    --white: #ffffff;
+    --radius: 4px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 13px;
+  }
+
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 20px 32px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: -0.5px;
+  }
+
+  header span {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 68px);
+  }
+
+  .controls {
+    background: var(--cream);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .preview-pane {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    gap: 24px;
+    background: var(--paper);
+  }
+
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11px; color: var(--muted); letter-spacing: 0.05em; }
+
+  input[type="text"],
+  input[type="url"],
+  select,
+  textarea {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    color: var(--ink);
+    transition: border-color 0.15s;
+    width: 100%;
+    outline: none;
+  }
+
+  input[type="text"]:focus,
+  input[type="url"]:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--accent);
+  }
+
+  textarea { resize: vertical; min-height: 70px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  .color-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .color-field:focus-within { border-color: var(--accent); }
+
+  input[type="color"] {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+  }
+
+  .color-hex {
+    font-size: 12px;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
+  }
+
+  .slider-val {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 34px;
+    text-align: right;
+  }
+
+  .upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    cursor: pointer;
+    background: var(--white);
+    transition: border-color 0.15s, background 0.15s;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    width: 100%;
+    text-align: left;
+  }
+
+  .upload-btn:hover { border-color: var(--accent); background: #fff8f5; color: var(--accent); }
+  .upload-btn svg { flex-shrink: 0; }
+
+  .logo-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  #logo-thumb {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #fff;
+    display: none;
+  }
+
+  .clear-logo {
+    font-size: 11px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 6px;
+    display: none;
+    text-decoration: underline;
+  }
+
+  .warn {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #7a5c00;
+    display: none;
+  }
+
+  .error {
+    background: #fce8e8;
+    border: 1px solid #e07070;
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #8b1a1a;
+    display: none;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    border: none;
+    border-radius: var(--radius);
+    padding: 11px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: #b04515; }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+
+  .btn-outline:hover { border-color: var(--ink); background: var(--cream); }
+
+  .export-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .qr-container {
+    position: relative;
+    background: white;
+    box-shadow: var(--shadow), 0 0 0 1px var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+  }
+
+  #final-canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  #qr-hidden { display: none; }
+
+  .preview-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .size-display {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    .controls { border-right: none; border-bottom: 1px solid var(--border); }
+    .preview-pane { padding: 24px; }
+    header { padding: 16px 20px; }
+    .row, .row-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>QR Generator</h1>
+  <span>v1.0 — single file</span>
+</header>
+
+<div class="layout">
+  <div class="controls">
+
+    <!-- Content -->
+    <div>
+      <div class="section-label">Content</div>
+      <div class="field">
+        <label>Text or URL</label>
+        <textarea id="qr-text" placeholder="https://example.com" rows="3"></textarea>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div>
+      <div class="section-label">Appearance</div>
+      <div class="row" style="margin-bottom:12px;">
+        <div class="field">
+          <label>Size (px)</label>
+          <select id="qr-size">
+            <option value="256">256 px</option>
+            <option value="512" selected>512 px</option>
+            <option value="1024">1024 px</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Error Correction</label>
+          <select id="qr-ec">
+            <option value="L">L — Low (7%)</option>
+            <option value="M">M — Medium (15%)</option>
+            <option value="Q">Q — Quartile (25%)</option>
+            <option value="H" selected>H — High (30%)</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Foreground Color</label>
+          <div class="color-field">
+            <input type="color" id="fg-color" value="#1a1a1a">
+            <span class="color-hex" id="fg-hex">#1a1a1a</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Background Color</label>
+          <div class="color-field">
+            <input type="color" id="bg-color" value="#ffffff">
+            <span class="color-hex" id="bg-hex">#ffffff</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logo Overlay -->
+    <div>
+      <div class="section-label">Logo Overlay</div>
+      <input type="file" id="logo-input" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml" style="display:none">
+      <button class="upload-btn" onclick="document.getElementById('logo-input').click()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Logo (PNG / JPG / SVG)
+      </button>
+      <div class="logo-preview-row">
+        <img id="logo-thumb" alt="logo preview">
+        <button class="clear-logo" id="clear-logo" onclick="clearLogo()">✕ Remove</button>
+      </div>
+      <div class="slider-wrap" style="margin-top:12px;" id="logo-size-wrap">
+        <label class="field" style="gap:0"><span style="font-size:11px;color:var(--muted)">Logo Size</span></label>
+        <div class="slider-row">
+          <input type="range" id="logo-size" min="15" max="30" value="22" step="1">
+          <span class="slider-val" id="logo-size-val">22%</span>
+        </div>
+      </div>
+      <div class="warn" id="ec-warn">⚠ Logo overlay works best with Error Correction set to <strong>H</strong>. Lower levels risk unreadable QR codes.</div>
+    </div>
+
+    <!-- Export -->
+    <div>
+      <div class="section-label">Export</div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Output Filename</label>
+        <input type="text" id="filename" value="qrcode" placeholder="qrcode">
+      </div>
+      <div class="export-row">
+        <button class="btn btn-primary" onclick="downloadPNG()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download PNG
+        </button>
+        <button class="btn btn-outline" onclick="downloadPDF()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          Download PDF
+        </button>
+      </div>
+      <div class="error" id="gen-error">⚠ QR code generation failed. Check that the input text is not empty.</div>
+    </div>
+
+  </div>
+
+  <div class="preview-pane">
+    <span class="preview-label">Live Preview</span>
+    <div class="qr-container">
+      <canvas id="final-canvas"></canvas>
+    </div>
+    <div id="qr-hidden"></div>
+    <span class="size-display" id="size-display">512 × 512 px</span>
+  </div>
+</div>
+
+<script>
+  // State
+  let logoImage = null;
+  let debounceTimer = null;
+
+  // Elements
+  const qrText    = document.getElementById('qr-text');
+  const qrSize    = document.getElementById('qr-size');
+  const qrEC      = document.getElementById('qr-ec');
+  const fgColor   = document.getElementById('fg-color');
+  const bgColor   = document.getElementById('bg-color');
+  const logoInput = document.getElementById('logo-input');
+  const logoSize  = document.getElementById('logo-size');
+  const logoThumb = document.getElementById('logo-thumb');
+  const clearLogoBtn = document.getElementById('clear-logo');
+  const ecWarn    = document.getElementById('ec-warn');
+  const genError  = document.getElementById('gen-error');
+  const finalCanvas = document.getElementById('final-canvas');
+  const qrHidden  = document.getElementById('qr-hidden');
+  const fgHex     = document.getElementById('fg-hex');
+  const bgHex     = document.getElementById('bg-hex');
+  const logoSizeVal = document.getElementById('logo-size-val');
+  const sizeDisplay = document.getElementById('size-display');
+
+  // Live updates
+  qrText.addEventListener('input', debounceGenerate);
+  qrSize.addEventListener('change', generate);
+  qrEC.addEventListener('change', () => { checkECWarning(); generate(); });
+  fgColor.addEventListener('input', () => { fgHex.textContent = fgColor.value; debounceGenerate(); });
+  bgColor.addEventListener('input', () => { bgHex.textContent = bgColor.value; debounceGenerate(); });
+  logoSize.addEventListener('input', () => { logoSizeVal.textContent = logoSize.value + '%'; debounceGenerate(); });
+
+  logoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        logoImage = img;
+        logoThumb.src = ev.target.result;
+        logoThumb.style.display = 'block';
+        clearLogoBtn.style.display = 'inline';
+        checkECWarning();
+        generate();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  function clearLogo() {
+    logoImage = null;
+    logoThumb.style.display = 'none';
+    logoThumb.src = '';
+    clearLogoBtn.style.display = 'none';
+    ecWarn.style.display = 'none';
+    generate();
+  }
+
+  function checkECWarning() {
+    if (logoImage && qrEC.value !== 'H') {
+      ecWarn.style.display = 'block';
+    } else {
+      ecWarn.style.display = 'none';
+    }
+  }
+
+  function debounceGenerate() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(generate, 200);
+  }
+
+  function generate() {
+    const text = qrText.value.trim();
+    const size = parseInt(qrSize.value);
+    genError.style.display = 'none';
+    sizeDisplay.textContent = `${size} × ${size} px`;
+
+    if (!text) {
+      // Draw placeholder
+      const ctx = finalCanvas.getContext('2d');
+      finalCanvas.width = size;
+      finalCanvas.height = size;
+      ctx.fillStyle = '#f5f0e8';
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = '#ccc5b5';
+      ctx.font = `${size * 0.04}px DM Mono, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Enter text or URL above', size / 2, size / 2);
+      return;
+    }
+
+    // Clear hidden container
+    qrHidden.innerHTML = '';
+
+    try {
+      const qr = new QRCode(qrHidden, {
+        text: text,
+        width: size,
+        height: size,
+        colorDark: fgColor.value,
+        colorLight: bgColor.value,
+        correctLevel: QRCode.CorrectLevel[qrEC.value]
+      });
+
+      // QRCode renders async via image, wait a tick
+      setTimeout(() => {
+        const qrImg = qrHidden.querySelector('img') || qrHidden.querySelector('canvas');
+        if (!qrImg) { showError(); return; }
+
+        const source = (qrImg.tagName === 'CANVAS') ? qrImg : null;
+
+        if (source) {
+          compositeCanvas(source, size);
+        } else {
+          // It's an img element
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = size;
+            tempCanvas.height = size;
+            const tc = tempCanvas.getContext('2d');
+            tc.drawImage(tempImg, 0, 0, size, size);
+            compositeCanvas(tempCanvas, size);
+          };
+          tempImg.onerror = showError;
+          tempImg.src = qrImg.src;
+        }
+      }, 50);
+
+    } catch (e) {
+      showError();
+    }
+  }
+
+  function compositeCanvas(sourceCanvas, size) {
+    finalCanvas.width = size;
+    finalCanvas.height = size;
+    const ctx = finalCanvas.getContext('2d');
+
+    // Draw QR
+    ctx.drawImage(sourceCanvas, 0, 0, size, size);
+
+    // Overlay logo
+    if (logoImage) {
+      const pct = parseInt(logoSize.value) / 100;
+      const logoW = Math.round(size * pct);
+      const logoH = Math.round(logoW * (logoImage.height / logoImage.width));
+      const cx = Math.round((size - logoW) / 2);
+      const cy = Math.round((size - logoH) / 2);
+      const pad = Math.round(size * 0.015);
+
+      // White background with padding
+      ctx.fillStyle = bgColor.value;
+      ctx.fillRect(cx - pad, cy - pad, logoW + pad * 2, logoH + pad * 2);
+
+      ctx.drawImage(logoImage, cx, cy, logoW, logoH);
+    }
+  }
+
+  function showError() {
+    genError.style.display = 'block';
+  }
+
+  function getFilename(ext) {
+    const base = document.getElementById('filename').value.trim() || 'qrcode';
+    return base.replace(/[^a-zA-Z0-9_\-]/g, '_') + '.' + ext;
+  }
+
+  function downloadPNG() {
+    if (!finalCanvas.width) return;
+    const link = document.createElement('a');
+    link.download = getFilename('png');
+    link.href = finalCanvas.toDataURL('image/png');
+    link.click();
+  }
+
+  function downloadPDF() {
+    if (!finalCanvas.width) return;
+    const { jsPDF } = window.jspdf;
+    const size = parseInt(qrSize.value);
+    const pts = size * 0.75; // px to pt (96dpi -> 72pt)
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: [pts + 40, pts + 40]
+    });
+    const imgData = finalCanvas.toDataURL('image/png');
+    doc.addImage(imgData, 'PNG', 20, 20, pts, pts);
+    doc.save(getFilename('pdf'));
+  }
+
+  // Initialize
+  generate();
+</script>
+</body>
+</html>
