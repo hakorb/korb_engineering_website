@@ -20,35 +20,38 @@ const SECTIONS = {
   aviation: {
     title: '',
     icon: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <!-- Top-down Cessna 172 -->
-      <!-- Fuselage -->
       <path d="M24 4 L25.5 10 L25.5 34 L26 38 L25 42 L24 44 L23 42 L22 38 L22.5 34 L22.5 10 Z" stroke-width="1.2"/>
-      <!-- Left wing -->
       <path d="M22.5 18 L3 22 L3 23.5 L22.5 22" stroke-width="1.2"/>
-      <!-- Right wing -->
       <path d="M25.5 18 L45 22 L45 23.5 L25.5 22" stroke-width="1.2"/>
-      <!-- Wing strut left -->
-      <line x1="14" y1="22.5" x2="14" y2="20" stroke-width="0.5" opacity="0.4"/>
-      <!-- Wing strut right -->
-      <line x1="34" y1="22.5" x2="34" y2="20" stroke-width="0.5" opacity="0.4"/>
-      <!-- Horizontal stabilizer -->
       <path d="M22.5 38 L14 40 L14 41 L22.5 40" stroke-width="1"/>
       <path d="M25.5 38 L34 40 L34 41 L25.5 40" stroke-width="1"/>
-      <!-- Vertical stabilizer (top-down, thin line) -->
       <line x1="24" y1="36" x2="24" y2="42" stroke-width="1.8"/>
-      <!-- Propeller disc -->
       <ellipse cx="24" cy="5" rx="5" ry="1.5" stroke-width="0.8" opacity="0.5"/>
-      <!-- Cockpit windshield -->
       <ellipse cx="24" cy="14" rx="1.5" ry="2.5" stroke-width="0.7" opacity="0.5"/>
-      <!-- Engine cowling -->
-      <path d="M23 6 L25 6" stroke-width="1.2"/>
-    </svg>`
+    </svg>`,
+    tools: [
+      { name: '1980s Calculator', file: './tools/aviation/1980s Calculator.html' },
+      { name: 'Meeting Note Taker', file: './tools/aviation/AI assisted-meeting-note-taker-korb-engineering.html' },
+      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
+      { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
+      { name: 'Morse Code Decoder', file: './tools/aviation/Morse_Code_Decoder.html' },
+      { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
+    ]
   },
   civil: {
     title: '',
     icon: K_LOGO_SVG,
     tools: [
-      { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' }
+      { name: 'Daily Field Report', file: './tools/civil/DailyFieldReport.html' },
+      { name: 'ETAM Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
+      { name: 'HEC-RAS Open', file: './tools/civil/HECRASOpen.html' },
+      { name: 'Meeting Recorder', file: './tools/civil/meeting.html' },
+      { name: 'OpenProject', file: './tools/civil/openproject.html' },
+      { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
+      { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
+      { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
+      { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
+      { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' }
     ]
   },
   hk: {
@@ -61,20 +64,27 @@ const SECTIONS = {
     </svg>`,
     locked: true,
     password: 'potato1',
-    hasAbout: true,
-    tools: []
+    tools: [
+      { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
+      { name: 'Situation Monitor', file: './tools/hk/Situation Monitor \u2014 Geopolitical Dashboard/index.html' }
+    ]
   },
   misc: {
     title: '',
     icon: `<svg viewBox="0 0 48 42" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-      <!-- Square root radical -->
       <path d="M1 26 L6 26 L14 40 L28 4" stroke-width="1.8" fill="none"/>
-      <!-- Vinculum (overline) — extends well past -1 -->
       <line x1="28" y1="4" x2="47" y2="4" stroke-width="1.8"/>
-      <!-- "-1" under the vinculum -->
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
-    tools: []
+    tools: [
+      { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
+      { name: 'Virtual Caddy', file: './tools/misc/Virtual_Caddy_Glenn_Riddle_BerlinMD.html' },
+      { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
+      { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
+      { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
+      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
+      { name: 'Text to Speech', file: './tools/misc/speak_and_spell_text_to_speech.html' }
+    ]
   }
 };
 
@@ -263,21 +273,17 @@ function renderToolEmbed(key, sec, tool) {
 // --- About Page ---
 function renderAboutPage() {
   main.innerHTML = `
-    <section class="section-page tool-embed-page">
-      <div class="tool-topbar">
-        <button type="button" class="back-link tool-back-btn" aria-label="Back to home">${BACK_SVG}</button>
+    <section class="section-page">
+      <div class="section-hero">
+        <a href="#" class="back-link reveal">${BACK_SVG}</a>
       </div>
-      <iframe class="tool-iframe" src="./tools/misc/korb-legacy.html" title="The Korb Legacy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allowfullscreen></iframe>
+      <div class="about-content reveal">
+        <h1 class="about-heading">Korb.Engineering</h1>
+        <p class="about-text">Tools archive.</p>
+      </div>
     </section>
   `;
-
-  main.querySelector('.tool-back-btn').addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const iframe = main.querySelector('.tool-iframe');
-    if (iframe) iframe.remove();
-    navigate('home');
-  });
+  initReveal();
 }
 
 
