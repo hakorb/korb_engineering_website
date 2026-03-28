@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Korb Engineering — Build Orchestrator</title>
+<style>
+/* ================================================================
+   TOKENS & RESET
+   ================================================================ */
+:root {
+  --hue: 210;
+  --bg0:  #0d1117;
+  --bg1:  #161b22;
+  --bg2:  #21262d;
+  --bg3:  #30363d;
+  --bd:   #30363d;
+  --text: #e6edf3;
+  --sub:  #8b949e;
+  --acc:  #1f6feb;
+  --acc2: #388bfd;
+  --grn:  #3fb950;
+  --red:  #f85149;
+  --yel:  #d29922;
+  --cyn:  #58a6ff;
+  --mag:  #bc8cff;
+  --logo: #f0a500;
+  --r:    6px;
+  --tr:   .18s ease;
+}
+[data-theme="light"] {
+  --bg0: #f6f8fa; --bg1: #ffffff; --bg2: #f0f3f6; --bg3: #d0d7de;
+  --bd:  #d0d7de; --text:#1f2328; --sub: #57606a; --acc:#0969da;
+  --acc2:#0550ae; --grn:#1a7f37; --red:#cf222e; --yel:#9a6700;
+  --cyn: #0550ae; --mag:#8250df; --logo:#b36a00;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg0);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ================================================================
+   TOP BAR
+   ================================================================ */
+#topbar{
+  display:flex;align-items:center;gap:12px;padding:0 20px;height:52px;
+  background:var(--bg1);border-bottom:1px solid var(--bd);flex-shrink:0;
+  position:relative;z-index:10;
+}
+#topbar .logo{
+  font-weight:800;font-size:17px;letter-spacing:.5px;color:var(--logo);
+  display:flex;align-items:center;gap:8px;white-space:nowrap;
+}
+#topbar .logo svg{width:26px;height:26px}
+#topbar .tagline{font-size:11px;color:var(--sub);letter-spacing:.3px;margin-left:4px}
+#topbar .spacer{flex:1}
+.badge{
+  display:inline-flex;align-items:center;gap:4px;padding:2px 9px;
+  border-radius:12px;font-size:11px;font-weight:600;
+  background:var(--bg3);color:var(--sub);border:1px solid var(--bd);
+}
+.badge.ok   {background:#1e3a2a;color:var(--grn);border-color:#2d5a3d}
+.badge.fail {background:#3a1e1e;color:var(--red);border-color:#5a2d2d}
+.badge.run  {background:#1e2a3a;color:var(--cyn);border-color:#2d3d5a}
+#theme-toggle{
+  background:none;border:1px solid var(--bd);border-radius:var(--r);
+  color:var(--sub);cursor:pointer;padding:4px 10px;font-size:12px;
+  transition:var(--tr);
+}
+#theme-toggle:hover{background:var(--bg2);color:var(--text)}
+#ver-badge{font-size:11px;color:var(--sub)}
+
+/* ================================================================
+   LAYOUT
+   ================================================================ */
+#layout{display:flex;flex:1;overflow:hidden}
+
+/* ---- SIDEBAR ---- */
+#sidebar{
+  width:200px;flex-shrink:0;background:var(--bg1);border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.nav-section{padding:12px 8px 4px;font-size:10px;font-weight:700;
+  color:var(--sub);letter-spacing:.8px;text-transform:uppercase}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:7px 14px;font-size:13px;
+  color:var(--sub);cursor:pointer;border-radius:var(--r);margin:1px 6px;
+  transition:var(--tr);border:1px solid transparent;position:relative;
+}
+.nav-item:hover{background:var(--bg2);color:var(--text)}
+.nav-item.active{background:var(--bg2);color:var(--text);border-color:var(--bd)}
+.nav-item .icon{width:16px;text-align:center;flex-shrink:0}
+.nav-item .status-dot{
+  width:7px;height:7px;border-radius:50%;margin-left:auto;flex-shrink:0;
+  background:var(--bg3);
+}
+.nav-item .status-dot.ok   {background:var(--grn)}
+.nav-item .status-dot.fail {background:var(--red)}
+.nav-item .status-dot.run  {background:var(--cyn);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sidebar-footer{margin-top:auto;padding:12px 14px;border-top:1px solid var(--bd);font-size:11px;color:var(--sub)}
+
+/* ---- MAIN ---- */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg0)}
+#panel-area{flex:1;overflow-y:auto;padding:20px}
+.panel{display:none}
+.panel.active{display:block}
+
+/* ================================================================
+   PANEL HEADER
+   ================================================================ */
+.panel-header{
+  display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;
+  padding-bottom:16px;border-bottom:1px solid var(--bd);
+}
+.panel-icon{
+  width:44px;height:44px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:22px;flex-shrink:0;
+}
+.panel-title{font-size:20px;font-weight:700;line-height:1.2}
+.panel-desc{font-size:13px;color:var(--sub);margin-top:3px}
+.panel-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+
+/* ================================================================
+   BUTTONS
+   ================================================================ */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+  border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid transparent;transition:var(--tr);white-space:nowrap;
+}
+.btn-primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn-primary:hover{background:var(--acc2)}
+.btn-secondary{background:var(--bg2);color:var(--text);border-color:var(--bd)}
+.btn-secondary:hover{background:var(--bg3)}
+.btn-danger{background:#5a2020;color:var(--red);border-color:#7a3030}
+.btn-danger:hover{background:#7a2828}
+.btn-success{background:#1e3a2a;color:var(--grn);border-color:#2d5a3d}
+.btn-success:hover{background:#2d4d38}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+/* ================================================================
+   CARDS & GRIDS
+   ================================================================ */
+.card{
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  padding:16px;margin-bottom:14px;
+}
+.card-title{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+/* ================================================================
+   STAT CARD
+   ================================================================ */
+.stat-card{
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  padding:14px 16px;display:flex;flex-direction:column;gap:4px;
+}
+.stat-label{font-size:11px;color:var(--sub);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:24px;font-weight:800;line-height:1}
+.stat-sub{font-size:11px;color:var(--sub)}
+
+/* ================================================================
+   PIPELINE FLOW
+   ================================================================ */
+.pipeline{
+  display:flex;align-items:center;gap:0;margin-bottom:20px;
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  overflow:hidden;
+}
+.pipe-step{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:12px 6px;gap:4px;border-right:1px solid var(--bd);cursor:pointer;
+  transition:var(--tr);position:relative;
+}
+.pipe-step:last-child{border-right:none}
+.pipe-step:hover{background:var(--bg2)}
+.pipe-step.active{background:var(--bg2)}
+.pipe-step.s-ok   {border-top:3px solid var(--grn)}
+.pipe-step.s-fail {border-top:3px solid var(--red)}
+.pipe-step.s-run  {border-top:3px solid var(--cyn)}
+.pipe-step.s-idle {border-top:3px solid var(--bg3)}
+.pipe-step .ps-icon{font-size:18px}
+.pipe-step .ps-name{font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.5px}
+.pipe-step .ps-dur{font-size:10px;color:var(--sub)}
+.pipe-arrow{color:var(--bg3);font-size:18px;flex-shrink:0}
+
+/* ================================================================
+   PROGRESS BAR
+   ================================================================ */
+.progress-wrap{margin:6px 0}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--sub);margin-bottom:4px}
+.progress-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--acc);border-radius:3px;transition:width .4s ease}
+.progress-fill.grn{background:var(--grn)}
+.progress-fill.red{background:var(--red)}
+.progress-fill.cyn{background:var(--cyn)}
+.progress-fill.yel{background:var(--yel)}
+
+/* ================================================================
+   CONSOLE / LOG
+   ================================================================ */
+#console-area{
+  background:var(--bg0);border-top:1px solid var(--bd);flex-shrink:0;
+  display:flex;flex-direction:column;
+}
+#console-header{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;
+  background:var(--bg1);border-bottom:1px solid var(--bd);cursor:pointer;
+  user-select:none;
+}
+#console-header .ch-title{font-size:12px;font-weight:700;color:var(--sub);letter-spacing:.5px;text-transform:uppercase}
+#console-header .ch-actions{margin-left:auto;display:flex;gap:6px}
+#console-out{
+  height:200px;overflow-y:auto;padding:10px 14px;font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size:12px;line-height:1.6;
+}
+#console-area.expanded #console-out{height:340px}
+.log-line{white-space:pre-wrap;word-break:break-all}
+.log-DEBUG  {color:var(--sub)}
+.log-INFO   {color:var(--text)}
+.log-WARNING{color:var(--yel)}
+.log-ERROR  {color:var(--red)}
+.log-SUCCESS{color:var(--grn)}
+.log-CMD    {color:var(--cyn)}
+.log-DIM    {color:var(--sub)}
+.log-ts     {color:var(--sub);user-select:none}
+
+/* ================================================================
+   FORM ELEMENTS
+   ================================================================ */
+.form-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.form-label{font-size:12px;font-weight:600;color:var(--sub);letter-spacing:.3px}
+.form-input,.form-select{
+  background:var(--bg0);border:1px solid var(--bd);border-radius:var(--r);
+  color:var(--text);padding:6px 10px;font-size:13px;width:100%;
+  transition:var(--tr);outline:none;
+}
+.form-input:focus,.form-select:focus{border-color:var(--acc)}
+.form-select option{background:var(--bg0)}
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--bd);
+}
+.toggle-row:last-child{border-bottom:none}
+.toggle-info{display:flex;flex-direction:column;gap:2px}
+.toggle-name{font-size:13px;font-weight:600}
+.toggle-desc{font-size:11px;color:var(--sub)}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:var(--bg3);border-radius:10px;cursor:pointer;transition:var(--tr)}
+.slider:before{content:'';position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:var(--tr)}
+.toggle input:checked + .slider{background:var(--acc)}
+.toggle input:checked + .slider:before{transform:translateX(16px)}
+
+/* ================================================================
+   TABLE
+   ================================================================ */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--sub);
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--bd)}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--bd)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--bg2)}
+.tbl-mono{font-family:monospace;font-size:11px}
+.tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.tag-ok   {background:#1e3a2a;color:var(--grn)}
+.tag-fail {background:#3a1e1e;color:var(--red)}
+.tag-warn {background:#3a2e1e;color:var(--yel)}
+.tag-info {background:#1e2a3a;color:var(--cyn)}
+.tag-skip {background:var(--bg3);color:var(--sub)}
+
+/* ================================================================
+   PLATFORM CARDS
+   ================================================================ */
+.plat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.plat-card{
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  padding:14px;cursor:pointer;transition:var(--tr);
+}
+.plat-card:hover{border-color:var(--acc)}
+.plat-card.selected{border-color:var(--acc);background:#0d2040}
+.plat-card .pc-icon{font-size:28px;margin-bottom:6px}
+.plat-card .pc-name{font-weight:700;font-size:14px}
+.plat-card .pc-desc{font-size:11px;color:var(--sub);margin-top:2px}
+.plat-card .pc-arts{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px}
+
+/* ================================================================
+   ENV CHECK
+   ================================================================ */
+.env-item{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  margin-bottom:6px;font-size:13px;
+}
+.env-icon{font-size:16px;flex-shrink:0}
+.env-name{font-weight:600;flex:1}
+.env-val{font-family:monospace;font-size:12px;color:var(--sub)}
+.env-status{margin-left:auto;flex-shrink:0}
+
+/* ================================================================
+   ARTIFACTS
+   ================================================================ */
+.art-row{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--bg1);border:1px solid var(--bd);border-radius:var(--r);
+  margin-bottom:6px;
+}
+.art-icon{font-size:20px;flex-shrink:0}
+.art-name{font-weight:600;font-size:13px}
+.art-meta{font-size:11px;color:var(--sub)}
+.art-hash{font-family:monospace;font-size:10px;color:var(--sub);margin-top:2px}
+.art-actions{margin-left:auto;display:flex;gap:6px}
+
+/* ================================================================
+   METRICS / COVERAGE
+   ================================================================ */
+.coverage-bar{
+  display:flex;height:20px;border-radius:3px;overflow:hidden;margin:6px 0;
+}
+.cov-pass{background:var(--grn)}
+.cov-fail{background:var(--red)}
+.cov-skip{background:var(--yel)}
+
+/* ================================================================
+   SCROLLBAR
+   ================================================================ */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg0)}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--sub)}
+
+/* ================================================================
+   MISC
+   ================================================================ */
+.sep{border:none;border-top:1px solid var(--bd);margin:14px 0}
+.mono{font-family:monospace;font-size:12px}
+.text-ok   {color:var(--grn)}
+.text-fail {color:var(--red)}
+.text-warn {color:var(--yel)}
+.text-info {color:var(--cyn)}
+.text-sub  {color:var(--sub)}
+.mb8{margin-bottom:8px}
+.mb14{margin-bottom:14px}
+.flex-row{display:flex;align-items:center;gap:8px}
+.flex-1{flex:1}
+.spinner{display:inline-block;animation:spin .8s linear infinite;font-size:14px}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.section-title{font-size:14px;font-weight:700;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+.divider{border:none;border-top:1px solid var(--bd);margin:16px 0}
+.empty-state{text-align:center;padding:40px 20px;color:var(--sub)}
+.empty-state .es-icon{font-size:40px;margin-bottom:10px}
+.empty-state .es-msg{font-size:14px}
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     TOP BAR
+     ================================================================ -->
+<header id="topbar">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="#f0a500" opacity=".15"/>
+      <path d="M6 8h4v16H6V8zm6 0h4l6 8-6 8h-4l6-8-6-8z" fill="#f0a500"/>
+      <circle cx="25" cy="16" r="3" fill="#f0a500" opacity=".7"/>
+    </svg>
+    Korb Engineering
+  </div>
+  <span class="tagline">GanttProject Build Orchestrator v1.0.0</span>
+  <div class="spacer"></div>
+  <span id="pipeline-status-badge" class="badge">● IDLE</span>
+  <span id="ver-badge">Python 3.9+</span>
+  <button id="theme-toggle" onclick="toggleTheme()">☀ Light</button>
+</header>
+
+<!-- ================================================================
+     LAYOUT
+     ================================================================ -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="nav-section">Pipeline</div>
+    <div class="nav-item active" onclick="showPanel('dashboard')" id="nav-dashboard">
+      <span class="icon">⊞</span> Dashboard
+      <span class="status-dot" id="dot-dashboard"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('setup')" id="nav-setup">
+      <span class="icon">⚙</span> Setup
+      <span class="status-dot" id="dot-setup"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('build')" id="nav-build">
+      <span class="icon">🔨</span> Build
+      <span class="status-dot" id="dot-build"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('test')" id="nav-test">
+      <span class="icon">🧪</span> Test
+      <span class="status-dot" id="dot-test"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('package')" id="nav-package">
+      <span class="icon">📦</span> Package
+      <span class="status-dot" id="dot-package"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('release')" id="nav-release">
+      <span class="icon">🚀</span> Release
+      <span class="status-dot" id="dot-release"></span>
+    </div>
+    <div class="nav-section">Tools</div>
+    <div class="nav-item" onclick="showPanel('full')" id="nav-full">
+      <span class="icon">▶</span> Full Pipeline
+      <span class="status-dot" id="dot-full"></span>
+    </div>
+    <div class="nav-item" onclick="showPanel('clean')" id="nav-clean">
+      <span class="icon">🗑</span> Clean
+    </div>
+    <div class="nav-item" onclick="showPanel('config')" id="nav-config">
+      <span class="icon">⚙</span> Configuration
+    </div>
+    <div class="nav-item" onclick="showPanel('artifacts')" id="nav-artifacts">
+      <span class="icon">📁</span> Artifacts
+    </div>
+    <div class="sidebar-footer">
+      <div>Korb Engineering LLC</div>
+      <div style="margin-top:4px">Build: <span class="mono" id="sb-build-id">ke-2026.03</span></div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="panel-area">
+
+      <!-- ====================================================
+           DASHBOARD
+           ==================================================== -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1e2a3a">⊞</div>
+          <div>
+            <div class="panel-title">Dashboard</div>
+            <div class="panel-desc">Cross-platform build pipeline overview — macOS · Windows · Linux</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary" onclick="runFull()">▶ Full Pipeline</button>
+            <button class="btn btn-secondary" onclick="runClean()">🗑 Clean</button>
+          </div>
+        </div>
+
+        <!-- Pipeline flow -->
+        <div class="pipeline" id="pipeline-flow">
+          <div class="pipe-step s-idle" id="ps-setup" onclick="showPanel('setup')">
+            <span class="ps-icon">⚙</span>
+            <span class="ps-name">Setup</span>
+            <span class="ps-dur" id="dur-setup">—</span>
+          </div>
+          <div class="pipe-step s-idle" id="ps-build" onclick="showPanel('build')">
+            <span class="ps-icon">🔨</span>
+            <span class="ps-name">Build</span>
+            <span class="ps-dur" id="dur-build">—</span>
+          </div>
+          <div class="pipe-step s-idle" id="ps-test" onclick="showPanel('test')">
+            <span class="ps-icon">🧪</span>
+            <span class="ps-name">Test</span>
+            <span class="ps-dur" id="dur-test">—</span>
+          </div>
+          <div class="pipe-step s-idle" id="ps-package" onclick="showPanel('package')">
+            <span class="ps-icon">📦</span>
+            <span class="ps-name">Package</span>
+            <span class="ps-dur" id="dur-package">—</span>
+          </div>
+          <div class="pipe-step s-idle" id="ps-release" onclick="showPanel('release')">
+            <span class="ps-icon">🚀</span>
+            <span class="ps-name">Release</span>
+            <span class="ps-dur" id="dur-release">—</span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid-4 mb14">
+          <div class="stat-card">
+            <div class="stat-label">Java Version</div>
+            <div class="stat-value" id="stat-java">17</div>
+            <div class="stat-sub">Eclipse Temurin</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Platforms</div>
+            <div class="stat-value" id="stat-plats">3</div>
+            <div class="stat-sub">mac · win · linux</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Tests</div>
+            <div class="stat-value" id="stat-tests">—</div>
+            <div class="stat-sub" id="stat-tests-sub">not run</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Artifacts</div>
+            <div class="stat-value" id="stat-arts">—</div>
+            <div class="stat-sub" id="stat-arts-sub">not built</div>
+          </div>
+        </div>
+
+        <!-- Environment summary -->
+        <div class="section-title">🔍 Environment</div>
+        <div id="env-summary">
+          <div class="env-item">
+            <span class="env-icon">☕</span>
+            <span class="env-name">Java / JDK</span>
+            <span class="env-val" id="env-java-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🐘</span>
+            <span class="env-name">Gradle Wrapper</span>
+            <span class="env-val" id="env-gradle-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🐙</span>
+            <span class="env-name">Git</span>
+            <span class="env-val" id="env-git-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🍎</span>
+            <span class="env-name">hdiutil (macOS DMG)</span>
+            <span class="env-val" id="env-hdiutil-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📦</span>
+            <span class="env-name">fpm (Linux DEB/RPM)</span>
+            <span class="env-val" id="env-fpm-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🪟</span>
+            <span class="env-name">WiX (Windows MSI)</span>
+            <span class="env-val" id="env-wix-val">Not checked</span>
+            <span class="env-status"><span class="tag tag-warn">pending</span></span>
+          </div>
+        </div>
+
+        <!-- Recent log snippet -->
+        <div class="section-title">📋 Recent Activity</div>
+        <div class="card" style="padding:0">
+          <div id="recent-log" style="font-family:monospace;font-size:12px;padding:12px;max-height:160px;overflow-y:auto;color:var(--sub)">
+            No activity yet. Run a pipeline step to begin.
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           SETUP
+           ==================================================== -->
+      <div class="panel" id="panel-setup">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1a2a1a">⚙</div>
+          <div>
+            <div class="panel-title">Environment Setup</div>
+            <div class="panel-desc">Validate OS, Java JDK, Gradle wrapper, and native toolchain</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary" onclick="runSetup()">⚙ Run Setup</button>
+          </div>
+        </div>
+
+        <div class="section-title">Platform Detection</div>
+        <div class="grid-3 mb14">
+          <div class="card">
+            <div class="card-title">🖥 Operating System</div>
+            <div id="setup-os" class="text-sub">Detecting…</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🔧 Architecture</div>
+            <div id="setup-arch" class="text-sub">Detecting…</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🐍 Python Runtime</div>
+            <div id="setup-python" class="text-sub">3.9+</div>
+          </div>
+        </div>
+
+        <div class="section-title">☕ Java / JDK</div>
+        <div class="card">
+          <div class="progress-wrap mb8">
+            <div class="progress-label"><span>JDK Check</span><span id="java-check-pct">—</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="java-check-bar" style="width:0%"></div></div>
+          </div>
+          <table class="tbl" id="java-table">
+            <thead><tr><th>Source</th><th>Path</th><th>Version</th><th>Status</th></tr></thead>
+            <tbody id="java-table-body">
+              <tr><td colspan="4" class="text-sub" style="text-align:center;padding:16px">Run setup to detect JDK</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:10px;font-size:12px;color:var(--sub)">
+            Auto-install: Eclipse Temurin JDK via Adoptium API → <span class="mono">~/.cache/ganttproject-build/jdk/</span>
+          </div>
+        </div>
+
+        <div class="section-title">🐘 Gradle Wrapper</div>
+        <div class="card">
+          <div id="gradle-status" class="text-sub mb8">Run setup to validate Gradle wrapper.</div>
+          <div class="env-item">
+            <span class="env-icon">📄</span>
+            <span class="env-name">gradlew</span>
+            <span class="env-val">./gradlew</span>
+            <span class="env-status" id="gradle-badge"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🐘</span>
+            <span class="env-name">Gradle Version</span>
+            <span class="env-val" id="gradle-ver">—</span>
+            <span class="env-status" id="gradle-ver-badge"><span class="tag tag-warn">pending</span></span>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--sub)">
+            GRADLE_OPTS: <span class="mono">-Xmx4g -XX:+UseG1GC</span>
+          </div>
+        </div>
+
+        <div class="section-title">🔩 Native Toolchain</div>
+        <div id="native-tools-list">
+          <div class="env-item">
+            <span class="env-icon">🐙</span><span class="env-name">git</span>
+            <span class="env-val" id="tool-git-val">—</span>
+            <span class="env-status" id="tool-git-badge"><span class="tag tag-warn">required</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🍎</span><span class="env-name">hdiutil (macOS DMG)</span>
+            <span class="env-val" id="tool-hdiutil-val">—</span>
+            <span class="env-status" id="tool-hdiutil-badge"><span class="tag tag-skip">optional</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🪟</span><span class="env-name">candle / light (WiX)</span>
+            <span class="env-val" id="tool-wix-val">—</span>
+            <span class="env-status" id="tool-wix-badge"><span class="tag tag-skip">optional</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📦</span><span class="env-name">fpm (DEB/RPM)</span>
+            <span class="env-val" id="tool-fpm-val">—</span>
+            <span class="env-status" id="tool-fpm-badge"><span class="tag tag-skip">optional</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🔑</span><span class="env-name">codesign (macOS signing)</span>
+            <span class="env-val" id="tool-codesign-val">—</span>
+            <span class="env-status" id="tool-codesign-badge"><span class="tag tag-skip">optional</span></span>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📝</span><span class="env-name">signtool (Authenticode)</span>
+            <span class="env-val" id="tool-signtool-val">—</span>
+            <span class="env-status" id="tool-signtool-badge"><span class="tag tag-skip">optional</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           BUILD
+           ==================================================== -->
+      <div class="panel" id="panel-build">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#2a1e0a">🔨</div>
+          <div>
+            <div class="panel-title">Build</div>
+            <div class="panel-desc">Compile GanttProject source and plugins via Gradle wrapper</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="cfg('refresh_deps',true)">↻ --refresh-deps</button>
+            <button class="btn btn-primary" onclick="runBuild()">🔨 Run Build</button>
+          </div>
+        </div>
+
+        <div class="section-title">Gradle Tasks</div>
+        <div class="grid-3 mb14">
+          <div class="card">
+            <div class="card-title">🧹 clean</div>
+            <div class="text-sub" id="task-clean-status">Not run</div>
+            <div class="progress-wrap" style="margin-top:6px">
+              <div class="progress-bar"><div class="progress-fill cyn" id="task-clean-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🔨 build -x test</div>
+            <div class="text-sub" id="task-build-status">Not run</div>
+            <div class="progress-wrap" style="margin-top:6px">
+              <div class="progress-bar"><div class="progress-fill cyn" id="task-build-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">🧩 plugins</div>
+            <div class="text-sub" id="task-plugins-status">Not run</div>
+            <div class="progress-wrap" style="margin-top:6px">
+              <div class="progress-bar"><div class="progress-fill cyn" id="task-plugins-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Plugin Build Results</div>
+        <div id="plugin-results">
+          <table class="tbl">
+            <thead><tr><th>Plugin</th><th>Build Type</th><th>Duration</th><th>Status</th></tr></thead>
+            <tbody id="plugin-table-body">
+              <tr><td colspan="4" class="text-sub" style="text-align:center;padding:16px">Run build to compile plugins</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-title">Build Configuration</div>
+        <div class="card">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--refresh-dependencies</div>
+              <div class="toggle-desc">Force re-download all Gradle dependencies</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-refresh-deps"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--no-plugins</div>
+              <div class="toggle-desc">Skip plugin compilation (faster core-only build)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-no-plugins"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--dry-run</div>
+              <div class="toggle-desc">Log commands without executing them</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-dry-run-build"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--stacktrace</div>
+              <div class="toggle-desc">Print full Gradle stack traces on failure</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-stacktrace" checked><span class="slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           TEST
+           ==================================================== -->
+      <div class="panel" id="panel-test">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1e2a1e">🧪</div>
+          <div>
+            <div class="panel-title">Test</div>
+            <div class="panel-desc">Run JUnit test suite with optional Jacoco coverage reporting</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="document.getElementById('opt-quick').checked=true">⚡ Quick Mode</button>
+            <button class="btn btn-primary" onclick="runTests()">🧪 Run Tests</button>
+          </div>
+        </div>
+
+        <div class="section-title">Test Summary</div>
+        <div class="grid-4 mb14">
+          <div class="stat-card">
+            <div class="stat-label">Total</div>
+            <div class="stat-value" id="ts-total">—</div>
+            <div class="stat-sub">test cases</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Passed</div>
+            <div class="stat-value text-ok" id="ts-pass">—</div>
+            <div class="stat-sub">✓ passing</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Failed</div>
+            <div class="stat-value text-fail" id="ts-fail">—</div>
+            <div class="stat-sub">✗ failing</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Coverage</div>
+            <div class="stat-value" id="ts-cov">—</div>
+            <div class="stat-sub">line coverage</div>
+          </div>
+        </div>
+
+        <div class="section-title">Coverage Report (Jacoco)</div>
+        <div class="card" id="coverage-card">
+          <div id="coverage-placeholder" class="empty-state" style="padding:20px">
+            <div class="es-icon">📊</div>
+            <div class="es-msg">Run tests to generate coverage report</div>
+          </div>
+          <div id="coverage-data" style="display:none">
+            <div id="coverage-bars"></div>
+          </div>
+        </div>
+
+        <div class="section-title">Failed Tests</div>
+        <div id="failed-tests-wrap">
+          <div class="empty-state" style="padding:20px">
+            <div class="es-icon">✅</div>
+            <div class="es-msg">No failed tests</div>
+          </div>
+        </div>
+
+        <div class="section-title">Test Configuration</div>
+        <div class="card">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--quick</div>
+              <div class="toggle-desc">Run only *Test unit tests, skip integrationTest + functionalTest</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-quick"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--no-coverage</div>
+              <div class="toggle-desc">Skip jacocoTestReport (faster test run)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-no-coverage"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--continue</div>
+              <div class="toggle-desc">Continue running tests after failures (Gradle --continue)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-continue" checked><span class="slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           PACKAGE
+           ==================================================== -->
+      <div class="panel" id="panel-package">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#2a1a2a">📦</div>
+          <div>
+            <div class="panel-title">Package</div>
+            <div class="panel-desc">Generate platform-specific installers and ZIP archives</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary" onclick="runPackage()">📦 Build Packages</button>
+          </div>
+        </div>
+
+        <div class="section-title">Target Platforms</div>
+        <div class="plat-grid" id="plat-grid">
+          <div class="plat-card selected" id="plat-macos" onclick="togglePlat('macos')">
+            <div class="pc-icon">🍎</div>
+            <div class="pc-name">macOS</div>
+            <div class="pc-desc">Universal (x86_64 + arm64)</div>
+            <div class="pc-arts">
+              <span class="tag tag-info">.dmg</span>
+              <span class="tag tag-info">.zip</span>
+              <span class="tag tag-skip">codesign</span>
+            </div>
+          </div>
+          <div class="plat-card selected" id="plat-windows" onclick="togglePlat('windows')">
+            <div class="pc-icon">🪟</div>
+            <div class="pc-name">Windows</div>
+            <div class="pc-desc">x86_64</div>
+            <div class="pc-arts">
+              <span class="tag tag-info">.msi</span>
+              <span class="tag tag-info">.zip</span>
+              <span class="tag tag-skip">signtool</span>
+            </div>
+          </div>
+          <div class="plat-card selected" id="plat-linux" onclick="togglePlat('linux')">
+            <div class="pc-icon">🐧</div>
+            <div class="pc-name">Linux</div>
+            <div class="pc-desc">x86_64 / aarch64</div>
+            <div class="pc-arts">
+              <span class="tag tag-info">.deb</span>
+              <span class="tag tag-info">.rpm</span>
+              <span class="tag tag-info">.zip</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Artifact Progress</div>
+        <div class="card" id="pkg-progress-card">
+          <div id="pkg-progress-placeholder" class="text-sub" style="padding:6px">
+            Select platforms above and click "Build Packages"
+          </div>
+          <div id="pkg-progress-list" style="display:none"></div>
+        </div>
+
+        <div class="section-title">Package Configuration</div>
+        <div class="card">
+          <div class="form-row">
+            <div class="form-label">Version String</div>
+            <input class="form-input" id="pkg-version" value="3.3.3300" placeholder="e.g. 3.3.3300" />
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--no-sign</div>
+              <div class="toggle-desc">Skip code signing (macOS codesign / Windows Authenticode)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-no-sign"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--skip-msi</div>
+              <div class="toggle-desc">Skip WiX MSI creation (Windows ZIP only)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-skip-msi"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">Dry Run</div>
+              <div class="toggle-desc">Log packaging commands without writing files</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-dry-run-pkg"><span class="slider"></span></label>
+          </div>
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-label">APPLE_SIGN_IDENTITY (env)</div>
+            <input class="form-input" id="pkg-apple-sign" placeholder="Developer ID Application: …" type="password"/>
+          </div>
+          <div class="form-row">
+            <div class="form-label">WINDOWS_SIGN_CERT_PATH (env)</div>
+            <input class="form-input" id="pkg-win-cert" placeholder="/path/to/cert.pfx" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           RELEASE
+           ==================================================== -->
+      <div class="panel" id="panel-release">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1a1e2a">🚀</div>
+          <div>
+            <div class="panel-title">Release</div>
+            <div class="panel-desc">Publish artifacts to GitHub Releases with SHA-256 checksums and MANIFEST.json</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="runChecksums()"># Checksums Only</button>
+            <button class="btn btn-success" onclick="runRelease()">🚀 Publish Release</button>
+          </div>
+        </div>
+
+        <div class="section-title">GitHub Release Configuration</div>
+        <div class="card">
+          <div class="form-row">
+            <div class="form-label">GITHUB_TOKEN</div>
+            <input class="form-input" id="rel-token" type="password" placeholder="ghp_xxxxxxxxxxxxx" />
+          </div>
+          <div class="form-row">
+            <div class="form-label">Repository (auto-detected from git remote)</div>
+            <input class="form-input" id="rel-repo" placeholder="org/ganttproject" value="ganttproject/ganttproject" />
+          </div>
+          <div class="form-row">
+            <div class="form-label">Release Tag</div>
+            <input class="form-input" id="rel-tag" placeholder="v3.3.3300" value="v3.3.3300" />
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">Draft Release</div>
+              <div class="toggle-desc">Create as draft (not publicly visible until published)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-draft"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">Release Notes from CHANGELOG.md</div>
+              <div class="toggle-desc">Auto-extract notes for this version from CHANGELOG.md</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-from-changelog" checked><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--skip-upload</div>
+              <div class="toggle-desc">Generate checksums + MANIFEST only, skip GitHub upload</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="opt-skip-upload"><span class="slider"></span></label>
+          </div>
+        </div>
+
+        <div class="section-title">Artifacts to Upload</div>
+        <div id="release-artifacts-list">
+          <div class="empty-state" style="padding:20px">
+            <div class="es-icon">📦</div>
+            <div class="es-msg">Run Package step first to generate artifacts</div>
+          </div>
+        </div>
+
+        <div class="section-title">MANIFEST.json Preview</div>
+        <div class="card" style="padding:0">
+          <pre id="manifest-preview" style="padding:14px;font-size:11px;overflow-x:auto;color:var(--sub)">
+{
+  "version": "3.3.3300",
+  "released_at": "—",
+  "platforms": {},
+  "checksums": {}
+}</pre>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           FULL PIPELINE
+           ==================================================== -->
+      <div class="panel" id="panel-full">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1e1a2a">▶</div>
+          <div>
+            <div class="panel-title">Full Pipeline</div>
+            <div class="panel-desc">End-to-end: Setup → Build → Test → Package → Release</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-danger" id="stop-btn" onclick="stopPipeline()" disabled>⏹ Stop</button>
+            <button class="btn btn-primary" id="full-run-btn" onclick="runFull()">▶ Start Pipeline</button>
+          </div>
+        </div>
+
+        <div class="section-title">Pipeline Options</div>
+        <div class="card">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--quick-test</div>
+              <div class="toggle-desc">Unit tests only (faster full run)</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="full-quick"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--no-release</div>
+              <div class="toggle-desc">Stop after package, skip GitHub publish</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="full-no-release"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--offline</div>
+              <div class="toggle-desc">Disable all network operations</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="full-offline"><span class="slider"></span></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">--dry-run</div>
+              <div class="toggle-desc">Log all commands without executing</div>
+            </div>
+            <label class="toggle"><input type="checkbox" id="full-dry-run"><span class="slider"></span></label>
+          </div>
+        </div>
+
+        <div class="section-title">Pipeline Progress</div>
+        <div id="full-stages">
+          <div class="card mb8" id="full-s-setup">
+            <div class="flex-row mb8">
+              <span style="font-size:18px">⚙</span>
+              <span style="font-weight:700">Setup</span>
+              <span class="tag tag-skip" id="full-s-setup-tag">idle</span>
+              <span class="flex-1"></span>
+              <span class="text-sub" id="full-s-setup-dur"></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="full-pb-setup" style="width:0%"></div></div>
+          </div>
+          <div class="card mb8" id="full-s-build">
+            <div class="flex-row mb8">
+              <span style="font-size:18px">🔨</span>
+              <span style="font-weight:700">Build</span>
+              <span class="tag tag-skip" id="full-s-build-tag">idle</span>
+              <span class="flex-1"></span>
+              <span class="text-sub" id="full-s-build-dur"></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="full-pb-build" style="width:0%"></div></div>
+          </div>
+          <div class="card mb8" id="full-s-test">
+            <div class="flex-row mb8">
+              <span style="font-size:18px">🧪</span>
+              <span style="font-weight:700">Test</span>
+              <span class="tag tag-skip" id="full-s-test-tag">idle</span>
+              <span class="flex-1"></span>
+              <span class="text-sub" id="full-s-test-dur"></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="full-pb-test" style="width:0%"></div></div>
+          </div>
+          <div class="card mb8" id="full-s-package">
+            <div class="flex-row mb8">
+              <span style="font-size:18px">📦</span>
+              <span style="font-weight:700">Package</span>
+              <span class="tag tag-skip" id="full-s-package-tag">idle</span>
+              <span class="flex-1"></span>
+              <span class="text-sub" id="full-s-package-dur"></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="full-pb-package" style="width:0%"></div></div>
+          </div>
+          <div class="card mb8" id="full-s-release">
+            <div class="flex-row mb8">
+              <span style="font-size:18px">🚀</span>
+              <span style="font-weight:700">Release</span>
+              <span class="tag tag-skip" id="full-s-release-tag">idle</span>
+              <span class="flex-1"></span>
+              <span class="text-sub" id="full-s-release-dur"></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="full-pb-release" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           CLEAN
+           ==================================================== -->
+      <div class="panel" id="panel-clean">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#2a1e1e">🗑</div>
+          <div>
+            <div class="panel-title">Clean</div>
+            <div class="panel-desc">Remove build artifacts, logs, temp files, and optionally the JDK cache</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-danger" onclick="runClean()">🗑 Clean All</button>
+          </div>
+        </div>
+
+        <div class="section-title">What Will Be Removed</div>
+        <div id="clean-targets">
+          <div class="env-item">
+            <span class="env-icon">📁</span>
+            <span class="env-name">build/</span>
+            <span class="env-val">Gradle build outputs, JARs, test reports</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📁</span>
+            <span class="env-name">build/artifacts/</span>
+            <span class="env-val">Packaged installers and ZIPs</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📁</span>
+            <span class="env-name">build/logs/</span>
+            <span class="env-val">Build and test log files</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">📁</span>
+            <span class="env-name">build/temp/</span>
+            <span class="env-val">Staging and temp directories</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" checked><span class="slider"></span></label>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">☕</span>
+            <span class="env-name">~/.cache/ganttproject-build/jdk/</span>
+            <span class="env-val">Auto-installed Eclipse Temurin JDK</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox"><span class="slider"></span></label>
+          </div>
+          <div class="env-item">
+            <span class="env-icon">🧩</span>
+            <span class="env-name">plugins/*/build/</span>
+            <span class="env-val">Plugin sub-project build outputs</span>
+            <label class="toggle" style="margin-left:auto"><input type="checkbox" checked><span class="slider"></span></label>
+          </div>
+        </div>
+
+        <div class="section-title">Disk Space Recovered</div>
+        <div class="grid-3 mb14">
+          <div class="stat-card">
+            <div class="stat-label">Build Outputs</div>
+            <div class="stat-value" id="clean-sz-build">—</div>
+            <div class="stat-sub">MB</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Artifacts</div>
+            <div class="stat-value" id="clean-sz-arts">—</div>
+            <div class="stat-sub">MB</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cache / JDK</div>
+            <div class="stat-value" id="clean-sz-cache">—</div>
+            <div class="stat-sub">MB</div>
+          </div>
+        </div>
+
+        <div id="clean-result" style="display:none">
+          <div class="card" style="border-color:var(--grn)">
+            <div class="card-title text-ok">✅ Clean Complete</div>
+            <div id="clean-result-msg" class="text-sub"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           CONFIGURATION
+           ==================================================== -->
+      <div class="panel" id="panel-config">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1a1a2a">⚙</div>
+          <div>
+            <div class="panel-title">Configuration</div>
+            <div class="panel-desc">Global settings for the build orchestrator (equivalent to YAML config file)</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="resetConfig()">↺ Reset</button>
+            <button class="btn btn-primary" onclick="saveConfig()">💾 Save Config</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <div class="section-title">Java / JDK</div>
+            <div class="card">
+              <div class="form-row">
+                <div class="form-label">Java Major Version</div>
+                <select class="form-select" id="cfg-java-ver">
+                  <option value="11">11 (LTS)</option>
+                  <option value="17" selected>17 (LTS) — recommended</option>
+                  <option value="21">21 (LTS)</option>
+                </select>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-name">Skip Java Auto-Install</div>
+                  <div class="toggle-desc">Require JDK to be pre-installed; never download</div>
+                </div>
+                <label class="toggle"><input type="checkbox" id="cfg-skip-java"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-name">Offline Mode</div>
+                  <div class="toggle-desc">Disable all network operations (downloads, API calls)</div>
+                </div>
+                <label class="toggle"><input type="checkbox" id="cfg-offline"><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="section-title">Gradle</div>
+            <div class="card">
+              <div class="form-row">
+                <div class="form-label">GRADLE_OPTS</div>
+                <input class="form-input" id="cfg-gradle-opts" value="-Xmx4g -XX:+UseG1GC" />
+              </div>
+              <div class="form-row">
+                <div class="form-label">Project Root Directory</div>
+                <input class="form-input" id="cfg-project-root" value="." />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Logging</div>
+            <div class="card">
+              <div class="form-row">
+                <div class="form-label">Log Directory</div>
+                <input class="form-input" id="cfg-log-dir" value="build/logs/" />
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-name">Verbose (DEBUG) Logging</div>
+                  <div class="toggle-desc">Show all DEBUG-level log messages</div>
+                </div>
+                <label class="toggle"><input type="checkbox" id="cfg-verbose"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <div class="toggle-name">Disable Color Output</div>
+                  <div class="toggle-desc">Plain text logs (useful for CI systems)</div>
+                </div>
+                <label class="toggle"><input type="checkbox" id="cfg-no-color"><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="section-title">Exit Codes Reference</div>
+            <div class="card" style="padding:0">
+              <table class="tbl">
+                <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono text-ok">0</td><td>Success</td></tr>
+                  <tr><td class="mono text-fail">1</td><td>Build / compile failure</td></tr>
+                  <tr><td class="mono text-fail">2</td><td>Test failure</td></tr>
+                  <tr><td class="mono text-fail">3</td><td>Packaging failure</td></tr>
+                  <tr><td class="mono text-fail">4</td><td>Environment / setup failure</td></tr>
+                  <tr><td class="mono text-fail">5</td><td>GitHub release / upload failure</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Generated CLI Equivalent</div>
+        <div class="card" style="padding:0">
+          <pre id="cli-preview" style="padding:14px;font-size:12px;overflow-x:auto;color:var(--cyn)">python ganttproject-build.py full --platform macos,windows,linux</pre>
+        </div>
+      </div>
+
+      <!-- ====================================================
+           ARTIFACTS BROWSER
+           ==================================================== -->
+      <div class="panel" id="panel-artifacts">
+        <div class="panel-header">
+          <div class="panel-icon" style="background:#1a2a1a">📁</div>
+          <div>
+            <div class="panel-title">Artifacts</div>
+            <div class="panel-desc">Generated installers, ZIPs, and their SHA-256 checksums</div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="copyChecksums()">📋 Copy Checksums</button>
+            <button class="btn btn-secondary" onclick="exportManifest()">⬇ MANIFEST.json</button>
+          </div>
+        </div>
+
+        <div id="artifacts-empty" class="empty-state">
+          <div class="es-icon">📦</div>
+          <div class="es-msg">No artifacts yet. Run Package to generate installers.</div>
+        </div>
+
+        <div id="artifacts-list" style="display:none">
+          <div class="section-title">macOS</div>
+          <div id="arts-macos"></div>
+          <div class="section-title">Windows</div>
+          <div id="arts-windows"></div>
+          <div class="section-title">Linux</div>
+          <div id="arts-linux"></div>
+
+          <div class="section-title">SHA-256 Checksums</div>
+          <div class="card" style="padding:0">
+            <pre id="checksums-pre" style="padding:14px;font-size:11px;overflow-x:auto;color:var(--sub)"></pre>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-area -->
+
+    <!-- ====================================================
+         CONSOLE
+         ==================================================== -->
+    <div id="console-area">
+      <div id="console-header" onclick="toggleConsole()">
+        <span style="font-size:12px">▶</span>
+        <span class="ch-title">Console Output</span>
+        <span id="console-line-count" class="badge" style="font-size:10px">0 lines</span>
+        <div class="ch-actions">
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();clearConsole()">Clear</button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();copyLog()">Copy</button>
+        </div>
+      </div>
+      <div id="console-out"></div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+// ================================================================
+// STATE
+// ================================================================
+const state = {
+  pipelineRunning: false,
+  stopRequested: false,
+  stages: { setup:'idle', build:'idle', test:'idle', package:'idle', release:'idle' },
+  durations: {},
+  artifacts: { macos:[], windows:[], linux:[] },
+  testResults: null,
+  platforms: { macos:true, windows:true, linux:true },
+  logLines: [],
+};
+
+// ================================================================
+// THEME
+// ================================================================
+function toggleTheme() {
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-toggle').textContent = t === 'dark' ? '☀ Light' : '🌙 Dark';
+}
+
+// ================================================================
+// NAVIGATION
+// ================================================================
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const p = document.getElementById('panel-' + id);
+  const n = document.getElementById('nav-' + id);
+  if (p) p.classList.add('active');
+  if (n) n.classList.add('active');
+}
+
+// ================================================================
+// CONSOLE
+// ================================================================
+let consoleExpanded = false;
+function toggleConsole() {
+  consoleExpanded = !consoleExpanded;
+  document.getElementById('console-area').classList.toggle('expanded', consoleExpanded);
+}
+function clearConsole() {
+  state.logLines = [];
+  document.getElementById('console-out').innerHTML = '';
+  document.getElementById('console-line-count').textContent = '0 lines';
+}
+function copyLog() {
+  navigator.clipboard?.writeText(state.logLines.map(l=>l.text).join('\n'));
+}
+
+function log(msg, level='INFO') {
+  const ts = new Date().toISOString().replace('T',' ').slice(0,19);
+  const line = { text: `[${ts}] [${level}] ${msg}`, level };
+  state.logLines.push(line);
+  const out = document.getElementById('console-out');
+  const div = document.createElement('div');
+  div.className = `log-line log-${level}`;
+  div.textContent = line.text;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+  document.getElementById('console-line-count').textContent = state.logLines.length + ' lines';
+
+  // Mirror to recent activity on dashboard
+  const recent = document.getElementById('recent-log');
+  if (recent) {
+    const span = document.createElement('div');
+    span.className = `log-line log-${level}`;
+    span.textContent = line.text;
+    recent.appendChild(span);
+    recent.scrollTop = recent.scrollHeight;
+    if (recent.textContent === 'No activity yet. Run a pipeline step to begin.') {
+      recent.textContent = '';
+    }
+  }
+}
+
+function logCmd(cmd) { log('$ ' + cmd, 'CMD'); }
+
+// sleep helper for simulation
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ================================================================
+// STAGE STATUS
+// ================================================================
+function setStage(name, status) {
+  state.stages[name] = status;
+  const ps = document.getElementById('ps-' + name);
+  if (ps) {
+    ps.className = 'pipe-step s-' + (status === 'ok' ? 'ok' : status === 'fail' ? 'fail' : status === 'running' ? 'run' : 'idle');
+  }
+  const dot = document.getElementById('dot-' + name);
+  if (dot) {
+    dot.className = 'status-dot ' + (status === 'ok' ? 'ok' : status === 'fail' ? 'fail' : status === 'running' ? 'run' : '');
+  }
+  // Full pipeline cards
+  const tag = document.getElementById('full-s-' + name + '-tag');
+  if (tag) {
+    tag.className = 'tag ' + (status === 'ok' ? 'tag-ok' : status === 'fail' ? 'tag-fail' : status === 'running' ? 'tag-info' : 'tag-skip');
+    tag.textContent = status === 'running' ? '⠿ running' : status;
+  }
+}
+
+function setDur(name, ms) {
+  state.durations[name] = ms;
+  const el = document.getElementById('dur-' + name);
+  if (el) el.textContent = (ms/1000).toFixed(1) + 's';
+  const el2 = document.getElementById('full-s-' + name + '-dur');
+  if (el2) el2.textContent = (ms/1000).toFixed(1) + 's';
+}
+
+function updatePipelineBadge() {
+  const badge = document.getElementById('pipeline-status-badge');
+  const vals = Object.values(state.stages);
+  if (state.pipelineRunning) {
+    badge.className = 'badge run'; badge.textContent = '⠿ RUNNING';
+  } else if (vals.some(v => v === 'fail')) {
+    badge.className = 'badge fail'; badge.textContent = '✗ FAILED';
+  } else if (vals.every(v => v === 'ok')) {
+    badge.className = 'badge ok'; badge.textContent = '✓ SUCCESS';
+  } else {
+    badge.className = 'badge'; badge.textContent = '● IDLE';
+  }
+}
+
+// ================================================================
+// ANIMATE PROGRESS BAR (full pipeline cards)
+// ================================================================
+async function animateBar(id, durationMs, color='') {
+  const bar = document.getElementById(id);
+  if (!bar) return;
+  if (color) bar.className = 'progress-fill ' + color;
+  const steps = 60;
+  const stepMs = durationMs / steps;
+  for (let i = 1; i <= steps; i++) {
+    if (state.stopRequested) break;
+    await sleep(stepMs);
+    bar.style.width = (i / steps * 100) + '%';
+  }
+}
+
+// ================================================================
+// SETUP SIMULATION
+// ================================================================
+async function runSetup() {
+  if (state.pipelineRunning) return;
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  setStage('setup', 'running');
+  showPanel('setup');
+  const t0 = Date.now();
+
+  log('=== SETUP: Validating build environment ===');
+
+  // OS detection
+  await sleep(200);
+  const ua = navigator.userAgent;
+  let os = 'linux', arch = 'x86_64';
+  if (ua.includes('Mac')) { os = 'macos'; arch = ua.includes('ARM') ? 'arm64' : 'x86_64'; }
+  else if (ua.includes('Win')) { os = 'windows'; }
+  document.getElementById('setup-os').textContent = os;
+  document.getElementById('setup-arch').textContent = arch;
+  document.getElementById('setup-python').textContent = '3.11.2 (detected via browser shim)';
+  log(`Platform: ${os} | Arch: ${arch} | Python: 3.11.2`, 'INFO');
+
+  // Java check
+  log('Checking Java JDK…');
+  const javaBar = document.getElementById('java-check-bar');
+  const javaTbody = document.getElementById('java-table-body');
+  const javaSteps = [
+    {source:'JAVA_HOME env', path:'/usr/lib/jvm/temurin-17', ver:17, ok:true},
+    {source:'PATH',          path:'/usr/bin/java',            ver:11, ok:false},
+    {source:'Cache dir',     path:'~/.cache/ganttproject-build/jdk/jdk-17', ver:17, ok:true},
+  ];
+  javaTbody.innerHTML = '';
+  for (let i=0; i<javaSteps.length; i++) {
+    await sleep(300);
+    javaBar.style.width = ((i+1)/javaSteps.length*100) + '%';
+    document.getElementById('java-check-pct').textContent = (i+1) + '/' + javaSteps.length;
+    const s = javaSteps[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.source}</td><td class="mono">${s.path}</td><td>JDK ${s.ver}</td>
+      <td><span class="tag ${s.ok?'tag-ok':'tag-fail'}">${s.ok?'✓ suitable':'✗ too old'}</span></td>`;
+    javaTbody.appendChild(tr);
+    log(`  Java found: ${s.path} → v${s.ver} ${s.ok?'(OK)':'(too old)'}`, s.ok?'INFO':'WARNING');
+  }
+  javaBar.className = 'progress-fill grn';
+  document.getElementById('env-java-val').textContent = 'JDK 17 (Temurin)';
+  document.getElementById('env-summary').children[0].querySelector('.env-status').innerHTML = '<span class="tag tag-ok">✓ ok</span>';
+
+  // Gradle
+  await sleep(400);
+  log('Gradle wrapper: ./gradlew (executable)');
+  document.getElementById('gradle-status').textContent = 'Gradle wrapper found and executable.';
+  document.getElementById('gradle-badge').innerHTML = '<span class="tag tag-ok">✓ found</span>';
+  document.getElementById('gradle-ver').textContent = '8.6';
+  document.getElementById('gradle-ver-badge').innerHTML = '<span class="tag tag-ok">8.6</span>';
+  document.getElementById('env-gradle-val').textContent = 'Gradle 8.6';
+  document.getElementById('env-summary').children[1].querySelector('.env-status').innerHTML = '<span class="tag tag-ok">✓ ok</span>';
+
+  // Native tools
+  await sleep(300);
+  const tools = [
+    {id:'git',      val:'/usr/bin/git 2.44.0',    ok:true,  req:true},
+    {id:'hdiutil',  val:os==='macos'?'/usr/bin/hdiutil':'not installed', ok:os==='macos', req:false},
+    {id:'wix',      val:'not installed',           ok:false, req:false},
+    {id:'fpm',      val:os==='linux'?'/usr/bin/fpm':'not installed',     ok:os==='linux', req:false},
+    {id:'codesign', val:os==='macos'?'/usr/bin/codesign':'not installed',ok:os==='macos', req:false},
+    {id:'signtool', val:'not installed',           ok:false, req:false},
+  ];
+  for (const t of tools) {
+    await sleep(100);
+    const valEl = document.getElementById('tool-' + t.id + '-val');
+    const badgeEl = document.getElementById('tool-' + t.id + '-badge');
+    if (valEl) valEl.textContent = t.val;
+    if (badgeEl) {
+      if (t.ok) badgeEl.innerHTML = '<span class="tag tag-ok">✓ found</span>';
+      else if (t.req) badgeEl.innerHTML = '<span class="tag tag-fail">✗ missing</span>';
+      else badgeEl.innerHTML = '<span class="tag tag-skip">optional</span>';
+    }
+    log(`  Tool: ${t.id} → ${t.val}`, t.ok?'INFO':'WARNING');
+  }
+  // update env summary
+  document.getElementById('env-git-val').textContent = '/usr/bin/git 2.44.0';
+  document.getElementById('env-summary').children[2].querySelector('.env-status').innerHTML = '<span class="tag tag-ok">✓ ok</span>';
+
+  const dur = Date.now() - t0;
+  setStage('setup', 'ok');
+  setDur('setup', dur);
+  log(`Setup complete in ${(dur/1000).toFixed(1)}s — Environment OK`, 'SUCCESS');
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+  updateStats();
+}
+
+// ================================================================
+// BUILD SIMULATION
+// ================================================================
+async function runBuild() {
+  if (state.pipelineRunning) return;
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  setStage('build', 'running');
+  showPanel('build');
+  const t0 = Date.now();
+
+  const dryRun = document.getElementById('opt-dry-run-build').checked;
+  const noPlugins = document.getElementById('opt-no-plugins').checked;
+  const refreshDeps = document.getElementById('opt-refresh-deps').checked;
+
+  log('=== BUILD: Compiling GanttProject ===');
+
+  // clean task
+  document.getElementById('task-clean-status').textContent = 'Running…';
+  logCmd(`./gradlew clean${dryRun?' [DRY-RUN]':''}`);
+  await animateBar('task-clean-bar', 1500, 'cyn');
+  document.getElementById('task-clean-status').textContent = 'Done';
+  document.getElementById('task-clean-bar').className = 'progress-fill grn';
+  log('> Task :clean UP-TO-DATE');
+  await sleep(200);
+
+  // build task
+  document.getElementById('task-build-status').textContent = 'Compiling…';
+  const gradleArgs = ['build', '-x', 'test', '--stacktrace'];
+  if (refreshDeps) gradleArgs.push('--refresh-dependencies');
+  logCmd('./gradlew ' + gradleArgs.join(' '));
+
+  const buildMsgs = [
+    'Compiling Java sources…',
+    '> Task :ganttproject:compileJava',
+    '> Task :ganttproject:processResources',
+    '> Task :ganttproject:classes',
+    '> Task :ganttproject:jar',
+    'Compiling Kotlin sources…',
+    '> Task :biz.ganttproject.core:compileKotlin',
+    '> Task :biz.ganttproject.core:jar',
+    'BUILD SUCCESSFUL in 42s',
+  ];
+  for (let i=0; i<buildMsgs.length; i++) {
+    await sleep(400);
+    document.getElementById('task-build-bar').style.width = ((i+1)/buildMsgs.length*100) + '%';
+    log(buildMsgs[i]);
+    if (state.stopRequested) break;
+  }
+  document.getElementById('task-build-status').textContent = 'Done';
+  document.getElementById('task-build-bar').className = 'progress-fill grn';
+
+  // plugins
+  if (!noPlugins) {
+    document.getElementById('task-plugins-status').textContent = 'Building plugins…';
+    const plugins = [
+      {name:'org.ganttproject.impex.msproject', type:'Gradle'},
+      {name:'org.ganttproject.impex.htmlss',    type:'Gradle'},
+      {name:'org.ganttproject.chart.timeline',  type:'Gradle'},
+      {name:'net.sourceforge.ganttproject.deps', type:'Maven'},
+    ];
+    const tbody = document.getElementById('plugin-table-body');
+    tbody.innerHTML = '';
+    for (let i=0; i<plugins.length; i++) {
+      if (state.stopRequested) break;
+      await sleep(600);
+      document.getElementById('task-plugins-bar').style.width = ((i+1)/plugins.length*100) + '%';
+      const p = plugins[i];
+      const dur = (Math.random()*4+1).toFixed(1) + 's';
+      const ok = Math.random() > 0.05;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="mono">${p.name}</td><td>${p.type}</td><td>${dur}</td>
+        <td><span class="tag ${ok?'tag-ok':'tag-fail'}">${ok?'✓ SUCCESS':'✗ FAILED'}</span></td>`;
+      tbody.appendChild(tr);
+      log(`  Plugin: ${p.name} → ${ok?'SUCCESS':'FAILED'}`, ok?'INFO':'ERROR');
+    }
+    document.getElementById('task-plugins-status').textContent = 'Done';
+    document.getElementById('task-plugins-bar').className = 'progress-fill grn';
+  }
+
+  const dur = Date.now() - t0;
+  setStage('build', 'ok');
+  setDur('build', dur);
+  log(`Build complete in ${(dur/1000).toFixed(1)}s`, 'SUCCESS');
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+  updateStats();
+}
+
+// ================================================================
+// TEST SIMULATION
+// ================================================================
+async function runTests() {
+  if (state.pipelineRunning) return;
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  setStage('test', 'running');
+  showPanel('test');
+  const t0 = Date.now();
+
+  const quick = document.getElementById('opt-quick').checked;
+  const noCoverage = document.getElementById('opt-no-coverage').checked;
+
+  log(`=== TEST: Running test suite${quick?' (quick mode)':''} ===`);
+  logCmd(`./gradlew test${quick?' --tests "*Test" -x integrationTest':''} ${noCoverage?'':'jacocoTestReport'} --continue --stacktrace`);
+
+  const totalTests = quick ? 148 : 342;
+  const failedTests = Math.floor(Math.random() * 3); // 0–2 failures
+  const passedTests = totalTests - failedTests;
+  const coverage = Math.floor(Math.random() * 15 + 73); // 73–88%
+
+  const testGroups = [
+    {name:'biz.ganttproject.core', tests:88, fail:failedTests>0?1:0},
+    {name:'net.sourceforge.ganttproject', tests:124, fail:failedTests>1?1:0},
+    {name:'org.ganttproject.impex.msproject', tests:45, fail:0},
+    {name:'org.ganttproject.chart', tests:quick?0:85, fail:0},
+  ].filter(g => g.tests > 0);
+
+  for (const grp of testGroups) {
+    if (state.stopRequested) break;
+    log(`Running tests in ${grp.name}…`);
+    await sleep(800);
+    log(`  Tests run: ${grp.tests}, Failures: ${grp.fail}, Errors: 0, Skipped: 0`, grp.fail ? 'WARNING' : 'INFO');
+  }
+
+  if (!noCoverage) {
+    await sleep(500);
+    log('> Task :ganttproject:jacocoTestReport');
+    log(`  Line coverage: ${coverage}%`);
+    log(`  Branch coverage: ${Math.floor(coverage*0.85)}%`);
+  }
+
+  // Update test summary
+  document.getElementById('ts-total').textContent = totalTests;
+  document.getElementById('ts-pass').textContent = passedTests;
+  document.getElementById('ts-fail').textContent = failedTests;
+  document.getElementById('ts-cov').textContent = noCoverage ? 'N/A' : coverage + '%';
+
+  state.testResults = { total:totalTests, pass:passedTests, fail:failedTests, cov:coverage };
+
+  // Coverage bars
+  if (!noCoverage) {
+    const covData = document.getElementById('coverage-data');
+    const placeholder = document.getElementById('coverage-placeholder');
+    covData.style.display = 'block';
+    placeholder.style.display = 'none';
+    const bars = document.getElementById('coverage-bars');
+    const modules = [
+      {name:'biz.ganttproject.core', line:coverage+3, branch:Math.floor((coverage+3)*0.85)},
+      {name:'net.sourceforge.ganttproject', line:coverage-2, branch:Math.floor((coverage-2)*0.85)},
+      {name:'org.ganttproject.impex.msproject', line:coverage+7, branch:Math.floor((coverage+7)*0.85)},
+    ];
+    bars.innerHTML = modules.map(m => `
+      <div class="mb8">
+        <div class="progress-label"><span class="mono">${m.name}</span><span>${m.line}%</span></div>
+        <div class="progress-bar"><div class="progress-fill ${m.line>=80?'grn':m.line>=60?'yel':'red'}" style="width:${m.line}%"></div></div>
+        <div style="font-size:11px;color:var(--sub);margin-top:2px">Branch: ${m.branch}%</div>
+      </div>`).join('');
+  }
+
+  // Failures
+  const failWrap = document.getElementById('failed-tests-wrap');
+  if (failedTests === 0) {
+    failWrap.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-icon">✅</div><div class="es-msg">All tests passed!</div></div>';
+  } else {
+    const fakes = [
+      {cls:'biz.ganttproject.core.time.CalendarTest', method:'testHolidayCalculation', msg:"Expected 3 working days but got 4"},
+      {cls:'net.sourceforge.ganttproject.TaskTest',   method:'testDurationWithDeps', msg:"AssertionError: task start mismatch"},
+    ].slice(0, failedTests);
+    failWrap.innerHTML = `<table class="tbl"><thead><tr><th>Class</th><th>Method</th><th>Message</th></tr></thead><tbody>
+      ${fakes.map(f=>`<tr><td class="mono">${f.cls}</td><td class="mono">${f.method}</td><td class="text-fail" style="font-size:11px">${f.msg}</td></tr>`).join('')}
+    </tbody></table>`;
+    log(`Failed tests (${failedTests}):`, 'ERROR');
+    fakes.forEach(f => log(`  FAIL: ${f.cls}#${f.method}`, 'ERROR'));
+  }
+
+  const dur = Date.now() - t0;
+  setStage('test', failedTests > 0 ? 'fail' : 'ok');
+  setDur('test', dur);
+  log(`Tests complete in ${(dur/1000).toFixed(1)}s — ${passedTests}/${totalTests} passed`, failedTests>0?'WARNING':'SUCCESS');
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+  updateStats();
+}
+
+// ================================================================
+// PACKAGE SIMULATION
+// ================================================================
+function togglePlat(p) {
+  state.platforms[p] = !state.platforms[p];
+  document.getElementById('plat-' + p).classList.toggle('selected', state.platforms[p]);
+}
+
+async function runPackage() {
+  if (state.pipelineRunning) return;
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  setStage('package', 'running');
+  showPanel('package');
+  const t0 = Date.now();
+  const version = document.getElementById('pkg-version').value || '3.3.3300';
+  const dryRun = document.getElementById('opt-dry-run-pkg').checked;
+  const noSign = document.getElementById('opt-no-sign').checked;
+  const skipMsi = document.getElementById('opt-skip-msi').checked;
+
+  const selectedPlats = Object.entries(state.platforms).filter(([,v])=>v).map(([k])=>k);
+  log(`=== PACKAGE: Building artifacts for: ${selectedPlats.join(', ')} ===`);
+
+  // Reset artifacts
+  state.artifacts = { macos:[], windows:[], linux:[] };
+
+  const progList = document.getElementById('pkg-progress-list');
+  document.getElementById('pkg-progress-placeholder').style.display = 'none';
+  progList.style.display = 'block';
+  progList.innerHTML = '';
+
+  const platConfig = {
+    macos:   { icon:'🍎', arches:['universal'],    formats: skipMsi?['.zip']:['.dmg','.zip'] },
+    windows: { icon:'🪟', arches:['x64'],          formats: skipMsi?['.zip']:['.msi','.zip'] },
+    linux:   { icon:'🐧', arches:['x64','aarch64'], formats:['.deb','.rpm','.zip'] },
+  };
+
+  for (const plat of selectedPlats) {
+    if (state.stopRequested) break;
+    const cfg2 = platConfig[plat];
+    log(`--- Packaging: ${plat} ---`);
+
+    for (const arch of cfg2.arches) {
+      const baseName = `ganttproject-${version}-${plat}-${arch}`;
+      // staging
+      log(`  Staging: ${baseName}…`);
+      await sleep(400);
+
+      for (const fmt of cfg2.formats) {
+        if (state.stopRequested) break;
+        const artName = baseName + fmt;
+        const sizeMB = (Math.random()*60+20).toFixed(1);
+        const hash = Array.from({length:64}, ()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+
+        if (dryRun) {
+          log(`  [DRY-RUN] Would create: ${artName}`, 'WARNING');
+        } else {
+          log(`  Creating ${fmt}: ${artName} (${sizeMB} MB)`);
+          await sleep(600);
+          log(`  ${fmt.toUpperCase().slice(1)} created: ${artName}`, 'SUCCESS');
+        }
+
+        const art = { name:artName, size:sizeMB, hash, fmt, plat, arch };
+        state.artifacts[plat].push(art);
+
+        // progress row
+        const div = document.createElement('div');
+        div.className = 'env-item';
+        div.innerHTML = `<span class="env-icon">${cfg2.icon}</span>
+          <span class="env-name">${artName}</span>
+          <span class="env-val">${sizeMB} MB${dryRun?' [DRY-RUN]':''}</span>
+          <span class="env-status"><span class="tag ${dryRun?'tag-warn':'tag-ok'}">${dryRun?'dry-run':'✓'}</span></span>`;
+        progList.appendChild(div);
+      }
+
+      if (!noSign && !dryRun) {
+        log(`  Signing: ${plat} artifacts (${plat==='macos'?'codesign':'Authenticode'})…`);
+        await sleep(300);
+        log(`  Signing complete`, 'SUCCESS');
+      }
+    }
+  }
+
+  // Refresh artifacts panel
+  refreshArtifactsPanel();
+
+  const dur = Date.now() - t0;
+  setStage('package', 'ok');
+  setDur('package', dur);
+  log(`Packaging complete in ${(dur/1000).toFixed(1)}s`, 'SUCCESS');
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+  updateStats();
+  updateManifest();
+  updateReleaseArtifactsList();
+}
+
+// ================================================================
+// RELEASE SIMULATION
+// ================================================================
+async function runChecksums() {
+  log('=== Generating SHA-256 checksums ===');
+  const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+  if (!allArts.length) { log('No artifacts found. Run Package first.', 'WARNING'); return; }
+  for (const a of allArts) {
+    await sleep(100);
+    log(`  SHA-256: ${a.name}  ${a.hash}`);
+  }
+  log('MANIFEST.json written: build/artifacts/' + (document.getElementById('pkg-version')?.value||'3.3.3300') + '/MANIFEST.json', 'SUCCESS');
+  updateManifest();
+}
+
+async function runRelease() {
+  if (state.pipelineRunning) return;
+  const token = document.getElementById('rel-token').value;
+  const skipUpload = document.getElementById('opt-skip-upload').checked;
+  if (!token && !skipUpload) {
+    log('ERROR: GITHUB_TOKEN not set. Set it in the Release panel or use --skip-upload.', 'ERROR');
+    return;
+  }
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  setStage('release', 'running');
+  showPanel('release');
+  const t0 = Date.now();
+  const version = document.getElementById('rel-tag').value || 'v3.3.3300';
+  const repo = document.getElementById('rel-repo').value;
+  const draft = document.getElementById('opt-draft').checked;
+
+  log(`=== RELEASE: Publishing ${version} ===`);
+  await runChecksums();
+
+  if (!skipUpload) {
+    log(`Creating GitHub release: ${repo} @ ${version}${draft?' (draft)':''}…`);
+    await sleep(800);
+    log('> POST /repos/' + repo + '/releases  → 201 Created');
+    log(`Release URL: https://github.com/${repo}/releases/tag/${version}`, 'SUCCESS');
+
+    const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+    for (const a of allArts) {
+      if (state.stopRequested) break;
+      await sleep(400);
+      log(`  Uploading: ${a.name} (${a.size} MB)…`);
+      await sleep(500);
+      log(`  ✓ Uploaded: ${a.name}`, 'SUCCESS');
+    }
+    // checksums file
+    await sleep(300);
+    log('  Uploading: SHA256SUMS.txt…');
+    await sleep(200);
+    log('  ✓ Uploaded: SHA256SUMS.txt', 'SUCCESS');
+  }
+
+  const dur = Date.now() - t0;
+  setStage('release', 'ok');
+  setDur('release', dur);
+  log(`Release complete in ${(dur/1000).toFixed(1)}s`, 'SUCCESS');
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+}
+
+// ================================================================
+// FULL PIPELINE
+// ================================================================
+async function runFull() {
+  if (state.pipelineRunning) return;
+  state.stopRequested = false;
+  state.pipelineRunning = true;
+  updatePipelineBadge();
+  showPanel('full');
+
+  document.getElementById('full-run-btn').disabled = true;
+  document.getElementById('stop-btn').disabled = false;
+
+  const noRelease = document.getElementById('full-no-release')?.checked;
+  const quick = document.getElementById('full-quick')?.checked;
+  if (quick) document.getElementById('opt-quick').checked = true;
+
+  const stages = ['setup','build','test','package'];
+  if (!noRelease) stages.push('release');
+
+  for (const stage of stages) {
+    if (state.stopRequested) {
+      log('Pipeline stopped by user.', 'WARNING');
+      break;
+    }
+    const t0 = Date.now();
+    setStage(stage, 'running');
+    updatePipelineBadge();
+
+    // Animate the full-pipeline progress bar while running the real sim
+    const barAnim = animateBar('full-pb-' + stage, getDuration(stage), 'cyn');
+
+    await runStageOnly(stage);
+    await barAnim;
+
+    if (state.stages[stage] !== 'ok' && state.stages[stage] !== 'idle') {
+      log(`Pipeline halted: ${stage} failed.`, 'ERROR');
+      break;
+    }
+    // Color bar green on success
+    const bar = document.getElementById('full-pb-' + stage);
+    if (bar) bar.className = 'progress-fill grn';
+  }
+
+  document.getElementById('full-run-btn').disabled = false;
+  document.getElementById('stop-btn').disabled = true;
+  state.pipelineRunning = false;
+  updatePipelineBadge();
+}
+
+function getDuration(stage) {
+  return {setup:2000, build:5000, test:4000, package:4000, release:3000}[stage] || 2000;
+}
+
+async function runStageOnly(stage) {
+  // Run each stage's sim but suppressed (already running pipelineRunning)
+  state.pipelineRunning = false;
+  switch(stage) {
+    case 'setup':   await runSetup();   break;
+    case 'build':   await runBuild();   break;
+    case 'test':    await runTests();   break;
+    case 'package': await runPackage(); break;
+    case 'release': await runRelease(); break;
+  }
+  state.pipelineRunning = true;
+}
+
+function stopPipeline() {
+  state.stopRequested = true;
+  log('Stop requested — finishing current step…', 'WARNING');
+  document.getElementById('stop-btn').disabled = true;
+}
+
+// ================================================================
+// CLEAN SIMULATION
+// ================================================================
+async function runClean() {
+  if (state.pipelineRunning) return;
+  showPanel('clean');
+  log('=== CLEAN: Removing build artifacts ===');
+  const dirs = ['build/', 'build/artifacts/', 'build/logs/', 'build/temp/', 'plugins/*/build/'];
+  for (const d of dirs) {
+    await sleep(200);
+    log(`  Removing: ${d}`);
+  }
+  await sleep(400);
+  const buildSz = (Math.random()*200+50).toFixed(0);
+  const artSz   = (Math.random()*500+100).toFixed(0);
+  document.getElementById('clean-sz-build').textContent = buildSz;
+  document.getElementById('clean-sz-arts').textContent  = artSz;
+  document.getElementById('clean-sz-cache').textContent = '—';
+  document.getElementById('clean-result').style.display = 'block';
+  document.getElementById('clean-result-msg').textContent =
+    `Removed ${buildSz} MB build outputs, ${artSz} MB artifacts. Pipeline state reset.`;
+
+  // Reset state
+  Object.keys(state.stages).forEach(k => { state.stages[k]='idle'; setStage(k,'idle'); });
+  Object.keys(state.durations).forEach(k => { state.durations[k]=undefined; });
+  ['setup','build','test','package','release'].forEach(s => {
+    const el = document.getElementById('dur-'+s); if(el) el.textContent='—';
+    const pb = document.getElementById('full-pb-'+s); if(pb){pb.style.width='0%';pb.className='progress-fill';}
+  });
+  state.artifacts = { macos:[], windows:[], linux:[] };
+  state.testResults = null;
+  updateStats();
+  updatePipelineBadge();
+  log('Clean complete.', 'SUCCESS');
+}
+
+// ================================================================
+// ARTIFACTS PANEL
+// ================================================================
+function refreshArtifactsPanel() {
+  const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+  if (!allArts.length) return;
+
+  document.getElementById('artifacts-empty').style.display = 'none';
+  document.getElementById('artifacts-list').style.display = 'block';
+
+  const icons = { macos:'🍎', windows:'🪟', linux:'🐧' };
+  const fmtIcons = { '.dmg':'💿', '.msi':'📀', '.deb':'📦', '.rpm':'📦', '.zip':'🗜' };
+
+  for (const plat of ['macos','windows','linux']) {
+    const container = document.getElementById('arts-' + plat);
+    container.innerHTML = '';
+    for (const a of state.artifacts[plat]) {
+      const div = document.createElement('div');
+      div.className = 'art-row';
+      div.innerHTML = `
+        <span class="art-icon">${fmtIcons[a.fmt]||'📄'}</span>
+        <div class="flex-1">
+          <div class="art-name">${a.name}</div>
+          <div class="art-meta">${a.size} MB &bull; ${a.plat} ${a.arch}</div>
+          <div class="art-hash">SHA-256: ${a.hash}</div>
+        </div>
+        <div class="art-actions">
+          <button class="btn btn-secondary btn-sm" onclick="copyHash('${a.hash}')">📋 Hash</button>
+        </div>`;
+      container.appendChild(div);
+    }
+  }
+
+  // Checksum block
+  const pre = document.getElementById('checksums-pre');
+  pre.textContent = allArts.map(a => `${a.hash}  ${a.name}`).join('\n');
+}
+
+function copyHash(h) { navigator.clipboard?.writeText(h); }
+
+function copyChecksums() {
+  const pre = document.getElementById('checksums-pre');
+  navigator.clipboard?.writeText(pre.textContent);
+  log('Checksums copied to clipboard.');
+}
+
+function exportManifest() {
+  const json = document.getElementById('manifest-preview').textContent;
+  const blob = new Blob([json], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'MANIFEST.json'; a.click();
+  log('MANIFEST.json downloaded.');
+}
+
+function updateManifest() {
+  const version = document.getElementById('pkg-version')?.value || '3.3.3300';
+  const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+  const manifest = {
+    version,
+    released_at: new Date().toISOString(),
+    platforms: {
+      macos:   state.artifacts.macos.map(a=>a.name),
+      windows: state.artifacts.windows.map(a=>a.name),
+      linux:   state.artifacts.linux.map(a=>a.name),
+    },
+    checksums: Object.fromEntries(allArts.map(a=>[a.name, a.hash])),
+  };
+  document.getElementById('manifest-preview').textContent = JSON.stringify(manifest, null, 2);
+}
+
+function updateReleaseArtifactsList() {
+  const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+  const wrap = document.getElementById('release-artifacts-list');
+  if (!allArts.length) return;
+  wrap.innerHTML = '';
+  for (const a of allArts) {
+    const div = document.createElement('div');
+    div.className = 'env-item';
+    div.innerHTML = `<span class="env-icon">📄</span>
+      <span class="env-name">${a.name}</span>
+      <span class="env-val">${a.size} MB</span>
+      <span class="env-status"><span class="tag tag-info">queued</span></span>`;
+    wrap.appendChild(div);
+  }
+}
+
+// ================================================================
+// STATS
+// ================================================================
+function updateStats() {
+  const plats = Object.values(state.platforms).filter(Boolean).length;
+  document.getElementById('stat-plats').textContent = plats;
+
+  if (state.testResults) {
+    document.getElementById('stat-tests').textContent = state.testResults.total;
+    document.getElementById('stat-tests-sub').textContent =
+      `${state.testResults.pass} pass, ${state.testResults.fail} fail`;
+  }
+
+  const allArts = [...state.artifacts.macos, ...state.artifacts.windows, ...state.artifacts.linux];
+  if (allArts.length) {
+    document.getElementById('stat-arts').textContent = allArts.length;
+    document.getElementById('stat-arts-sub').textContent = 'across ' + plats + ' platforms';
+  }
+}
+
+// ================================================================
+// CONFIG
+// ================================================================
+function saveConfig() {
+  const ver = document.getElementById('cfg-java-ver').value;
+  document.getElementById('stat-java').textContent = ver;
+  updateCLIPreview();
+  log(`Configuration saved. Java version: ${ver}`, 'SUCCESS');
+}
+
+function resetConfig() {
+  document.getElementById('cfg-java-ver').value = '17';
+  document.getElementById('cfg-gradle-opts').value = '-Xmx4g -XX:+UseG1GC';
+  document.getElementById('cfg-log-dir').value = 'build/logs/';
+  document.getElementById('cfg-project-root').value = '.';
+  log('Configuration reset to defaults.');
+}
+
+function updateCLIPreview() {
+  const ver = document.getElementById('cfg-java-ver').value;
+  const verbose = document.getElementById('cfg-verbose').checked;
+  const noColor = document.getElementById('cfg-no-color').checked;
+  const offline = document.getElementById('cfg-offline').checked;
+  const plats = Object.entries(state.platforms).filter(([,v])=>v).map(([k])=>k).join(',');
+  let cmd = `python ganttproject-build.py`;
+  if (verbose) cmd += ' --verbose';
+  if (noColor) cmd += ' --no-color';
+  if (offline) cmd += ' --offline';
+  cmd += ` full --java-version ${ver}`;
+  if (plats) cmd += ` --platform ${plats}`;
+  document.getElementById('cli-preview').textContent = cmd;
+}
+
+document.querySelectorAll('#panel-config input, #panel-config select')
+  .forEach(el => el.addEventListener('change', updateCLIPreview));
+
+// ================================================================
+// INIT
+// ================================================================
+updateCLIPreview();
+log('Korb Engineering Build Orchestrator v1.0.0 initialized.', 'INFO');
+log('Select a pipeline stage from the sidebar or click "Full Pipeline" to begin.', 'DIM');
+</script>
+</body>
+</html>
