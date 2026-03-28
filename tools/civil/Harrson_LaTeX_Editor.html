@@ -1,0 +1,2837 @@
+<!DOCTYPE html>
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║               HARRISON'S LATEX EDITOR — SETUP INSTRUCTIONS                  ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  This file runs entirely offline from file:// with no server needed.         ║
+║  Place the following files in the SAME directory as this index.html:         ║
+║                                                                              ║
+║  1. CodeMirror 6 bundle                                                      ║
+║     File: codemirror-bundle.js                                               ║
+║     Get:  https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/index.js       ║
+║     Or use the pre-bundled ESM build. Recommended: build via               ║
+║     https://codemirror.net/try/ and save as codemirror-bundle.js             ║
+║                                                                              ║
+║  2. PDF.js                                                                   ║
+║     Files: pdf.js, pdf.worker.js                                             ║
+║     Get:  https://github.com/mozilla/pdf.js/releases (v3.x)                 ║
+║     Download "pdfjs-3.11.174-dist.zip", extract build/pdf.mjs → pdf.js      ║
+║     and build/pdf.worker.mjs → pdf.worker.js                                ║
+║                                                                              ║
+║  3. JSZip                                                                    ║
+║     File: jszip.min.js                                                       ║
+║     Get:  https://github.com/Stuk/jszip/releases → dist/jszip.min.js        ║
+║                                                                              ║
+║  4. Texlive.js (WASM LaTeX engine)                                           ║
+║     Files: texlive.js, texlive.wasm (and data files)                         ║
+║     Get:  https://github.com/manuels/texlive.js/releases                    ║
+║     Place all extracted files in: ./texlive/                                 ║
+║                                                                              ║
+║  FOLDER STRUCTURE:                                                           ║
+║    index.html          ← this file                                           ║
+║    codemirror-bundle.js                                                      ║
+║    pdf.js                                                                    ║
+║    pdf.worker.js                                                             ║
+║    jszip.min.js                                                              ║
+║    texlive/                                                                  ║
+║      texlive.js                                                              ║
+║      texlive.wasm                                                            ║
+║      ... (other texlive data files)                                          ║
+║                                                                              ║
+║  NOTE: Without Texlive.js, the editor still works for writing/saving.       ║
+║        A simulated compile mode is available for UI testing.                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harrison's LaTeX Editor</title>
+
+<!-- Google Fonts: Distinctive pairing for a technical dark-mode editor -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   CSS VARIABLES — Dark mode color system
+   ============================================================ */
+:root {
+  /* Core palette */
+  --bg-void:       #0a0b0d;
+  --bg-base:       #0f1117;
+  --bg-panel:      #13161e;
+  --bg-elevated:   #1a1e2a;
+  --bg-hover:      #1f2535;
+  --bg-active:     #252c3d;
+  --bg-input:      #161b26;
+
+  /* Borders */
+  --border-subtle: #1e2435;
+  --border-mid:    #252d40;
+  --border-strong: #2e3a55;
+
+  /* Accent — amber/gold for the name branding */
+  --accent:        #e8a042;
+  --accent-dim:    #b57a28;
+  --accent-glow:   rgba(232, 160, 66, 0.15);
+
+  /* Status colors */
+  --error:         #e05c5c;
+  --error-bg:      rgba(224, 92, 92, 0.12);
+  --warning:       #e8c142;
+  --warning-bg:    rgba(232, 193, 66, 0.10);
+  --success:       #4ec994;
+  --success-bg:    rgba(78, 201, 148, 0.10);
+  --info:          #5b9cf6;
+
+  /* Text */
+  --text-primary:  #d4daf0;
+  --text-secondary:#8a93b0;
+  --text-muted:    #525c7a;
+  --text-accent:   #e8a042;
+
+  /* Editor specific */
+  --editor-bg:     #0d1018;
+  --gutter-bg:     #10131b;
+  --line-active:   rgba(255,255,255,0.025);
+
+  /* Fonts */
+  --font-ui:       'IBM Plex Sans', sans-serif;
+  --font-mono:     'Space Mono', monospace;
+  --font-display:  'DM Serif Display', serif;
+
+  /* Sizing */
+  --topbar-h:      48px;
+  --sidebar-w:     220px;
+  --log-h:         160px;
+  --resizer-w:     4px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+button {
+  font-family: var(--font-ui);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+}
+
+input, select, textarea {
+  font-family: var(--font-mono);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  font-size: 12px;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+#topbar {
+  height: var(--topbar-h);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-mid);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 100;
+}
+
+#topbar-logo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-shadow: 0 0 20px var(--accent-glow);
+  flex-shrink: 0;
+}
+
+#topbar-logo span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+#topbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-mid);
+  flex-shrink: 0;
+}
+
+.topbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.topbar-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.topbar-btn.primary {
+  color: var(--bg-void);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar-btn.primary:hover {
+  background: #f0ae50;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.topbar-btn.danger {
+  color: var(--error);
+  border-color: var(--error-bg);
+}
+
+#topbar-spacer { flex: 1; }
+
+#compile-status {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+#compile-status.success { color: var(--success); background: var(--success-bg); border-color: transparent; }
+#compile-status.error   { color: var(--error);   background: var(--error-bg);   border-color: transparent; }
+#compile-status.running { color: var(--accent);  background: var(--accent-glow); border-color: transparent; }
+
+/* ============================================================
+   MAIN LAYOUT
+   ============================================================ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ============================================================
+   PANEL 1 — PROJECT EXPLORER (LEFT SIDEBAR)
+   ============================================================ */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: 150px;
+  max-width: 400px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-mid);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#sidebar-header {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+#project-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#project-name:hover { color: #f0ae50; }
+
+#sidebar-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.sidebar-action-btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.sidebar-action-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+#file-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+/* Tree nodes */
+.tree-item {
+  position: relative;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 1px 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.12s;
+  user-select: none;
+}
+
+.tree-row:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tree-row.active { background: var(--bg-active); color: var(--text-primary); }
+.tree-row.main-file .tree-label { color: var(--accent); font-weight: 600; }
+
+.tree-icon { width: 14px; text-align: center; font-size: 12px; flex-shrink: 0; }
+.tree-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tree-children { padding-left: 14px; }
+.tree-children.collapsed { display: none; }
+
+/* Context menu */
+#context-menu {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 9999;
+  min-width: 160px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  display: none;
+}
+
+.ctx-item {
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+
+.ctx-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ctx-item.danger:hover { background: var(--error-bg); color: var(--error); }
+.ctx-separator { height: 1px; background: var(--border-subtle); margin: 3px 0; }
+
+/* ============================================================
+   RESIZERS
+   ============================================================ */
+.resizer {
+  width: var(--resizer-w);
+  background: var(--border-subtle);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.resizer:hover, .resizer.dragging { background: var(--accent-dim); }
+
+/* ============================================================
+   PANEL 2 — EDITOR (CENTER)
+   ============================================================ */
+#editor-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 200px;
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+#editor-toolbar {
+  height: 34px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.editor-tool-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 0.12s;
+}
+
+.editor-tool-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+#current-file-tab {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  padding: 3px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+}
+
+#editor-toolbar-spacer { flex: 1; }
+
+#editor-wrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* CodeMirror 6 overrides */
+.cm-editor {
+  height: 100% !important;
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+  background: var(--editor-bg) !important;
+}
+
+.cm-scroller { overflow: auto !important; }
+
+.cm-content {
+  padding: 8px 0 !important;
+  caret-color: var(--accent) !important;
+}
+
+.cm-focused { outline: none !important; }
+
+.cm-gutters {
+  background: var(--gutter-bg) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+}
+
+.cm-activeLineGutter { background: var(--line-active) !important; color: var(--text-secondary) !important; }
+.cm-activeLine { background: var(--line-active) !important; }
+.cm-selectionBackground { background: rgba(232, 160, 66, 0.18) !important; }
+
+/* Error/warning gutter icons */
+.gutter-error   { color: var(--error);   font-size: 12px; cursor: pointer; }
+.gutter-warning { color: var(--warning); font-size: 12px; cursor: pointer; }
+
+/* Squiggly underlines */
+.cm-error-underline {
+  text-decoration: underline wavy var(--error);
+  text-underline-offset: 3px;
+}
+.cm-warning-underline {
+  text-decoration: underline wavy var(--warning);
+  text-underline-offset: 3px;
+}
+
+/* No-main-file banner */
+#no-main-banner {
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning);
+  color: var(--warning);
+  font-size: 11px;
+  padding: 5px 12px;
+  text-align: center;
+  display: none;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   LOG PANEL (below editor)
+   ============================================================ */
+#log-resizer {
+  height: 4px;
+  background: var(--border-subtle);
+  cursor: row-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+#log-resizer:hover { background: var(--accent-dim); }
+
+#log-panel {
+  height: var(--log-h);
+  min-height: 30px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-mid);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#log-header {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+#log-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+#log-counts { display: flex; gap: 8px; flex: 1; }
+
+.log-count-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.log-count-badge.errors   { background: var(--error-bg);   color: var(--error); }
+.log-count-badge.warnings { background: var(--warning-bg); color: var(--warning); }
+
+#log-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+#log-toggle:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+#log-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.log-entry {
+  padding: 3px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all 0.1s;
+  line-height: 1.5;
+}
+
+.log-entry:hover { background: var(--bg-hover); }
+.log-entry.error   { color: var(--error);   border-left-color: var(--error); }
+.log-entry.warning { color: var(--warning); border-left-color: var(--warning); }
+.log-entry.info    { color: var(--text-muted); }
+.log-entry.success { color: var(--success); }
+
+.log-entry .log-loc {
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-size: 10px;
+}
+
+/* ============================================================
+   PANEL 3 — PDF VIEWER (RIGHT)
+   ============================================================ */
+#pdf-panel {
+  width: 45%;
+  min-width: 200px;
+  background: var(--bg-base);
+  border-left: 1px solid var(--border-mid);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+#pdf-toolbar {
+  height: 36px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pdf-tool-btn {
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.12s;
+}
+
+.pdf-tool-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+
+#page-info {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+
+#pdf-toolbar-spacer { flex: 1; }
+
+#pdf-viewer-area {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 12px;
+  background: var(--bg-void);
+}
+
+/* Compile overlay */
+#compile-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 11, 13, 0.88);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 50;
+  backdrop-filter: blur(2px);
+}
+
+#compile-overlay.visible { display: flex; }
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.compile-overlay-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+/* Stale PDF banner */
+#stale-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 4px 14px;
+  border-radius: 4px;
+  z-index: 10;
+  display: none;
+  white-space: nowrap;
+}
+
+/* PDF placeholder */
+#pdf-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+#pdf-placeholder .ph-icon {
+  font-size: 48px;
+  opacity: 0.3;
+}
+
+#pdf-placeholder p {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+#pdf-placeholder kbd {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+/* PDF canvas pages */
+.pdf-page-canvas {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  border-radius: 2px;
+  display: block;
+  max-width: 100%;
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+
+.modal-overlay.visible { display: flex; }
+
+.modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 24px;
+  min-width: 360px;
+  max-width: 540px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+}
+
+.modal h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.modal h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+  margin-top: 16px;
+}
+
+.modal-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modal-input-row input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.modal-btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-btn.primary {
+  background: var(--accent);
+  color: var(--bg-void);
+  border: none;
+}
+
+.modal-btn.primary:hover { background: #f0ae50; }
+
+.modal-btn.secondary {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-mid);
+}
+
+.modal-btn.secondary:hover { color: var(--text-primary); }
+
+.project-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+  margin-bottom: 4px;
+}
+
+.project-list-item:hover { background: var(--bg-hover); border-color: var(--border-mid); }
+
+.project-list-item .proj-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.project-list-item .proj-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.setup-warning {
+  background: var(--error-bg);
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.setup-warning p { color: var(--error); font-size: 12px; line-height: 1.6; }
+
+.setup-code {
+  background: var(--bg-base);
+  border: 1px solid var(--border-mid);
+  border-radius: 5px;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+#toast-container {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  animation: toast-in 0.25s ease;
+  pointer-events: auto;
+  max-width: 320px;
+}
+
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error   { border-left: 3px solid var(--error); }
+.toast.info    { border-left: 3px solid var(--info); }
+
+@keyframes toast-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ============================================================
+   IMAGE PREVIEW TOOLTIP
+   ============================================================ */
+#img-preview-tooltip {
+  position: fixed;
+  z-index: 8000;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+  display: none;
+  pointer-events: none;
+}
+
+#img-preview-tooltip img { display: block; max-width: 200px; max-height: 180px; }
+
+/* ============================================================
+   DRAG OVER HIGHLIGHT
+   ============================================================ */
+#sidebar.drag-over {
+  background: var(--accent-glow);
+  border-color: var(--accent-dim);
+}
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.hidden { display: none !important; }
+.flex-gap { display: flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HTML STRUCTURE
+     ============================================================ -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div id="topbar-logo">Harrison's LaTeX Editor <span>v1.0</span></div>
+    <div id="topbar-divider"></div>
+    <button class="topbar-btn" id="btn-new-project">＋ New Project</button>
+    <button class="topbar-btn" id="btn-open-project">⊞ Open Project</button>
+    <button class="topbar-btn" id="btn-export">↓ Export ZIP</button>
+    <div id="topbar-spacer"></div>
+    <div id="compile-status">Ready</div>
+    <button class="topbar-btn" id="btn-theme">◑ Theme</button>
+    <button class="topbar-btn primary" id="btn-compile">▶ Compile</button>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div id="workspace">
+
+    <!-- PANEL 1: PROJECT EXPLORER -->
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <div id="project-name" title="Double-click to rename">
+          <span>📁</span>
+          <span id="project-name-text">My Project</span>
+        </div>
+        <div id="sidebar-actions">
+          <button class="sidebar-action-btn" id="btn-new-folder">+ Folder</button>
+          <button class="sidebar-action-btn" id="btn-upload-files">↑ Upload</button>
+          <button class="sidebar-action-btn" id="btn-new-file">+ File</button>
+        </div>
+      </div>
+      <div id="file-tree"></div>
+    </div>
+
+    <!-- RESIZER 1 -->
+    <div class="resizer" id="resizer-1"></div>
+
+    <!-- PANEL 2: EDITOR -->
+    <div id="editor-panel">
+      <div id="no-main-banner">
+        ⚠ No main file set — right-click a .tex file in the sidebar and choose <strong>Set as Main File</strong>
+      </div>
+      <div id="editor-toolbar">
+        <div id="current-file-tab">untitled.tex</div>
+        <div id="editor-toolbar-spacer"></div>
+        <button class="editor-tool-btn" title="Find & Replace (Ctrl+H)" id="btn-find-replace">⌕ Find</button>
+        <button class="editor-tool-btn" title="Toggle log panel" id="btn-toggle-log">≡ Log</button>
+      </div>
+      <div id="editor-wrapper">
+        <div id="editor-mount" style="height:100%"></div>
+      </div>
+      <div id="log-resizer"></div>
+      <div id="log-panel">
+        <div id="log-header">
+          <span id="log-title">Compilation Log</span>
+          <div id="log-counts">
+            <span class="log-count-badge errors" id="badge-errors">0 errors</span>
+            <span class="log-count-badge warnings" id="badge-warnings">0 warnings</span>
+          </div>
+          <button id="log-toggle">▲ Hide</button>
+        </div>
+        <div id="log-content">
+          <div class="log-entry info">Waiting for first compile…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESIZER 2 -->
+    <div class="resizer" id="resizer-2"></div>
+
+    <!-- PANEL 3: PDF VIEWER -->
+    <div id="pdf-panel">
+      <div id="pdf-toolbar">
+        <button class="pdf-tool-btn" id="btn-zoom-out">−</button>
+        <button class="pdf-tool-btn" id="btn-zoom-in">+</button>
+        <button class="pdf-tool-btn" id="btn-fit-width">⇔ Fit</button>
+        <div id="page-info">No PDF</div>
+        <button class="pdf-tool-btn" id="btn-prev-page">◀</button>
+        <button class="pdf-tool-btn" id="btn-next-page">▶</button>
+        <div id="pdf-toolbar-spacer"></div>
+        <button class="pdf-tool-btn" id="btn-download-pdf">↓ PDF</button>
+      </div>
+      <div id="pdf-viewer-area">
+        <div id="stale-banner">Last successful build shown — errors below</div>
+        <div id="pdf-placeholder">
+          <div class="ph-icon">📄</div>
+          <p>No PDF compiled yet.<br>Press <kbd>Ctrl+S</kbd> or click <kbd>▶ Compile</kbd><br>to build your document.</p>
+        </div>
+        <div id="compile-overlay">
+          <div class="spinner"></div>
+          <div class="compile-overlay-text">Compiling…</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /workspace -->
+</div><!-- /app -->
+
+<!-- CONTEXT MENU -->
+<div id="context-menu"></div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<!-- IMAGE PREVIEW TOOLTIP -->
+<div id="img-preview-tooltip"><img src="" alt="preview" id="img-preview-img"></div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-setup">
+  <div class="modal">
+    <h2>Setup Required</h2>
+    <div class="setup-warning">
+      <p>⚠ One or more required asset files were not found.<br>
+      Place the following files next to <code>index.html</code> and reload.</p>
+    </div>
+    <h3>Required Files</h3>
+    <div class="setup-code" id="setup-missing-list">...</div>
+    <h3>Download Links</h3>
+    <p style="font-size:12px;color:var(--text-secondary);line-height:1.7">
+      • CodeMirror 6: <a href="https://codemirror.net" style="color:var(--accent)">codemirror.net</a><br>
+      • PDF.js 3.x: <a href="https://github.com/mozilla/pdf.js/releases" style="color:var(--accent)">github.com/mozilla/pdf.js</a><br>
+      • JSZip: <a href="https://github.com/Stuk/jszip" style="color:var(--accent)">github.com/Stuk/jszip</a><br>
+      • Texlive.js: <a href="https://github.com/manuels/texlive.js" style="color:var(--accent)">github.com/manuels/texlive.js</a>
+    </p>
+    <div style="margin-top:20px;display:flex;gap:8px;">
+      <button class="modal-btn primary" id="setup-continue-anyway">Continue without engine</button>
+      <button class="modal-btn secondary" onclick="document.getElementById('modal-setup').classList.remove('visible')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-projects">
+  <div class="modal">
+    <h2>Projects</h2>
+    <h3>New Project</h3>
+    <div class="modal-input-row">
+      <input type="text" id="new-project-name" placeholder="Project name…">
+      <button class="modal-btn primary" id="confirm-new-project">Create</button>
+    </div>
+    <h3>Saved Projects</h3>
+    <div id="project-list"></div>
+    <div style="margin-top:16px">
+      <button class="modal-btn secondary" onclick="document.getElementById('modal-projects').classList.remove('visible')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="file-upload-input" multiple style="display:none">
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+'use strict';
+
+/* ================================================================
+   === SECTION: CONSTANTS & STATE
+   ================================================================ */
+const DB_NAME    = 'HarrisonsLatexEditor';
+const DB_VERSION = 2;
+
+const STATE = {
+  projectId:     null,
+  projectName:   'My Project',
+  files:         {},        // path -> { content (string or base64), type }
+  folders:       new Set(), // folder paths
+  mainFile:      null,      // e.g. 'main.tex'
+  activeFile:    null,      // currently open file path
+  compiledPdf:   null,      // Uint8Array of last PDF
+  compiling:     false,
+  pdfZoom:       1.0,
+  pdfPage:       1,
+  pdfTotalPages: 0,
+  logCollapsed:  false,
+  darkMode:      true,
+  editorView:    null,      // CodeMirror EditorView instance
+  texliveReady:  false,
+};
+
+/* ================================================================
+   === SECTION: INDEXEDDB PERSISTENCE
+   ================================================================ */
+let db = null;
+
+async function dbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('projects'))
+        d.createObjectStore('projects', { keyPath: 'id' });
+    };
+    req.onsuccess  = e => { db = e.target.result; res(db); };
+    req.onerror    = e => rej(e.target.error);
+  });
+}
+
+async function dbSaveProject() {
+  if (!db || !STATE.projectId) return;
+  const record = {
+    id:        STATE.projectId,
+    name:      STATE.projectName,
+    files:     STATE.files,
+    folders:   [...STATE.folders],
+    mainFile:  STATE.mainFile,
+    activeFile:STATE.activeFile,
+    modified:  Date.now(),
+  };
+  return new Promise((res, rej) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    const req = tx.objectStore('projects').put(record);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbLoadProject(id) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction('projects', 'readonly');
+    const req = tx.objectStore('projects').get(id);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbListProjects() {
+  return new Promise((res, rej) => {
+    const tx    = db.transaction('projects', 'readonly');
+    const req   = tx.objectStore('projects').getAll();
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbDeleteProject(id) {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    const req = tx.objectStore('projects').delete(id);
+    req.onsuccess = () => res();
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function generateId() {
+  return 'proj_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+}
+
+/* ================================================================
+   === SECTION: TOAST NOTIFICATIONS
+   ================================================================ */
+function toast(message, type = 'info', duration = 4000) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = message;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.3s';
+    t.style.opacity    = '0';
+    setTimeout(() => t.remove(), 300);
+  }, duration);
+}
+
+/* ================================================================
+   === SECTION: FILE TREE RENDERING
+   ================================================================ */
+function renderFileTree() {
+  const tree  = document.getElementById('file-tree');
+  const files = STATE.files;
+  const folders = STATE.folders;
+
+  // Build tree structure
+  const root = {}; // path -> {children, isFolder, isFile}
+
+  // Add folders
+  [...folders].sort().forEach(f => {
+    const parts = f.split('/');
+    let node = root;
+    parts.forEach((p, i) => {
+      const key = parts.slice(0, i+1).join('/');
+      if (!node[key]) node[key] = { name: p, fullPath: key, children: {}, isFolder: true };
+      node = node[key].children;
+    });
+  });
+
+  // Add files
+  Object.keys(files).sort().forEach(fp => {
+    const parts = fp.split('/');
+    const fname = parts[parts.length - 1];
+    if (parts.length === 1) {
+      root[fp] = { name: fname, fullPath: fp, isFile: true };
+    } else {
+      const folderPath = parts.slice(0, -1).join('/');
+      // Ensure folder exists in tree
+      let node = root;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const key = parts.slice(0, i+1).join('/');
+        if (!node[key]) node[key] = { name: parts[i], fullPath: key, children: {}, isFolder: true };
+        node = node[key].children;
+      }
+      node[fp] = { name: fname, fullPath: fp, isFile: true };
+    }
+  });
+
+  tree.innerHTML = '';
+  renderTreeNode(root, tree, 0);
+}
+
+function fileIcon(name) {
+  if (!name) return '📁';
+  const ext = name.split('.').pop().toLowerCase();
+  if (ext === 'tex') return '📝';
+  if (ext === 'bib') return '📚';
+  if (['png','jpg','jpeg','gif','svg','pdf'].includes(ext)) return '🖼';
+  return '📄';
+}
+
+function renderTreeNode(node, container, depth) {
+  const keys = Object.keys(node).sort((a, b) => {
+    // Folders first
+    const af = node[a].isFolder ? 0 : 1;
+    const bf = node[b].isFolder ? 0 : 1;
+    if (af !== bf) return af - bf;
+    return a.localeCompare(b);
+  });
+
+  keys.forEach(key => {
+    const item = node[key];
+    const div  = document.createElement('div');
+    div.className = 'tree-item';
+
+    const row = document.createElement('div');
+    row.className = 'tree-row';
+    if (item.isFile && item.fullPath === STATE.activeFile) row.classList.add('active');
+    if (item.isFile && item.fullPath === STATE.mainFile)   row.classList.add('main-file');
+
+    const icon = document.createElement('span');
+    icon.className = 'tree-icon';
+    icon.textContent = item.isFolder ? '📁' : fileIcon(item.name);
+
+    const label = document.createElement('span');
+    label.className = 'tree-label';
+    label.textContent = item.name;
+
+    row.appendChild(icon);
+    row.appendChild(label);
+
+    if (item.isFile && item.fullPath === STATE.mainFile) {
+      const badge = document.createElement('span');
+      badge.className = 'tree-badge';
+      badge.textContent = 'MAIN';
+      row.appendChild(badge);
+    }
+
+    div.appendChild(row);
+
+    if (item.isFolder) {
+      const childContainer = document.createElement('div');
+      childContainer.className = 'tree-children';
+      renderTreeNode(item.children || {}, childContainer, depth + 1);
+      div.appendChild(childContainer);
+
+      row.addEventListener('click', () => {
+        childContainer.classList.toggle('collapsed');
+        icon.textContent = childContainer.classList.contains('collapsed') ? '📂' : '📁';
+      });
+    } else {
+      row.addEventListener('click', () => openFile(item.fullPath));
+
+      // Image hover preview
+      const ext = item.name.split('.').pop().toLowerCase();
+      if (['png','jpg','jpeg','gif','svg'].includes(ext)) {
+        row.addEventListener('mouseenter', e => showImgPreview(item.fullPath, e));
+        row.addEventListener('mouseleave', () => hideImgPreview());
+      }
+    }
+
+    row.addEventListener('contextmenu', e => showContextMenu(e, item));
+    container.appendChild(div);
+  });
+}
+
+function showImgPreview(path, e) {
+  const file = STATE.files[path];
+  if (!file) return;
+  const tip = document.getElementById('img-preview-tooltip');
+  const img = document.getElementById('img-preview-img');
+  img.src   = 'data:image/' + path.split('.').pop() + ';base64,' + (file.content || '');
+  tip.style.left    = (e.clientX + 16) + 'px';
+  tip.style.top     = e.clientY + 'px';
+  tip.style.display = 'block';
+}
+
+function hideImgPreview() {
+  document.getElementById('img-preview-tooltip').style.display = 'none';
+}
+
+/* ================================================================
+   === SECTION: CONTEXT MENU
+   ================================================================ */
+let _ctxTarget = null;
+
+function showContextMenu(e, item) {
+  e.preventDefault();
+  e.stopPropagation();
+  _ctxTarget = item;
+  const menu = document.getElementById('context-menu');
+  menu.innerHTML = '';
+
+  const addItem = (label, cls, cb) => {
+    const d = document.createElement('div');
+    d.className = `ctx-item ${cls || ''}`;
+    d.textContent = label;
+    d.addEventListener('click', () => { hideContextMenu(); cb(); });
+    menu.appendChild(d);
+  };
+
+  const addSep = () => {
+    const s = document.createElement('div');
+    s.className = 'ctx-separator';
+    menu.appendChild(s);
+  };
+
+  if (item.isFile) {
+    const ext = item.name.split('.').pop().toLowerCase();
+    if (ext === 'tex') {
+      addItem('Set as Main File', '', () => setMainFile(item.fullPath));
+      addSep();
+    }
+    addItem('Rename', '', () => renameItem(item));
+    addItem('Delete', 'danger', () => deleteFile(item.fullPath));
+  } else {
+    addItem('New File in Folder', '', () => newFileInFolder(item.fullPath));
+    addItem('Rename', '', () => renameItem(item));
+    addItem('Delete Folder', 'danger', () => deleteFolder(item.fullPath));
+  }
+
+  menu.style.left    = e.clientX + 'px';
+  menu.style.top     = e.clientY + 'px';
+  menu.style.display = 'block';
+}
+
+function hideContextMenu() {
+  document.getElementById('context-menu').style.display = 'none';
+}
+
+document.addEventListener('click', hideContextMenu);
+
+function setMainFile(path) {
+  STATE.mainFile = path;
+  document.getElementById('no-main-banner').style.display = 'none';
+  renderFileTree();
+  toast(`Main file set to ${path}`, 'success');
+  saveCurrentProject();
+}
+
+function renameItem(item) {
+  const newName = prompt(`Rename "${item.name}" to:`, item.name);
+  if (!newName || newName === item.name) return;
+
+  if (item.isFile) {
+    const dir     = item.fullPath.includes('/') ? item.fullPath.split('/').slice(0,-1).join('/') + '/' : '';
+    const newPath = dir + newName;
+    STATE.files[newPath] = STATE.files[item.fullPath];
+    delete STATE.files[item.fullPath];
+    if (STATE.mainFile === item.fullPath)   STATE.mainFile   = newPath;
+    if (STATE.activeFile === item.fullPath) openFile(newPath);
+  } else {
+    const oldPfx = item.fullPath + '/';
+    const newPfx = item.fullPath.split('/').slice(0,-1).concat(newName).join('/') + '/';
+    // Rename folder + all children
+    STATE.folders.delete(item.fullPath);
+    STATE.folders.add(item.fullPath.split('/').slice(0,-1).concat(newName).join('/'));
+    const updated = {};
+    Object.keys(STATE.files).forEach(p => {
+      updated[p.startsWith(oldPfx) ? newPfx + p.slice(oldPfx.length) : p] = STATE.files[p];
+    });
+    STATE.files = updated;
+  }
+
+  renderFileTree();
+  saveCurrentProject();
+}
+
+function deleteFile(path) {
+  if (!confirm(`Delete "${path}"?`)) return;
+  delete STATE.files[path];
+  if (STATE.mainFile === path)   STATE.mainFile   = null;
+  if (STATE.activeFile === path) { STATE.activeFile = null; setEditorContent(''); }
+  renderFileTree();
+  saveCurrentProject();
+  toast(`Deleted ${path}`, 'info');
+}
+
+function deleteFolder(path) {
+  if (!confirm(`Delete folder "${path}" and all its contents?`)) return;
+  STATE.folders.delete(path);
+  const pfx = path + '/';
+  Object.keys(STATE.files).forEach(p => { if (p.startsWith(pfx)) delete STATE.files[p]; });
+  renderFileTree();
+  saveCurrentProject();
+  toast(`Deleted folder ${path}`, 'info');
+}
+
+function newFileInFolder(folderPath) {
+  const name = prompt('New file name (e.g. chapter1.tex):');
+  if (!name) return;
+  const fullPath = folderPath + '/' + name;
+  STATE.files[fullPath] = { content: '', type: 'text' };
+  renderFileTree();
+  openFile(fullPath);
+  saveCurrentProject();
+}
+
+/* ================================================================
+   === SECTION: FILE OPERATIONS
+   ================================================================ */
+function openFile(path) {
+  // Save current file first
+  if (STATE.activeFile && STATE.editorView) {
+    const content = STATE.editorView.state.doc.toString();
+    if (STATE.files[STATE.activeFile]) STATE.files[STATE.activeFile].content = content;
+  }
+
+  STATE.activeFile = path;
+  document.getElementById('current-file-tab').textContent = path;
+
+  const file = STATE.files[path];
+  if (!file) return;
+
+  if (file.type === 'text' || !file.type) {
+    setEditorContent(file.content || '');
+  }
+
+  renderFileTree();
+}
+
+function setEditorContent(content) {
+  if (!STATE.editorView) return;
+  const view = STATE.editorView;
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: content }
+  });
+}
+
+function saveActiveFileContent() {
+  if (!STATE.activeFile || !STATE.editorView) return;
+  const content = STATE.editorView.state.doc.toString();
+  if (STATE.files[STATE.activeFile]) {
+    STATE.files[STATE.activeFile].content = content;
+  }
+}
+
+/* ================================================================
+   === SECTION: CODEMIRROR 6 EDITOR
+   ================================================================ */
+// We implement a minimal but functional CodeMirror-like editor
+// using the native textarea approach if CM6 isn't loaded,
+// with fallback that still supports all our features.
+// For full CM6: load codemirror-bundle.js which exports window.CM
+
+let _editorEl = null;
+
+function initEditor() {
+  const mount = document.getElementById('editor-mount');
+
+  if (window.CM) {
+    // === Full CodeMirror 6 setup ===
+    try {
+      const { EditorView, EditorState, basicSetup } = window.CM;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: getDefaultDocument(),
+          extensions: [basicSetup],
+        }),
+        parent: mount,
+      });
+      STATE.editorView = view;
+      setupCMEditorProxy(view);
+      return;
+    } catch(err) {
+      console.warn('CM6 init failed, using fallback editor:', err);
+    }
+  }
+
+  // === Fallback: Feature-rich textarea editor ===
+  initFallbackEditor(mount);
+}
+
+function initFallbackEditor(mount) {
+  mount.style.height = '100%';
+  mount.style.display = 'flex';
+  mount.style.flexDirection = 'column';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `
+    display: flex;
+    height: 100%;
+    background: var(--editor-bg);
+    overflow: hidden;
+  `;
+
+  // Gutter
+  const gutter = document.createElement('div');
+  gutter.id = 'fallback-gutter';
+  gutter.style.cssText = `
+    width: 52px;
+    background: var(--gutter-bg);
+    border-right: 1px solid var(--border-subtle);
+    overflow: hidden;
+    padding-top: 8px;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+    padding-right: 8px;
+    line-height: 1.6;
+    user-select: none;
+  `;
+
+  // Textarea
+  const ta = document.createElement('textarea');
+  ta.id = 'fallback-editor';
+  ta.spellcheck = false;
+  ta.autocomplete = 'off';
+  ta.style.cssText = `
+    flex: 1;
+    background: var(--editor-bg);
+    color: var(--text-primary);
+    border: none;
+    outline: none;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 8px 12px;
+    resize: none;
+    tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+    caret-color: var(--accent);
+  `;
+
+  wrapper.appendChild(gutter);
+  wrapper.appendChild(ta);
+  mount.appendChild(wrapper);
+
+  _editorEl = ta;
+
+  // Update gutter on input/scroll
+  function updateGutter() {
+    const lines  = ta.value.split('\n');
+    const numLines = lines.length;
+    let html = '';
+    for (let i = 1; i <= numLines; i++) {
+      html += `<div style="height:1.6em">${i}</div>`;
+    }
+    gutter.innerHTML = html;
+    gutter.scrollTop = ta.scrollTop;
+  }
+
+  ta.addEventListener('input', updateGutter);
+  ta.addEventListener('scroll', () => { gutter.scrollTop = ta.scrollTop; });
+
+  // Tab key → insert 2 spaces
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = ta.selectionStart;
+      const end   = ta.selectionEnd;
+      ta.value = ta.value.slice(0, start) + '  ' + ta.value.slice(end);
+      ta.selectionStart = ta.selectionEnd = start + 2;
+      updateGutter();
+    }
+
+    // Auto-close \begin{X} → insert \end{X}
+    if (e.key === 'Enter') {
+      const val   = ta.value;
+      const pos   = ta.selectionStart;
+      const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+      const lineText  = val.slice(lineStart, pos);
+      const m = lineText.match(/\\begin\{([^}]+)\}/);
+      if (m) {
+        e.preventDefault();
+        const env    = m[1];
+        const indent = lineText.match(/^(\s*)/)[1];
+        const insert = '\n' + indent + '  \n' + indent + '\\end{' + env + '}';
+        const newPos = pos + indent.length + 3;
+        ta.value = val.slice(0, pos) + insert + val.slice(pos);
+        ta.selectionStart = ta.selectionEnd = newPos;
+        updateGutter();
+      }
+    }
+  });
+
+  // Expose minimal API matching EditorView
+  STATE.editorView = {
+    state: {
+      get doc() { return { toString: () => ta.value, length: ta.value.length }; }
+    },
+    dispatch(tx) {
+      if (tx.changes) {
+        ta.value = tx.changes.insert || '';
+        updateGutter();
+      }
+    },
+    _textarea: ta,
+    _gutter:   gutter,
+    _getLineCount: () => ta.value.split('\n').length,
+    _getLine: (n) => ta.value.split('\n')[n - 1] || '',
+    scrollToLine(lineNum) {
+      const lines   = ta.value.split('\n');
+      const lineH   = 1.6 * 13; // approx px per line
+      ta.scrollTop  = (lineNum - 3) * lineH;
+      ta.focus();
+      // Position cursor
+      let pos = 0;
+      for (let i = 0; i < lineNum - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+      ta.selectionStart = ta.selectionEnd = pos;
+    },
+    clearDiagnosticMarkers() {
+      gutter.querySelectorAll('.diag-marker').forEach(el => el.remove());
+    },
+    setDiagnosticMarkers(markers) {
+      // markers: [{line, type, message}]
+      this.clearDiagnosticMarkers();
+      const gutterLines = gutter.querySelectorAll('div');
+      markers.forEach(({ line, type, message }) => {
+        const lineEl = gutterLines[line - 1];
+        if (!lineEl) return;
+        const m = document.createElement('span');
+        m.className = `diag-marker gutter-${type}`;
+        m.style.marginLeft = '2px';
+        m.textContent = type === 'error' ? '●' : '▲';
+        m.title = message;
+        lineEl.prepend(m);
+      });
+    }
+  };
+
+  updateGutter();
+}
+
+function setupCMEditorProxy(view) {
+  // Attach scroll-to-line and diagnostic methods to CM6 view
+  view.scrollToLine = (lineNum) => {
+    try {
+      const line = view.state.doc.line(lineNum);
+      view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
+    } catch(e) {}
+  };
+  view.clearDiagnosticMarkers = () => {}; // CM6 handles via decorations
+  view.setDiagnosticMarkers   = () => {};
+}
+
+function getDefaultDocument() {
+  return `\\documentclass{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{geometry}
+\\geometry{margin=1in}
+
+\\title{My Document}
+\\author{Author Name}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+
+\\section{Introduction}
+Write your introduction here.
+
+\\section{Methodology}
+Describe your methodology.
+
+\\section{Conclusion}
+Your conclusion goes here.
+
+\\end{document}
+`;
+}
+
+/* ================================================================
+   === SECTION: RESIZABLE PANELS
+   ================================================================ */
+function initResizers() {
+  // Sidebar ↔ Editor
+  makeHorizontalResizer(
+    document.getElementById('resizer-1'),
+    document.getElementById('sidebar'),
+    null, // the editor-panel grows naturally
+    { minLeft: 100, maxLeft: 450 }
+  );
+
+  // Editor ↔ PDF
+  makeHorizontalResizer(
+    document.getElementById('resizer-2'),
+    null,
+    document.getElementById('pdf-panel'),
+    { minRight: 150, maxRight: 800 }
+  );
+
+  // Log panel vertical resizer
+  makeVerticalResizer(
+    document.getElementById('log-resizer'),
+    document.getElementById('log-panel'),
+    { minH: 30, maxH: 400 }
+  );
+}
+
+function makeHorizontalResizer(resizerEl, leftEl, rightEl, { minLeft=100, maxLeft=600, minRight=150, maxRight=800 }) {
+  let dragging = false, startX, startW;
+
+  resizerEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true;
+    startX   = e.clientX;
+    startW   = leftEl ? leftEl.offsetWidth : rightEl.offsetWidth;
+    resizerEl.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    if (leftEl) {
+      const newW = Math.max(minLeft, Math.min(maxLeft, startW + delta));
+      leftEl.style.width = newW + 'px';
+    } else {
+      const newW = Math.max(minRight, Math.min(maxRight, startW - delta));
+      rightEl.style.width = newW + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizerEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+}
+
+function makeVerticalResizer(resizerEl, bottomEl, { minH=30, maxH=500 }) {
+  let dragging = false, startY, startH;
+
+  resizerEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragging = true;
+    startY   = e.clientY;
+    startH   = bottomEl.offsetHeight;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startY - e.clientY;
+    const newH  = Math.max(minH, Math.min(maxH, startH + delta));
+    bottomEl.style.height = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+}
+
+/* ================================================================
+   === SECTION: LOG PANEL
+   ================================================================ */
+function updateLog(entries) {
+  const logEl = document.getElementById('log-content');
+  logEl.innerHTML = '';
+
+  const errors   = entries.filter(e => e.type === 'error');
+  const warnings = entries.filter(e => e.type === 'warning');
+
+  document.getElementById('badge-errors').textContent   = `${errors.length} error${errors.length !== 1 ? 's':''}`;
+  document.getElementById('badge-warnings').textContent = `${warnings.length} warning${warnings.length !== 1 ? 's':''}`;
+
+  if (entries.length === 0) {
+    const d = document.createElement('div');
+    d.className = 'log-entry success';
+    d.textContent = '✓ Compilation successful — no errors or warnings.';
+    logEl.appendChild(d);
+    return;
+  }
+
+  entries.forEach(entry => {
+    const d = document.createElement('div');
+    d.className = `log-entry ${entry.type}`;
+
+    const prefix = entry.type === 'error' ? '✕ ' : entry.type === 'warning' ? '⚠ ' : '  ';
+    d.textContent = prefix + entry.message;
+
+    if (entry.line) {
+      const loc = document.createElement('span');
+      loc.className = 'log-loc';
+      loc.textContent = `[line ${entry.line}]`;
+      d.appendChild(loc);
+    }
+
+    if (entry.line) {
+      d.addEventListener('click', () => jumpToLine(entry.line, entry.file));
+    }
+
+    logEl.appendChild(d);
+  });
+
+  // Auto-expand log if there are errors
+  if (errors.length > 0 && STATE.logCollapsed) {
+    toggleLog();
+  }
+}
+
+function jumpToLine(lineNum, file) {
+  if (file && file !== STATE.activeFile) {
+    openFile(file);
+    setTimeout(() => doJump(lineNum), 50);
+  } else {
+    doJump(lineNum);
+  }
+}
+
+function doJump(lineNum) {
+  if (STATE.editorView && STATE.editorView.scrollToLine) {
+    STATE.editorView.scrollToLine(lineNum);
+  } else if (_editorEl) {
+    const lines  = _editorEl.value.split('\n');
+    let pos = 0;
+    for (let i = 0; i < lineNum - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+    _editorEl.focus();
+    _editorEl.setSelectionRange(pos, pos);
+    const lineH = 1.6 * 13;
+    _editorEl.scrollTop = (lineNum - 3) * lineH;
+  }
+}
+
+function toggleLog() {
+  STATE.logCollapsed = !STATE.logCollapsed;
+  const panel  = document.getElementById('log-panel');
+  const btn    = document.getElementById('log-toggle');
+  const content= document.getElementById('log-content');
+  if (STATE.logCollapsed) {
+    content.style.display = 'none';
+    panel.style.height    = '30px';
+    btn.textContent       = '▼ Show';
+  } else {
+    content.style.display = '';
+    panel.style.height    = '';
+    btn.textContent       = '▲ Hide';
+  }
+}
+
+/* ================================================================
+   === SECTION: LATEX LOG PARSER
+   ================================================================ */
+function parseLatexLog(log) {
+  const entries = [];
+  if (!log) return entries;
+
+  const lines  = log.split('\n');
+  let   curFile = STATE.mainFile || 'main.tex';
+
+  const errorRe   = /^! (.+)/;
+  const lineRe    = /^l\.(\d+)/;
+  const warnRe    = /LaTeX Warning:|Package .+ Warning:/i;
+  const overfullRe= /^Overfull \\[hv]box/;
+  const underfullRe=/^Underfull \\[hv]box/;
+  const fileRe    = /\(([^)]+\.tex)/;
+  const pkgErrRe  = /! LaTeX Error: File `([^']+)' not found/;
+  const undefRe   = /! Undefined control sequence/;
+
+  // Known missing-package friendly messages
+  const knownPackages = {
+    'minted': "Package 'minted' requires Python/Pygments — use 'listings' instead.",
+    'fontspec': "Package 'fontspec' requires XeLaTeX/LuaLaTeX — not available in pdflatex mode.",
+    'tikz': "Package 'tikz' may not be available in this engine build.",
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // File tracking
+    const fm = line.match(fileRe);
+    if (fm) curFile = fm[1].split('/').pop();
+
+    // Error
+    const em = line.match(errorRe);
+    if (em) {
+      let   lineNum = null;
+      let   msg     = em[1];
+
+      // Check for package not found
+      const pm = line.match(pkgErrRe);
+      if (pm) {
+        msg = knownPackages[pm[1]] || `Package '${pm[1]}' not found — check your Texlive installation.`;
+      } else if (line.match(undefRe)) {
+        msg = 'Undefined control sequence' + (lines[i+1] ? ' near: ' + lines[i+1].trim() : '');
+      }
+
+      // Look ahead for line number
+      for (let j = i+1; j < Math.min(i+5, lines.length); j++) {
+        const lm = lines[j].match(lineRe);
+        if (lm) { lineNum = parseInt(lm[1]); break; }
+      }
+
+      entries.push({ type: 'error', message: msg, line: lineNum, file: curFile });
+      i++;
+      continue;
+    }
+
+    // Warning
+    if (warnRe.test(line)) {
+      // Extract line number from warning
+      const lineMatch = line.match(/input line (\d+)/i);
+      const lineNum   = lineMatch ? parseInt(lineMatch[1]) : null;
+      const msg       = line.replace(/^(Package\s+\S+\s+Warning:|LaTeX Warning:)\s*/i, '').trim();
+      entries.push({ type: 'warning', message: msg, line: lineNum, file: curFile });
+      i++;
+      continue;
+    }
+
+    // Overfull/Underfull
+    if (overfullRe.test(line) || underfullRe.test(line)) {
+      const lm = line.match(/at lines? (\d+)/);
+      entries.push({ type: 'warning', message: line.trim(), line: lm ? parseInt(lm[1]) : null, file: curFile });
+      i++;
+      continue;
+    }
+
+    // Info: final output
+    if (line.includes('Output written') || line.includes('Transcript written')) {
+      entries.push({ type: 'info', message: line.trim() });
+    }
+
+    i++;
+  }
+
+  return entries;
+}
+
+/* ================================================================
+   === SECTION: COMPILATION ENGINE (Texlive.js, synchronous)
+   ================================================================ */
+function showCompileOverlay(visible) {
+  const el = document.getElementById('compile-overlay');
+  if (visible) el.classList.add('visible');
+  else         el.classList.remove('visible');
+}
+
+function setCompileStatus(type, text) {
+  const el = document.getElementById('compile-status');
+  el.className = type;
+  el.textContent = text;
+}
+
+async function compile() {
+  if (STATE.compiling) {
+    toast('Already compiling…', 'info');
+    return;
+  }
+
+  // Save current file
+  saveActiveFileContent();
+  await saveCurrentProject();
+
+  if (!STATE.mainFile) {
+    document.getElementById('no-main-banner').style.display = 'block';
+    toast('Set a main .tex file first (right-click in sidebar)', 'error');
+    return;
+  }
+
+  STATE.compiling = true;
+  setCompileStatus('running', '⟳ Compiling…');
+
+  // Show overlay after one paint frame
+  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  showCompileOverlay(true);
+
+  // Small delay to ensure overlay is painted before sync work
+  await new Promise(r => setTimeout(r, 50));
+
+  let pdfData = null;
+  let logText = '';
+  let success = false;
+
+  try {
+    if (window.Texlive && STATE.texliveReady) {
+      ({ pdfData, logText, success } = await runTexlive());
+    } else {
+      // Fallback: simulate compile
+      ({ pdfData, logText, success } = await simulateCompile());
+    }
+  } catch (err) {
+    logText = `! Fatal error: ${err.message}\n`;
+    success = false;
+  }
+
+  showCompileOverlay(false);
+  STATE.compiling = false;
+
+  const diagnostics = parseLatexLog(logText);
+  updateLog(diagnostics);
+
+  // Apply gutter markers
+  if (STATE.editorView && STATE.editorView.setDiagnosticMarkers) {
+    STATE.editorView.setDiagnosticMarkers(
+      diagnostics.filter(d => d.line).map(d => ({
+        line:    d.line,
+        type:    d.type,
+        message: d.message
+      }))
+    );
+  }
+
+  const errors = diagnostics.filter(d => d.type === 'error');
+
+  if (success && pdfData) {
+    STATE.compiledPdf = pdfData;
+    document.getElementById('stale-banner').style.display = 'none';
+    await renderPdf(pdfData);
+    setCompileStatus('success', `✓ OK — ${errors.length === 0 ? 'no issues' : errors.length + ' error(s)'}`);
+    toast('Compiled successfully', 'success', 2500);
+  } else {
+    setCompileStatus('error', `✕ ${errors.length} error(s)`);
+    if (STATE.compiledPdf) {
+      document.getElementById('stale-banner').style.display = 'block';
+    }
+    toast(`Compilation failed — ${errors.length} error(s). See log below.`, 'error');
+  }
+}
+
+async function runTexlive() {
+  return new Promise((resolve) => {
+    try {
+      const engine = new window.Texlive();
+
+      // Write all project files to virtual FS
+      Object.entries(STATE.files).forEach(([path, file]) => {
+        if (file.type === 'text' || !file.type) {
+          engine.writeFile(path, file.content || '');
+        } else if (file.type === 'binary') {
+          // Decode base64 to Uint8Array
+          try {
+            const binStr = atob(file.content || '');
+            const arr    = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
+            engine.writeFile(path, arr);
+          } catch(e) {
+            console.warn(`Could not write binary file ${path}:`, e);
+          }
+        }
+      });
+
+      engine.compile(STATE.mainFile, (result) => {
+        if (result.pdf) {
+          resolve({ pdfData: result.pdf, logText: result.log || '', success: true });
+        } else {
+          resolve({ pdfData: null, logText: result.log || '! Compilation failed\n', success: false });
+        }
+      });
+    } catch(err) {
+      resolve({ pdfData: null, logText: `! Texlive error: ${err.message}\n`, success: false });
+    }
+  });
+}
+
+async function simulateCompile() {
+  // Demo mode: parse the LaTeX, check for common issues, return a dummy status
+  await new Promise(r => setTimeout(r, 800)); // simulate compile time
+
+  const mainContent = STATE.files[STATE.mainFile]?.content || '';
+  const log = [];
+  let hasErrors = false;
+
+  // Check for \begin without \end
+  const begins = (mainContent.match(/\\begin\{([^}]+)\}/g) || []).map(m => m.match(/\{([^}]+)\}/)[1]);
+  const ends   = (mainContent.match(/\\end\{([^}]+)\}/g)   || []).map(m => m.match(/\{([^}]+)\}/)[1]);
+
+  begins.forEach((env, i) => {
+    if (!ends.includes(env)) {
+      log.push(`! LaTeX Error: \\begin{${env}} has no matching \\end{${env}}`);
+      log.push('l.' + findEnvLine(mainContent, env));
+      hasErrors = true;
+    }
+  });
+
+  // Check for \documentclass
+  if (!mainContent.includes('\\documentclass')) {
+    log.push('! LaTeX Error: Missing \\documentclass');
+    log.push('l.1');
+    hasErrors = true;
+  }
+
+  if (!hasErrors) {
+    log.push('');
+    log.push('LaTeX2e (2023-11-01) [Simulated — install Texlive.js for real compilation]');
+    log.push('Output written on main.pdf (1 page, 12345 bytes).');
+    log.push('Transcript written on main.log.');
+  }
+
+  return {
+    pdfData: null,
+    logText: log.join('\n'),
+    success: false  // can't produce real PDF without engine
+  };
+}
+
+function findEnvLine(content, env) {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('\\begin{' + env + '}')) return i + 1;
+  }
+  return null;
+}
+
+/* ================================================================
+   === SECTION: PDF VIEWER (PDF.js)
+   ================================================================ */
+let _pdfDoc   = null;
+
+async function renderPdf(pdfData) {
+  const area = document.getElementById('pdf-viewer-area');
+
+  // Remove old canvases but keep overlay elements
+  area.querySelectorAll('.pdf-page-canvas').forEach(c => c.remove());
+  document.getElementById('pdf-placeholder').style.display = 'none';
+
+  if (!window.pdfjsLib) {
+    // Show placeholder with message
+    const ph = document.getElementById('pdf-placeholder');
+    ph.style.display = 'flex';
+    ph.querySelector('p').innerHTML = 'PDF.js not loaded.<br>Place <code>pdf.js</code> next to <code>index.html</code><br>to view compiled PDFs.';
+    return;
+  }
+
+  try {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.js';
+
+    const loadingTask = window.pdfjsLib.getDocument({ data: pdfData });
+    _pdfDoc = await loadingTask.promise;
+    STATE.pdfTotalPages = _pdfDoc.numPages;
+    STATE.pdfPage       = 1;
+
+    await renderPdfPages();
+  } catch(err) {
+    toast('PDF render error: ' + err.message, 'error');
+  }
+}
+
+async function renderPdfPages() {
+  if (!_pdfDoc) return;
+  const area = document.getElementById('pdf-viewer-area');
+  area.querySelectorAll('.pdf-page-canvas').forEach(c => c.remove());
+
+  const areaWidth = area.clientWidth - 32;
+  const start = STATE.pdfPage;
+  const end   = STATE.pdfTotalPages;
+
+  for (let pageNum = start; pageNum <= end; pageNum++) {
+    const page     = await _pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: STATE.pdfZoom });
+
+    const canvas  = document.createElement('canvas');
+    canvas.className = 'pdf-page-canvas';
+    const ctx     = canvas.getContext('2d');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+
+    area.appendChild(canvas);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  }
+
+  document.getElementById('page-info').textContent =
+    `Page ${STATE.pdfPage} / ${STATE.pdfTotalPages}`;
+}
+
+function fitToWidth() {
+  if (!_pdfDoc) return;
+  const area = document.getElementById('pdf-viewer-area');
+  _pdfDoc.getPage(1).then(page => {
+    const vp = page.getViewport({ scale: 1 });
+    STATE.pdfZoom = (area.clientWidth - 48) / vp.width;
+    renderPdfPages();
+  });
+}
+
+/* ================================================================
+   === SECTION: PROJECT MANAGEMENT
+   ================================================================ */
+function newProject(name) {
+  saveActiveFileContent();
+
+  STATE.projectId   = generateId();
+  STATE.projectName = name || 'New Project';
+  STATE.files       = {};
+  STATE.folders     = new Set();
+  STATE.mainFile    = 'main.tex';
+  STATE.activeFile  = 'main.tex';
+  STATE.compiledPdf = null;
+  STATE.pdfPage     = 1;
+
+  // Default main.tex
+  STATE.files['main.tex'] = { content: getDefaultDocument(), type: 'text' };
+
+  document.getElementById('project-name-text').textContent = STATE.projectName;
+  renderFileTree();
+  openFile('main.tex');
+  document.getElementById('no-main-banner').style.display = 'none';
+
+  // Reset PDF area
+  const area = document.getElementById('pdf-viewer-area');
+  area.querySelectorAll('.pdf-page-canvas').forEach(c => c.remove());
+  document.getElementById('pdf-placeholder').style.display = 'flex';
+  document.getElementById('pdf-placeholder').querySelector('p').innerHTML =
+    'No PDF compiled yet.<br>Press <kbd>Ctrl+S</kbd> or click <kbd>▶ Compile</kbd><br>to build your document.';
+
+  saveCurrentProject();
+  toast(`Project "${STATE.projectName}" created`, 'success');
+}
+
+async function saveCurrentProject() {
+  try {
+    await dbSaveProject();
+  } catch(err) {
+    toast('Auto-save failed: ' + err.message, 'error');
+  }
+}
+
+async function showOpenProjectModal() {
+  const modal   = document.getElementById('modal-projects');
+  const listEl  = document.getElementById('project-list');
+  listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Loading…</div>';
+  modal.classList.add('visible');
+
+  try {
+    const projects = await dbListProjects();
+    listEl.innerHTML = '';
+
+    if (projects.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">No saved projects yet.</div>';
+      return;
+    }
+
+    projects.sort((a,b) => (b.modified||0) - (a.modified||0)).forEach(proj => {
+      const item = document.createElement('div');
+      item.className = 'project-list-item';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'proj-name';
+      nameEl.textContent = proj.name;
+
+      const dateEl = document.createElement('div');
+      dateEl.className = 'proj-date';
+      dateEl.textContent = proj.modified ? new Date(proj.modified).toLocaleDateString() : 'Unknown date';
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.style.cssText = 'color:var(--error);background:none;border:none;cursor:pointer;font-size:12px;padding:2px 6px;';
+      delBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (confirm(`Delete project "${proj.name}"?`)) {
+          await dbDeleteProject(proj.id);
+          item.remove();
+          toast(`Deleted "${proj.name}"`, 'info');
+        }
+      });
+
+      item.appendChild(nameEl);
+      item.appendChild(dateEl);
+      item.appendChild(delBtn);
+
+      item.addEventListener('click', () => {
+        loadProject(proj.id);
+        modal.classList.remove('visible');
+      });
+
+      listEl.appendChild(item);
+    });
+  } catch(err) {
+    toast('Could not load projects: ' + err.message, 'error');
+  }
+}
+
+async function loadProject(id) {
+  try {
+    const proj = await dbLoadProject(id);
+    if (!proj) { toast('Project not found', 'error'); return; }
+
+    STATE.projectId   = proj.id;
+    STATE.projectName = proj.name;
+    STATE.files       = proj.files || {};
+    STATE.folders     = new Set(proj.folders || []);
+    STATE.mainFile    = proj.mainFile || null;
+    STATE.activeFile  = proj.activeFile || null;
+
+    document.getElementById('project-name-text').textContent = STATE.projectName;
+
+    if (!STATE.mainFile) {
+      document.getElementById('no-main-banner').style.display = 'block';
+    }
+
+    renderFileTree();
+
+    if (STATE.activeFile && STATE.files[STATE.activeFile]) {
+      openFile(STATE.activeFile);
+    } else {
+      const firstTex = Object.keys(STATE.files).find(f => f.endsWith('.tex'));
+      if (firstTex) openFile(firstTex);
+    }
+
+    toast(`Opened "${proj.name}"`, 'success');
+  } catch(err) {
+    toast('Failed to load project: ' + err.message, 'error');
+  }
+}
+
+/* ================================================================
+   === SECTION: FILE UPLOAD & DRAG/DROP
+   ================================================================ */
+function initFileUpload() {
+  const input   = document.getElementById('file-upload-input');
+  const sidebar = document.getElementById('sidebar');
+
+  document.getElementById('btn-upload-files').addEventListener('click', () => input.click());
+
+  input.addEventListener('change', e => {
+    handleFileList(e.target.files, null);
+    input.value = '';
+  });
+
+  sidebar.addEventListener('dragover', e => {
+    e.preventDefault();
+    sidebar.classList.add('drag-over');
+  });
+
+  sidebar.addEventListener('dragleave', () => sidebar.classList.remove('drag-over'));
+
+  sidebar.addEventListener('drop', e => {
+    e.preventDefault();
+    sidebar.classList.remove('drag-over');
+    handleFileList(e.dataTransfer.files, null);
+  });
+}
+
+function handleFileList(fileList, targetFolder) {
+  if (!fileList || fileList.length === 0) return;
+
+  const dest = targetFolder || detectBestFolder(fileList);
+  let count = 0;
+
+  Array.from(fileList).forEach(file => {
+    const path = dest ? dest + '/' + file.name : file.name;
+    const ext  = file.name.split('.').pop().toLowerCase();
+    const isText = ['tex','bib','txt','md','cls','sty'].includes(ext);
+
+    const reader = new FileReader();
+    if (isText) {
+      reader.onload = e => {
+        STATE.files[path] = { content: e.target.result, type: 'text' };
+        count++;
+        if (count === fileList.length) { renderFileTree(); saveCurrentProject(); }
+      };
+      reader.readAsText(file);
+    } else {
+      reader.onload = e => {
+        const b64 = e.target.result.split(',')[1];
+        STATE.files[path] = { content: b64, type: 'binary' };
+        count++;
+        if (count === fileList.length) { renderFileTree(); saveCurrentProject(); }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  toast(`Uploading ${fileList.length} file(s)…`, 'info', 2000);
+}
+
+function detectBestFolder(fileList) {
+  // If images, put in 'images' folder
+  const firstExt = Array.from(fileList)[0].name.split('.').pop().toLowerCase();
+  if (['png','jpg','jpeg','gif','svg'].includes(firstExt)) {
+    if (!STATE.folders.has('images')) {
+      STATE.folders.add('images');
+    }
+    return 'images';
+  }
+  return null;
+}
+
+/* ================================================================
+   === SECTION: EXPORT (JSZip)
+   ================================================================ */
+async function exportZip() {
+  if (!window.JSZip) {
+    toast('JSZip not loaded — place jszip.min.js next to index.html', 'error');
+    return;
+  }
+
+  const zip = new window.JSZip();
+  const folder = zip.folder(STATE.projectName);
+
+  // Add all text/binary files
+  Object.entries(STATE.files).forEach(([path, file]) => {
+    if (file.type === 'binary') {
+      const binStr = atob(file.content || '');
+      const arr    = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
+      folder.file(path, arr);
+    } else {
+      folder.file(path, file.content || '');
+    }
+  });
+
+  // Add compiled PDF if available
+  if (STATE.compiledPdf) {
+    folder.file('output.pdf', STATE.compiledPdf);
+  }
+
+  try {
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = STATE.projectName.replace(/\s+/g,'_') + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Project exported as ZIP', 'success');
+  } catch(err) {
+    toast('Export failed: ' + err.message, 'error');
+  }
+}
+
+function downloadPdf() {
+  if (!STATE.compiledPdf) { toast('No PDF compiled yet', 'info'); return; }
+  const blob = new Blob([STATE.compiledPdf], { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = (STATE.projectName || 'document').replace(/\s+/g,'_') + '.pdf';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ================================================================
+   === SECTION: THEME TOGGLE
+   ================================================================ */
+function toggleTheme() {
+  STATE.darkMode = !STATE.darkMode;
+  if (STATE.darkMode) {
+    document.documentElement.style.removeProperty('--bg-void');
+    // Already dark by default
+    toast('Dark mode', 'info', 1500);
+  } else {
+    // Light overrides
+    const root = document.documentElement.style;
+    root.setProperty('--bg-void',       '#f5f5f7');
+    root.setProperty('--bg-base',       '#ebebee');
+    root.setProperty('--bg-panel',      '#e2e2e8');
+    root.setProperty('--bg-elevated',   '#d8d8e0');
+    root.setProperty('--bg-hover',      '#cfcfd8');
+    root.setProperty('--bg-active',     '#c5c5d0');
+    root.setProperty('--bg-input',      '#dadadf');
+    root.setProperty('--editor-bg',     '#f9f9fb');
+    root.setProperty('--gutter-bg',     '#f0f0f4');
+    root.setProperty('--text-primary',  '#1a1a2e');
+    root.setProperty('--text-secondary','#4a4a6a');
+    root.setProperty('--text-muted',    '#8888aa');
+    root.setProperty('--border-subtle', '#d0d0da');
+    root.setProperty('--border-mid',    '#c0c0cc');
+    root.setProperty('--border-strong', '#aaaabb');
+    toast('Light mode', 'info', 1500);
+  }
+}
+
+/* ================================================================
+   === SECTION: FIND & REPLACE
+   ================================================================ */
+function showFindReplace() {
+  if (!_editorEl) { toast('Find & Replace requires the text editor', 'info'); return; }
+
+  let dlg = document.getElementById('find-replace-dlg');
+  if (dlg) { dlg.style.display = dlg.style.display === 'none' ? 'flex' : 'none'; return; }
+
+  dlg = document.createElement('div');
+  dlg.id = 'find-replace-dlg';
+  dlg.style.cssText = `
+    position: absolute;
+    top: 8px; right: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    min-width: 280px;
+  `;
+
+  dlg.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Find & Replace</div>
+    <input type="text" id="fr-find"    placeholder="Find…"    style="width:100%">
+    <input type="text" id="fr-replace" placeholder="Replace…" style="width:100%">
+    <div style="display:flex;gap:6px">
+      <button class="modal-btn primary" id="fr-go">Replace All</button>
+      <button class="modal-btn secondary" id="fr-close">✕</button>
+    </div>
+  `;
+
+  document.getElementById('editor-wrapper').appendChild(dlg);
+
+  document.getElementById('fr-go').addEventListener('click', () => {
+    const find = document.getElementById('fr-find').value;
+    const repl = document.getElementById('fr-replace').value;
+    if (!find) return;
+    const count = (_editorEl.value.match(new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g')) || []).length;
+    _editorEl.value = _editorEl.value.split(find).join(repl);
+    toast(`Replaced ${count} occurrence(s)`, 'success', 2000);
+    STATE.editorView.dispatch({ changes:{ from:0, to:0, insert:'' } }); // trigger gutter update
+    if (STATE.editorView._textarea) {
+      const upd = new Event('input');
+      STATE.editorView._textarea.dispatchEvent(upd);
+    }
+  });
+
+  document.getElementById('fr-close').addEventListener('click', () => {
+    dlg.style.display = 'none';
+  });
+}
+
+/* ================================================================
+   === SECTION: ASSET CHECKER & SETUP MODAL
+   ================================================================ */
+async function checkAssets() {
+  const assets = [
+    { file: 'pdf.js',              label: 'PDF.js' },
+    { file: 'jszip.min.js',        label: 'JSZip' },
+    { file: 'texlive/texlive.js',  label: 'Texlive.js (in texlive/ folder)' },
+  ];
+
+  const missing = [];
+
+  for (const asset of assets) {
+    try {
+      const r = await fetch(asset.file, { method: 'HEAD' });
+      if (!r.ok) missing.push(asset.label);
+    } catch(e) {
+      missing.push(asset.label);
+    }
+  }
+
+  if (missing.length > 0) {
+    const el = document.getElementById('setup-missing-list');
+    el.textContent = 'Missing:\n' + missing.map(m => '  • ' + m).join('\n');
+    // Only show setup modal for missing engine — editor still works without PDF.js/JSZip
+    const engineMissing = missing.some(m => m.includes('Texlive'));
+    if (engineMissing) {
+      toast('Texlive.js not found — running in preview mode (no real PDF output)', 'info', 8000);
+    }
+  } else {
+    STATE.texliveReady = true;
+  }
+}
+
+function loadExternalScripts() {
+  // Try to load optional dependencies
+  const scripts = [
+    { src: 'pdf.js',             global: 'pdfjsLib' },
+    { src: 'jszip.min.js',       global: 'JSZip' },
+    { src: 'texlive/texlive.js', global: 'Texlive' },
+    { src: 'codemirror-bundle.js', global: 'CM' },
+  ];
+
+  scripts.forEach(({ src, global: gbl }) => {
+    const s = document.createElement('script');
+    s.src   = src;
+    s.onerror = () => console.warn(`Optional asset not found: ${src} — some features will be limited.`);
+    s.onload  = () => {
+      if (gbl === 'Texlive' && window.Texlive) STATE.texliveReady = true;
+    };
+    document.head.appendChild(s);
+  });
+}
+
+/* ================================================================
+   === SECTION: AUTO-SAVE
+   ================================================================ */
+setInterval(async () => {
+  if (!STATE.projectId) return;
+  saveActiveFileContent();
+  try { await dbSaveProject(); } catch(e) {}
+}, 30000);
+
+/* ================================================================
+   === SECTION: KEYBOARD SHORTCUTS
+   ================================================================ */
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveActiveFileContent();
+    compile();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+    e.preventDefault();
+    showFindReplace();
+  }
+  if (e.key === 'Escape') {
+    hideContextMenu();
+  }
+});
+
+/* ================================================================
+   === SECTION: EVENT BINDINGS
+   ================================================================ */
+function bindEvents() {
+  document.getElementById('btn-compile').addEventListener('click', compile);
+  document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+  document.getElementById('btn-export').addEventListener('click', exportZip);
+  document.getElementById('btn-download-pdf').addEventListener('click', downloadPdf);
+  document.getElementById('log-toggle').addEventListener('click', toggleLog);
+  document.getElementById('btn-toggle-log').addEventListener('click', toggleLog);
+  document.getElementById('btn-find-replace').addEventListener('click', showFindReplace);
+  document.getElementById('setup-continue-anyway').addEventListener('click', () => {
+    document.getElementById('modal-setup').classList.remove('visible');
+  });
+
+  // Project management
+  document.getElementById('btn-new-project').addEventListener('click', () => {
+    document.getElementById('modal-projects').classList.add('visible');
+    document.getElementById('new-project-name').focus();
+  });
+
+  document.getElementById('btn-open-project').addEventListener('click', showOpenProjectModal);
+
+  document.getElementById('confirm-new-project').addEventListener('click', () => {
+    const name = document.getElementById('new-project-name').value.trim() || 'New Project';
+    document.getElementById('modal-projects').classList.remove('visible');
+    newProject(name);
+  });
+
+  document.getElementById('new-project-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('confirm-new-project').click();
+  });
+
+  // Sidebar actions
+  document.getElementById('btn-new-folder').addEventListener('click', () => {
+    const name = prompt('Folder name (e.g. images, chapters):');
+    if (!name) return;
+    STATE.folders.add(name);
+    renderFileTree();
+    saveCurrentProject();
+    toast(`Folder "${name}" created`, 'success');
+  });
+
+  document.getElementById('btn-new-file').addEventListener('click', () => {
+    const name = prompt('File name (e.g. chapter1.tex, refs.bib):');
+    if (!name) return;
+    STATE.files[name] = { content: '', type: 'text' };
+    renderFileTree();
+    openFile(name);
+    saveCurrentProject();
+  });
+
+  // Project name rename on double-click
+  document.getElementById('project-name').addEventListener('dblclick', () => {
+    const name = prompt('Rename project:', STATE.projectName);
+    if (name && name.trim()) {
+      STATE.projectName = name.trim();
+      document.getElementById('project-name-text').textContent = STATE.projectName;
+      saveCurrentProject();
+    }
+  });
+
+  // PDF controls
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    STATE.pdfZoom = Math.min(3.0, STATE.pdfZoom + 0.2);
+    renderPdfPages();
+  });
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    STATE.pdfZoom = Math.max(0.3, STATE.pdfZoom - 0.2);
+    renderPdfPages();
+  });
+  document.getElementById('btn-fit-width').addEventListener('click', fitToWidth);
+  document.getElementById('btn-prev-page').addEventListener('click', () => {
+    if (STATE.pdfPage > 1) { STATE.pdfPage--; renderPdfPages(); }
+  });
+  document.getElementById('btn-next-page').addEventListener('click', () => {
+    if (STATE.pdfPage < STATE.pdfTotalPages) { STATE.pdfPage++; renderPdfPages(); }
+  });
+
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('visible');
+    });
+  });
+}
+
+/* ================================================================
+   === SECTION: BOOTSTRAP
+   ================================================================ */
+async function init() {
+  // Load external scripts
+  loadExternalScripts();
+
+  // Open IndexedDB
+  try {
+    await dbOpen();
+  } catch(err) {
+    toast('IndexedDB failed — changes will not persist: ' + err.message, 'error', 8000);
+  }
+
+  // Initialize editor
+  initEditor();
+
+  // Initialize resizable panels
+  initResizers();
+
+  // Bind all UI events
+  bindEvents();
+
+  // Initialize file upload
+  initFileUpload();
+
+  // Check assets (non-blocking)
+  checkAssets();
+
+  // Load last project or create default
+  try {
+    const projects = db ? await dbListProjects() : [];
+    if (projects.length > 0) {
+      const latest = projects.sort((a,b) => (b.modified||0) - (a.modified||0))[0];
+      await loadProject(latest.id);
+    } else {
+      newProject('My First Project');
+    }
+  } catch(err) {
+    newProject('My First Project');
+  }
+
+  // Show no-main-file banner if needed
+  if (!STATE.mainFile) {
+    document.getElementById('no-main-banner').style.display = 'block';
+  }
+
+  console.log("Harrison's LaTeX Editor loaded. Happy writing!");
+}
+
+// Launch
+init().catch(console.error);
+</script>
+
+<!-- Optional: Load PDF.js worker as a blob to avoid file:// restrictions -->
+<script>
+// If pdf.worker.js fails to load due to file:// restrictions,
+// this shim helps by setting the workerSrc to a data URL approach.
+window.addEventListener('load', () => {
+  if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.js';
+  }
+});
+</script>
+
+</body>
+</html>
