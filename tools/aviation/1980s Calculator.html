@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1980s Japanese Graphing Calc</title>
+    <style>
+        :root {
+            --case-color: #c9c4b4;
+            --screen-bg: #8ba88d;
+            --screen-ink: #2b3328;
+            --key-dark: #333333;
+            --key-light: #f0f0f0;
+            --accent: #b22222;
+        }
+
+        body {
+            background-color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+        }
+
+        /* The Plastic Shell */
+        .calc-body {
+            background-color: var(--case-color);
+            width: 340px;
+            padding: 30px 20px;
+            border-radius: 8px;
+            border-bottom: 8px solid #888;
+            border-right: 5px solid #aaa;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .logo-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #555;
+            font-weight: bold;
+            font-style: italic;
+            font-size: 12px;
+            border-bottom: 1px solid #aaa;
+            padding-bottom: 5px;
+        }
+
+        /* The LCD Screen */
+        .screen-frame {
+            background: #222;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+        }
+
+        .lcd {
+            background-color: var(--screen-bg);
+            height: 160px;
+            width: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px);
+            background-size: 100% 3px; /* Scanline effect */
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            width: 100%;
+            height: 120px;
+        }
+
+        .formula-display {
+            height: 40px;
+            background: rgba(0,0,0,0.05);
+            border-top: 1px solid var(--screen-ink);
+            padding: 5px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: var(--screen-ink);
+            font-size: 14px;
+        }
+
+        /* Controls */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        button {
+            height: 38px;
+            border: none;
+            border-radius: 3px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 11px;
+            box-shadow: 0 4px 0 #777;
+            transition: transform 0.05s, box-shadow 0.05s;
+        }
+
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #777;
+        }
+
+        .btn-orange { background: #d35400; color: white; }
+        .btn-blue { background: #2980b9; color: white; }
+        .btn-gray { background: #444; color: white; }
+        .btn-num { background: #eee; color: #222; font-size: 14px; }
+        .wide { grid-column: span 2; }
+
+        input {
+            width: 85%;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-weight: bold;
+            color: inherit;
+        }
+    </style>
+</head>
+<body>
+
+<div class="calc-body">
+    <div class="logo-area">
+        <span>GEN-80s JAPAN</span>
+        <span style="color: #b22222;">LS-GRAPH</span>
+    </div>
+
+    <div class="screen-frame">
+        <div class="lcd">
+            <canvas id="graphCanvas"></canvas>
+            <div class="formula-display">
+                Y1=<input type="text" id="eq" value="Math.sin(x)*2" spellcheck="false">
+            </div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <button class="btn-gray" onclick="add('Math.sin(')">SIN</button>
+        <button class="btn-gray" onclick="add('Math.cos(')">COS</button>
+        <button class="btn-gray" onclick="add('Math.tan(')">TAN</button>
+        <button class="btn-orange" onclick="cls()">AC</button>
+        
+        <button class="btn-num" onclick="add('7')">7</button>
+        <button class="btn-num" onclick="add('8')">8</button>
+        <button class="btn-num" onclick="add('9')">9</button>
+        <button class="btn-blue" onclick="add('/')">÷</button>
+
+        <button class="btn-num" onclick="add('4')">4</button>
+        <button class="btn-num" onclick="add('5')">5</button>
+        <button class="btn-num" onclick="add('6')">6</button>
+        <button class="btn-blue" onclick="add('*')">×</button>
+
+        <button class="btn-num" onclick="add('1')">1</button>
+        <button class="btn-num" onclick="add('2')">2</button>
+        <button class="btn-num" onclick="add('3')">3</button>
+        <button class="btn-blue" onclick="add('-')">-</button>
+
+        <button class="btn-num" onclick="add('0')">0</button>
+        <button class="btn-num" onclick="add('.')">.</button>
+        <button class="btn-orange wide" onclick="plot()">EXE / PLOT</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('graphCanvas');
+    const ctx = canvas.getContext('2d');
+    const input = document.getElementById('eq');
+
+    // Retro low-res internal resolution
+    canvas.width = 300;
+    canvas.height = 120;
+
+    function add(v) { input.value += v; }
+    function cls() { input.value = ""; plot(); }
+
+    function drawGrid() {
+        ctx.strokeStyle = "rgba(43, 51, 40, 0.2)";
+        ctx.lineWidth = 1;
+        // Vertical lines
+        for(let i=0; i<canvas.width; i+=20) {
+            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, canvas.height); ctx.stroke();
+        }
+        // Horizontal lines
+        for(let i=0; i<canvas.height; i+=20) {
+            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        }
+        // Axes
+        ctx.strokeStyle = "rgba(43, 51, 40, 0.8)";
+        ctx.beginPath(); 
+        ctx.moveTo(0, canvas.height/2); ctx.lineTo(canvas.width, canvas.height/2);
+        ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.stroke();
+    }
+
+    function plot() {
+        const formula = input.value;
+        ctx.clearRect(0

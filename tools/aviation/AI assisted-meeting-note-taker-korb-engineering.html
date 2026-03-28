@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Korb Engineering · Meeting Recorder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:#0d1117; --surface:#161b27; --s2:#1c2235; --border:#252d45;
+  --accent:#2d6be4; --green:#1db87a; --red:#e05c4b; --amber:#e8a020;
+  --text:#dde2f0; --muted:#5a6585;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;
+  display:flex;flex-direction:column;align-items:center;padding:28px 16px 80px;min-height:100vh;}
+
+.hdr{width:100%;max-width:800px;display:flex;justify-content:space-between;align-items:flex-end;
+  border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;}
+.hdr h1{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;letter-spacing:-.03em;
+  background:linear-gradient(100deg,#4d8ef7,#1db87a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hdr p{color:var(--muted);font-size:.7rem;margin-top:4px;}
+.badge{font-family:'Syne',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;background:var(--s2);border:1px solid var(--border);
+  border-radius:4px;padding:4px 10px;color:var(--muted);}
+
+.wrap{width:100%;max-width:800px;display:flex;flex-direction:column;gap:16px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 22px;}
+.clabel{font-family:'Syne',sans-serif;font-size:.62rem;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+@media(max-width:520px){.g2{grid-template-columns:1fr;}}
+label{display:block;font-size:.68rem;color:var(--muted);margin-bottom:4px;}
+input,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:.78rem;padding:8px 11px;
+  outline:none;transition:border-color .15s;}
+input:focus,textarea:focus{border-color:var(--accent);}
+textarea{resize:vertical;min-height:160px;line-height:1.65;}
+
+/* API key */
+.api-row{display:flex;gap:10px;align-items:flex-end;}
+.api-row input{flex:1;}
+.api-note{font-size:.68rem;color:var(--muted);margin-top:6px;line-height:1.6;}
+.api-note a{color:var(--accent);}
+
+/* Recorder */
+.rec-center{display:flex;flex-direction:column;align-items:center;gap:16px;padding:8px 0;}
+.timer{font-size:2.6rem;font-weight:500;letter-spacing:.08em;transition:color .3s;}
+.timer.live{color:var(--red);}
+.rbtn{width:96px;height:96px;border-radius:50%;border:3px solid var(--red);
+  background:rgba(224,92,75,.12);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .2s;user-select:none;}
+.rbtn:hover{background:rgba(224,92,75,.22);transform:scale(1.04);}
+.rbtn.live{background:var(--red);animation:ripple 1.3s ease-out infinite;}
+@keyframes ripple{
+  0%{box-shadow:0 0 0 0 rgba(224,92,75,.55);}
+  70%{box-shadow:0 0 0 22px rgba(224,92,75,0);}
+  100%{box-shadow:0 0 0 0 rgba(224,92,75,0);}
+}
+.rbtn .ico{font-size:2rem;}
+.rlabel{font-family:'Syne',sans-serif;font-size:.88rem;font-weight:700;
+  letter-spacing:.04em;color:var(--muted);text-align:center;min-height:22px;}
+.prog-track{width:260px;height:5px;background:var(--border);border-radius:3px;}
+.prog-fill{height:100%;border-radius:3px;background:var(--green);width:0%;transition:width 1s linear,background .4s;}
+
+/* Transcript */
+.txbox{background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:13px 15px;font-size:.78rem;line-height:1.7;
+  min-height:140px;max-height:280px;overflow-y:auto;white-space:pre-wrap;}
+.interim{color:var(--muted);font-style:italic;}
+
+/* Summary */
+.sumbox{background:var(--bg);border:1px solid var(--border);border-radius:5px;
+  padding:13px 15px;font-size:.8rem;line-height:1.75;
+  min-height:180px;max-height:500px;overflow-y:auto;white-space:pre-wrap;
+  outline:none;color:var(--text);}
+.sumbox:empty::before{content:'AI summary will appear here after recording stops…';color:var(--muted);}
+
+/* Status */
+.spill{display:none;margin-top:10px;padding:8px 13px;border-radius:5px;font-size:.74rem;}
+.spill.info{display:block;background:rgba(45,107,228,.1);border:1px solid rgba(45,107,228,.3);color:#6da4f5;}
+.spill.ok  {display:block;background:rgba(29,184,122,.1);border:1px solid rgba(29,184,122,.3);color:var(--green);}
+.spill.warn{display:block;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.3);color:var(--amber);}
+.spill.err {display:block;background:rgba(224,92,75,.1) ;border:1px solid rgba(224,92,75,.3) ;color:var(--red);}
+
+/* Overlay */
+#ov{display:none;position:fixed;inset:0;background:rgba(10,13,20,.92);
+  backdrop-filter:blur(5px);z-index:99;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;}
+#ov.on{display:flex;}
+.spin{width:46px;height:46px;border-radius:50%;border:3px solid var(--border);
+  border-top-color:var(--accent);animation:sp .75s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+#ov p{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--text);}
+#ov small{color:var(--muted);font-size:.72rem;}
+.ov-steps{display:flex;flex-direction:column;gap:6px;min-width:260px;}
+.ov-step{font-size:.78rem;padding:7px 12px;border-radius:5px;background:var(--s2);
+  border:1px solid var(--border);color:var(--muted);display:flex;gap:8px;align-items:center;}
+.ov-step.active{border-color:var(--accent);color:var(--text);}
+.ov-step.done  {border-color:var(--green);color:var(--green);}
+
+/* Warning */
+.wbanner{background:rgba(232,160,32,.07);border:1px solid rgba(232,160,32,.3);
+  border-radius:8px;padding:13px 17px;font-size:.73rem;line-height:1.8;color:var(--amber);}
+.wbanner strong{color:var(--text);}
+.wbanner code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:3px;font-size:.85em;}
+
+.row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.btn{font-family:'Syne',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:.04em;
+  padding:9px 18px;border:none;border-radius:5px;cursor:pointer;transition:opacity .15s,transform .1s;}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:var(--s2);color:var(--text);border:1px solid var(--border);}
+.btn-blue{background:var(--accent);color:#fff;}
+.btn-green{background:var(--green);color:#000;}
+</style>
+</head>
+<body>
+
+<div id="ov">
+  <div class="spin"></div>
+  <p id="ovTitle">Processing…</p>
+  <div class="ov-steps">
+    <div class="ov-step" id="step1">⏳ Sending transcript to Claude AI</div>
+    <div class="ov-step" id="step2">⏳ Summarizing &amp; extracting action items</div>
+    <div class="ov-step" id="step3">⏳ Building PDF</div>
+  </div>
+  <small id="ovSub">This may take a moment for long meetings</small>
+</div>
+
+<div class="hdr">
+  <div><h1>Meeting Recorder</h1><p>Korb Engineering &nbsp;·&nbsp; AI-powered &nbsp;·&nbsp; Up to 4 hours</p></div>
+  <span class="badge">Local + Claude AI</span>
+</div>
+
+<div class="wrap">
+
+  <!-- browser warning -->
+  <div class="wbanner" id="bwarn" style="display:none">
+    <strong>⚠ Two requirements for recording to work:</strong><br>
+    1. Must use <strong>Google Chrome</strong> (Firefox/Safari don't support continuous speech recognition)<br>
+    2. Must be served over HTTP — not opened as a local file<br><br>
+    <strong>Quick fix:</strong> Open Terminal in this file's folder and run:<br>
+    <code>python3 -m http.server 8080</code> &nbsp;then visit&nbsp; <code>http://localhost:8080/meeting-note-taker.html</code>
+  </div>
+
+  <!-- API key -->
+  <div class="card">
+    <div class="clabel">🔑 Anthropic API Key <span style="font-size:.6rem;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)">Saved locally in browser — never sent anywhere except Anthropic</span></div>
+    <div class="api-row">
+      <input id="apiKey" type="password" placeholder="sk-ant-…" oninput="saveKey()">
+      <button class="btn btn-ghost" onclick="toggleKeyVis()">👁</button>
+    </div>
+    <div class="api-note">Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Without a key, the app records + transcribes but skips AI summarization.</div>
+    <div id="keyStatus"></div>
+  </div>
+
+  <!-- meeting details -->
+  <div class="card">
+    <div class="clabel">📋 Meeting Details</div>
+    <div class="g2" style="margin-bottom:11px">
+      <div><label>Meeting Title</label><input id="mTitle" placeholder="US-40 Pavement Rehab Review"></div>
+      <div><label>Date</label><input id="mDate" type="date"></div>
+    </div>
+    <div class="g2">
+      <div><label>Project / Job No.</label><input id="mProj" placeholder="KE-2024-087"></div>
+      <div><label>Attendees</label><input id="mAtt" placeholder="John Korb, Client, Sub"></div>
+    </div>
+  </div>
+
+  <!-- recorder -->
+  <div class="card">
+    <div class="clabel">🎙 Recorder</div>
+    <div class="rec-center">
+      <div class="timer" id="timer">00:00:00</div>
+      <div class="rbtn" id="rbtn" onclick="toggle()">
+        <span class="ico" id="ico">🎙</span>
+      </div>
+      <div class="rlabel" id="rlabel">Tap to start</div>
+      <div class="prog-track"><div class="prog-fill" id="pfill"></div></div>
+      <small style="color:var(--muted);font-size:.66rem">4-hour max · AI summary + PDF auto-generate on stop</small>
+    </div>
+    <div id="recPill"></div>
+  </div>
+
+  <!-- live transcript -->
+  <div class="card">
+    <div class="clabel">
+      <span>📝 Live Transcript</span>
+      <button class="btn btn-ghost" style="font-size:.66rem;padding:3px 10px" onclick="clearTx()">Clear</button>
+    </div>
+    <div class="txbox" id="txbox">Transcript will appear here as you speak…</div>
+  </div>
+
+  <!-- extra notes -->
+  <div class="card">
+    <div class="clabel">✏ Additional Notes (optional)</div>
+    <textarea id="mNotes" placeholder="Whiteboard items, corrections, context not captured by mic…"></textarea>
+  </div>
+
+  <!-- AI summary -->
+  <div class="card">
+    <div class="clabel">
+      <span>🤖 AI Summary &amp; Action Items</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="font-size:.66rem;padding:3px 10px" onclick="runSummary()">Re-summarize</button>
+      </div>
+    </div>
+    <div class="sumbox" id="sumbox" contenteditable="true"></div>
+    <div id="sumPill"></div>
+  </div>
+
+  <!-- footer row -->
+  <div class="card row">
+    <span style="font-size:.76rem;color:var(--muted)">PDF auto-downloads after AI summary completes.</span>
+    <button class="btn btn-blue" onclick="makePDF()">⬇ Download PDF Now</button>
+  </div>
+
+</div>
+
+<script>
+// ─── globals ───────────────────────────────────────────────────────────────────
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let running=false, rec=null, recAlive=false, restartPending=false;
+let elapsed=0, timerID=null;
+const MAX = 4*3600;
+let finalTx='', interimTx='';
+
+// ─── init ──────────────────────────────────────────────────────────────────────
+document.getElementById('mDate').value = new Date().toISOString().slice(0,10);
+
+const badBrowser = !/Chrome/.test(navigator.userAgent) || !/Google Inc/.test(navigator.vendor);
+const isFile     = location.protocol === 'file:';
+if (badBrowser || isFile) document.getElementById('bwarn').style.display='block';
+
+// Load saved API key
+const saved = localStorage.getItem('ant_key');
+if (saved) { document.getElementById('apiKey').value=saved; pill('keyStatus','ok','✓ API key loaded'); }
+
+function saveKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  if (k) { localStorage.setItem('ant_key',k); pill('keyStatus','ok','✓ Saved'); }
+}
+function toggleKeyVis() {
+  const el = document.getElementById('apiKey');
+  el.type = el.type==='password' ? 'text' : 'password';
+}
+
+// ─── toggle ────────────────────────────────────────────────────────────────────
+function toggle() {
+  if (!SpeechRec) { pill('recPill','err','Speech Recognition unavailable — use Chrome at http://localhost'); return; }
+  if (!running) startSession(); else stopSession();
+}
+
+// ─── START ─────────────────────────────────────────────────────────────────────
+function startSession() {
+  pill('recPill','info','Requesting microphone access…');
+  navigator.mediaDevices.getUserMedia({audio:true})
+    .then(stream => { stream.getTracks().forEach(t=>t.stop()); _doStart(); })
+    .catch(() => pill('recPill','err','🚫 Mic denied. Click 🔒 in address bar → Microphone → Allow → refresh.'));
+}
+
+function _doStart() {
+  running=true; elapsed=0; finalTx=''; interimTx='';
+  document.getElementById('txbox').textContent='';
+  document.getElementById('sumbox').textContent='';
+
+  document.getElementById('rbtn').classList.add('live');
+  document.getElementById('ico').textContent='⏹';
+  document.getElementById('rlabel').textContent='Recording…';
+  document.getElementById('rlabel').style.color='var(--red)';
+  document.getElementById('timer').classList.add('live');
+  pill('recPill','info','🎙 Listening — speak clearly toward your microphone.');
+
+  timerID = setInterval(()=>{
+    elapsed++;
+    document.getElementById('timer').textContent=fmt(elapsed);
+    const pct=Math.min(elapsed/MAX*100,100);
+    document.getElementById('pfill').style.width=pct+'%';
+    document.getElementById('pfill').style.background=pct>90?'var(--red)':pct>70?'var(--amber)':'var(--green)';
+    if(elapsed>=MAX){ pill('recPill','warn','4-hour limit reached.'); stopSession(); }
+  },1000);
+
+  spawnRec();
+}
+
+// ─── STOP ──────────────────────────────────────────────────────────────────────
+function stopSession() {
+  running=false;
+  clearInterval(timerID);
+  if(rec){ try{rec.stop();}catch(e){} rec=null; }
+  recAlive=false;
+
+  document.getElementById('rbtn').classList.remove('live');
+  document.getElementById('ico').textContent='🎙';
+  document.getElementById('rlabel').textContent='Tap to start';
+  document.getElementById('rlabel').style.color='var(--muted)';
+  document.getElementById('timer').classList.remove('live');
+  pill('recPill','ok','✓ Stopped. Running AI summary…');
+
+  setTimeout(()=> runSummary(), 600);
+}
+
+// ─── Speech recognition ────────────────────────────────────────────────────────
+function spawnRec() {
+  if(!running) return;
+  rec=new SpeechRec();
+  rec.continuous=true; rec.interimResults=true; rec.lang='en-US';
+  recAlive=false;
+
+  rec.onstart=()=>{ recAlive=true; restartPending=false; };
+  rec.onresult=(e)=>{
+    interimTx='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) finalTx+=e.results[i][0].transcript+' ';
+      else interimTx+=e.results[i][0].transcript;
+    }
+    renderTx();
+  };
+  rec.onerror=(e)=>{
+    recAlive=false;
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      pill('recPill','err','🚫 Mic denied. Click 🔒 in address bar → Microphone → Allow → refresh.');
+      stopSession(); return;
+    }
+    scheduleRestart();
+  };
+  rec.onend=()=>{ recAlive=false; scheduleRestart(); };
+  try{ rec.start(); } catch(e){ scheduleRestart(); }
+}
+
+function scheduleRestart(){
+  if(!running||restartPending) return;
+  restartPending=true;
+  setTimeout(()=>{ restartPending=false; if(!running) return; rec=null; spawnRec(); },300);
+}
+
+function renderTx(){
+  const box=document.getElementById('txbox');
+  box.innerHTML=esc(finalTx)+(interimTx?`<span class="interim">${esc(interimTx)}</span>`:'');
+  box.scrollTop=box.scrollHeight;
+}
+function clearTx(){ finalTx=''; interimTx=''; document.getElementById('txbox').textContent='Transcript will appear here as you speak…'; }
+
+// ─── AI SUMMARY ────────────────────────────────────────────────────────────────
+async function runSummary() {
+  const transcript = (finalTx + ' ' + (document.getElementById('mNotes').value||'')).trim();
+  if(!transcript || transcript.length<10){
+    pill('sumPill','warn','No transcript to summarize yet.');
+    return;
+  }
+
+  const apiKey = localStorage.getItem('ant_key') || document.getElementById('apiKey').value.trim();
+  if(!apiKey){
+    pill('sumPill','warn','No API key — add one above for AI summarization. Skipping to PDF with raw transcript.');
+    setTimeout(makePDF,800);
+    return;
+  }
+
+  const title     = document.getElementById('mTitle').value || 'Untitled Meeting';
+  const date      = document.getElementById('mDate').value  || new Date().toISOString().slice(0,10);
+  const project   = document.getElementById('mProj').value  || '';
+  const attendees = document.getElementById('mAtt').value   || '';
+
+  showOv('AI summarizing…');
+  setOvStep(1,'active'); setOvStep(2,''); setOvStep(3,'');
+
+  const systemPrompt = `You are an expert engineering meeting minutes writer for Korb Engineering, a civil/pavement engineering firm. 
+
+Your job is to transform raw speech-to-text transcripts into clean, professional meeting minutes.
+
+CRITICAL INSTRUCTIONS — follow these exactly:
+
+1. ACTION ITEMS — Be highly sensitive. Extract EVERY commitment, task, follow-up, or to-do, no matter how casually mentioned. Look for phrases like: "I'll", "we need to", "can you", "someone should", "let's", "make sure", "don't forget", "follow up", "check on", "send", "email", "call", "look into", "get", "schedule", "review", "update", "confirm", "verify", "submit", "prepare", "coordinate", "contact". If in doubt, include it as an action item. Assign an owner if mentioned or inferable. Set due date to TBD if not mentioned.
+
+2. DECISIONS — Capture every decision made, no matter how small.
+
+3. ISSUES / RISKS — Flag anything mentioned as a concern, problem, or risk.
+
+4. OPEN QUESTIONS — List anything that was raised but not resolved.
+
+FORMAT your output EXACTLY as follows (use these exact headers):
+
+DISCUSSION SUMMARY
+[3-8 concise bullet points covering the main topics discussed. Be specific — include technical details, numbers, references mentioned.]
+
+KEY DECISIONS
+[Bullet list of every decision made. If none, write "None recorded."]
+
+ACTION ITEMS
+[Numbered list in this format:]
+1. [Action item description] | Owner: [name or "TBD"] | Due: [date or "TBD"] | Priority: [High/Medium/Low]
+[If no action items found, write "None recorded — review transcript carefully."]
+
+ISSUES & RISKS
+[Bullet list of concerns, problems, blockers. If none, write "None identified."]
+
+OPEN QUESTIONS
+[Bullet list of unresolved questions or items needing follow-up. If none, write "None."]
+
+PARKING LOT
+[Items mentioned that are out of scope or deferred. If none, write "None."]
+
+Be concise but thorough. Use engineering/professional language. Do not invent information not in the transcript.`;
+
+  const userMsg = `Meeting Title: ${title}
+Date: ${date}
+Project: ${project}
+Attendees: ${attendees}
+Duration: ${fmt(elapsed)}
+
+TRANSCRIPT:
+${transcript}`;
+
+  try {
+    setOvStep(1,'done'); setOvStep(2,'active');
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages:[{role:'user', content:userMsg}]
+      })
+    });
+
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message);
+
+    const summary = data.content[0].text;
+    document.getElementById('sumbox').textContent = summary;
+    setOvStep(2,'done'); setOvStep(3,'active');
+    pill('sumPill','ok','✓ Summary complete — review and edit above before PDF.');
+
+    setTimeout(()=>{ buildPDF(summary); }, 200);
+
+  } catch(err) {
+    hideOv();
+    pill('sumPill','err','API error: '+err.message+' — generating PDF with raw transcript instead.');
+    console.error(err);
+    setTimeout(makePDF, 500);
+  }
+}
+
+// ─── PDF ───────────────────────────────────────────────────────────────────────
+function makePDF(){
+  const sumText = document.getElementById('sumbox').innerText || document.getElementById('sumbox').textContent;
+  const transcript = (finalTx + ' ' + (document.getElementById('mNotes').value||'')).trim();
+
+  if(!sumText && (!transcript||transcript.length<3)){
+    pill('recPill','warn','Nothing to export — record first.'); return;
+  }
+
+  showOv('Building PDF…');
+  setOvStep(1,'done'); setOvStep(2,'done'); setOvStep(3,'active');
+  setTimeout(()=>{
+    try{ buildPDF(sumText||null); }
+    catch(err){ hideOv(); pill('recPill','err','PDF error: '+err.message); console.error(err); }
+  },80);
+}
+
+function buildPDF(summaryText){
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'letter'});
+  const PW=612,PH=792,ML=56,MR=56,MB=52,CW=PW-ML-MR;
+  let y=56;
+
+  function chk(n=18){ if(y+n>PH-MB){ doc.addPage(); y=56; } }
+
+  const title     = document.getElementById('mTitle').value || 'Untitled Meeting';
+  const date      = document.getElementById('mDate').value  || new Date().toISOString().slice(0,10);
+  const project   = document.getElementById('mProj').value  || '—';
+  const attendees = document.getElementById('mAtt').value   || '—';
+
+  // ── dark header ──
+  doc.setFillColor(14,18,28); doc.rect(0,0,PW,66,'F');
+  doc.setFillColor(45,107,228); doc.rect(0,66,PW,3,'F');
+  doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(220,228,248);
+  doc.text('KORB ENGINEERING',ML,25);
+  doc.setFontSize(8.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,95,130);
+  doc.text('Meeting Minutes',ML,44);
+  doc.text(new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}),PW-MR,44,{align:'right'});
+  y=86;
+
+  // ── meta block ──
+  const rows=[
+    ['MEETING TITLE',title],
+    ['DATE',date],
+    ['PROJECT / JOB',project],
+    ['ATTENDEES',attendees],
+    ['DURATION',fmt(elapsed)],
+  ];
+  const bh=rows.length*20+18;
+  doc.setFillColor(20,25,40); doc.roundedRect(ML,y,CW,bh,4,4,'F');
+  let fy=y+14;
+  rows.forEach(([k,v])=>{
+    fy+=14;
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(70,88,130);
+    doc.text(k,ML+12,fy);
+    doc.setFont('helvetica','normal'); doc.setTextColor(210,218,240);
+    doc.text(doc.splitTextToSize(v,CW-145)[0],ML+145,fy);
+    fy+=6;
+  });
+  y=fy+20;
+
+  // ── helpers ──
+  function secHead(lbl,color=[45,107,228]){
+    chk(34);
+    doc.setFillColor(...color); doc.rect(ML,y,3,13,'F');
+    doc.setFontSize(9.5); doc.setFont('helvetica','bold'); doc.setTextColor(...color);
+    doc.text(lbl,ML+10,y+10);
+    y+=19;
+    doc.setDrawColor(35,44,70); doc.setLineWidth(.5); doc.line(ML,y,ML+CW,y);
+    y+=10;
+  }
+
+  function bodyTxt(txt,rgb=[195,205,230]){
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...rgb);
+    doc.splitTextToSize(txt,CW).forEach(line=>{ chk(13); doc.text(line,ML,y); y+=13; });
+  }
+
+  // Color-code section headers in the PDF
+  const sectionColors = {
+    'DISCUSSION SUMMARY':   [45,107,228],
+    'KEY DECISIONS':        [29,184,122],
+    'ACTION ITEMS':         [224,92,75],
+    'ISSUES & RISKS':       [232,160,32],
+    'OPEN QUESTIONS':       [150,100,220],
+    'PARKING LOT':          [80,130,180],
+  };
+
+  if(summaryText && summaryText.length>10){
+    // Parse and render summary with colored section headers
+    const lines = summaryText.split('\n');
+    let currentSection = null;
+
+    lines.forEach(rawLine => {
+      const line = rawLine.trim();
+      if(!line){ y+=5; return; }
+
+      // Check if it's a section header
+      let isHeader=false;
+      for(const [sec,col] of Object.entries(sectionColors)){
+        if(line.toUpperCase().startsWith(sec)){
+          y+=8; secHead(line.toUpperCase(), col); isHeader=true; currentSection=sec; break;
+        }
+      }
+      if(isHeader) return;
+
+      // Action items get special treatment
+      if(currentSection==='ACTION ITEMS' && /^\d+\./.test(line)){
+        chk(16);
+        // Split into sub-parts
+        const parts = line.split('|');
+        const action = parts[0].replace(/^\d+\.\s*/,'').trim();
+        const meta   = parts.slice(1).join(' · ').trim();
+
+        // Action number + text
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(224,92,75);
+        const num = (line.match(/^(\d+)\./)||[])[1]||'';
+        doc.text(num+'.', ML+2, y);
+
+        doc.setFont('helvetica','normal'); doc.setTextColor(210,218,240);
+        const actionLines = doc.splitTextToSize(action, CW-20);
+        actionLines.forEach((al,i)=>{ chk(13); doc.text(al, ML+18, y); y+=13; });
+
+        if(meta){
+          doc.setFontSize(8); doc.setFont('helvetica','italic'); doc.setTextColor(140,155,180);
+          chk(12); doc.text(meta, ML+18, y); y+=12;
+        }
+        y+=2;
+        return;
+      }
+
+      // Bullet lines
+      if(line.startsWith('-')||line.startsWith('•')||line.startsWith('*')){
+        chk(14);
+        doc.setFillColor(45,107,228);
+        doc.circle(ML+4, y-3, 2, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(195,205,230);
+        const blines=doc.splitTextToSize(line.replace(/^[-•*]\s*/,''),CW-16);
+        blines.forEach((bl,i)=>{ chk(13); doc.text(bl,ML+12,y); y+=13; });
+        return;
+      }
+
+      // Regular text
+      bodyTxt(line,[195,205,230]);
+    });
+
+  } else {
+    // No summary — fall back to raw transcript
+    secHead('FULL TRANSCRIPT');
+    bodyTxt(finalTx.trim()||'(No speech captured)');
+  }
+
+  // ── action items table (blank, for handwriting) if AI summary provided them inline ──
+  // Only add blank table if NO summary
+  if(!summaryText || summaryText.length<10){
+    y+=14; secHead('ACTION ITEMS',[224,92,75]);
+    chk(22);
+    doc.setFillColor(24,30,48); doc.rect(ML,y-2,CW,15,'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(80,98,140);
+    doc.text('#',ML+8,y+9); doc.text('ACTION ITEM',ML+28,y+9);
+    doc.text('OWNER',ML+CW-138,y+9); doc.text('DUE',ML+CW-50,y+9);
+    y+=22;
+    for(let i=1;i<=10;i++){
+      chk(22);
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(100,115,155);
+      doc.text(String(i),ML+8,y+2);
+      doc.setDrawColor(35,44,70); doc.setLineWidth(.4);
+      doc.line(ML+22,y+2,ML+CW-148,y+2);
+      doc.line(ML+CW-134,y+2,ML+CW-58,y+2);
+      doc.line(ML+CW-44,y+2,ML+CW,y+2);
+      y+=20;
+    }
+  }
+
+  // ── next meeting ──
+  y+=14; secHead('NEXT MEETING',[80,130,180]);
+  chk(50);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(85,100,135);
+  doc.text('Date:',ML,y); doc.setDrawColor(35,44,70); doc.setLineWidth(.5);
+  doc.line(ML+34,y,ML+200,y); doc.text('Location:',ML+218,y);
+  doc.line(ML+268,y,ML+CW,y); y+=26;
+  doc.text('Notes:',ML,y); y+=14;
+  for(let i=0;i<3;i++){ chk(15); doc.line(ML,y,ML+CW,y); y+=15; }
+
+  // ── footer ──
+  const total=doc.internal.getNumberOfPages();
+  for(let p=1;p<=total;p++){
+    doc.setPage(p);
+    doc.setFillColor(14,18,28); doc.rect(0,PH-32,PW,32,'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(72,88,118);
+    doc.text('Korb Engineering · korbengineering@gmail.com',ML,PH-14);
+    doc.text(`Page ${p} of ${total}`,PW-MR,PH-14,{align:'right'});
+  }
+
+  setOvStep(3,'done');
+  setTimeout(hideOv,400);
+
+  const name=(document.getElementById('mTitle').value||'meeting').replace(/[^a-z0-9]/gi,'-').toLowerCase();
+  const d=date.replace(/-/g,'');
+  doc.save(`${name}-${d}.pdf`);
+}
+
+// ─── overlay helpers ───────────────────────────────────────────────────────────
+function showOv(t){ document.getElementById('ovTitle').textContent=t; document.getElementById('ov').classList.add('on'); }
+function hideOv(){ document.getElementById('ov').classList.remove('on'); }
+function setOvStep(n,state){
+  const el=document.getElementById('step'+n);
+  el.className='ov-step'+(state?' '+state:'');
+  if(state==='done') el.textContent=el.textContent.replace('⏳','✓').replace('…','');
+  if(state==='active') el.textContent=el.textContent.replace('✓','⏳');
+}
+
+// ─── utils ────────────────────────────────────────────────────────────────────
+function fmt(s){ return [Math.floor(s/3600),Math.floor((s%3600)/60),s%60].map(n=>String(n).padStart(2,'0')).join(':'); }
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function pill(id,type,msg){ const el=document.getElementById(id); el.className='spill '+type; el.textContent=msg; }
+</script>
+</body>
+</html>
