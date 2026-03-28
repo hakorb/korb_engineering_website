@@ -74,9 +74,7 @@ const SECTIONS = {
       <!-- "-1" under the vinculum -->
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
-    tools: [
-      { name: 'The Korb Legacy', file: './tools/misc/korb-legacy.html' }
-    ]
+    tools: []
   }
 };
 
@@ -265,21 +263,21 @@ function renderToolEmbed(key, sec, tool) {
 // --- About Page ---
 function renderAboutPage() {
   main.innerHTML = `
-    <section class="section-page">
-      <div class="section-hero">
-        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+    <section class="section-page tool-embed-page">
+      <div class="tool-topbar">
+        <button type="button" class="back-link tool-back-btn" aria-label="Back to home">${BACK_SVG}</button>
       </div>
-      <div class="about-page reveal">
-        <div class="about-photo-grid">
-          <!-- Photos will be added here -->
-        </div>
-        <div class="about-empty">
-          <p class="about-placeholder">Photos and content coming soon.</p>
-        </div>
-      </div>
+      <iframe class="tool-iframe" src="./tools/misc/korb-legacy.html" title="The Korb Legacy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allowfullscreen></iframe>
     </section>
   `;
-  initReveal();
+
+  main.querySelector('.tool-back-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const iframe = main.querySelector('.tool-iframe');
+    if (iframe) iframe.remove();
+    navigate('home');
+  });
 }
 
 
