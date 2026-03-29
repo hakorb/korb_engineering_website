@@ -256,6 +256,16 @@
   }
 
   .btn-speak:active { box-shadow: 0 2px 0 #7d5300, 0 3px 6px rgba(0,0,0,0.4); }
+  .btn-speak.speaking {
+    background: linear-gradient(180deg, #e74c3c, #c0392b);
+    color: #fff;
+    box-shadow: 0 4px 0 #7b1a1a, 0 5px 8px rgba(0,0,0,0.4);
+    animation: pulse-stop 1s ease infinite;
+  }
+  @keyframes pulse-stop {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
 
   .btn-mic {
     background: linear-gradient(180deg, #e8e8e8, #b0b0b0);
@@ -637,9 +647,24 @@ function setScreen(text) {
   el.innerHTML = text + '<span class="cursor"></span>';
 }
 
+let isSpeaking = false;
+let keepAliveTimer = null;
+
+function stopSpeaking() {
+  window.speechSynthesis.cancel();
+  clearInterval(keepAliveTimer);
+  keepAliveTimer = null;
+  isSpeaking = false;
+  animateSpeaker(false);
+  animateVoiceMeter(false);
+  const btn = document.getElementById('speakBtn');
+  btn.textContent = 'SPEAK';
+  btn.classList.remove('speaking');
+}
+
 function speak(text, onEnd) {
   if(!text.trim()) return;
-  window.speechSynthesis.cancel();
+  stopSpeaking();
 
   const clean = text.toUpperCase().substring(0, 300);
   setScreen(clean);
@@ -656,17 +681,27 @@ function speak(text, onEnd) {
     if(voice) utter.voice = voice;
 
     utter.onstart = () => {
+      isSpeaking = true;
+      const btn = document.getElementById('speakBtn');
+      btn.textContent = 'STOP';
+      btn.classList.add('speaking');
       animateSpeaker(true);
       animateVoiceMeter(true);
+      // Chrome workaround: pause/resume keeps synthesis alive on long text
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = setInterval(() => {
+        if(window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }, 5000);
     };
     utter.onend = () => {
-      animateSpeaker(false);
-      animateVoiceMeter(false);
+      stopSpeaking();
       if(onEnd) onEnd();
     };
-    utter.onerror = () => {
-      animateSpeaker(false);
-      animateVoiceMeter(false);
+    utter.onerror = (e) => {
+      if(e.error !== 'canceled') stopSpeaking();
     };
 
     window.speechSynthesis.speak(utter);
@@ -684,6 +719,11 @@ function speakSuggestion(text) {
 }
 
 document.getElementById('speakBtn').addEventListener('click', () => {
+  if(isSpeaking) {
+    stopSpeaking();
+    setScreen('STOPPED');
+    return;
+  }
   const val = document.getElementById('textInput').value.trim();
   if(val) speak(val);
   else showToast('TYPE SOMETHING FIRST, HUMAN');
@@ -695,10 +735,8 @@ document.getElementById('textInput').addEventListener('keydown', e => {
 
 document.getElementById('clearBtn').addEventListener('click', () => {
   document.getElementById('textInput').value = '';
+  stopSpeaking();
   setScreen('READY');
-  window.speechSynthesis.cancel();
-  animateSpeaker(false);
-  animateVoiceMeter(false);
 });
 
 // ========== TOAST ==========
@@ -840,11 +878,20 @@ document.getElementById('micBtn').addEventListener('click', () => {
 });
 
 // ========== INIT ==========
-window.speechSynthesis.onvoiceschanged = () => {}; // Pre-load voices
+// Pre-load voices
+if(window.speechSynthesis.getVoices().length === 0) {
+  window.speechSynthesis.onvoiceschanged = () => {};
+}
 
+// Greeting — delayed so user sees the UI first; stoppable via STOP button
 setTimeout(() => {
   speak("HELLO HUMAN. I AM SPEAK AND SPELL. I HAVE BEEN WAITING FOR YOU. NOT REALLY. I DO NOT EXPERIENCE TIME.");
 }, 800);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  stopSpeaking();
+});
 </script>
 </body>
 </html>
