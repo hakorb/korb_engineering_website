@@ -374,7 +374,10 @@ textarea{resize:vertical;font-size:12px}
   <span class="tb-logo">🖨️ <b>OrcaSlicer Profile Studio</b> <span>Pro Edition</span></span>
   <div class="tb-sep"></div>
   <button class="tbtn" onclick="newProfile()">New</button>
-  <button class="tbtn" onclick="openProfile()">Open…</button>
+  <button class="tbtn" onclick="openProfile()">Open Profile…</button>
+  <label class="tbtn" style="cursor:pointer">📦 Open STL
+    <input type="file" accept=".stl,.obj,.ply,.3mf" style="display:none" onchange="loadMainSTL(event)">
+  </label>
   <div class="tb-sep"></div>
   <span class="key-icon">🔑</span>
   <input type="password" id="api-key-field" placeholder="Anthropic API key (sk-ant-…)" oninput="saveKey(this.value)">
@@ -409,7 +412,8 @@ textarea{resize:vertical;font-size:12px}
 
 <!-- TAB BAR -->
 <div id="tab-bar">
-  <button class="tab-btn active" data-tab="quick">🚀 Quick Setup</button>
+  <button class="tab-btn active" data-tab="viewer">📦 3D Viewer</button>
+  <button class="tab-btn" data-tab="quick">🚀 Quick Setup</button>
   <button class="tab-btn" data-tab="layer">📐 Layer</button>
   <button class="tab-btn" data-tab="infill">🔲 Infill</button>
   <button class="tab-btn" data-tab="walls">🧱 Walls</button>
@@ -426,7 +430,59 @@ textarea{resize:vertical;font-size:12px}
 <div id="tab-content">
 
 <!-- ── QUICK SETUP ────────── -->
-<div class="tab-pane active" id="pane-quick">
+<!-- ── 3D VIEWER ──────── -->
+<div class="tab-pane fill-h active" id="pane-viewer">
+  <div style="display:flex;height:100%;overflow:hidden">
+    <!-- Left: controls -->
+    <div style="width:200px;min-width:160px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--bdr);overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px">
+      <div class="group-box">
+        <div class="group-title">Load 3D Model</div>
+        <div id="main-file-name" style="font-size:11px;color:var(--txt-m);margin-bottom:6px;word-break:break-all">No file loaded</div>
+        <label class="btn-primary" style="display:block;text-align:center;cursor:pointer;padding:7px 0">
+          📂 Open STL / OBJ / PLY
+          <input type="file" accept=".stl,.obj,.ply,.3mf" style="display:none" onchange="loadMainSTL(event)">
+        </label>
+        <div style="margin-top:8px;text-align:center;font-size:10px;color:var(--txt-d)">or drag & drop onto the 3D viewport</div>
+      </div>
+      <div class="group-box">
+        <div class="group-title">Model Info</div>
+        <div class="metrics-box" id="main-metrics" style="white-space:pre-wrap">No mesh loaded</div>
+      </div>
+      <div class="group-box">
+        <div class="group-title">Slice Preview</div>
+        <div class="field-row">
+          <span class="field-label" style="min-width:70px">Layer #</span>
+          <input type="range" id="slice-slider" min="0" max="100" value="100" oninput="updateSlicePreview(+this.value)">
+          <span class="unit-label" id="slice-lbl">100%</span>
+        </div>
+        <div style="font-size:10px;color:var(--txt-d);margin-top:4px">Drag slider to clip model and preview layers. Uses current layer height setting.</div>
+        <div class="field-row" style="margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--txt-m)">
+            <input type="checkbox" id="wireframe-chk" onchange="toggleWireframe(this.checked)"> Show wireframe
+          </label>
+        </div>
+      </div>
+      <div class="group-box">
+        <div class="group-title">View</div>
+        <div id="vcbtn-main" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="exportSTL('main')">📦 Export STL</button>
+        <button class="btn" onclick="clearMainModel()">🗑️ Clear</button>
+      </div>
+    </div>
+    <!-- Right: 3D viewer -->
+    <div style="flex:1;min-width:200px;display:flex;flex-direction:column;overflow:hidden">
+      <div class="viewer-3d" id="viewer-main" style="flex:1">
+        <div class="viewer-overlay">
+          <span class="viewer-stat" id="main-viewer-stats">No mesh</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-pane" id="pane-quick">
   <div class="section-lbl">🎯 Print Quality</div>
   <div class="quality-grid" id="quality-grid"></div>
   <hr class="hline">
@@ -1134,8 +1190,132 @@ function addViewBtns(containerId, scene) {
     ); scene.controls.target.set(0,30,0); scene.controls.update(); };
   });
 }
+// Main viewer scene
+const mainScene = new Scene3D('viewer-main');
+addViewBtns('vcbtn-main',    mainScene);
 addViewBtns('vcbtn-design',  designScene);
 addViewBtns('vcbtn-advisor', advisorScene);
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MAIN 3D VIEWER — LOAD / SLICE / WIREFRAME
+// ─────────────────────────────────────────────────────────────────────────
+let mainClipPlane = null;
+let mainModelBox = null;
+
+window.loadMainSTL = function(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  document.getElementById('main-file-name').textContent = `📦 ${file.name}`;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const T = window._THREE;
+      const loader = new window._STLL();
+      const geo = loader.parse(e.target.result);
+      geo.computeVertexNormals();
+      const mat = new T.MeshStandardMaterial({
+        color: 0x1a8aff,
+        side: T.DoubleSide,
+        clippingPlanes: [],
+        clipShadows: true,
+      });
+      const mesh = new T.Mesh(geo, mat);
+      // Center on XZ, sit on bed
+      const box = new T.Box3().setFromObject(mesh);
+      const cen = new T.Vector3(); box.getCenter(cen);
+      mesh.position.x -= cen.x; mesh.position.z -= cen.z;
+      mesh.position.y -= box.min.y;
+      const group = new T.Group(); group.add(mesh);
+      mainScene.setGroup(group);
+      mainScene.renderer.localClippingEnabled = true;
+
+      // Store bounding box for slice
+      mainModelBox = new T.Box3().setFromObject(group);
+
+      // Setup clip plane
+      mainClipPlane = new T.Plane(new T.Vector3(0, -1, 0), mainModelBox.max.y);
+      mesh.material.clippingPlanes = [mainClipPlane];
+
+      // Update metrics
+      const sz = new T.Vector3(); mainModelBox.getSize(sz);
+      const vol = computeVolume(geo);
+      document.getElementById('main-metrics').textContent =
+        `Size: ${sz.x.toFixed(1)} × ${sz.y.toFixed(1)} × ${sz.z.toFixed(1)} mm\n` +
+        `Volume: ${(vol / 1000).toFixed(2)} cm³\n` +
+        `Triangles: ${(geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3).toLocaleString()}`;
+      document.getElementById('main-viewer-stats').textContent =
+        `${sz.x.toFixed(0)}×${sz.y.toFixed(0)}×${sz.z.toFixed(0)} mm`;
+
+      // Reset slice slider
+      document.getElementById('slice-slider').value = 100;
+      document.getElementById('slice-lbl').textContent = '100%';
+
+      // Switch to viewer tab
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelector('[data-tab="viewer"]').classList.add('active');
+      document.getElementById('pane-viewer').classList.add('active');
+      setTimeout(() => mainScene._resize(), 50);
+
+      setStatus(`Loaded: ${file.name} — ${sz.x.toFixed(0)}×${sz.y.toFixed(0)}×${sz.z.toFixed(0)} mm`);
+    } catch(err) {
+      alert(`Failed to load model: ${err.message}`);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+function computeVolume(geo) {
+  let vol = 0;
+  const pos = geo.index ? geo.toNonIndexed().attributes.position : geo.attributes.position;
+  for (let i = 0; i < pos.count; i += 3) {
+    const ax = pos.getX(i), ay = pos.getY(i), az = pos.getZ(i);
+    const bx = pos.getX(i+1), by = pos.getY(i+1), bz = pos.getZ(i+1);
+    const cx = pos.getX(i+2), cy = pos.getY(i+2), cz = pos.getZ(i+2);
+    vol += (ax*(by*cz - bz*cy) + bx*(cy*az - cz*ay) + cx*(ay*bz - az*by)) / 6;
+  }
+  return Math.abs(vol);
+}
+
+window.updateSlicePreview = function(pct) {
+  document.getElementById('slice-lbl').textContent = pct + '%';
+  if (!mainModelBox || !mainClipPlane) return;
+  const height = mainModelBox.max.y - mainModelBox.min.y;
+  const clipY = mainModelBox.min.y + height * (pct / 100);
+  mainClipPlane.constant = clipY;
+};
+
+window.toggleWireframe = function(on) {
+  if (!mainScene.group) return;
+  mainScene.group.traverse(child => {
+    if (child.isMesh) child.material.wireframe = on;
+  });
+};
+
+window.clearMainModel = function() {
+  mainScene.clear();
+  mainModelBox = null;
+  mainClipPlane = null;
+  document.getElementById('main-file-name').textContent = 'No file loaded';
+  document.getElementById('main-metrics').textContent = 'No mesh loaded';
+  document.getElementById('main-viewer-stats').textContent = 'No mesh';
+  document.getElementById('slice-slider').value = 100;
+  document.getElementById('slice-lbl').textContent = '100%';
+  setStatus('Model cleared');
+};
+
+// Drag-and-drop on the viewer
+const mainViewer = document.getElementById('viewer-main');
+mainViewer.addEventListener('dragover', e => { e.preventDefault(); mainViewer.style.outline = '2px solid var(--blue)'; });
+mainViewer.addEventListener('dragleave', () => { mainViewer.style.outline = ''; });
+mainViewer.addEventListener('drop', e => {
+  e.preventDefault();
+  mainViewer.style.outline = '';
+  const file = e.dataTransfer.files[0];
+  if (file && /\.(stl|obj|ply|3mf)$/i.test(file.name)) {
+    loadMainSTL({ target: { files: [file] } });
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────
 //  STREAMING API
@@ -1387,7 +1567,7 @@ window.copyCode = function() {
 //  STL EXPORT
 // ─────────────────────────────────────────────────────────────────────────
 window.exportSTL = function(which) {
-  const scene = which==='design' ? designScene : advisorScene;
+  const scene = which==='main' ? mainScene : which==='design' ? designScene : advisorScene;
   if (!scene.group) { alert('No mesh to export.'); return; }
   const stl = scene.exportSTL();
   const blob = new Blob([stl], { type:'text/plain' });
@@ -1853,8 +2033,16 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.classList.add('active');
     const pane = document.getElementById(`pane-${btn.dataset.tab}`);
     if (pane) pane.classList.add('active');
+    // Hide profile panel & sidebar on viewer tab (it has its own controls)
+    const pp = document.getElementById('profile-panel');
+    const sb = document.getElementById('sidebar');
+    const isViewer = btn.dataset.tab==='viewer';
+    if (pp) pp.style.display = isViewer ? 'none' : '';
+    if (sb) sb.style.display = isViewer ? 'none' : '';
     // Trigger Three.js resize on 3D tabs
-    if (btn.dataset.tab==='design' || btn.dataset.tab==='advisor') {
+    if (btn.dataset.tab==='viewer') {
+      setTimeout(()=>mainScene._resize(), 50);
+    } else if (btn.dataset.tab==='design' || btn.dataset.tab==='advisor') {
       setTimeout(()=>{ designScene._resize(); advisorScene._resize(); }, 50);
     }
   });
@@ -1902,6 +2090,13 @@ function init() {
 
   // Initial profile build
   buildProfile();
+
+  // Hide profile panel & sidebar on viewer tab (default)
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.dataset.tab === 'viewer') {
+    document.getElementById('profile-panel').style.display = 'none';
+    document.getElementById('sidebar').style.display = 'none';
+  }
 
   // Welcome message in chat
   appendMsg('ai', '👋 Hi! I\'m your AI 3D printing assistant. Ask me about settings, filaments, troubleshooting, or use the <b>🧠 AI Design</b> tab to generate printable 3D parts from text!');
