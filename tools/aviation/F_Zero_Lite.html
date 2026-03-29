@@ -233,19 +233,25 @@ let boostFuel = 100;
 let playerX = 0;       // -1 to 1 (road position)
 let playerSpeed = 0;   // current speed
 let playerZ = 0;       // distance traveled
+let smoothSteer = 0;   // smoothed steering for visuals
 let steerInput = 0;
 let accelInput = 0;
 let brakeInput = 0;
 let boostInput = 0;
+let collisionCooldown = 0; // prevent rapid re-collisions
 
-const MAX_SPEED = 320;
-const ACCEL = 180;
-const BRAKE_FORCE = 280;
-const STEER_SPEED = 2.8;
+const MAX_SPEED = 300;
+const ACCEL = 160;
+const BRAKE_FORCE = 320;
+const STEER_SPEED = 2.2;
+const STEER_RETURN = 4.0;   // how fast steering centers when no input
 const ROAD_WIDTH = 2200;
 const SEG_LENGTH = 200;
-const DRAW_DIST = 180;
+const DRAW_DIST = 200;
 const NUM_SEGMENTS = 1600;
+const TRACK_LENGTH = NUM_SEGMENTS * SEG_LENGTH;
+const CAM_HEIGHT = 1500;
+const CAM_DEPTH = 150;      // camera focal length factor
 
 // --- Track Generation ---
 let segments = [];
@@ -256,46 +262,44 @@ function buildTrack() {
     let curve = 0;
     let hill = 0;
 
-    // Curves (balanced: net zero drift)
-    if (i > 20 && i < 60) curve = 2.5;
-    else if (i > 80 && i < 130) curve = -3;
-    else if (i > 160 && i < 200) curve = 3;
-    else if (i > 250 && i < 320) curve = -2.5;
-    else if (i > 350 && i < 400) curve = 2;
-    else if (i > 450 && i < 530) curve = -3;
-    else if (i > 600 && i < 700) curve = 2.5;
-    else if (i > 750 && i < 850) curve = -2.5;
-    else if (i > 900 && i < 1000) curve = 3;
-    else if (i > 1050 && i < 1150) curve = -3;
-    else if (i > 1250 && i < 1350) curve = 2;
-    else if (i > 1450 && i < 1550) curve = -2;
+    // Curves — gentle S-bends, balanced net zero drift
+    if (i > 20 && i < 60) curve = 2.0;
+    else if (i > 80 && i < 130) curve = -2.4;
+    else if (i > 160 && i < 200) curve = 2.4;
+    else if (i > 250 && i < 320) curve = -2.0;
+    else if (i > 350 && i < 400) curve = 1.6;
+    else if (i > 450 && i < 530) curve = -2.0;
+    else if (i > 600 && i < 700) curve = 2.0;
+    else if (i > 750 && i < 850) curve = -2.0;
+    else if (i > 900 && i < 1000) curve = 2.4;
+    else if (i > 1050 && i < 1150) curve = -2.4;
+    else if (i > 1250 && i < 1350) curve = 1.6;
+    else if (i > 1450 && i < 1550) curve = -1.6;
 
     // Hills
-    if (i > 40 && i < 70) hill = 25;
-    else if (i > 100 && i < 120) hill = -30;
-    else if (i > 200 && i < 240) hill = 20;
-    else if (i > 300 && i < 340) hill = -15;
-    else if (i > 500 && i < 560) hill = 30;
-    else if (i > 700 && i < 740) hill = -20;
-    else if (i > 1000 && i < 1060) hill = 25;
-    else if (i > 1200 && i < 1250) hill = -25;
+    if (i > 40 && i < 70) hill = 20;
+    else if (i > 100 && i < 120) hill = -25;
+    else if (i > 200 && i < 240) hill = 15;
+    else if (i > 300 && i < 340) hill = -12;
+    else if (i > 500 && i < 560) hill = 25;
+    else if (i > 700 && i < 740) hill = -18;
+    else if (i > 1000 && i < 1060) hill = 20;
+    else if (i > 1200 && i < 1250) hill = -20;
 
     segments.push({
       curve,
       hill,
       z: i * SEG_LENGTH,
-      clip: 0,
-      // Obstacles (other racers)
       obstacle: null,
     });
   }
 
-  // Place obstacles
-  for (let i = 0; i < 80; i++) {
-    const idx = 30 + Math.floor(Math.random() * (NUM_SEGMENTS - 60));
+  // Place obstacles (other racers)
+  for (let i = 0; i < 60; i++) {
+    const idx = 40 + Math.floor(Math.random() * (NUM_SEGMENTS - 80));
     if (!segments[idx].obstacle) {
       segments[idx].obstacle = {
-        x: (Math.random() - 0.5) * 1.4,
+        x: (Math.random() - 0.5) * 1.2,
         color: ['#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#f39c12'][Math.floor(Math.random() * 5)],
         speed: 80 + Math.random() * 100,
       };
@@ -308,7 +312,7 @@ buildTrack();
 const keys = {};
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  if (e.key === 'Enter' && state === 'title') startGame();
+  if (e.key === 'Enter' && (state === 'title' || state === 'gameover')) startGame();
   if (e.key.toLowerCase() === 'r') restartGame();
   if (e.key.toLowerCase() === 'p') togglePause();
 });
@@ -357,6 +361,8 @@ function startGame() {
   playerX = 0;
   playerSpeed = 0;
   playerZ = 0;
+  smoothSteer = 0;
+  collisionCooldown = 0;
   buildTrack();
   hideOverlay();
 }
@@ -391,32 +397,33 @@ function hideOverlay() {
 }
 
 // --- Projection ---
-function project(z, camZ, camY, screenW, screenH) {
-  const d = z - camZ;
-  if (d <= 0) return null;
-  const scale = 300 / d;
+// Classic pseudo-3D: project world Z to screen coordinates
+function project(worldZ, camZ, camY, screenW, screenH) {
+  const d = worldZ - camZ;
+  if (d <= 1) return null;  // behind camera
+  const scale = CAM_DEPTH / d;
   return {
     scale,
     x: screenW / 2,
-    y: screenH / 2 - scale * camY,
-    w: scale * ROAD_WIDTH,
+    y: screenH * 0.55 - scale * camY * SEG_LENGTH,
+    w: scale * ROAD_WIDTH * SEG_LENGTH,
   };
 }
 
 // --- Render ---
 function drawSky(w, h) {
-  const grad = ctx.createLinearGradient(0, 0, 0, h / 2);
+  const grad = ctx.createLinearGradient(0, 0, 0, h * 0.55);
   grad.addColorStop(0, '#0a0020');
   grad.addColorStop(0.5, '#1a0040');
   grad.addColorStop(1, '#300060');
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h / 2);
+  ctx.fillRect(0, 0, w, h * 0.55);
 
   // Stars
   const starSeed = 42;
   for (let i = 0; i < 60; i++) {
     const sx = ((starSeed * i * 7 + 13) % 1000) / 1000 * w;
-    const sy = ((starSeed * i * 3 + 47) % 1000) / 1000 * h * 0.45;
+    const sy = ((starSeed * i * 3 + 47) % 1000) / 1000 * h * 0.5;
     const sr = ((i * 13) % 3) * 0.4 + 0.5;
     ctx.fillStyle = `rgba(255,255,255,${0.3 + (i % 5) * 0.12})`;
     ctx.beginPath();
@@ -427,24 +434,26 @@ function drawSky(w, h) {
 
 function drawGround(w, h) {
   ctx.fillStyle = '#1a1a0a';
-  ctx.fillRect(0, h / 2, w, h / 2);
+  ctx.fillRect(0, h * 0.55, w, h * 0.45);
 }
 
-function drawSegment(x1, y1, w1, x2, y2, w2, idx, clip) {
-  // Road
-  const dark = idx % 2 === 0;
-  ctx.fillStyle = dark ? '#333340' : '#3a3a4a';
-  drawTrapezoid(x1, y1, w1, x2, y2, w2, clip);
+function drawSegment(x1, y1, w1, x2, y2, w2, segIndex, clip) {
+  const W = canvas.width;
 
-  // Rumble strip
+  // Alternate coloring based on world segment index for consistent stripe pattern
+  const dark = segIndex % 2 === 0;
+
+  // Rumble strip (drawn first, wider)
   ctx.fillStyle = dark ? '#cc0000' : '#ffffff';
   drawTrapezoid(x1, y1, w1 * 1.15, x2, y2, w2 * 1.15, clip);
+
+  // Road surface
   ctx.fillStyle = dark ? '#333340' : '#3a3a4a';
   drawTrapezoid(x1, y1, w1, x2, y2, w2, clip);
 
   // Center line
   if (!dark) {
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
     drawTrapezoid(x1, y1, w1 * 0.02, x2, y2, w2 * 0.02, clip);
   }
 
@@ -457,14 +466,15 @@ function drawSegment(x1, y1, w1, x2, y2, w2, idx, clip) {
 
   // Grass
   ctx.fillStyle = dark ? '#0a3a0a' : '#0d4a0d';
-  const W = canvas.width;
-  // Left grass
-  fillQuad(0, y2, x2 - w2 * 0.58, y2, x1 - w1 * 0.58, y1, 0, y1, clip);
-  // Right grass
-  fillQuad(x2 + w2 * 0.58, y2, W, y2, W, y1, x1 + w1 * 0.58, y1, clip);
+  fillQuad(0, y2, x2 - w2 * 0.575, y2, x1 - w1 * 0.575, y1, 0, y1, clip);
+  fillQuad(x2 + w2 * 0.575, y2, W, y2, W, y1, x1 + w1 * 0.575, y1, clip);
 }
 
 function drawTrapezoid(cx1, y1, w1, cx2, y2, w2, clip) {
+  // clip: do not draw below this Y value
+  const top = Math.min(y1, y2);
+  if (top >= clip) return;
+
   ctx.beginPath();
   ctx.moveTo(cx1 - w1 / 2, y1);
   ctx.lineTo(cx1 + w1 / 2, y1);
@@ -485,7 +495,8 @@ function fillQuad(x1, y1, x2, y2, x3, y3, x4, y4, clip) {
 }
 
 function drawPlayer(w, h) {
-  const cx = w / 2 + steerInput * 20;
+  // Smoothly interpolate visual steer for a nice tilt effect
+  const cx = w / 2 + smoothSteer * 25;
   const baseY = h * 0.82;
   const pw = 50;
   const ph = 22;
@@ -539,14 +550,12 @@ function drawPlayer(w, h) {
 
   // Side wings
   ctx.fillStyle = '#0077cc';
-  // Left wing
   ctx.beginPath();
   ctx.moveTo(cx - pw, baseY);
   ctx.lineTo(cx - pw - 15, baseY + 3);
   ctx.lineTo(cx - pw + 5, baseY - 5);
   ctx.closePath();
   ctx.fill();
-  // Right wing
   ctx.beginPath();
   ctx.moveTo(cx + pw, baseY);
   ctx.lineTo(cx + pw + 15, baseY + 3);
@@ -555,12 +564,12 @@ function drawPlayer(w, h) {
   ctx.fill();
 }
 
-function drawObstacle(seg, p, idx) {
+function drawObstacle(seg, p, worldIdx) {
   if (!seg.obstacle) return;
   const ob = seg.obstacle;
-  const ox = p.x + p.w * ob.x;
+  const ox = p.x + p.w * ob.x * 0.5;
   const oy = p.y;
-  const size = p.scale * 600;
+  const size = p.scale * 600 * SEG_LENGTH;
   if (size < 2 || size > 400) return;
 
   // Simple racer shape
@@ -587,8 +596,8 @@ function updateHUD() {
   document.getElementById('score').textContent = score;
   document.getElementById('speed').textContent = Math.round(playerSpeed);
   document.getElementById('lap').textContent = lapCount;
-  document.getElementById('energyBar').style.width = energy + '%';
-  document.getElementById('boostBar').style.width = boostFuel + '%';
+  document.getElementById('energyBar').style.width = Math.max(0, energy) + '%';
+  document.getElementById('boostBar').style.width = Math.max(0, boostFuel) + '%';
 }
 
 // --- Update ---
@@ -596,80 +605,109 @@ function update(dt) {
   if (state !== 'racing') return;
   readInput();
 
-  // Acceleration
-  const onRoad = Math.abs(playerX) < 0.9;
-  const speedMult = onRoad ? 1 : 0.6;
-  const baseAccel = ACCEL * speedMult;
+  const speedRatio = playerSpeed / MAX_SPEED;
+
+  // --- Acceleration / Braking ---
+  const onRoad = Math.abs(playerX) < 1.0;
+  const offRoadDrag = onRoad ? 1 : 0.92; // multiplicative drag per frame when off-road
 
   if (brakeInput) {
     playerSpeed -= BRAKE_FORCE * dt;
   } else {
-    // Auto accelerate, boost adds more
-    playerSpeed += baseAccel * dt * 0.5;
+    // Auto accelerate with diminishing returns at high speed
+    const accelCurve = 1 - speedRatio * 0.7;
+    playerSpeed += ACCEL * accelCurve * dt;
+
     if (boostInput && boostFuel > 0) {
-      playerSpeed += baseAccel * dt * 1.5;
-      boostFuel -= 25 * dt;
+      playerSpeed += ACCEL * 1.2 * dt;
+      boostFuel -= 20 * dt;
       if (boostFuel < 0) boostFuel = 0;
     }
   }
 
   // Boost recharge (slow)
   if (!boostInput && boostFuel < 100) {
-    boostFuel += 5 * dt;
+    boostFuel += 4 * dt;
+  }
+
+  // Off-road friction
+  if (!onRoad) {
+    playerSpeed *= Math.pow(offRoadDrag, dt * 60);
   }
 
   playerSpeed = Math.max(0, Math.min(MAX_SPEED, playerSpeed));
 
-  // Steering
-  const steerFactor = 1 - playerSpeed / MAX_SPEED * 0.4;
-  playerX += steerInput * STEER_SPEED * dt * steerFactor;
+  // --- Steering ---
+  // Steering is less effective at very high speed (but still responsive)
+  const steerEffectiveness = 1.0 - speedRatio * 0.35;
+  playerX += steerInput * STEER_SPEED * dt * steerEffectiveness;
 
-  // Track curve pulls player (centrifugal force — pushes outward from curve center)
-  const segIdx = Math.floor(playerZ / SEG_LENGTH) % NUM_SEGMENTS;
+  // Smooth visual steer
+  smoothSteer += (steerInput - smoothSteer) * Math.min(1, 12 * dt);
+
+  // Track curve: centrifugal force pushes player outward, proportional to speed
+  const segIdx = ((Math.floor(playerZ / SEG_LENGTH) % NUM_SEGMENTS) + NUM_SEGMENTS) % NUM_SEGMENTS;
   const seg = segments[segIdx];
-  playerX += seg.curve * (playerSpeed / MAX_SPEED) * 0.8 * dt;
+  const centrifugal = seg.curve * speedRatio * speedRatio * 0.55 * dt;
+  playerX += centrifugal;
 
-  // Clamp / off-road penalty
+  // --- Road edge collision ---
   if (Math.abs(playerX) > 1.3) {
     playerX = Math.sign(playerX) * 1.3;
-    energy -= 20 * dt;
-    playerSpeed *= 0.95;
+    energy -= 15 * dt;
+    playerSpeed *= 0.94;
   } else if (!onRoad) {
-    energy -= 5 * dt;
+    energy -= 3 * dt;
   }
 
-  // Move forward
+  // Soft return toward road when steering into it
+  if (Math.abs(playerX) > 1.0 && steerInput === 0) {
+    playerX *= (1 - 0.5 * dt);
+  }
+
+  // --- Move forward ---
   playerZ += playerSpeed * dt * SEG_LENGTH * 0.01;
 
-  // Collision with obstacles
-  for (let i = 0; i < 10; i++) {
-    const ci = (segIdx + i) % NUM_SEGMENTS;
-    const cseg = segments[ci];
-    if (!cseg.obstacle) continue;
-    const dz = cseg.z - playerZ;
-    if (dz > 0 && dz < SEG_LENGTH * 0.8) {
-      const dx = Math.abs(playerX - cseg.obstacle.x);
-      if (dx < 0.25) {
-        energy -= 30;
-        playerSpeed *= 0.5;
-        cseg.obstacle.x += (playerX < cseg.obstacle.x ? 0.5 : -0.5);
-        break;
+  // --- Collision cooldown ---
+  if (collisionCooldown > 0) collisionCooldown -= dt;
+
+  // --- Collision with obstacles ---
+  if (collisionCooldown <= 0) {
+    for (let i = 0; i < 12; i++) {
+      const ci = ((segIdx + i) % NUM_SEGMENTS + NUM_SEGMENTS) % NUM_SEGMENTS;
+      const cseg = segments[ci];
+      if (!cseg.obstacle) continue;
+      // Compute distance accounting for track wrapping
+      let dz = cseg.z - (playerZ % TRACK_LENGTH);
+      if (dz < -TRACK_LENGTH / 2) dz += TRACK_LENGTH;
+      if (dz > TRACK_LENGTH / 2) dz -= TRACK_LENGTH;
+      if (dz > 0 && dz < SEG_LENGTH * 1.0) {
+        const dx = Math.abs(playerX - cseg.obstacle.x);
+        if (dx < 0.3) {
+          energy -= 20;
+          playerSpeed *= 0.6;
+          collisionCooldown = 0.5;
+          cseg.obstacle.x += (playerX < cseg.obstacle.x ? 0.4 : -0.4);
+          break;
+        }
       }
     }
   }
 
-  // Move obstacles forward slightly
-  segments.forEach(s => {
+  // Move obstacles slightly (drift)
+  // Only update nearby obstacles for performance
+  for (let i = -20; i < DRAW_DIST; i++) {
+    const oi = ((segIdx + i) % NUM_SEGMENTS + NUM_SEGMENTS) % NUM_SEGMENTS;
+    const s = segments[oi];
     if (s.obstacle) {
-      // They drift slowly
-      s.obstacle.x += (Math.sin(playerZ * 0.001 + s.z * 0.01) * 0.001);
+      s.obstacle.x += Math.sin(playerZ * 0.0005 + s.z * 0.005) * 0.0003;
       s.obstacle.x = Math.max(-0.8, Math.min(0.8, s.obstacle.x));
     }
-  });
+  }
 
-  // Score & laps
+  // --- Score & laps ---
   score = Math.floor(playerZ / SEG_LENGTH);
-  const newLap = Math.floor(playerZ / (NUM_SEGMENTS * SEG_LENGTH)) + 1;
+  const newLap = Math.floor(playerZ / TRACK_LENGTH) + 1;
   if (newLap > lapCount) {
     lapCount = newLap;
     energy = Math.min(100, energy + 30);
@@ -694,56 +732,70 @@ function renderFrame() {
   drawGround(W, H);
 
   const camZ = playerZ;
-  const camY = 1200;
-  let maxY = H;
-  let x = 0;
-  let dx = 0;
+  const baseIdx = ((Math.floor(camZ / SEG_LENGTH) % NUM_SEGMENTS) + NUM_SEGMENTS) % NUM_SEGMENTS;
 
-  const baseIdx = Math.floor(camZ / SEG_LENGTH);
+  // --- Step 1: Project all segments from near to far, accumulating curve offset ---
+  // This is the classic OutRun-style approach:
+  // Walk from the nearest segment outward, accumulating a horizontal offset (x)
+  // based on each segment's curve value. This makes curves appear natural.
+  const projected = [];
+  let curveX = 0;    // accumulated curve offset in screen space
+  let curveDX = 0;   // rate of curve change
 
-  // Project and draw back-to-front
-  const projections = [];
-  for (let i = DRAW_DIST; i >= 1; i--) {
-    const idx = (baseIdx + i) % NUM_SEGMENTS;
+  for (let i = 1; i <= DRAW_DIST; i++) {
+    const idx = ((baseIdx + i) % NUM_SEGMENTS + NUM_SEGMENTS) % NUM_SEGMENTS;
     const seg = segments[idx];
-    const z = seg.z > camZ ? seg.z : seg.z + NUM_SEGMENTS * SEG_LENGTH;
 
-    const hillOffset = seg.hill * (i / DRAW_DIST);
-    const p = project(z, camZ, camY + hillOffset * 30, W, H);
+    // World Z of this segment, handling wrap-around
+    let worldZ = seg.z;
+    if (worldZ < camZ) worldZ += TRACK_LENGTH;
+
+    // Hill: smooth vertical offset
+    const hillY = seg.hill * 20;
+
+    const p = project(worldZ, camZ, CAM_HEIGHT + hillY, W, H);
     if (!p) continue;
 
-    x += dx;
-    p.x += x - playerX * p.w;
-    dx += seg.curve * p.scale * 2;
+    // Apply accumulated curve offset and player position
+    curveX += curveDX;
+    p.x += curveX - playerX * p.w * 0.5;
 
-    projections.push({ seg, p, idx: i });
+    // Accumulate curve for next segment
+    curveDX += seg.curve * p.scale * SEG_LENGTH * 0.8;
+
+    projected.push({ seg, p, worldIdx: idx, drawOrder: i });
   }
 
-  // Draw segments
-  for (let i = 0; i < projections.length - 1; i++) {
-    const cur = projections[i];
-    const next = projections[i + 1];
+  // --- Step 2: Draw from far to near (painter's algorithm) with Y clipping ---
+  let maxY = H; // tracks the highest (smallest Y) drawn row, for back-face clipping
 
-    if (cur.p.y >= maxY && next.p.y >= maxY) continue;
+  for (let i = projected.length - 1; i > 0; i--) {
+    const far = projected[i];
+    const near = projected[i - 1];
 
+    // Skip if completely below the clip line
+    if (far.p.y >= maxY && near.p.y >= maxY) continue;
+
+    // Draw road segment: near is bottom, far is top
     drawSegment(
-      cur.p.x, cur.p.y, cur.p.w,
-      next.p.x, next.p.y, next.p.w,
-      cur.idx, maxY
+      near.p.x, near.p.y, near.p.w,
+      far.p.x, far.p.y, far.p.w,
+      far.worldIdx, maxY
     );
 
-    // Obstacles
-    drawObstacle(cur.seg, cur.p, cur.idx);
+    // Draw obstacle on far segment
+    drawObstacle(far.seg, far.p, far.worldIdx);
 
-    if (cur.p.y < maxY) maxY = cur.p.y;
+    // Update clip line
+    if (far.p.y < maxY) maxY = far.p.y;
   }
 
   // Speed lines effect
   if (playerSpeed > 150) {
-    const alpha = (playerSpeed - 150) / (MAX_SPEED - 150) * 0.15;
+    const alpha = (playerSpeed - 150) / (MAX_SPEED - 150) * 0.12;
     ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
     ctx.lineWidth = 1;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       const lx = W * 0.1 + Math.random() * W * 0.8;
       const ly = H * 0.5 + Math.random() * H * 0.3;
       ctx.beginPath();
@@ -769,7 +821,7 @@ function renderFrame() {
 // --- Game Loop ---
 let lastTime = 0;
 function loop(time) {
-  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  const dt = Math.min((time - lastTime) / 1000, 0.04); // cap at 25fps minimum
   lastTime = time;
 
   update(dt);
