@@ -278,6 +278,7 @@ function renderAboutPage() {
       <div class="about-content reveal">
         <h1 class="about-heading">Korb.Engineering</h1>
         <p class="about-text">Tools archive.</p>
+        <img src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo">
       </div>
     </section>
   `;
