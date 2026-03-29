@@ -81,8 +81,7 @@ const SECTIONS = {
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
-      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
-      { name: 'Text to Speech', file: './tools/misc/speak_and_spell_text_to_speech.html' }
+      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' }
     ]
   }
 };
