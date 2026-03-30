@@ -31,7 +31,6 @@ const SECTIONS = {
     </svg>`,
     tools: [
       { name: '1980s Calculator', file: './tools/aviation/1980s Calculator.html' },
-      { name: 'Meeting Note Taker', file: './tools/aviation/AI assisted-meeting-note-taker-korb-engineering.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }

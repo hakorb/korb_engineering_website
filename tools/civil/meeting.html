@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Korb Engineering — Meeting Note Taker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -31,7 +32,7 @@
     line-height: 1.5;
   }
 
-  /* ── Header ── */
+  /* -- Header -- */
   header {
     background: linear-gradient(135deg, var(--navy) 0%, #1a2a5e 100%);
     border-bottom: 1px solid var(--border);
@@ -65,14 +66,14 @@
     letter-spacing: 0.5px;
   }
 
-  /* ── Layout ── */
+  /* -- Layout -- */
   .main {
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 60px;
   }
 
-  /* ── Cards ── */
+  /* -- Cards -- */
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -89,7 +90,7 @@
     margin-bottom: 14px;
   }
 
-  /* ── Form fields ── */
+  /* -- Form fields -- */
   .fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -105,7 +106,7 @@
     letter-spacing: 0.5px;
     text-transform: uppercase;
   }
-  input[type=text], input[type=password] {
+  input[type=text], input[type=password], input[type=date] {
     width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -116,16 +117,53 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  input[type=text]:focus, input[type=password]:focus {
+  input[type=text]:focus, input[type=password]:focus, input[type=date]:focus {
     border-color: var(--accent);
   }
+  input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
   .key-hint {
     font-size: 11px;
     color: var(--muted);
     margin-top: 5px;
+    line-height: 1.6;
+  }
+  .key-hint a { color: var(--accent); }
+  textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+    outline: none;
+    resize: vertical;
+    min-height: 100px;
+    font-family: inherit;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  /* -- Browser warning -- */
+  .wbanner {
+    background: rgba(200,120,24,0.08);
+    border: 1px solid rgba(200,120,24,0.3);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--amber);
+  }
+  .wbanner strong { color: var(--text); }
+  .wbanner code {
+    background: rgba(255,255,255,0.07);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
   }
 
-  /* ── Record button ── */
+  /* -- Record button -- */
   .record-wrap {
     text-align: center;
     padding: 28px 0 20px;
@@ -161,7 +199,7 @@
     margin-top: 12px;
   }
 
-  /* ── Progress bar ── */
+  /* -- Progress bar -- */
   #progressBar {
     width: 100%;
     height: 6px;
@@ -185,8 +223,9 @@
     letter-spacing: 2px;
     margin-bottom: 4px;
   }
+  #timer.live { color: var(--red); }
 
-  /* ── Status chip ── */
+  /* -- Status chip -- */
   #status {
     text-align: center;
     font-size: 12px;
@@ -204,7 +243,7 @@
   #status.error      { background: rgba(200,68,40,0.18);  color: #e07060; }
   .status-center { text-align: center; }
 
-  /* ── Transcript ── */
+  /* -- Transcript -- */
   #transcript {
     min-height: 160px;
     max-height: 340px;
@@ -220,16 +259,16 @@
     word-wrap: break-word;
   }
   #transcript:empty::before {
-    content: "Transcript will appear here as you speak…";
+    content: "Transcript will appear here as you speak...";
     color: var(--muted);
     font-style: italic;
   }
-  .chunk-pending {
+  .interim {
     color: var(--muted);
     font-style: italic;
   }
 
-  /* ── Export panel ── */
+  /* -- Export panel -- */
   #exportPanel { display: none; }
   #exportPanel.visible { display: block; }
   .summary-box {
@@ -243,9 +282,15 @@
     white-space: pre-wrap;
     min-height: 140px;
     margin-top: 10px;
+    outline: none;
+  }
+  .summary-box:empty::before {
+    content: "AI summary will appear here after processing...";
+    color: var(--muted);
+    font-style: italic;
   }
 
-  /* ── Buttons ── */
+  /* -- Buttons -- */
   .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
   .btn {
     padding: 10px 22px;
@@ -264,51 +309,134 @@
   .btn-muted   { background: var(--border); color: var(--text); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-  /* ── Scrollbar ── */
+  /* -- Overlay -- */
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,13,20,0.92);
+    backdrop-filter: blur(5px);
+    z-index: 99;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  #overlay.on { display: flex; }
+  .spin {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    animation: sp 0.75s linear infinite;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #overlay p { font-size: 16px; font-weight: 700; color: var(--text); }
+  #overlay small { color: var(--muted); font-size: 12px; }
+  .ov-steps { display: flex; flex-direction: column; gap: 6px; min-width: 260px; }
+  .ov-step {
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .ov-step.active { border-color: var(--accent); color: var(--text); }
+  .ov-step.done   { border-color: var(--green);  color: var(--green); }
+
+  /* -- Scrollbar -- */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--surface); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* -- Responsive -- */
+  @media (max-width: 600px) {
+    header { padding: 14px 16px; }
+    .main { padding: 16px 12px 40px; }
+    .fields { grid-template-columns: 1fr; }
+    #timer { font-size: 22px; }
+    #btnRecord { width: 72px; height: 72px; font-size: 26px; }
+    .btn { padding: 8px 14px; font-size: 12px; }
+    .btn-row { flex-direction: column; }
+    .btn-row .btn { width: 100%; text-align: center; }
+  }
 </style>
 </head>
 <body>
 
+<!-- Overlay for processing -->
+<div id="overlay">
+  <div class="spin"></div>
+  <p id="ovTitle">Processing...</p>
+  <div class="ov-steps">
+    <div class="ov-step" id="step1">Sending transcript to Claude AI</div>
+    <div class="ov-step" id="step2">Summarizing &amp; extracting action items</div>
+    <div class="ov-step" id="step3">Building PDF</div>
+  </div>
+  <small id="ovSub">This may take a moment for long meetings</small>
+</div>
+
 <header>
   <div class="logo">Korb Engineering<span>Meeting Note Taker</span></div>
-  <div class="badge">Local Server</div>
+  <div class="badge">Civil / Construction</div>
 </header>
 
 <div class="main">
 
-  <!-- ── Meeting metadata ── -->
+  <!-- Browser warning -->
+  <div class="wbanner" id="bwarn" style="display:none">
+    <strong>Browser Compatibility Notice</strong><br>
+    Live speech recognition requires <strong>Google Chrome</strong> (or Chromium-based browsers like Edge).<br>
+    Firefox and Safari do not support the continuous Speech Recognition API.<br><br>
+    If opened as a local file, some features may not work. Serve over HTTP:<br>
+    <code>python3 -m http.server 8080</code> then visit <code>http://localhost:8080</code>
+  </div>
+
+  <!-- Meeting metadata -->
   <div class="card">
     <h2>Meeting Details</h2>
     <div class="fields">
       <div>
         <label>Meeting Title</label>
-        <input type="text" id="fTitle" placeholder="e.g. Sprint Planning — Week 12">
+        <input type="text" id="fTitle" placeholder="e.g. Weekly Field Coordination Meeting">
       </div>
       <div>
         <label>Project / Job #</label>
         <input type="text" id="fProject" placeholder="e.g. K-2024-007">
       </div>
-      <div class="full">
+      <div>
         <label>Attendees</label>
         <input type="text" id="fAttendees" placeholder="e.g. H. Korb, J. Smith, R. Patel">
+      </div>
+      <div>
+        <label>Date</label>
+        <input type="date" id="fDate">
       </div>
     </div>
   </div>
 
-  <!-- ── API Key ── -->
+  <!-- API Key -->
   <div class="card">
-    <h2>Claude API Key (for AI summary)</h2>
-    <div>
-      <label>Anthropic API Key</label>
-      <input type="password" id="fApiKey" placeholder="sk-ant-…" autocomplete="off">
-      <p class="key-hint">Saved locally in your browser. Leave blank to skip AI summary and export raw transcript only.</p>
+    <h2>Claude API Key (optional - for AI summary)</h2>
+    <div class="fields">
+      <div class="full" style="display:flex;gap:10px;align-items:flex-end;">
+        <div style="flex:1">
+          <label>Anthropic API Key</label>
+          <input type="password" id="fApiKey" placeholder="sk-ant-..." autocomplete="off">
+        </div>
+        <button class="btn btn-muted" onclick="toggleKeyVis()" style="margin-bottom:0;height:35px;padding:6px 14px;font-size:12px;">Show</button>
+      </div>
+      <div class="full">
+        <p class="key-hint">Saved locally in your browser -- never sent anywhere except Anthropic. Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>. Leave blank to skip AI summary and export raw transcript only.</p>
+      </div>
     </div>
   </div>
 
-  <!-- ── Recorder ── -->
+  <!-- Recorder -->
   <div class="card">
     <h2>Recording</h2>
 
@@ -317,7 +445,7 @@
     <div class="status-center"><span id="status" class="idle">Ready</span></div>
 
     <div class="record-wrap">
-      <button id="btnRecord" title="Click to start / stop recording">🎙️</button>
+      <button id="btnRecord" title="Click to start / stop recording">&#x1F399;</button>
       <div class="record-label" id="recordLabel">Click to start recording</div>
     </div>
 
@@ -325,13 +453,19 @@
     <div id="transcript"></div>
   </div>
 
-  <!-- ── Export panel (shown after stop) ── -->
+  <!-- Additional Notes -->
+  <div class="card">
+    <h2>Additional Notes</h2>
+    <textarea id="fNotes" placeholder="Whiteboard items, corrections, context not captured by mic, field observations..."></textarea>
+  </div>
+
+  <!-- Export panel (shown after stop) -->
   <div class="card" id="exportPanel">
-    <h2>AI Summary</h2>
-    <div id="summaryBox" class="summary-box">AI summary will appear here after processing…</div>
+    <h2>AI Summary &amp; Action Items</h2>
+    <div id="summaryBox" class="summary-box" contenteditable="true"></div>
     <div class="btn-row">
-      <button class="btn btn-success" id="btnPdf" disabled>⬇ Download PDF</button>
-      <button class="btn btn-primary" id="btnReSummarize">↻ Re-summarize</button>
+      <button class="btn btn-success" id="btnPdf" disabled>Download PDF</button>
+      <button class="btn btn-primary" id="btnReSummarize">Re-summarize</button>
       <button class="btn btn-muted"   id="btnCopyTranscript">Copy Transcript</button>
     </div>
   </div>
@@ -339,327 +473,536 @@
 </div><!-- .main -->
 
 <script>
-// ── Constants ──────────────────────────────────────────────────────────────
-const TARGET_RATE = 16000;     // Hz Google Speech API works best at
-const CHUNK_SEC   = 6;         // Seconds per recording chunk
+// == Constants ==
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 const MAX_HOURS   = 4;
 const MAX_SECONDS = MAX_HOURS * 3600;
 
-// ── State ──────────────────────────────────────────────────────────────────
-let running        = false;
-let elapsedSec     = 0;
-let timerInterval  = null;
-let chunkTimer     = null;
-let mediaStream    = null;
-let mediaRecorder  = null;
-let audioCtx       = null;
-let fullTranscript = "";
-let pendingChunks  = 0;
+// == State ==
+let running       = false;
+let elapsedSec    = 0;
+let timerInterval = null;
+let rec           = null;
+let recAlive      = false;
+let restartPending = false;
+let finalTx       = '';
+let interimTx     = '';
 
-// ── DOM refs ───────────────────────────────────────────────────────────────
-const btnRecord       = document.getElementById("btnRecord");
-const recordLabel     = document.getElementById("recordLabel");
-const statusEl        = document.getElementById("status");
-const timerEl         = document.getElementById("timer");
-const progressFill    = document.getElementById("progressFill");
-const transcriptEl    = document.getElementById("transcript");
-const exportPanel     = document.getElementById("exportPanel");
-const summaryBox      = document.getElementById("summaryBox");
-const btnPdf          = document.getElementById("btnPdf");
-const btnReSummarize  = document.getElementById("btnReSummarize");
-const btnCopyTranscript = document.getElementById("btnCopyTranscript");
+// == DOM refs ==
+const btnRecord        = document.getElementById('btnRecord');
+const recordLabel      = document.getElementById('recordLabel');
+const statusEl         = document.getElementById('status');
+const timerEl          = document.getElementById('timer');
+const progressFill     = document.getElementById('progressFill');
+const transcriptEl     = document.getElementById('transcript');
+const exportPanel      = document.getElementById('exportPanel');
+const summaryBox       = document.getElementById('summaryBox');
+const btnPdf           = document.getElementById('btnPdf');
+const btnReSummarize   = document.getElementById('btnReSummarize');
+const btnCopyTranscript = document.getElementById('btnCopyTranscript');
+const keyInput         = document.getElementById('fApiKey');
 
-// ── Persistence ────────────────────────────────────────────────────────────
-const keyInput = document.getElementById("fApiKey");
-keyInput.value = localStorage.getItem("korb_api_key") || "";
-keyInput.addEventListener("input", () => localStorage.setItem("korb_api_key", keyInput.value.trim()));
+// == Init ==
+document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
 
-// ── UI helpers ─────────────────────────────────────────────────────────────
+// Browser check
+const badBrowser = !SpeechRec;
+const isFile = location.protocol === 'file:';
+if (badBrowser || isFile) document.getElementById('bwarn').style.display = 'block';
+
+// Load saved API key
+keyInput.value = localStorage.getItem('korb_civil_api_key') || '';
+keyInput.addEventListener('input', function() {
+  localStorage.setItem('korb_civil_api_key', this.value.trim());
+});
+
+function toggleKeyVis() {
+  keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+}
+
+// == UI helpers ==
 function setStatus(text, cls) {
   statusEl.textContent = text;
   statusEl.className = cls;
 }
 
 function fmtTime(s) {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+  var h = Math.floor(s / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var sec = s % 60;
+  return h + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+}
+
+function esc(t) {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function updateTimer() {
   elapsedSec++;
   timerEl.textContent = fmtTime(elapsedSec);
 
-  const pct = Math.min(100, (elapsedSec / MAX_SECONDS) * 100);
-  progressFill.style.width = pct + "%";
-  if (pct < 50)       progressFill.style.background = "#28a055";
-  else if (pct < 80)  progressFill.style.background = "#c87818";
-  else                progressFill.style.background = "#c84428";
+  var pct = Math.min(100, (elapsedSec / MAX_SECONDS) * 100);
+  progressFill.style.width = pct + '%';
+  if (pct < 50)      progressFill.style.background = '#28a055';
+  else if (pct < 80) progressFill.style.background = '#c87818';
+  else               progressFill.style.background = '#c84428';
 
   if (elapsedSec >= MAX_SECONDS) stopRecording();
 }
 
-// ── WAV encoder ────────────────────────────────────────────────────────────
-// Encodes a Float32Array of mono PCM samples into a WAV ArrayBuffer.
-// No external library needed — pure browser JS.
-function encodeWAV(float32, sampleRate) {
-  const numSamples = float32.length;
-  const buf = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buf);
-
-  function writeStr(off, str) {
-    for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
-  }
-
-  writeStr(0,  "RIFF");
-  view.setUint32(4,  36 + numSamples * 2, true);
-  writeStr(8,  "WAVE");
-  writeStr(12, "fmt ");
-  view.setUint32(16, 16, true);          // chunk size
-  view.setUint16(20,  1, true);          // PCM format
-  view.setUint16(22,  1, true);          // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32,  2, true);          // block align
-  view.setUint16(34, 16, true);          // 16-bit
-  writeStr(36, "data");
-  view.setUint32(40, numSamples * 2, true);
-
-  let off = 44;
-  for (let i = 0; i < numSamples; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]));
-    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    off += 2;
-  }
-  return buf;
+function renderTx() {
+  transcriptEl.innerHTML = esc(finalTx) + (interimTx ? '<span class="interim">' + esc(interimTx) + '</span>' : '');
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
 }
 
-// ── Resample Float32 PCM to TARGET_RATE ───────────────────────────────────
-function resample(input, fromRate) {
-  if (fromRate === TARGET_RATE) return input;
-  const ratio  = fromRate / TARGET_RATE;
-  const outLen = Math.floor(input.length / ratio);
-  const out    = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const src = i * ratio;
-    const lo  = Math.floor(src);
-    const hi  = Math.min(lo + 1, input.length - 1);
-    out[i] = input[lo] + (src - lo) * (input[hi] - input[lo]);
-  }
-  return out;
-}
+// == Speech Recognition ==
+function spawnRec() {
+  if (!running || !SpeechRec) return;
 
-// ── Decode one audio blob and send to server ───────────────────────────────
-async function processBlob(blob) {
-  if (!blob || blob.size < 500) return;
-  pendingChunks++;
-  try {
-    const arrayBuf = await blob.arrayBuffer();
-    const decoded  = await audioCtx.decodeAudioData(arrayBuf);
-    const pcm      = resample(decoded.getChannelData(0), decoded.sampleRate);
-    if (pcm.length < TARGET_RATE * 0.2) return;
+  rec = new SpeechRec();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = 'en-US';
+  recAlive = false;
 
-    const wav = encodeWAV(pcm, TARGET_RATE);
-    const res = await fetch("/transcribe", {
-      method: "POST",
-      headers: { "Content-Type": "audio/wav" },
-      body: wav,
-    });
-    if (!res.ok) { console.warn("Transcribe HTTP", res.status); return; }
-    const data = await res.json();
-    if (data.text && data.text.trim()) {
-      fullTranscript += (fullTranscript ? " " : "") + data.text.trim();
-      transcriptEl.textContent = fullTranscript;
-      transcriptEl.scrollTop   = transcriptEl.scrollHeight;
-      if (running) setStatus("Recording", "recording");
-    }
-  } catch (e) {
-    console.warn("processBlob:", e);
-  } finally {
-    pendingChunks--;
-  }
-}
-
-// ── One recording segment: record CHUNK_SEC seconds, stop, chain next ─────
-// Stopping MediaRecorder each cycle guarantees every blob has a valid header
-// so AudioContext.decodeAudioData can decode it cleanly.
-function startSegment() {
-  if (!running) return;
-
-  const rec    = new MediaRecorder(mediaStream);
-  const chunks = [];
-  mediaRecorder = rec;
-
-  rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
-  rec.onstop = () => {
-    const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
-    processBlob(blob);
-    if (running) startSegment();
+  rec.onstart = function() {
+    recAlive = true;
+    restartPending = false;
   };
 
-  rec.start();
-  chunkTimer = setTimeout(() => {
-    if (rec.state === "recording") rec.stop();
-  }, CHUNK_SEC * 1000);
+  rec.onresult = function(e) {
+    interimTx = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalTx += e.results[i][0].transcript + ' ';
+      } else {
+        interimTx += e.results[i][0].transcript;
+      }
+    }
+    renderTx();
+  };
+
+  rec.onerror = function(e) {
+    recAlive = false;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      setStatus('Microphone access denied', 'error');
+      stopRecording();
+      return;
+    }
+    scheduleRestart();
+  };
+
+  rec.onend = function() {
+    recAlive = false;
+    scheduleRestart();
+  };
+
+  try { rec.start(); } catch (e) { scheduleRestart(); }
 }
 
-// ── Start recording ────────────────────────────────────────────────────────
-async function startRecording() {
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  } catch (e) {
-    setStatus("Microphone access denied", "error");
+function scheduleRestart() {
+  if (!running || restartPending) return;
+  restartPending = true;
+  setTimeout(function() {
+    restartPending = false;
+    if (!running) return;
+    rec = null;
+    spawnRec();
+  }, 300);
+}
+
+// == Start recording ==
+function startRecording() {
+  if (!SpeechRec) {
+    setStatus('Speech Recognition not available -- use Chrome', 'error');
     return;
   }
 
-  audioCtx = new AudioContext();
-
-  fullTranscript           = "";
-  pendingChunks            = 0;
-  elapsedSec               = 0;
-  running                  = true;
-  transcriptEl.textContent = "";
-  exportPanel.classList.remove("visible");
-  summaryBox.textContent   = "AI summary will appear here after processing…";
-  btnPdf.disabled          = true;
-  progressFill.style.width = "0%";
-
-  btnRecord.classList.add("recording");
-  btnRecord.textContent   = "⏹️";
-  recordLabel.textContent = "Recording… click to stop";
-  setStatus("Recording", "recording");
-
-  timerInterval = setInterval(updateTimer, 1000);
-  startSegment();
+  // Request mic permission first
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function(stream) {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      doStart();
+    })
+    .catch(function() {
+      setStatus('Microphone access denied', 'error');
+    });
 }
 
-// ── Stop recording ─────────────────────────────────────────────────────────
-async function stopRecording() {
+function doStart() {
+  running     = true;
+  elapsedSec  = 0;
+  finalTx     = '';
+  interimTx   = '';
+  transcriptEl.innerHTML = '';
+  summaryBox.textContent = '';
+  exportPanel.classList.remove('visible');
+  btnPdf.disabled = true;
+  progressFill.style.width = '0%';
+
+  btnRecord.classList.add('recording');
+  btnRecord.innerHTML = '&#x23F9;';
+  recordLabel.textContent = 'Recording... click to stop';
+  timerEl.classList.add('live');
+  setStatus('Recording', 'recording');
+
+  timerInterval = setInterval(updateTimer, 1000);
+  spawnRec();
+}
+
+// == Stop recording ==
+function stopRecording() {
   if (!running) return;
   running = false;
 
   clearInterval(timerInterval);
-  clearTimeout(chunkTimer);
+  if (rec) { try { rec.stop(); } catch (e) {} rec = null; }
+  recAlive = false;
 
-  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  btnRecord.classList.remove('recording');
+  btnRecord.innerHTML = '&#x1F399;';
+  recordLabel.textContent = 'Click to start recording';
+  timerEl.classList.remove('live');
+  setStatus('Done', 'done');
 
-  btnRecord.classList.remove("recording");
-  btnRecord.textContent   = "🎙️";
-  recordLabel.textContent = "Click to start recording";
-  setStatus("Processing final chunk…", "processing");
-
-  // Wait for any in-flight transcriptions
-  await new Promise(resolve => {
-    let tries = 0;
-    const check = setInterval(() => {
-      if (pendingChunks === 0 || ++tries > 40) { clearInterval(check); resolve(); }
-    }, 250);
-  });
-
-  if (audioCtx)    { audioCtx.close(); audioCtx = null; }
-  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-
-  setStatus("Done", "done");
   showExportPanel();
 }
 
-// ── Toggle ─────────────────────────────────────────────────────────────────
-btnRecord.addEventListener("click", () => {
+// == Toggle ==
+btnRecord.addEventListener('click', function() {
   if (running) stopRecording();
-  else         startRecording();
+  else startRecording();
 });
 
-// ── Export panel ───────────────────────────────────────────────────────────
+// == Export panel ==
 function showExportPanel() {
-  exportPanel.classList.add("visible");
-  const apiKey = keyInput.value.trim();
-  if (apiKey && fullTranscript.trim()) {
-    runSummarize(apiKey);
+  exportPanel.classList.add('visible');
+  var apiKey = keyInput.value.trim();
+  if (apiKey && finalTx.trim()) {
+    runSummarize();
   } else if (!apiKey) {
-    summaryBox.textContent = "No API key — skipping AI summary.\nUse the Download PDF button to export raw transcript.";
+    summaryBox.textContent = 'No API key provided -- skipping AI summary.\nUse Download PDF to export raw transcript.';
+    btnPdf.disabled = false;
+  } else {
+    summaryBox.textContent = 'No transcript captured.\nUse Download PDF to export meeting details.';
     btnPdf.disabled = false;
   }
 }
 
-async function runSummarize(apiKey) {
-  summaryBox.textContent = "Generating AI summary with Claude…";
+// == AI Summary ==
+async function runSummarize() {
+  var transcript = (finalTx + ' ' + (document.getElementById('fNotes').value || '')).trim();
+  if (!transcript || transcript.length < 10) {
+    summaryBox.textContent = 'No transcript to summarize.';
+    btnPdf.disabled = false;
+    return;
+  }
+
+  var apiKey = keyInput.value.trim();
+  if (!apiKey) {
+    summaryBox.textContent = 'No API key -- add one above for AI summarization.';
+    btnPdf.disabled = false;
+    return;
+  }
+
+  summaryBox.textContent = 'Generating AI summary with Claude...';
   btnPdf.disabled = true;
-  setStatus("Summarizing…", "processing");
+  setStatus('Summarizing...', 'processing');
+  showOv('AI summarizing...');
+  setOvStep(1, 'active'); setOvStep(2, ''); setOvStep(3, '');
+
+  var title     = document.getElementById('fTitle').value || 'Untitled Meeting';
+  var date      = document.getElementById('fDate').value  || new Date().toISOString().slice(0, 10);
+  var project   = document.getElementById('fProject').value || '';
+  var attendees = document.getElementById('fAttendees').value || '';
+
+  var systemPrompt = 'You are an expert civil/construction engineering meeting minutes writer for Korb Engineering, a civil engineering and construction management firm.\n\n' +
+    'Your job is to transform raw speech-to-text transcripts into clean, professional meeting minutes tailored for civil engineering and construction projects.\n\n' +
+    'Pay special attention to:\n' +
+    '- Field reports and site observations\n' +
+    '- Inspection findings and punch list items\n' +
+    '- Contractor and subcontractor coordination\n' +
+    '- RFIs (Requests for Information) and submittals\n' +
+    '- Change orders and contract modifications\n' +
+    '- Project scheduling, milestones, and delays\n' +
+    '- Safety observations and compliance items\n' +
+    '- Material testing and quality control\n' +
+    '- Permit and regulatory items\n' +
+    '- Budget and cost tracking\n\n' +
+    'CRITICAL INSTRUCTIONS -- follow these exactly:\n\n' +
+    '1. ACTION ITEMS -- Be highly sensitive. Extract EVERY commitment, task, follow-up, or to-do, no matter how casually mentioned. Look for phrases like: "I\'ll", "we need to", "can you", "someone should", "let\'s", "make sure", "don\'t forget", "follow up", "check on", "send", "email", "call", "look into", "get", "schedule", "review", "update", "confirm", "verify", "submit", "prepare", "coordinate", "contact", "inspect", "test", "survey". If in doubt, include it. Assign owner if mentioned or inferable. Set due date to TBD if not mentioned.\n\n' +
+    '2. DECISIONS -- Capture every decision made, no matter how small.\n\n' +
+    '3. ISSUES / RISKS -- Flag anything mentioned as a concern, problem, delay, or risk.\n\n' +
+    'FORMAT your output EXACTLY as follows (use these exact headers):\n\n' +
+    'DISCUSSION SUMMARY\n' +
+    '[3-8 concise bullet points covering the main topics discussed. Be specific -- include technical details, quantities, station numbers, locations, references.]\n\n' +
+    'KEY DECISIONS\n' +
+    '[Bullet list of every decision made. If none, write "None recorded."]\n\n' +
+    'ACTION ITEMS\n' +
+    '[Numbered list in this format:]\n' +
+    '1. [Action item description] | Owner: [name or "TBD"] | Due: [date or "TBD"] | Priority: [High/Medium/Low]\n' +
+    '[If no action items found, write "None recorded -- review transcript carefully."]\n\n' +
+    'ISSUES & RISKS\n' +
+    '[Bullet list of concerns, problems, delays, blockers. If none, write "None identified."]\n\n' +
+    'OPEN QUESTIONS\n' +
+    '[Bullet list of unresolved questions or items needing follow-up. If none, write "None."]\n\n' +
+    'Be concise but thorough. Use construction/engineering terminology. Do not invent information not in the transcript.';
+
+  var userMsg = 'Meeting Title: ' + title + '\n' +
+    'Date: ' + date + '\n' +
+    'Project: ' + project + '\n' +
+    'Attendees: ' + attendees + '\n' +
+    'Duration: ' + fmtTime(elapsedSec) + '\n\n' +
+    'TRANSCRIPT:\n' + transcript;
 
   try {
-    const res = await fetch("/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript: fullTranscript, api_key: apiKey }),
+    setOvStep(1, 'done'); setOvStep(2, 'active');
+
+    var res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMsg }]
+      })
     });
-    const data = await res.json();
-    if (data.error) {
-      summaryBox.textContent = "Summary error: " + data.error;
-      setStatus("Summary failed", "error");
-    } else {
-      summaryBox.textContent = data.summary;
-      setStatus("Summary ready", "done");
-    }
-  } catch (e) {
-    summaryBox.textContent = "Network error: " + e.message;
-    setStatus("Error", "error");
+
+    var data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    var summary = data.content[0].text;
+    summaryBox.textContent = summary;
+    setOvStep(2, 'done'); setOvStep(3, 'active');
+    setStatus('Summary ready', 'done');
+
+    setTimeout(function() {
+      buildPDF(summary);
+    }, 200);
+
+  } catch (err) {
+    hideOv();
+    summaryBox.textContent = 'API error: ' + err.message + '\n\nRaw transcript is available below for manual export.';
+    setStatus('Summary failed', 'error');
+    console.error(err);
+    btnPdf.disabled = false;
   }
-  btnPdf.disabled = false;
 }
 
-btnReSummarize.addEventListener("click", () => {
-  const apiKey = keyInput.value.trim();
-  if (!apiKey) { alert("Enter your Claude API key first."); return; }
-  runSummarize(apiKey);
+btnReSummarize.addEventListener('click', function() {
+  var apiKey = keyInput.value.trim();
+  if (!apiKey) { alert('Enter your Claude API key first.'); return; }
+  runSummarize();
 });
 
-// ── Download PDF ───────────────────────────────────────────────────────────
-btnPdf.addEventListener("click", async () => {
-  btnPdf.disabled = true;
-  btnPdf.textContent = "Generating…";
+// == PDF Generation ==
+function makePDF() {
+  var sumText = summaryBox.innerText || summaryBox.textContent || '';
+  var transcript = (finalTx + ' ' + (document.getElementById('fNotes').value || '')).trim();
 
-  const body = {
-    title:      document.getElementById("fTitle").value.trim()     || "Meeting Notes",
-    project:    document.getElementById("fProject").value.trim(),
-    attendees:  document.getElementById("fAttendees").value.trim(),
-    date:       new Date().toLocaleDateString("en-US", {year:"numeric", month:"long", day:"numeric"}),
-    duration:   fmtTime(elapsedSec),
-    summary:    summaryBox.textContent !== "AI summary will appear here after processing…"
-                  ? summaryBox.textContent : "",
-    transcript: fullTranscript,
-  };
-
-  try {
-    const res = await fetch("/export-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) { throw new Error("Server error " + res.status); }
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `meeting-notes-${new Date().toISOString().slice(0,10)}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    alert("PDF export failed: " + e.message);
+  if (!sumText && (!transcript || transcript.length < 3)) {
+    alert('Nothing to export -- record a meeting first.');
+    return;
   }
 
-  btnPdf.textContent = "⬇ Download PDF";
+  showOv('Building PDF...');
+  setOvStep(1, 'done'); setOvStep(2, 'done'); setOvStep(3, 'active');
+  setTimeout(function() {
+    try { buildPDF(sumText || null); }
+    catch (err) { hideOv(); alert('PDF error: ' + err.message); console.error(err); }
+  }, 80);
+}
+
+function buildPDF(summaryText) {
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  var PW = 612, PH = 792, ML = 56, MR = 56, MB = 52, CW = PW - ML - MR;
+  var y = 56;
+
+  function chk(n) { if (y + (n || 18) > PH - MB) { doc.addPage(); y = 56; } }
+
+  var title     = document.getElementById('fTitle').value || 'Untitled Meeting';
+  var date      = document.getElementById('fDate').value  || new Date().toISOString().slice(0, 10);
+  var project   = document.getElementById('fProject').value || '--';
+  var attendees = document.getElementById('fAttendees').value || '--';
+
+  // -- Dark header --
+  doc.setFillColor(14, 18, 28); doc.rect(0, 0, PW, 66, 'F');
+  doc.setFillColor(30, 92, 200); doc.rect(0, 66, PW, 3, 'F');
+  doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 228, 248);
+  doc.text('KORB ENGINEERING', ML, 25);
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 95, 130);
+  doc.text('Civil / Construction Meeting Minutes', ML, 44);
+  doc.text(new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }), PW - MR, 44, { align: 'right' });
+  y = 86;
+
+  // -- Meta block --
+  var rows = [
+    ['MEETING TITLE', title],
+    ['DATE', date],
+    ['PROJECT / JOB', project],
+    ['ATTENDEES', attendees],
+    ['DURATION', fmtTime(elapsedSec)],
+  ];
+  var bh = rows.length * 20 + 18;
+  doc.setFillColor(20, 25, 40); doc.roundedRect(ML, y, CW, bh, 4, 4, 'F');
+  var fy = y + 14;
+  rows.forEach(function(row) {
+    fy += 14;
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(70, 88, 130);
+    doc.text(row[0], ML + 12, fy);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(210, 218, 240);
+    doc.text(doc.splitTextToSize(row[1], CW - 145)[0], ML + 145, fy);
+    fy += 6;
+  });
+  y = fy + 20;
+
+  // -- Section header helper --
+  function secHead(lbl, color) {
+    color = color || [30, 92, 200];
+    chk(34);
+    doc.setFillColor(color[0], color[1], color[2]); doc.rect(ML, y, 3, 13, 'F');
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(color[0], color[1], color[2]);
+    doc.text(lbl, ML + 10, y + 10);
+    y += 19;
+    doc.setDrawColor(35, 44, 70); doc.setLineWidth(0.5); doc.line(ML, y, ML + CW, y);
+    y += 10;
+  }
+
+  function bodyTxt(txt, rgb) {
+    rgb = rgb || [195, 205, 230];
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+    doc.splitTextToSize(txt, CW).forEach(function(line) { chk(13); doc.text(line, ML, y); y += 13; });
+  }
+
+  // Section colors
+  var sectionColors = {
+    'DISCUSSION SUMMARY': [45, 107, 228],
+    'KEY DECISIONS':      [29, 184, 122],
+    'ACTION ITEMS':       [224, 92, 75],
+    'ISSUES & RISKS':     [232, 160, 32],
+    'OPEN QUESTIONS':     [150, 100, 220],
+  };
+
+  if (summaryText && summaryText.length > 10) {
+    var lines = summaryText.split('\n');
+    var currentSection = null;
+
+    lines.forEach(function(rawLine) {
+      var line = rawLine.trim();
+      if (!line) { y += 5; return; }
+
+      // Check section header
+      var isHeader = false;
+      Object.keys(sectionColors).forEach(function(sec) {
+        if (line.toUpperCase().startsWith(sec)) {
+          y += 8; secHead(line.toUpperCase(), sectionColors[sec]); isHeader = true; currentSection = sec;
+        }
+      });
+      if (isHeader) return;
+
+      // Action items special formatting
+      if (currentSection === 'ACTION ITEMS' && /^\d+\./.test(line)) {
+        chk(16);
+        var parts = line.split('|');
+        var action = parts[0].replace(/^\d+\.\s*/, '').trim();
+        var meta = parts.slice(1).join(' | ').trim();
+        var num = (line.match(/^(\d+)\./) || [])[1] || '';
+
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(224, 92, 75);
+        doc.text(num + '.', ML + 2, y);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(210, 218, 240);
+        doc.splitTextToSize(action, CW - 20).forEach(function(al) { chk(13); doc.text(al, ML + 18, y); y += 13; });
+
+        if (meta) {
+          doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(140, 155, 180);
+          chk(12); doc.text(meta, ML + 18, y); y += 12;
+        }
+        y += 2;
+        return;
+      }
+
+      // Bullet lines
+      if (line.startsWith('-') || line.startsWith('*') || line.startsWith('\u2022')) {
+        chk(14);
+        doc.setFillColor(45, 107, 228);
+        doc.circle(ML + 4, y - 3, 2, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(195, 205, 230);
+        var blines = doc.splitTextToSize(line.replace(/^[-*\u2022]\s*/, ''), CW - 16);
+        blines.forEach(function(bl) { chk(13); doc.text(bl, ML + 12, y); y += 13; });
+        return;
+      }
+
+      // Regular text
+      bodyTxt(line, [195, 205, 230]);
+    });
+  } else {
+    // No summary -- raw transcript
+    secHead('FULL TRANSCRIPT');
+    bodyTxt(finalTx.trim() || '(No speech captured)');
+  }
+
+  // -- Additional notes --
+  var notes = (document.getElementById('fNotes').value || '').trim();
+  if (notes) {
+    y += 14;
+    secHead('ADDITIONAL NOTES', [80, 130, 180]);
+    bodyTxt(notes, [180, 190, 210]);
+  }
+
+  // -- Footer on all pages --
+  var total = doc.internal.getNumberOfPages();
+  for (var p = 1; p <= total; p++) {
+    doc.setPage(p);
+    doc.setFillColor(14, 18, 28); doc.rect(0, PH - 32, PW, 32, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(72, 88, 118);
+    doc.text('Korb Engineering | korbengineering@gmail.com', ML, PH - 14);
+    doc.text('Page ' + p + ' of ' + total, PW - MR, PH - 14, { align: 'right' });
+  }
+
+  setOvStep(3, 'done');
+  setTimeout(hideOv, 400);
+
+  var safeName = (title || 'meeting').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  var safeDate = date.replace(/-/g, '');
+  doc.save(safeName + '-' + safeDate + '.pdf');
+
   btnPdf.disabled = false;
+  setStatus('PDF downloaded', 'done');
+}
+
+btnPdf.addEventListener('click', function() { makePDF(); });
+
+// == Copy transcript ==
+btnCopyTranscript.addEventListener('click', function() {
+  var text = finalTx.trim();
+  if (!text) { alert('No transcript yet.'); return; }
+  navigator.clipboard.writeText(text)
+    .then(function() {
+      btnCopyTranscript.textContent = 'Copied!';
+      setTimeout(function() { btnCopyTranscript.textContent = 'Copy Transcript'; }, 2000);
+    })
+    .catch(function() { alert('Copy failed -- try manually selecting the text.'); });
 });
 
-// ── Copy transcript ────────────────────────────────────────────────────────
-btnCopyTranscript.addEventListener("click", () => {
-  if (!fullTranscript) { alert("No transcript yet."); return; }
-  navigator.clipboard.writeText(fullTranscript)
-    .then(() => { btnCopyTranscript.textContent = "Copied!"; setTimeout(() => btnCopyTranscript.textContent = "Copy Transcript", 2000); })
-    .catch(() => alert("Copy failed — try manually selecting the text."));
-});
+// == Overlay helpers ==
+function showOv(t) {
+  document.getElementById('ovTitle').textContent = t;
+  document.getElementById('overlay').classList.add('on');
+}
+function hideOv() {
+  document.getElementById('overlay').classList.remove('on');
+}
+function setOvStep(n, state) {
+  var el = document.getElementById('step' + n);
+  el.className = 'ov-step' + (state ? ' ' + state : '');
+}
 </script>
 </body>
 </html>
