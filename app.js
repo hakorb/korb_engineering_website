@@ -30,7 +30,7 @@ const SECTIONS = {
       <ellipse cx="24" cy="14" rx="1.5" ry="2.5" stroke-width="0.7" opacity="0.5"/>
     </svg>`,
     tools: [
-      { name: '1980s Calculator', file: './tools/aviation/1980s Calculator.html' },
+      { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
