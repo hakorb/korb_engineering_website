@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Situation Monitor - Korb Engineering</title>
+  <meta name="description" content="Korb Engineering Situation Monitor - Global News Dashboard powered by RSS feeds from AP, BBC, NPR, and Reuters.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #000000;
+      --surface: #020304;
+      --surface-2: #060a0e;
+      --surface-3: #0c1218;
+      --border: #0e1a24;
+      --border-hover: #153040;
+      --cyan: #00d4ff;
+      --cyan-bright: #40e8ff;
+      --cyan-dim: #006880;
+      --cyan-ghost: #002a35;
+      --text: #c8d6e0;
+      --text-dim: #5a7080;
+      --text-muted: #3a4a55;
+      --white: #e8f0f4;
+      --red: #ff4060;
+      --orange: #ff8a40;
+      --green: #40ff90;
+      --yellow: #ffd040;
+      --purple: #a080ff;
+      --font: 'JetBrains Mono', 'Courier New', monospace;
+      --radius: 3px;
+      --transition: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { color: var(--cyan-bright); }
+
+    /* --- Header --- */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .eyebrow {
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--cyan-dim);
+      margin-bottom: 0.25rem;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .title {
+      font-size: clamp(1.1rem, 1rem + 1vw, 1.6rem);
+      font-weight: 600;
+      color: var(--white);
+      letter-spacing: -0.01em;
+    }
+
+    .title .dot { color: var(--cyan); }
+
+    .subtitle {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: 300;
+    }
+
+    /* --- Controls Bar --- */
+    .controls {
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      background: var(--surface);
+    }
+
+    .controls-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      font-family: var(--font);
+      font-size: 0.7rem;
+      font-weight: 400;
+      padding: 0.3rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all var(--transition);
+      letter-spacing: 0.03em;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--border-hover);
+      color: var(--text);
+    }
+
+    .filter-btn.active {
+      border-color: var(--cyan-dim);
+      color: var(--cyan);
+      background: var(--cyan-ghost);
+    }
+
+    .controls-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .status-text {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    .countdown {
+      color: var(--cyan-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .auto-toggle {
+      font-family: var(--font);
+      font-size: 0.65rem;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .auto-toggle.active {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(64, 255, 144, 0.06);
+    }
+
+    .refresh-btn {
+      font-family: var(--font);
+      font-size: 0.65rem;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--cyan-dim);
+      border-radius: var(--radius);
+      background: var(--cyan-ghost);
+      color: var(--cyan);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .refresh-btn:hover {
+      background: rgba(0, 212, 255, 0.12);
+      border-color: var(--cyan);
+    }
+
+    .refresh-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* --- Main Content --- */
+    .main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+    }
+
+    /* --- Story Grid --- */
+    .story-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 0.75rem;
+    }
+
+    /* --- Story Card --- */
+    .story-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      transition: border-color var(--transition), transform var(--transition);
+      animation: fadeIn 0.4s ease-out both;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .story-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .source-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.4rem;
+      border-radius: 2px;
+      line-height: 1;
+    }
+
+    .source-ap { background: rgba(255, 64, 96, 0.12); color: var(--red); border: 1px solid rgba(255, 64, 96, 0.2); }
+    .source-bbc { background: rgba(255, 138, 64, 0.12); color: var(--orange); border: 1px solid rgba(255, 138, 64, 0.2); }
+    .source-npr { background: rgba(160, 128, 255, 0.12); color: var(--purple); border: 1px solid rgba(160, 128, 255, 0.2); }
+    .source-reuters { background: rgba(255, 208, 64, 0.12); color: var(--yellow); border: 1px solid rgba(255, 208, 64, 0.2); }
+
+    .time-ago {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .card-headline {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--white);
+      line-height: 1.4;
+      transition: color var(--transition);
+    }
+
+    .card-headline:hover { color: var(--cyan-bright); }
+
+    .card-description {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-category {
+      display: inline-block;
+      font-size: 0.58rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 0.1rem 0.35rem;
+      letter-spacing: 0.04em;
+      align-self: flex-start;
+    }
+
+    /* --- States --- */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 1rem;
+      gap: 1rem;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+
+    .error-container {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+
+    .error-container p {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .skeleton-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .skeleton-line {
+      height: 0.65rem;
+      background: var(--surface-2);
+      border-radius: 2px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .skeleton-line.w30 { width: 30%; }
+    .skeleton-line.w60 { width: 60%; }
+    .skeleton-line.w90 { width: 90%; }
+    .skeleton-line.w80 { width: 80%; }
+    .skeleton-line.w50 { width: 50%; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
+
+    .story-count {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .source-indicator {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      margin-right: 0.3rem;
+    }
+
+    .source-indicator.ok { background: var(--green); }
+    .source-indicator.err { background: var(--red); }
+
+    /* --- Footer --- */
+    .footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 600px) {
+      .header { padding: 1rem; }
+      .controls { padding: 0.6rem 1rem; }
+      .main { padding: 1rem; }
+      .story-grid, .skeleton-grid {
+        grid-template-columns: 1fr;
+      }
+      .controls-right { margin-left: 0; width: 100%; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="eyebrow">Korb Engineering</div>
+      <div class="title-row">
+        <h1 class="title">Situation Monitor</h1>
+        <span class="subtitle">Global News Dashboard</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="controls-inner">
+      <button class="filter-btn active" data-source="all">All</button>
+      <button class="filter-btn" data-source="ap">AP</button>
+      <button class="filter-btn" data-source="bbc">BBC</button>
+      <button class="filter-btn" data-source="npr">NPR</button>
+      <button class="filter-btn" data-source="reuters">Reuters</button>
+
+      <div class="controls-right">
+        <span class="status-text" id="lastUpdated">--</span>
+        <span class="status-text countdown" id="countdown"></span>
+        <button class="auto-toggle active" id="autoToggle" title="Toggle auto-refresh">Auto 5m</button>
+        <button class="refresh-btn" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <main class="main">
+    <div id="storyCount" class="story-count"></div>
+    <div id="content">
+      <!-- Skeleton loader shown initially -->
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <div class="footer">
+    Korb Engineering &middot; Situation Monitor &middot; RSS feeds via rss2json.com &middot; Data from AP, BBC, NPR, Reuters
+  </div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- Configuration ---
+  const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+  const FEEDS = [
+    {
+      name: 'AP',
+      key: 'ap',
+      url: 'https://rsshub.app/apnews/topics/apf-topnews',
+      color: 'ap'
+    },
+    {
+      name: 'BBC',
+      key: 'bbc',
+      url: 'https://feeds.bbci.co.uk/news/world/rss.xml',
+      color: 'bbc'
+    },
+    {
+      name: 'NPR',
+      key: 'npr',
+      url: 'https://feeds.npr.org/1001/rss.xml',
+      color: 'npr'
+    },
+    {
+      name: 'Reuters',
+      key: 'reuters',
+      url: 'https://rsshub.app/reuters/world',
+      color: 'reuters'
+    }
+  ];
+
+  const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+  // --- State ---
+  let allStories = [];
+  let activeFilter = 'all';
+  let autoRefresh = true;
+  let refreshTimer = null;
+  let countdownTimer = null;
+  let nextRefreshAt = 0;
+  let isLoading = false;
+  let feedStatus = {};
+
+  // --- DOM ---
+  const contentEl = document.getElementById('content');
+  const storyCountEl = document.getElementById('storyCount');
+  const lastUpdatedEl = document.getElementById('lastUpdated');
+  const countdownEl = document.getElementById('countdown');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const autoToggle = document.getElementById('autoToggle');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+
+  // --- Utilities ---
+  function timeAgo(dateStr) {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    if (isNaN(then)) return '';
+    const diff = now - then;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return '1d ago';
+    return days + 'd ago';
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function stripHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.innerHTML = str;
+    return div.textContent || div.innerText || '';
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  // --- Skeleton Loader ---
+  function showSkeleton() {
+    let html = '<div class="skeleton-grid">';
+    for (let i = 0; i < 12; i++) {
+      html += `
+        <div class="skeleton-card" style="animation-delay: ${i * 0.05}s">
+          <div class="skeleton-line w30"></div>
+          <div class="skeleton-line w90"></div>
+          <div class="skeleton-line w60"></div>
+          <div class="skeleton-line w80"></div>
+          <div class="skeleton-line w50"></div>
+        </div>`;
+    }
+    html += '</div>';
+    contentEl.innerHTML = html;
+    storyCountEl.textContent = '';
+  }
+
+  // --- Fetch Feeds ---
+  async function fetchFeed(feed) {
+    try {
+      const resp = await fetch(RSS2JSON + encodeURIComponent(feed.url));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (data.status !== 'ok' || !data.items) throw new Error('Feed error');
+
+      feedStatus[feed.key] = true;
+
+      return data.items.map(function(item) {
+        const desc = stripHtml(item.description || item.content || '');
+        return {
+          source: feed.name,
+          sourceKey: feed.key,
+          sourceColor: feed.color,
+          title: stripHtml(item.title || ''),
+          link: item.link || '#',
+          pubDate: item.pubDate || '',
+          description: desc.length > 280 ? desc.substring(0, 280) + '...' : desc,
+          categories: item.categories || []
+        };
+      });
+    } catch (e) {
+      console.warn('Feed failed:', feed.name, e.message);
+      feedStatus[feed.key] = false;
+      return [];
+    }
+  }
+
+  async function fetchAllFeeds() {
+    if (isLoading) return;
+    isLoading = true;
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = '...';
+
+    if (allStories.length === 0) {
+      showSkeleton();
+    }
+
+    feedStatus = {};
+    const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+    const stories = [];
+
+    results.forEach(function(r) {
+      if (r.status === 'fulfilled' && r.value) {
+        stories.push.apply(stories, r.value);
+      }
+    });
+
+    // Deduplicate by title similarity
+    const seen = new Set();
+    allStories = stories.filter(function(s) {
+      const key = s.title.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 50);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Sort by date descending
+    allStories.sort(function(a, b) {
+      return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+    });
+
+    isLoading = false;
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = 'Refresh';
+    lastUpdatedEl.textContent = 'Updated ' + formatTime(new Date());
+
+    renderStories();
+    scheduleRefresh();
+  }
+
+  // --- Render ---
+  function renderStories() {
+    const filtered = activeFilter === 'all'
+      ? allStories
+      : allStories.filter(function(s) { return s.sourceKey === activeFilter; });
+
+    if (filtered.length === 0 && !isLoading) {
+      const activeSources = Object.entries(feedStatus).filter(function(e) { return e[1]; }).length;
+      const failedSources = Object.entries(feedStatus).filter(function(e) { return !e[1]; }).length;
+
+      let msg = 'No stories available.';
+      if (failedSources > 0 && activeSources === 0) {
+        msg = 'All feeds failed to load. This may be due to CORS or rate limiting.';
+      }
+
+      contentEl.innerHTML = '<div class="error-container"><p>' + msg + '</p>' +
+        '<button class="refresh-btn" onclick="window.__refresh()">Retry</button></div>';
+      storyCountEl.textContent = '';
+      return;
+    }
+
+    // Source status indicators
+    let statusHtml = filtered.length + ' stories';
+    const sourceKeys = ['ap', 'bbc', 'npr', 'reuters'];
+    statusHtml += '  &nbsp;';
+    sourceKeys.forEach(function(k) {
+      if (feedStatus[k] !== undefined) {
+        const cls = feedStatus[k] ? 'ok' : 'err';
+        const name = k.toUpperCase();
+        statusHtml += '<span class="source-indicator ' + cls + '"></span>' + name + '  ';
+      }
+    });
+    storyCountEl.innerHTML = statusHtml;
+
+    let html = '<div class="story-grid">';
+    filtered.forEach(function(story, i) {
+      const ta = timeAgo(story.pubDate);
+      const cat = story.categories && story.categories.length > 0 && story.categories[0]
+        ? '<span class="card-category">' + escapeHtml(story.categories[0]) + '</span>'
+        : '';
+
+      html += '<div class="story-card" style="animation-delay: ' + (i * 0.03) + 's">';
+      html += '<div class="card-meta">';
+      html += '<span class="source-badge source-' + story.sourceColor + '">' + escapeHtml(story.source) + '</span>';
+      if (ta) html += '<span class="time-ago">' + ta + '</span>';
+      html += '</div>';
+      html += '<a class="card-headline" href="' + escapeHtml(story.link) + '" target="_blank" rel="noopener">' + escapeHtml(story.title) + '</a>';
+      if (story.description) {
+        html += '<div class="card-description">' + escapeHtml(story.description) + '</div>';
+      }
+      if (cat) html += cat;
+      html += '</div>';
+    });
+    html += '</div>';
+
+    contentEl.innerHTML = html;
+  }
+
+  // --- Auto Refresh ---
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    clearInterval(countdownTimer);
+
+    if (!autoRefresh) {
+      countdownEl.textContent = '';
+      return;
+    }
+
+    nextRefreshAt = Date.now() + REFRESH_INTERVAL;
+
+    countdownTimer = setInterval(function() {
+      const remaining = Math.max(0, nextRefreshAt - Date.now());
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      countdownEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+      if (remaining <= 0) {
+        clearInterval(countdownTimer);
+      }
+    }, 1000);
+
+    refreshTimer = setTimeout(function() {
+      fetchAllFeeds();
+    }, REFRESH_INTERVAL);
+  }
+
+  // --- Events ---
+  filterBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      filterBtns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilter = btn.dataset.source;
+      renderStories();
+    });
+  });
+
+  refreshBtn.addEventListener('click', function() {
+    fetchAllFeeds();
+  });
+
+  autoToggle.addEventListener('click', function() {
+    autoRefresh = !autoRefresh;
+    autoToggle.classList.toggle('active', autoRefresh);
+    autoToggle.textContent = autoRefresh ? 'Auto 5m' : 'Auto Off';
+    if (autoRefresh) {
+      scheduleRefresh();
+    } else {
+      clearTimeout(refreshTimer);
+      clearInterval(countdownTimer);
+      countdownEl.textContent = '';
+    }
+  });
+
+  // Expose for retry button
+  window.__refresh = fetchAllFeeds;
+
+  // --- Init ---
+  fetchAllFeeds();
+
+})();
+</script>
+
+</body>
+</html>

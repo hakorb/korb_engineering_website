@@ -32,7 +32,6 @@ const SECTIONS = {
     tools: [
       { name: '1980s Calculator', file: './tools/aviation/1980s Calculator.html' },
       { name: 'Meeting Note Taker', file: './tools/aviation/AI assisted-meeting-note-taker-korb-engineering.html' },
-      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
@@ -83,7 +82,9 @@ const SECTIONS = {
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
       { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
-      { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' }
+      { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
+      { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
+      { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' }
     ]
   }
 };
