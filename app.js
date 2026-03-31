@@ -419,20 +419,17 @@ function renderAboutPage() {
       </div>
       <div class="about-content reveal">
         <h1 class="about-heading" style="display:flex;justify-content:center;"><span style="width:80px;height:100px;color:var(--vfd-cyan);">${K_LOGO_SVG}</span></h1>
-        <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.6;opacity:0.85;">"If I have seen further, it is by standing on the shoulders of giants."</p>
-        <p class="about-text" style="opacity:0.5;font-size:0.85em;margin-top:4px;">— Isaac Newton</p>
-        <div id="about-photos" style="opacity:0;transition:opacity 1.5s ease;">
-          <img src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo">
-          <img src="./tools/misc/images/andy-and-alan.jpg" alt="Andy and Alan Korb" class="about-photo" style="margin-top:16px;">
-        </div>
+        <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.8;font-size:var(--text-base);color:var(--vfd-cyan);text-shadow:0 0 12px rgba(0,212,255,0.3);">"If I have seen further, it is by standing on the shoulders of giants."</p>
+        <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton</p>
+        <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
       </div>
     </section>
   `;
   initReveal();
   setTimeout(() => {
-    const photosEl = document.getElementById('about-photos');
-    if (photosEl) photosEl.style.opacity = '1';
-  }, 30000);
+    const p1 = document.getElementById('about-photo-1');
+    if (p1) p1.style.opacity = '0.9';
+  }, 10000);
 }
 
 
