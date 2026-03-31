@@ -48,7 +48,8 @@ const SECTIONS = {
       { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
       { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
-      { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' }
+      { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
+      { name: 'File Share', file: './tools/civil/file-share-tool.html' }
     ]
   },
   hk: {
@@ -63,7 +64,17 @@ const SECTIONS = {
     password: 'potato1',
     tools: [
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
-      { name: 'Situation Monitor', file: './tools/hk/Situation Monitor \u2014 Geopolitical Dashboard/index.html' }
+      { name: 'Situation Monitor', file: './tools/hk/Situation Monitor \u2014 Geopolitical Dashboard/index.html' },
+      {
+        name: 'Super Secret Access!',
+        type: 'folder',
+        locked: true,
+        password: 'potato2',
+        _unlocked: false,
+        tools: [
+          { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' }
+        ]
+      }
     ]
   },
   misc: {
@@ -212,12 +223,20 @@ function renderSection(key) {
 
 // --- Tool Grid (matching homepage card style) ---
 function renderToolGrid(key, sec) {
-  const cards = sec.tools.map((tool, i) => `
-    <a href="#" class="tool-grid-card reveal" data-section="${key}" data-tool-index="${i}">
+  const lockIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
+  const folderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>`;
+
+  const cards = sec.tools.map((tool, i) => {
+    const isFolder = tool.type === 'folder';
+    const icon = isFolder ? (tool.locked ? lockIcon : folderIcon) : ARROW_SVG;
+    const extraClass = isFolder ? ' tool-folder-card' : '';
+    return `
+    <a href="#" class="tool-grid-card${extraClass} reveal" data-section="${key}" data-tool-index="${i}">
       <span class="tool-grid-name">${tool.name}</span>
-      ${ARROW_SVG}
+      ${icon}
     </a>
-  `).join('');
+  `;
+  }).join('');
 
   main.innerHTML = `
     <section class="section-page">
@@ -236,11 +255,131 @@ function renderToolGrid(key, sec) {
       const sKey = card.dataset.section;
       const tIdx = parseInt(card.dataset.toolIndex);
       const s = SECTIONS[sKey];
-      renderToolEmbed(sKey, s, s.tools[tIdx]);
+      const tool = s.tools[tIdx];
+
+      if (tool.type === 'folder') {
+        if (tool.locked && !tool._unlocked) {
+          renderFolderPasswordGate(sKey, s, tool);
+        } else {
+          renderSubfolderGrid(sKey, s, tool);
+        }
+        return;
+      }
+
+      renderToolEmbed(sKey, s, tool);
     });
   });
 
   initReveal();
+}
+
+
+// --- Subfolder password gate ---
+function renderFolderPasswordGate(sectionKey, sec, folder) {
+  const lockSvg = `<svg class="gate-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="10" y="22" width="28" height="20" rx="4"/><path d="M16 22v-6a8 8 0 0116 0v6"/><circle cx="24" cy="33" r="3"/><path d="M24 36v3"/></svg>`;
+
+  main.innerHTML = `
+    <section class="section-page">
+      <div class="section-hero">
+        <a href="#" class="back-link" id="folderGateBack">${BACK_SVG}</a>
+      </div>
+      <div class="password-gate">
+        <div class="gate-box">
+          ${lockSvg}
+          <h2 class="gate-title">${folder.name}</h2>
+          <form class="gate-form" id="folderGateForm">
+            <label for="folderGatePassword" class="sr-only">Password</label>
+            <input type="password" id="folderGatePassword" class="gate-input" placeholder="_ _ _ _ _ _" autocomplete="off" required>
+            <button type="submit" class="gate-btn">Unlock</button>
+          </form>
+          <p class="gate-error" id="folderGateError">Access denied.</p>
+        </div>
+      </div>
+    </section>
+  `;
+
+  document.getElementById('folderGateBack').addEventListener('click', (e) => {
+    e.preventDefault();
+    renderSection(sectionKey);
+  });
+
+  const form = document.getElementById('folderGateForm');
+  const input = document.getElementById('folderGatePassword');
+  const error = document.getElementById('folderGateError');
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (input.value === folder.password) {
+      folder._unlocked = true;
+      renderSubfolderGrid(sectionKey, sec, folder);
+    } else {
+      error.classList.add('visible');
+      input.value = '';
+      input.focus();
+      setTimeout(() => error.classList.remove('visible'), 3000);
+    }
+  });
+
+  input.focus();
+}
+
+
+// --- Subfolder tool grid ---
+function renderSubfolderGrid(sectionKey, sec, folder) {
+  const cards = folder.tools.map((tool, i) => `
+    <a href="#" class="tool-grid-card reveal" data-folder-tool-index="${i}">
+      <span class="tool-grid-name">${tool.name}</span>
+      ${ARROW_SVG}
+    </a>
+  `).join('');
+
+  main.innerHTML = `
+    <section class="section-page">
+      <div class="section-hero">
+        <a href="#" class="back-link reveal" id="subfolderBack">${BACK_SVG}</a>
+      </div>
+      <div class="tool-grid-container">
+        <div class="tool-grid">${cards}</div>
+      </div>
+    </section>
+  `;
+
+  document.getElementById('subfolderBack').addEventListener('click', (e) => {
+    e.preventDefault();
+    renderSection(sectionKey);
+  });
+
+  main.querySelectorAll('.tool-grid-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tIdx = parseInt(card.dataset.folderToolIndex);
+      const tool = folder.tools[tIdx];
+      renderSubfolderToolEmbed(sectionKey, sec, folder, tool);
+    });
+  });
+
+  initReveal();
+}
+
+
+// --- Subfolder tool embed (back goes to subfolder, not section) ---
+function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
+  main.innerHTML = `
+    <section class="section-page tool-embed-page">
+      <div class="tool-topbar">
+        <button type="button" class="back-link tool-back-btn" aria-label="Back to folder">${BACK_SVG}</button>
+      </div>
+      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allowfullscreen></iframe>
+    </section>
+  `;
+
+  main.querySelector('.tool-back-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const iframe = main.querySelector('.tool-iframe');
+    if (iframe) iframe.remove();
+    renderSubfolderGrid(sectionKey, sec, folder);
+  });
 }
 
 
