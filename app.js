@@ -32,7 +32,6 @@ const SECTIONS = {
     tools: [
       { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
-      { name: 'PDF Editor', file: './tools/aviation/korb-pdf-editor_11.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
     ]
   },
@@ -82,7 +81,10 @@ const SECTIONS = {
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
 { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
       { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
-      { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' }
+      { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
+      { name: 'Tetris', file: './tools/misc/tetris.html' },
+      { name: 'Simon', file: './tools/misc/simon.html' },
+      { name: 'Soundboard', file: './tools/misc/soundboard.html' }
     ]
   }
 };
@@ -277,13 +279,21 @@ function renderAboutPage() {
         <a href="#" class="back-link reveal">${BACK_SVG}</a>
       </div>
       <div class="about-content reveal">
-        <h1 class="about-heading">Korb.Engineering</h1>
-        <p class="about-text">Tools archive.</p>
-        <img src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo">
+        <h1 class="about-heading" style="display:flex;justify-content:center;"><span style="width:80px;height:100px;color:var(--vfd-cyan);">${K_LOGO_SVG}</span></h1>
+        <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.6;opacity:0.85;">"If I have seen further, it is by standing on the shoulders of giants."</p>
+        <p class="about-text" style="opacity:0.5;font-size:0.85em;margin-top:4px;">— Isaac Newton</p>
+        <div id="about-photos" style="opacity:0;transition:opacity 1.5s ease;">
+          <img src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo">
+          <img src="./tools/misc/images/andy-and-alan.jpg" alt="Andy and Alan Korb" class="about-photo" style="margin-top:16px;">
+        </div>
       </div>
     </section>
   `;
   initReveal();
+  setTimeout(() => {
+    const photosEl = document.getElementById('about-photos');
+    if (photosEl) photosEl.style.opacity = '1';
+  }, 30000);
 }
 
 

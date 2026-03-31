@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simon | Korb Engineering</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0e14;
+    color: #c8ccd4;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 16px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #5a6a8a;
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    font-size: clamp(36px, 8vw, 56px);
+    font-weight: 800;
+    color: #00e5ff;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-shadow: 0 0 30px rgba(0, 229, 255, 0.3);
+  }
+
+  .scoreboard {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+
+  .scoreboard .label {
+    color: #5a6a8a;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin-bottom: 2px;
+  }
+
+  .scoreboard .value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #00e5ff;
+    text-align: center;
+  }
+
+  .game-container {
+    position: relative;
+    width: clamp(280px, 80vw, 400px);
+    height: clamp(280px, 80vw, 400px);
+  }
+
+  .quadrant {
+    position: absolute;
+    width: 48%;
+    height: 48%;
+    border: none;
+    cursor: pointer;
+    transition: filter 0.08s ease, transform 0.08s ease, box-shadow 0.08s ease;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .quadrant:active { transform: scale(0.97); }
+
+  .quadrant.disabled {
+    pointer-events: none;
+  }
+
+  /* Quadrant positions and shapes */
+  #q-green {
+    top: 0; left: 0;
+    background: #1b5e20;
+    border-radius: 100% 8px 8px 8px;
+  }
+  #q-green.lit {
+    background: #4caf50;
+    filter: brightness(1.6);
+    box-shadow: 0 0 40px rgba(76, 175, 80, 0.7), inset 0 0 30px rgba(255,255,255,0.15);
+  }
+
+  #q-red {
+    top: 0; right: 0;
+    background: #7f1d1d;
+    border-radius: 8px 100% 8px 8px;
+  }
+  #q-red.lit {
+    background: #ef5350;
+    filter: brightness(1.6);
+    box-shadow: 0 0 40px rgba(239, 83, 80, 0.7), inset 0 0 30px rgba(255,255,255,0.15);
+  }
+
+  #q-yellow {
+    bottom: 0; left: 0;
+    background: #6d5a00;
+    border-radius: 8px 8px 8px 100%;
+  }
+  #q-yellow.lit {
+    background: #ffee58;
+    filter: brightness(1.6);
+    box-shadow: 0 0 40px rgba(255, 238, 88, 0.7), inset 0 0 30px rgba(255,255,255,0.15);
+  }
+
+  #q-blue {
+    bottom: 0; right: 0;
+    background: #0d3b66;
+    border-radius: 8px 8px 100% 8px;
+  }
+  #q-blue.lit {
+    background: #42a5f5;
+    filter: brightness(1.6);
+    box-shadow: 0 0 40px rgba(66, 165, 245, 0.7), inset 0 0 30px rgba(255,255,255,0.15);
+  }
+
+  .center-circle {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 35%;
+    height: 35%;
+    background: #0f1318;
+    border-radius: 50%;
+    border: 3px solid #1a2030;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .center-circle .round-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #5a6a8a;
+  }
+
+  .center-circle .round-number {
+    font-size: clamp(24px, 6vw, 36px);
+    font-weight: 800;
+    color: #00e5ff;
+    line-height: 1;
+  }
+
+  .controls {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #00bcd4, #00e5ff);
+    color: #0a0e14;
+    border: none;
+    padding: 14px 48px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+
+  .btn-start:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 229, 255, 0.4);
+  }
+
+  .btn-start:active { transform: translateY(0); }
+
+  .btn-start:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .strict-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #5a6a8a;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .strict-toggle input {
+    display: none;
+  }
+
+  .toggle-track {
+    width: 40px;
+    height: 22px;
+    background: #1a2030;
+    border-radius: 11px;
+    position: relative;
+    transition: background 0.2s;
+  }
+
+  .strict-toggle input:checked + .toggle-track {
+    background: #00838f;
+  }
+
+  .toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px;
+    background: #5a6a8a;
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .strict-toggle input:checked + .toggle-track::after {
+    transform: translateX(18px);
+    background: #00e5ff;
+  }
+
+  .message {
+    margin-top: 16px;
+    font-size: 14px;
+    letter-spacing: 1px;
+    color: #ef5350;
+    min-height: 20px;
+    text-align: center;
+  }
+
+  .message.success { color: #4caf50; }
+
+  @media (max-width: 420px) {
+    .scoreboard { gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Korb Engineering</div>
+<h1>Simon</h1>
+
+<div class="scoreboard">
+  <div>
+    <div class="label">Round</div>
+    <div class="value" id="round-display">0</div>
+  </div>
+  <div>
+    <div class="label">Best</div>
+    <div class="value" id="best-display">0</div>
+  </div>
+</div>
+
+<div class="game-container">
+  <button class="quadrant disabled" id="q-green" data-index="0"></button>
+  <button class="quadrant disabled" id="q-red" data-index="1"></button>
+  <button class="quadrant disabled" id="q-yellow" data-index="2"></button>
+  <button class="quadrant disabled" id="q-blue" data-index="3"></button>
+  <div class="center-circle">
+    <span class="round-label">Round</span>
+    <span class="round-number" id="center-round">--</span>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn-start" id="btn-start">Start</button>
+  <label class="strict-toggle">
+    <input type="checkbox" id="strict-mode">
+    <span class="toggle-track"></span>
+    Strict Mode
+  </label>
+</div>
+
+<div class="message" id="message"></div>
+
+<script>
+(function() {
+  // --- Audio ---
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioCtx;
+
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  // Classic Simon frequencies: E4, C#4, A3, E3
+  const TONES = [329.63, 277.18, 220.00, 164.81];
+
+  function playTone(index, duration) {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = TONES[index];
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration / 1000);
+  }
+
+  function playBuzzer() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 90;
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.6);
+  }
+
+  function playVictoryJingle() {
+    ensureAudio();
+    const notes = [329.63, 392.00, 523.25, 659.25];
+    notes.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = audioCtx.currentTime + i * 0.15;
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.3);
+    });
+  }
+
+  // --- DOM refs ---
+  const quadrants = [
+    document.getElementById('q-green'),
+    document.getElementById('q-red'),
+    document.getElementById('q-yellow'),
+    document.getElementById('q-blue')
+  ];
+  const btnStart = document.getElementById('btn-start');
+  const roundDisplay = document.getElementById('round-display');
+  const bestDisplay = document.getElementById('best-display');
+  const centerRound = document.getElementById('center-round');
+  const msgEl = document.getElementById('message');
+  const strictCheckbox = document.getElementById('strict-mode');
+
+  // --- State ---
+  let sequence = [];
+  let playerIndex = 0;
+  let round = 0;
+  let highScore = parseInt(localStorage.getItem('simon-high-score')) || 0;
+  let playing = false;
+  let acceptingInput = false;
+
+  bestDisplay.textContent = highScore;
+
+  // --- Helpers ---
+  function getSpeed() {
+    // Starts at 600ms, gets faster
+    if (round <= 4) return 600;
+    if (round <= 8) return 500;
+    if (round <= 12) return 400;
+    if (round <= 16) return 300;
+    return 250;
+  }
+
+  function lightUp(index, duration) {
+    return new Promise(resolve => {
+      quadrants[index].classList.add('lit');
+      playTone(index, duration);
+      setTimeout(() => {
+        quadrants[index].classList.remove('lit');
+        setTimeout(resolve, 80); // gap between lights
+      }, duration);
+    });
+  }
+
+  function setMessage(text, isSuccess) {
+    msgEl.textContent = text;
+    msgEl.className = 'message' + (isSuccess ? ' success' : '');
+  }
+
+  function updateDisplays() {
+    roundDisplay.textContent = round;
+    centerRound.textContent = round || '--';
+  }
+
+  function setInputEnabled(enabled) {
+    acceptingInput = enabled;
+    quadrants.forEach(q => {
+      if (enabled) q.classList.remove('disabled');
+      else q.classList.add('disabled');
+    });
+  }
+
+  // --- Playback ---
+  async function playSequence() {
+    setInputEnabled(false);
+    setMessage('Watch...');
+    await sleep(500);
+
+    const speed = getSpeed();
+    for (let i = 0; i < sequence.length; i++) {
+      await lightUp(sequence[i], speed * 0.7);
+    }
+
+    setMessage('Your turn');
+    playerIndex = 0;
+    setInputEnabled(true);
+  }
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+
+  // --- Game flow ---
+  function nextRound() {
+    round++;
+    updateDisplays();
+    sequence.push(Math.floor(Math.random() * 4));
+    playSequence();
+  }
+
+  async function handleWrongPress() {
+    setInputEnabled(false);
+    playBuzzer();
+
+    // Flash all red briefly
+    quadrants.forEach(q => q.style.filter = 'brightness(0.3)');
+    await sleep(200);
+    quadrants.forEach(q => q.style.filter = '');
+    await sleep(300);
+
+    if (strictCheckbox.checked) {
+      gameOver();
+    } else {
+      setMessage('Wrong! Watch again...');
+      await sleep(800);
+      playSequence();
+    }
+  }
+
+  function gameOver() {
+    playing = false;
+    const finalRound = round - 1; // completed rounds
+    setMessage('Game Over! You reached round ' + round);
+
+    if (round > highScore) {
+      highScore = round;
+      localStorage.setItem('simon-high-score', highScore);
+      bestDisplay.textContent = highScore;
+      setMessage('New High Score: ' + highScore + '!', true);
+      playVictoryJingle();
+    }
+
+    btnStart.disabled = false;
+    btnStart.textContent = 'Play Again';
+    setInputEnabled(false);
+  }
+
+  async function handleCorrectPress(index) {
+    playerIndex++;
+
+    if (playerIndex === sequence.length) {
+      // Completed the round
+      setInputEnabled(false);
+
+      // Update high score live
+      if (round > highScore) {
+        highScore = round;
+        localStorage.setItem('simon-high-score', highScore);
+        bestDisplay.textContent = highScore;
+      }
+
+      setMessage('Correct!', true);
+      await sleep(800);
+      nextRound();
+    }
+  }
+
+  // --- Input handling ---
+  function onQuadrantPress(index) {
+    if (!acceptingInput) return;
+
+    // Light + tone
+    quadrants[index].classList.add('lit');
+    playTone(index, 200);
+    setTimeout(() => quadrants[index].classList.remove('lit'), 200);
+
+    if (sequence[playerIndex] === index) {
+      handleCorrectPress(index);
+    } else {
+      handleWrongPress();
+    }
+  }
+
+  // Mouse and touch
+  quadrants.forEach((q, i) => {
+    q.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      onQuadrantPress(i);
+    });
+    q.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      onQuadrantPress(i);
+    }, { passive: false });
+  });
+
+  // Keyboard support (1-4 or arrow keys)
+  document.addEventListener('keydown', (e) => {
+    if (!acceptingInput) return;
+    const map = { '1': 0, '2': 1, '3': 2, '4': 3 };
+    if (map[e.key] !== undefined) {
+      onQuadrantPress(map[e.key]);
+    }
+  });
+
+  // --- Start ---
+  btnStart.addEventListener('click', () => {
+    ensureAudio();
+    sequence = [];
+    round = 0;
+    playerIndex = 0;
+    playing = true;
+    updateDisplays();
+    setMessage('');
+    btnStart.disabled = true;
+    btnStart.textContent = 'Playing...';
+    setTimeout(nextRound, 400);
+  });
+})();
+</script>
+</body>
+</html>
