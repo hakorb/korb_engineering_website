@@ -433,7 +433,7 @@ function renderAboutPage() {
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.png" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <img id="about-photo-2" src="./tools/misc/images/Andy-and-harrison.PNG" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
           <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
         </div>
 
