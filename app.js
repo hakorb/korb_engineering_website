@@ -97,7 +97,8 @@ const SECTIONS = {
       { name: 'Simon', file: './tools/misc/simon.html' },
       { name: 'Soundboard', file: './tools/misc/soundboard.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
-      { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' }
+      { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
+      { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
     ]
   }
 };
