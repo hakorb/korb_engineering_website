@@ -424,6 +424,8 @@ function renderAboutPage() {
         <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.8;font-size:var(--text-base);color:var(--vfd-cyan);text-shadow:0 0 12px rgba(0,212,255,0.3);">"If I have seen further, it is by standing on the shoulders of giants."</p>
         <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton</p>
         <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+        <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.png" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;margin-top:16px;">
+        <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Alan and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;margin-top:16px;">
       </div>
     </section>
   `;
@@ -432,6 +434,14 @@ function renderAboutPage() {
     const p1 = document.getElementById('about-photo-1');
     if (p1) p1.style.opacity = '0.9';
   }, 10000);
+  setTimeout(() => {
+    const p2 = document.getElementById('about-photo-2');
+    if (p2) p2.style.opacity = '0.9';
+  }, 15000);
+  setTimeout(() => {
+    const p3 = document.getElementById('about-photo-3');
+    if (p3) p3.style.opacity = '0.9';
+  }, 20000);
 }
 
 
