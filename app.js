@@ -101,7 +101,8 @@ const SECTIONS = {
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
       { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' },
-      { name: 'Podcast Player', file: './tools/misc/podcast-player.html' }
+      { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
+      { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' }
     ]
   }
 };
