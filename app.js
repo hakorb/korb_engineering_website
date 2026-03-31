@@ -95,7 +95,8 @@ const SECTIONS = {
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
       { name: 'Simon', file: './tools/misc/simon.html' },
-      { name: 'Soundboard', file: './tools/misc/soundboard.html' }
+      { name: 'Soundboard', file: './tools/misc/soundboard.html' },
+      { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' }
     ]
   }
 };

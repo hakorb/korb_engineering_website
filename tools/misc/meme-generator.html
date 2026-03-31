@@ -1,0 +1,2551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KORB MEMATIC - Meme Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DSEG14+Classic:wght@400;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-primary: #050a0f;
+  --bg-secondary: #0a1219;
+  --bg-tertiary: #0f1a24;
+  --bg-panel: #0c1520;
+  --cyan: #00d4ff;
+  --cyan-dim: #007a94;
+  --cyan-glow: rgba(0,212,255,0.5);
+  --orange: #ff6600;
+  --orange-dim: #994400;
+  --orange-glow: rgba(255,102,0,0.4);
+  --text-primary: #c8dce8;
+  --text-secondary: #6a8899;
+  --text-dim: #3a5566;
+  --border: #1a2a36;
+  --border-active: #00d4ff;
+  --danger: #ff3344;
+  --success: #00ff88;
+  --font-display: 'DSEG14 Classic', monospace;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* Layout */
+#app {
+  display: grid;
+  grid-template-rows: 52px 1fr 36px;
+  grid-template-columns: 260px 1fr 280px;
+  grid-template-areas:
+    "header header header"
+    "left canvas right"
+    "footer footer footer";
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Header */
+#header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+#header h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan-glow), 0 0 20px var(--cyan-glow);
+  letter-spacing: 3px;
+}
+#header .subtitle {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: 12px;
+  letter-spacing: 1px;
+}
+.header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Panels */
+#left-panel {
+  grid-area: left;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+#right-panel {
+  grid-area: right;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+#canvas-area {
+  grid-area: canvas;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+#footer {
+  grid-area: footer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Panel sections */
+.panel-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-section-title::before {
+  content: '';
+  width: 3px;
+  height: 10px;
+  background: var(--cyan);
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+
+/* Search */
+.search-box {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  margin-bottom: 8px;
+}
+.search-box:focus { border-color: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow); }
+.search-box::placeholder { color: var(--text-dim); }
+
+/* Template grid */
+.template-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.template-thumb {
+  aspect-ratio: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.template-thumb:hover { border-color: var(--cyan); background: var(--bg-secondary); }
+.template-thumb.active { border-color: var(--orange); box-shadow: 0 0 8px var(--orange-glow); }
+.template-thumb canvas { width: 100%; height: calc(100% - 18px); border-radius: 2px; }
+.template-thumb .name {
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+/* Buttons */
+.btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.btn-primary {
+  background: rgba(0,212,255,0.1);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.btn-primary:hover { background: rgba(0,212,255,0.2); }
+.btn-orange {
+  background: rgba(255,102,0,0.1);
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.btn-orange:hover { background: rgba(255,102,0,0.2); }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: rgba(255,51,68,0.15); }
+.btn-sm { padding: 3px 8px; font-size: 10px; }
+.btn-icon {
+  width: 28px; height: 28px;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Form controls */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.form-row label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+.form-row select, .form-row input[type="text"], .form-row input[type="number"] {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  min-width: 0;
+}
+.form-row select:focus, .form-row input:focus { border-color: var(--cyan); }
+input[type="range"] {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 4px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+input[type="color"] {
+  -webkit-appearance: none;
+  width: 28px; height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  padding: 1px;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+/* Checkbox / toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.toggle-row input[type="checkbox"] { accent-color: var(--cyan); }
+
+/* Upload area */
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.upload-area:hover, .upload-area.dragover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(0,212,255,0.03);
+}
+.upload-area .icon { font-size: 24px; margin-bottom: 6px; }
+
+/* Canvas wrapper */
+#canvas-wrapper {
+  position: relative;
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  background: #222;
+}
+#main-canvas { display: block; }
+#overlay-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  cursor: default;
+}
+
+/* Text boxes on overlay */
+.text-box-handle {
+  position: absolute;
+  border: 1px dashed rgba(0,212,255,0.6);
+  cursor: move;
+  min-width: 40px;
+  min-height: 20px;
+}
+.text-box-handle.selected { border-color: var(--orange); }
+.text-box-handle .resize-handle {
+  position: absolute;
+  width: 8px; height: 8px;
+  background: var(--cyan);
+  border-radius: 50%;
+  bottom: -4px; right: -4px;
+  cursor: se-resize;
+}
+.text-box-handle .delete-handle {
+  position: absolute;
+  top: -10px; right: -10px;
+  width: 18px; height: 18px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.text-box-handle:hover .delete-handle, .text-box-handle.selected .delete-handle { opacity: 1; }
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  top: 60px; right: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--cyan);
+  border-radius: 6px;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  box-shadow: 0 0 15px var(--cyan-glow);
+  animation: toastIn 0.3s ease;
+  max-width: 300px;
+}
+.toast.success { border-color: var(--success); color: var(--success); box-shadow: 0 0 15px rgba(0,255,136,0.3); }
+.toast.error { border-color: var(--danger); color: var(--danger); box-shadow: 0 0 15px rgba(255,51,68,0.3); }
+@keyframes toastIn { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
+
+/* Emoji picker */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.emoji-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emoji-btn:hover { background: var(--bg-tertiary); border-color: var(--border); }
+
+/* Tool active */
+.btn.tool-active { background: rgba(0,212,255,0.2); border-color: var(--cyan); color: var(--cyan); }
+
+/* Footer shortcuts */
+.shortcut-hints { display: flex; gap: 12px; }
+.shortcut-hints span { color: var(--text-dim); }
+.shortcut-hints kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* Zoom controls */
+.zoom-controls { display: flex; align-items: center; gap: 6px; }
+.zoom-controls span { color: var(--text-secondary); font-size: 11px; min-width: 40px; text-align: center; }
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+}
+.modal h3 {
+  color: var(--cyan);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* Quality slider label */
+.quality-display {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 52px 1fr auto auto 36px;
+    grid-template-areas:
+      "header"
+      "canvas"
+      "left"
+      "right"
+      "footer";
+  }
+  #left-panel, #right-panel {
+    border: none;
+    border-top: 1px solid var(--border);
+    max-height: 300px;
+  }
+  .template-grid { max-height: 200px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div style="display:flex;align-items:center;">
+      <h1>KORB MEMATIC</h1>
+      <span class="subtitle">// MEME GENERATOR v2.0</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-sm" onclick="undoAction()" title="Undo (Ctrl+Z)">&#8630; Undo</button>
+      <button class="btn btn-sm" onclick="redoAction()" title="Redo (Ctrl+Y)">&#8631; Redo</button>
+    </div>
+  </div>
+
+  <!-- Left Panel -->
+  <div id="left-panel">
+    <div class="panel-section">
+      <div class="panel-section-title">Templates</div>
+      <input type="text" class="search-box" id="template-search" placeholder="Search templates..." oninput="filterTemplates()">
+      <div class="template-grid" id="template-grid"></div>
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Upload Image</div>
+      <div class="upload-area" id="upload-area">
+        <div class="icon">&#128193;</div>
+        <div>Drop image here or click to browse</div>
+        <div style="margin-top:4px;font-size:10px;color:var(--text-dim);">JPG, PNG, GIF, WebP &bull; Ctrl+V to paste</div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" style="display:none">
+    </div>
+    <div class="panel-section">
+      <div class="panel-section-title">Quick Actions</div>
+      <div class="btn-group">
+        <button class="btn btn-sm btn-primary" onclick="addTopBottomText()">+ Top/Bottom Text</button>
+        <button class="btn btn-sm" onclick="addTextBox()">+ Text Box</button>
+        <button class="btn btn-sm" onclick="clearAllText()">Clear Text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvas Area -->
+  <div id="canvas-area">
+    <div id="canvas-wrapper">
+      <canvas id="main-canvas" width="600" height="500"></canvas>
+      <canvas id="overlay-canvas" width="600" height="500"></canvas>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="right-panel">
+    <!-- Text controls -->
+    <div class="panel-section" id="text-controls-section">
+      <div class="panel-section-title">Text Controls</div>
+      <div id="no-text-msg" style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Select a text box to edit, or add one.</div>
+      <div id="text-editor" style="display:none;">
+        <div class="form-row">
+          <label>Text</label>
+          <input type="text" id="te-text" oninput="updateSelectedText()" placeholder="Enter text...">
+        </div>
+        <div class="form-row">
+          <label>Font</label>
+          <select id="te-font" onchange="updateSelectedText()">
+            <option value="Impact">Impact</option>
+            <option value="Arial">Arial</option>
+            <option value="Comic Sans MS">Comic Sans</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Courier New">Courier</option>
+            <option value="IBM Plex Mono">IBM Plex Mono</option>
+            <option value="JetBrains Mono">JetBrains Mono</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Size</label>
+          <input type="range" id="te-size" min="12" max="120" value="40" oninput="updateSelectedText()">
+          <span class="quality-display" id="te-size-val">40</span>
+        </div>
+        <div class="form-row">
+          <label>Color</label>
+          <input type="color" id="te-color" value="#ffffff" onchange="updateSelectedText()">
+          <label style="min-width:auto;">Stroke</label>
+          <input type="color" id="te-stroke" value="#000000" onchange="updateSelectedText()">
+        </div>
+        <div class="form-row">
+          <label>Stroke W</label>
+          <input type="range" id="te-stroke-w" min="0" max="10" value="3" oninput="updateSelectedText()">
+          <span class="quality-display" id="te-stroke-w-val">3</span>
+        </div>
+        <div class="form-row">
+          <label>Align</label>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-icon" onclick="setAlign('left')" title="Left">&#9664;</button>
+            <button class="btn btn-sm btn-icon" onclick="setAlign('center')" title="Center">&#9646;</button>
+            <button class="btn btn-sm btn-icon" onclick="setAlign('right')" title="Right">&#9654;</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Style</label>
+          <div class="btn-group">
+            <button class="btn btn-sm" id="te-bold" onclick="toggleBold()"><b>B</b></button>
+            <button class="btn btn-sm" id="te-italic" onclick="toggleItalic()"><i>I</i></button>
+            <button class="btn btn-sm" id="te-underline" onclick="toggleUnderline()"><u>U</u></button>
+            <button class="btn btn-sm" id="te-caps" onclick="toggleCaps()">AA</button>
+          </div>
+        </div>
+        <div class="toggle-row" onclick="toggleShadow()">
+          <input type="checkbox" id="te-shadow"> Text Shadow
+        </div>
+        <div class="toggle-row" onclick="toggleAutoSize()">
+          <input type="checkbox" id="te-autosize"> Auto-fit Width
+        </div>
+        <div style="margin-top:6px;">
+          <button class="btn btn-sm btn-danger" onclick="deleteSelectedText()">Delete Text Box</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawing tools -->
+    <div class="panel-section">
+      <div class="panel-section-title">Drawing Tools</div>
+      <div class="btn-group" style="margin-bottom:8px;">
+        <button class="btn btn-sm btn-icon" id="tool-select" onclick="setTool('select')" title="Select">&#9754;</button>
+        <button class="btn btn-sm btn-icon" id="tool-pen" onclick="setTool('pen')" title="Pen">&#9998;</button>
+        <button class="btn btn-sm btn-icon" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">&#9003;</button>
+        <button class="btn btn-sm btn-icon" id="tool-rect" onclick="setTool('rect')" title="Rectangle">&#9645;</button>
+        <button class="btn btn-sm btn-icon" id="tool-circle" onclick="setTool('circle')" title="Circle">&#9675;</button>
+        <button class="btn btn-sm btn-icon" id="tool-arrow" onclick="setTool('arrow')" title="Arrow">&#10132;</button>
+        <button class="btn btn-sm btn-icon" id="tool-line" onclick="setTool('line')" title="Line">&#9135;</button>
+      </div>
+      <div class="form-row">
+        <label>Color</label>
+        <input type="color" id="draw-color" value="#ff0000">
+      </div>
+      <div class="form-row">
+        <label>Size</label>
+        <input type="range" id="draw-size" min="1" max="30" value="4">
+        <span class="quality-display" id="draw-size-val">4</span>
+      </div>
+    </div>
+
+    <!-- Emoji/Stickers -->
+    <div class="panel-section">
+      <div class="panel-section-title">Emoji Stickers</div>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="panel-section">
+      <div class="panel-section-title">Export</div>
+      <div class="form-row">
+        <label>JPG Quality</label>
+        <input type="range" id="jpg-quality" min="10" max="100" value="92" oninput="document.getElementById('jpg-q-val').textContent=this.value+'%'">
+        <span class="quality-display" id="jpg-q-val">92%</span>
+      </div>
+      <div class="btn-group" style="margin-bottom:8px;">
+        <button class="btn btn-primary" onclick="exportPNG()">&#128190; PNG</button>
+        <button class="btn btn-orange" onclick="exportJPG()">&#128190; JPG</button>
+        <button class="btn" onclick="copyToClipboard()">&#128203; Copy</button>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-sm" onclick="shareDataURL()">&#128279; Share URL</button>
+      </div>
+      <div class="toggle-row" style="margin-top:8px;" onclick="document.getElementById('watermark-toggle').checked=!document.getElementById('watermark-toggle').checked;renderCanvas();">
+        <input type="checkbox" id="watermark-toggle"> Watermark
+      </div>
+      <div class="toggle-row" onclick="toggleCanvasBg()">
+        <input type="checkbox" id="canvas-bg-toggle"> Light Canvas BG
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    <div class="zoom-controls">
+      <button class="btn btn-sm btn-icon" onclick="zoomCanvas(-0.1)">-</button>
+      <span id="zoom-level">100%</span>
+      <button class="btn btn-sm btn-icon" onclick="zoomCanvas(0.1)">+</button>
+      <button class="btn btn-sm" onclick="zoomFit()">Fit</button>
+      <button class="btn btn-sm" onclick="zoomSet(0.5)">50%</button>
+      <button class="btn btn-sm" onclick="zoomSet(1)">100%</button>
+      <button class="btn btn-sm" onclick="zoomSet(2)">200%</button>
+    </div>
+    <div class="shortcut-hints">
+      <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> Undo</span>
+      <span><kbd>Ctrl</kbd>+<kbd>Y</kbd> Redo</span>
+      <span><kbd>Ctrl</kbd>+<kbd>S</kbd> Save</span>
+      <span><kbd>Del</kbd> Delete</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+<div class="modal-overlay hidden" id="share-modal">
+  <div class="modal">
+    <h3>Share Meme</h3>
+    <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">Copy the data URL below to share your meme:</p>
+    <textarea id="share-url-box" style="width:100%;height:80px;background:var(--bg-primary);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;border-radius:4px;padding:8px;resize:none;" readonly></textarea>
+    <div style="margin-top:12px;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="document.getElementById('share-url-box').select();document.execCommand('copy');showToast('URL copied!');">Copy URL</button>
+      <button class="btn" onclick="document.getElementById('share-modal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  currentTemplate: null,
+  customImage: null,
+  textBoxes: [],
+  selectedTextId: null,
+  drawings: [],       // completed drawing strokes/shapes
+  currentDrawing: null,
+  tool: 'select',
+  zoom: 1,
+  canvasW: 600,
+  canvasH: 500,
+  undoStack: [],
+  redoStack: [],
+  isDragging: false,
+  isResizing: false,
+  isDrawing: false,
+  dragOffset: {x:0,y:0},
+  drawStart: {x:0,y:0},
+  lightBg: false
+};
+
+let nextTextId = 1;
+
+// Canvas refs
+const mainCanvas = document.getElementById('main-canvas');
+const mainCtx = mainCanvas.getContext('2d');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const overlayCtx = overlayCanvas.getContext('2d');
+const canvasWrapper = document.getElementById('canvas-wrapper');
+
+// ============================================================
+// MEME TEMPLATES
+// ============================================================
+const templates = [
+  { id:'drake', name:'Drake', panels:2, draw: drawDrake },
+  { id:'distracted', name:'Distracted BF', panels:3, draw: drawDistracted },
+  { id:'twobuttons', name:'Two Buttons', panels:2, draw: drawTwoButtons },
+  { id:'changemymind', name:'Change My Mind', panels:1, draw: drawChangeMind },
+  { id:'expandbrain', name:'Expanding Brain', panels:4, draw: drawExpandBrain },
+  { id:'thisisfine', name:'This Is Fine', panels:1, draw: drawThisIsFine },
+  { id:'pikachu', name:'Surprised Pikachu', panels:1, draw: drawPikachu },
+  { id:'onedoesnot', name:'One Does Not Simply', panels:1, draw: drawOneDoesNot },
+  { id:'batman', name:'Batman Slaps Robin', panels:2, draw: drawBatman },
+  { id:'womancat', name:'Woman Yelling Cat', panels:2, draw: drawWomanCat },
+  { id:'stonks', name:'Stonks', panels:1, draw: drawStonks },
+  { id:'pigeon', name:'Is This a Pigeon?', panels:1, draw: drawPigeon },
+  { id:'galaxybrain', name:'Galaxy Brain', panels:4, draw: drawGalaxyBrain },
+  { id:'spiderman', name:'Pointing Spider-Man', panels:1, draw: drawSpiderman },
+  { id:'bernie', name:'Bernie Asking', panels:1, draw: drawBernie },
+  { id:'exit12', name:'Exit 12', panels:1, draw: drawExit12 },
+  { id:'blank', name:'Blank Canvas', panels:0, draw: drawBlank }
+];
+
+// ============================================================
+// TEMPLATE DRAWING FUNCTIONS
+// ============================================================
+function drawDrake(ctx, w, h) {
+  const mid = h/2;
+  // Top: disapprove
+  ctx.fillStyle = '#f5d6b8';
+  ctx.fillRect(0, 0, w/2, mid);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(w/2, 0, w/2, mid);
+  // Bottom: approve
+  ctx.fillStyle = '#f5d6b8';
+  ctx.fillRect(0, mid, w/2, mid);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(w/2, mid, w/2, mid);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, w, h);
+  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+  // Drake figure top - disapproving
+  drawStickFigure(ctx, w/4, mid/2-20, 'disapprove');
+  // Drake figure bottom - approving
+  drawStickFigure(ctx, w/4, mid+mid/2-20, 'approve');
+  // Labels
+  ctx.fillStyle = '#999';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('[your text here]', w*3/4, mid/2+5);
+  ctx.fillText('[your text here]', w*3/4, mid+mid/2+5);
+}
+
+function drawStickFigure(ctx, cx, cy, mood) {
+  ctx.save();
+  ctx.strokeStyle = '#664422';
+  ctx.lineWidth = 2;
+  ctx.fillStyle = '#d4a574';
+  // Head
+  ctx.beginPath();
+  ctx.arc(cx, cy, 18, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+  // Body
+  ctx.beginPath();
+  ctx.moveTo(cx, cy+18);
+  ctx.lineTo(cx, cy+55);
+  ctx.stroke();
+  // Arms
+  if (mood === 'disapprove') {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy+30);
+    ctx.lineTo(cx-20, cy+15);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy+30);
+    ctx.lineTo(cx+20, cy+25);
+    ctx.stroke();
+    // frown
+    ctx.beginPath();
+    ctx.arc(cx, cy+12, 6, Math.PI, 0);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy+28);
+    ctx.lineTo(cx+25, cy+15);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx+25, cy+15);
+    ctx.lineTo(cx+20, cy+5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy+28);
+    ctx.lineTo(cx-15, cy+40);
+    ctx.stroke();
+    // smile
+    ctx.beginPath();
+    ctx.arc(cx, cy+4, 6, 0, Math.PI);
+    ctx.stroke();
+  }
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(cx-6, cy-3, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+6, cy-3, 2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawDistracted(ctx, w, h) {
+  ctx.fillStyle = '#e8d8c8';
+  ctx.fillRect(0, 0, w, h);
+  // Three figures
+  const y0 = h/2;
+  // GF (left)
+  drawSimplePerson(ctx, w*0.2, y0, '#ff6688', 'F');
+  // BF (center) looking at other
+  drawSimplePerson(ctx, w*0.5, y0, '#4488ff', 'M');
+  // Other (right)
+  drawSimplePerson(ctx, w*0.8, y0, '#ff4466', 'F');
+  // Arrow showing BF looking at other
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5,3]);
+  ctx.beginPath();
+  ctx.moveTo(w*0.55, y0-20);
+  ctx.lineTo(w*0.75, y0-20);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  drawArrowHead(ctx, w*0.75, y0-20, 0);
+  // Labels
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.strokeText('GF', w*0.2, h-20);
+  ctx.fillText('GF', w*0.2, h-20);
+  ctx.strokeText('ME', w*0.5, h-20);
+  ctx.fillText('ME', w*0.5, h-20);
+  ctx.strokeText('OTHER', w*0.8, h-20);
+  ctx.fillText('OTHER', w*0.8, h-20);
+}
+
+function drawSimplePerson(ctx, cx, cy, color, gender) {
+  ctx.save();
+  ctx.fillStyle = '#f0d0b0';
+  ctx.beginPath();
+  ctx.arc(cx, cy-35, 16, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Hair
+  if (gender === 'F') {
+    ctx.fillStyle = '#553322';
+    ctx.beginPath();
+    ctx.arc(cx, cy-38, 16, Math.PI, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx-16, cy-35);
+    ctx.lineTo(cx-14, cy-10);
+    ctx.stroke();
+    ctx.moveTo(cx+16, cy-35);
+    ctx.lineTo(cx+14, cy-10);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#443322';
+    ctx.beginPath();
+    ctx.arc(cx, cy-40, 14, Math.PI, 0);
+    ctx.fill();
+  }
+  // Body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx-18, cy-18);
+  ctx.lineTo(cx+18, cy-18);
+  ctx.lineTo(cx+14, cy+25);
+  ctx.lineTo(cx-14, cy+25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(cx-5, cy-38, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+5, cy-38, 2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawArrowHead(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-8, -4);
+  ctx.lineTo(-8, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTwoButtons(ctx, w, h) {
+  ctx.fillStyle = '#d0e0f0';
+  ctx.fillRect(0, 0, w, h);
+  // Person sweating
+  ctx.fillStyle = '#f0d0b0';
+  ctx.beginPath();
+  ctx.arc(w/2, h*0.65, 30, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Sweat
+  ctx.fillStyle = '#66ccff';
+  ctx.beginPath();
+  ctx.ellipse(w/2+25, h*0.62, 4, 6, 0.3, 0, Math.PI*2);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(w/2-10, h*0.63, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w/2+10, h*0.63, 3, 0, Math.PI*2); ctx.fill();
+  // Mouth
+  ctx.beginPath();
+  ctx.arc(w/2, h*0.69, 8, 0.2, Math.PI-0.2);
+  ctx.stroke();
+  // Two buttons
+  ctx.fillStyle = '#ff4444';
+  roundRect(ctx, w*0.1, h*0.08, w*0.35, h*0.25, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#4444ff';
+  roundRect(ctx, w*0.55, h*0.08, w*0.35, h*0.25, 8);
+  ctx.fill();
+  ctx.stroke();
+  // Button text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Option A', w*0.275, h*0.22);
+  ctx.fillText('Option B', w*0.725, h*0.22);
+}
+
+function drawChangeMind(ctx, w, h) {
+  ctx.fillStyle = '#88bb66';
+  ctx.fillRect(0, 0, w, h);
+  // Table
+  ctx.fillStyle = '#885533';
+  ctx.fillRect(w*0.15, h*0.55, w*0.5, h*0.05);
+  // Table legs
+  ctx.fillRect(w*0.18, h*0.6, w*0.04, h*0.2);
+  ctx.fillRect(w*0.58, h*0.6, w*0.04, h*0.2);
+  // Sign on table
+  ctx.fillStyle = '#fff';
+  roundRect(ctx, w*0.2, h*0.25, w*0.4, h*0.28, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#333';
+  ctx.font = '13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('[your text]', w*0.4, h*0.40);
+  ctx.fillText('CHANGE MY MIND', w*0.4, h*0.48);
+  // Person sitting
+  drawSimpleSitting(ctx, w*0.65, h*0.45);
+}
+
+function drawSimpleSitting(ctx, cx, cy) {
+  ctx.fillStyle = '#f0d0b0';
+  ctx.beginPath(); ctx.arc(cx+10, cy-15, 14, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#4466aa';
+  ctx.fillRect(cx-5, cy, 30, 35);
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(cx+4, cy-18, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+16, cy-18, 2, 0, Math.PI*2); ctx.fill();
+}
+
+function drawExpandBrain(ctx, w, h) {
+  const rowH = h/4;
+  const labels = ['Small Brain', 'Normal Brain', 'Glowing Brain', 'Galaxy Brain'];
+  const glows = ['#888', '#aaa', '#ffdd44', '#ff44ff'];
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#f8f8f8' : '#eaeaea';
+    ctx.fillRect(0, i*rowH, w, rowH);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, i*rowH, w, rowH);
+    // Brain
+    const bx = w*0.2, by = i*rowH + rowH/2;
+    const bs = 12 + i*5;
+    if (i >= 2) {
+      ctx.save();
+      ctx.shadowColor = glows[i];
+      ctx.shadowBlur = 10 + i*8;
+      ctx.fillStyle = glows[i];
+      ctx.beginPath(); ctx.arc(bx, by, bs+5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#ffbbaa';
+    ctx.beginPath(); ctx.arc(bx, by, bs, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#cc8877';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Brain wrinkles
+    ctx.beginPath();
+    ctx.moveTo(bx-bs*0.3, by-bs*0.5);
+    ctx.quadraticCurveTo(bx, by-bs*0.2, bx+bs*0.3, by-bs*0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx-bs*0.4, by+bs*0.1);
+    ctx.quadraticCurveTo(bx, by+bs*0.3, bx+bs*0.4, by+bs*0.1);
+    ctx.stroke();
+    // Text area label
+    ctx.fillStyle = '#999';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('[text ' + (i+1) + ']', w*0.65, by+5);
+  }
+}
+
+function drawThisIsFine(ctx, w, h) {
+  // Room on fire
+  ctx.fillStyle = '#f5e6d0';
+  ctx.fillRect(0, 0, w, h);
+  // Flames
+  for (let i = 0; i < 15; i++) {
+    const fx = Math.random()*w, fy = h*0.2 + Math.random()*h*0.5;
+    const fs = 15 + Math.random()*30;
+    ctx.fillStyle = `hsl(${20+Math.random()*30}, 100%, ${50+Math.random()*20}%)`;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy+fs);
+    ctx.quadraticCurveTo(fx-fs/2, fy, fx, fy-fs);
+    ctx.quadraticCurveTo(fx+fs/2, fy, fx, fy+fs);
+    ctx.fill();
+  }
+  // Table
+  ctx.fillStyle = '#aa7744';
+  ctx.fillRect(w*0.2, h*0.65, w*0.35, h*0.04);
+  // Dog
+  ctx.fillStyle = '#ffcc44';
+  roundRect(ctx, w*0.3, h*0.45, 40, 30, 6);
+  ctx.fill();
+  // Dog head
+  ctx.beginPath();
+  ctx.arc(w*0.38, h*0.42, 14, 0, Math.PI*2);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(w*0.37, h*0.40, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w*0.41, h*0.40, 2, 0, Math.PI*2); ctx.fill();
+  // Smile
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(w*0.39, h*0.43, 5, 0, Math.PI); ctx.stroke();
+  // Cup
+  ctx.fillStyle = '#666';
+  ctx.fillRect(w*0.42, h*0.57, 12, 14);
+  // Hat
+  ctx.fillStyle = '#333';
+  ctx.fillRect(w*0.32, h*0.34, 20, 4);
+  ctx.fillRect(w*0.35, h*0.28, 14, 8);
+  // Speech bubble
+  ctx.fillStyle = '#fff';
+  roundRect(ctx, w*0.55, h*0.3, w*0.35, h*0.15, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, w*0.55, h*0.3, w*0.35, h*0.15, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('This is fine.', w*0.725, h*0.40);
+}
+
+function drawPikachu(ctx, w, h) {
+  ctx.fillStyle = '#f5e8d0';
+  ctx.fillRect(0, 0, w, h);
+  const cx = w/2, cy = h/2;
+  // Body
+  ctx.fillStyle = '#ffdd44';
+  ctx.beginPath(); ctx.ellipse(cx, cy+15, 55, 45, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#cc9900'; ctx.lineWidth = 2; ctx.stroke();
+  // Head
+  ctx.fillStyle = '#ffdd44';
+  ctx.beginPath(); ctx.ellipse(cx, cy-40, 45, 38, 0, 0, Math.PI*2); ctx.fill();
+  ctx.stroke();
+  // Ears
+  ctx.fillStyle = '#ffdd44';
+  ctx.beginPath();
+  ctx.moveTo(cx-30, cy-65); ctx.lineTo(cx-45, cy-110); ctx.lineTo(cx-10, cy-75);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx+30, cy-65); ctx.lineTo(cx+45, cy-110); ctx.lineTo(cx+10, cy-75);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Ear tips
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(cx-38, cy-100); ctx.lineTo(cx-45, cy-110); ctx.lineTo(cx-28, cy-90);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx+38, cy-100); ctx.lineTo(cx+45, cy-110); ctx.lineTo(cx+28, cy-90);
+  ctx.closePath(); ctx.fill();
+  // Eyes - wide open surprised
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.ellipse(cx-18, cy-45, 10, 13, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+18, cy-45, 10, 13, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(cx-20, cy-48, 4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+16, cy-48, 4, 0, Math.PI*2); ctx.fill();
+  // Cheeks
+  ctx.fillStyle = '#ff6666';
+  ctx.beginPath(); ctx.ellipse(cx-35, cy-30, 10, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+35, cy-30, 10, 7, 0, 0, Math.PI*2); ctx.fill();
+  // Surprised mouth - big O
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.ellipse(cx, cy-22, 12, 15, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#cc4444';
+  ctx.beginPath(); ctx.ellipse(cx, cy-20, 8, 10, 0, 0, Math.PI*2); ctx.fill();
+}
+
+function drawOneDoesNot(ctx, w, h) {
+  ctx.fillStyle = '#2a1a0a';
+  ctx.fillRect(0, 0, w, h);
+  // Boromir figure
+  const cx = w/2, cy = h*0.45;
+  ctx.fillStyle = '#c8a882';
+  ctx.beginPath(); ctx.arc(cx, cy-20, 28, 0, Math.PI*2); ctx.fill();
+  // Hair
+  ctx.fillStyle = '#8b6914';
+  ctx.beginPath();
+  ctx.arc(cx, cy-28, 28, Math.PI+0.3, -0.3);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(cx-10, cy-22, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+10, cy-22, 3, 0, Math.PI*2); ctx.fill();
+  // Gesture hands
+  ctx.strokeStyle = '#c8a882';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx-40, cy+30);
+  ctx.quadraticCurveTo(cx-50, cy+10, cx-40, cy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx+40, cy+30);
+  ctx.quadraticCurveTo(cx+50, cy+10, cx+40, cy);
+  ctx.stroke();
+  // Fingers pinched
+  ctx.lineWidth = 2;
+  for (let s = -1; s <= 1; s += 2) {
+    const hx = cx + s*40;
+    ctx.beginPath(); ctx.moveTo(hx, cy); ctx.lineTo(hx+s*5, cy-6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx, cy); ctx.lineTo(hx+s*7, cy-2); ctx.stroke();
+  }
+  // Body
+  ctx.fillStyle = '#555544';
+  ctx.beginPath();
+  ctx.moveTo(cx-30, cy+8); ctx.lineTo(cx+30, cy+8);
+  ctx.lineTo(cx+35, cy+60); ctx.lineTo(cx-35, cy+60);
+  ctx.closePath(); ctx.fill();
+  // Text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px Impact';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.strokeText('ONE DOES NOT SIMPLY', cx, 30);
+  ctx.fillText('ONE DOES NOT SIMPLY', cx, 30);
+  ctx.strokeText('[your text here]', cx, h-25);
+  ctx.fillText('[your text here]', cx, h-25);
+}
+
+function drawBatman(ctx, w, h) {
+  ctx.fillStyle = '#fffde8';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  // Divider
+  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+  ctx.strokeRect(0, 0, w, h);
+  // Robin (left)
+  drawSimplePerson(ctx, w*0.25, h*0.5, '#ff4444', 'M');
+  // Batman (right) with slap motion
+  drawSimplePerson(ctx, w*0.7, h*0.5, '#333333', 'M');
+  // Slap effect
+  ctx.fillStyle = '#ff0';
+  ctx.font = 'bold 24px Impact';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#f00';
+  ctx.lineWidth = 2;
+  ctx.fillText('SLAP!', w*0.48, h*0.35);
+  ctx.strokeText('SLAP!', w*0.48, h*0.35);
+  // Speech bubbles
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, w*0.05, h*0.05, w*0.35, h*0.2, 8); ctx.fill(); ctx.stroke();
+  roundRect(ctx, w*0.55, h*0.05, w*0.4, h*0.2, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#333';
+  ctx.font = '11px Arial';
+  ctx.fillText('[Robin text]', w*0.225, h*0.17);
+  ctx.fillText('[Batman text]', w*0.75, h*0.17);
+}
+
+function drawWomanCat(ctx, w, h) {
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.stroke();
+  ctx.strokeRect(0, 0, w, h);
+  // Woman yelling (left)
+  drawSimplePerson(ctx, w*0.25, h*0.5, '#ff88aa', 'F');
+  // Angry mouth
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w*0.25-8, h*0.5-30);
+  ctx.lineTo(w*0.25+8, h*0.5-30);
+  ctx.stroke();
+  // Cat (right)
+  const catX = w*0.75, catY = h*0.5;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(catX, catY, 25, 20, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.stroke();
+  // Cat ears
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(catX-15, catY-18); ctx.lineTo(catX-22, catY-38); ctx.lineTo(catX-5, catY-20);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(catX+15, catY-18); ctx.lineTo(catX+22, catY-38); ctx.lineTo(catX+5, catY-20);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Cat eyes - confused
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(catX-8, catY-5, 4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(catX+8, catY-5, 4, 0, Math.PI*2); ctx.fill();
+  // Cat nose
+  ctx.fillStyle = '#ffaaaa';
+  ctx.beginPath(); ctx.moveTo(catX, catY+2); ctx.lineTo(catX-3, catY+6); ctx.lineTo(catX+3, catY+6); ctx.closePath(); ctx.fill();
+  // Plate
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#ccc';
+  ctx.beginPath(); ctx.ellipse(catX, catY+30, 30, 8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // Salad on plate
+  ctx.fillStyle = '#66aa44';
+  ctx.beginPath(); ctx.arc(catX-5, catY+27, 6, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath(); ctx.arc(catX+8, catY+26, 4, 0, Math.PI*2); ctx.fill();
+}
+
+function drawStonks(ctx, w, h) {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, w, h);
+  // Graph line going up
+  ctx.strokeStyle = '#00ff44';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(w*0.1, h*0.8);
+  ctx.lineTo(w*0.25, h*0.7);
+  ctx.lineTo(w*0.35, h*0.72);
+  ctx.lineTo(w*0.5, h*0.55);
+  ctx.lineTo(w*0.6, h*0.45);
+  ctx.lineTo(w*0.75, h*0.25);
+  ctx.lineTo(w*0.9, h*0.1);
+  ctx.stroke();
+  // Green fill under
+  ctx.fillStyle = 'rgba(0,255,68,0.15)';
+  ctx.beginPath();
+  ctx.moveTo(w*0.1, h*0.8);
+  ctx.lineTo(w*0.25, h*0.7);
+  ctx.lineTo(w*0.35, h*0.72);
+  ctx.lineTo(w*0.5, h*0.55);
+  ctx.lineTo(w*0.6, h*0.45);
+  ctx.lineTo(w*0.75, h*0.25);
+  ctx.lineTo(w*0.9, h*0.1);
+  ctx.lineTo(w*0.9, h*0.8);
+  ctx.closePath();
+  ctx.fill();
+  // Meme man head
+  ctx.fillStyle = '#f0d0b0';
+  ctx.beginPath(); ctx.arc(w*0.3, h*0.5, 30, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(w*0.3-8, h*0.47, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w*0.3+8, h*0.47, 3, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(w*0.3, h*0.54, 10, 0, Math.PI); ctx.stroke();
+  // STONKS text
+  ctx.fillStyle = '#00ff44';
+  ctx.font = 'bold 36px Impact';
+  ctx.textAlign = 'center';
+  ctx.fillText('STONKS', w*0.65, h*0.9);
+}
+
+function drawPigeon(ctx, w, h) {
+  ctx.fillStyle = '#c8e8c8';
+  ctx.fillRect(0, 0, w, h);
+  // Person pointing
+  const px = w*0.3, py = h*0.5;
+  drawSimplePerson(ctx, px, py, '#4488cc', 'M');
+  // Arm pointing at butterfly
+  ctx.strokeStyle = '#f0d0b0';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(px+15, py-15);
+  ctx.lineTo(px+60, py-55);
+  ctx.stroke();
+  // Butterfly
+  ctx.fillStyle = '#ff88cc';
+  ctx.beginPath();
+  ctx.ellipse(w*0.65, h*0.15, 15, 10, -0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(w*0.68, h*0.18, 12, 8, 0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(w*0.665, h*0.165, 2, 0, Math.PI*2); ctx.fill();
+  // Text
+  ctx.fillStyle = '#333';
+  ctx.font = '13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Is this a [text]?', w*0.5, h-20);
+}
+
+function drawGalaxyBrain(ctx, w, h) {
+  const rowH = h/4;
+  for (let i = 0; i < 4; i++) {
+    // Gradient backgrounds
+    const grad = ctx.createLinearGradient(0, i*rowH, w, (i+1)*rowH);
+    if (i === 0) { grad.addColorStop(0, '#333'); grad.addColorStop(1, '#444'); }
+    else if (i === 1) { grad.addColorStop(0, '#224'); grad.addColorStop(1, '#336'); }
+    else if (i === 2) { grad.addColorStop(0, '#204'); grad.addColorStop(1, '#406'); }
+    else { grad.addColorStop(0, '#102'); grad.addColorStop(1, '#214'); }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, i*rowH, w, rowH);
+    // Stars for later panels
+    if (i >= 2) {
+      for (let s = 0; s < 10+i*5; s++) {
+        ctx.fillStyle = `rgba(255,255,255,${0.3+Math.random()*0.7})`;
+        ctx.beginPath();
+        ctx.arc(Math.random()*w, i*rowH+Math.random()*rowH, 1+Math.random()*1.5, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    // Brain glow
+    const bx = w*0.18, by = i*rowH+rowH/2;
+    const glow = i*12;
+    if (glow > 0) {
+      ctx.save();
+      ctx.shadowColor = ['#666','#88f','#f8f','#fff'][i];
+      ctx.shadowBlur = glow;
+      ctx.fillStyle = ['#ffccbb','#ccbbff','#ffbbff','#ffffff'][i];
+      ctx.beginPath(); ctx.arc(bx, by, 16+i*3, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#ffccbb';
+    ctx.beginPath(); ctx.arc(bx, by, 14, 0, Math.PI*2); ctx.fill();
+    // Text placeholder
+    ctx.fillStyle = '#aaa';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('[text ' + (i+1) + ']', w*0.65, by+5);
+    // Divider
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, (i+1)*rowH); ctx.lineTo(w, (i+1)*rowH); ctx.stroke();
+  }
+}
+
+function drawSpiderman(ctx, w, h) {
+  ctx.fillStyle = '#ffe8cc';
+  ctx.fillRect(0, 0, w, h);
+  // Two spiderman figures pointing at each other
+  for (let s = 0; s < 2; s++) {
+    const sx = s === 0 ? w*0.3 : w*0.7;
+    const dir = s === 0 ? 1 : -1;
+    // Body
+    ctx.fillStyle = '#cc0000';
+    ctx.beginPath(); ctx.ellipse(sx, h*0.55, 18, 30, 0, 0, Math.PI*2); ctx.fill();
+    // Head
+    ctx.fillStyle = '#cc0000';
+    ctx.beginPath(); ctx.arc(sx, h*0.35, 16, 0, Math.PI*2); ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(sx-5*dir, h*0.33, 6, 8, -0.2*dir, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx+7*dir, h*0.33, 5, 7, 0.2*dir, 0, Math.PI*2); ctx.fill();
+    // Web pattern
+    ctx.strokeStyle = '#880000';
+    ctx.lineWidth = 0.5;
+    for (let a = 0; a < 6; a++) {
+      const angle = a * Math.PI/3;
+      ctx.beginPath();
+      ctx.moveTo(sx, h*0.35);
+      ctx.lineTo(sx + Math.cos(angle)*16, h*0.35 + Math.sin(angle)*16);
+      ctx.stroke();
+    }
+    // Pointing arm
+    ctx.strokeStyle = '#cc0000';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(sx, h*0.5);
+    ctx.lineTo(sx + dir*50, h*0.42);
+    ctx.stroke();
+    // Legs
+    ctx.strokeStyle = '#0000cc';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(sx, h*0.75); ctx.lineTo(sx-12, h*0.92); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, h*0.75); ctx.lineTo(sx+12, h*0.92); ctx.stroke();
+  }
+}
+
+function drawBernie(ctx, w, h) {
+  ctx.fillStyle = '#d8e8f0';
+  ctx.fillRect(0, 0, w, h);
+  // Folding chair
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w*0.35, h*0.55); ctx.lineTo(w*0.35, h*0.85);
+  ctx.moveTo(w*0.6, h*0.55); ctx.lineTo(w*0.6, h*0.85);
+  ctx.moveTo(w*0.32, h*0.55); ctx.lineTo(w*0.63, h*0.55);
+  ctx.moveTo(w*0.32, h*0.7); ctx.lineTo(w*0.63, h*0.7);
+  ctx.stroke();
+  // Bernie sitting
+  const bx = w*0.48, by = h*0.35;
+  ctx.fillStyle = '#c8b8a0';
+  ctx.beginPath(); ctx.arc(bx, by, 18, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5; ctx.stroke();
+  // Glasses
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(bx-7, by-2, 6, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(bx+7, by-2, 6, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx-1, by-2); ctx.lineTo(bx+1, by-2); ctx.stroke();
+  // Hair
+  ctx.fillStyle = '#ddd';
+  ctx.beginPath();
+  ctx.moveTo(bx-18, by-5); ctx.quadraticCurveTo(bx-20, by-20, bx-10, by-18);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx+18, by-5); ctx.quadraticCurveTo(bx+20, by-20, bx+10, by-18);
+  ctx.stroke();
+  // Jacket
+  ctx.fillStyle = '#556b55';
+  ctx.fillRect(bx-22, by+16, 44, 40);
+  // Mittens
+  ctx.fillStyle = '#bb8844';
+  ctx.beginPath(); ctx.ellipse(bx-15, by+35, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx+15, by+35, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Arms crossed
+  ctx.strokeStyle = '#556b55';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(bx-22, by+25);
+  ctx.lineTo(bx+15, by+35);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx+22, by+25);
+  ctx.lineTo(bx-15, by+35);
+  ctx.stroke();
+  // Text
+  ctx.fillStyle = '#333';
+  ctx.font = '13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('I am once again asking', w/2, h*0.88);
+  ctx.fillText('[your text here]', w/2, h*0.94);
+}
+
+function drawExit12(ctx, w, h) {
+  ctx.fillStyle = '#888';
+  ctx.fillRect(0, 0, w, h);
+  // Road
+  ctx.fillStyle = '#444';
+  ctx.beginPath();
+  ctx.moveTo(w*0.3, h);
+  ctx.lineTo(w*0.35, h*0.3);
+  ctx.lineTo(w*0.55, h*0.3);
+  ctx.lineTo(w*0.7, h);
+  ctx.closePath();
+  ctx.fill();
+  // Road markings
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 10]);
+  ctx.beginPath();
+  ctx.moveTo(w*0.5, h);
+  ctx.lineTo(w*0.45, h*0.3);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Exit ramp
+  ctx.fillStyle = '#555';
+  ctx.beginPath();
+  ctx.moveTo(w*0.55, h*0.45);
+  ctx.quadraticCurveTo(w*0.7, h*0.35, w*0.9, h*0.3);
+  ctx.lineTo(w*0.92, h*0.38);
+  ctx.quadraticCurveTo(w*0.72, h*0.43, w*0.58, h*0.52);
+  ctx.closePath();
+  ctx.fill();
+  // Sign
+  ctx.fillStyle = '#006633';
+  roundRect(ctx, w*0.6, h*0.05, w*0.35, h*0.2, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  roundRect(ctx, w*0.62, h*0.07, w*0.31, h*0.16, 3);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('EXIT 12', w*0.775, h*0.14);
+  ctx.font = '10px Arial';
+  ctx.fillText('[exit text]', w*0.775, h*0.2);
+  // Straight sign
+  ctx.fillStyle = '#006633';
+  roundRect(ctx, w*0.1, h*0.05, w*0.3, h*0.2, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  roundRect(ctx, w*0.12, h*0.07, w*0.26, h*0.16, 3);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = '10px Arial';
+  ctx.fillText('[straight text]', w*0.25, h*0.17);
+  // Car swerving toward exit
+  ctx.fillStyle = '#cc3333';
+  ctx.save();
+  ctx.translate(w*0.52, h*0.6);
+  ctx.rotate(-0.3);
+  roundRect(ctx, -15, -8, 30, 16, 4);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBlank(ctx, w, h) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// ============================================================
+// TEMPLATE BROWSER
+// ============================================================
+function buildTemplateGrid() {
+  const grid = document.getElementById('template-grid');
+  grid.innerHTML = '';
+  const query = document.getElementById('template-search').value.toLowerCase();
+  templates.forEach(t => {
+    if (query && !t.name.toLowerCase().includes(query)) return;
+    const div = document.createElement('div');
+    div.className = 'template-thumb' + (state.currentTemplate === t.id ? ' active' : '');
+    div.onclick = () => selectTemplate(t.id);
+    const c = document.createElement('canvas');
+    c.width = 120; c.height = 100;
+    const tctx = c.getContext('2d');
+    t.draw(tctx, 120, 100);
+    div.appendChild(c);
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = t.name;
+    div.appendChild(name);
+    grid.appendChild(div);
+  });
+}
+
+function filterTemplates() { buildTemplateGrid(); }
+
+function selectTemplate(id) {
+  saveUndo();
+  state.currentTemplate = id;
+  state.customImage = null;
+  state.textBoxes = [];
+  state.drawings = [];
+  state.selectedTextId = null;
+  const t = templates.find(x => x.id === id);
+  if (t) {
+    state.canvasW = 600;
+    state.canvasH = t.panels >= 4 ? 700 : 500;
+  }
+  resizeCanvases();
+  renderCanvas();
+  renderOverlay();
+  buildTemplateGrid();
+  updateTextEditor();
+}
+
+// ============================================================
+// CANVAS MANAGEMENT
+// ============================================================
+function resizeCanvases() {
+  mainCanvas.width = state.canvasW;
+  mainCanvas.height = state.canvasH;
+  overlayCanvas.width = state.canvasW;
+  overlayCanvas.height = state.canvasH;
+  applyZoom();
+}
+
+function applyZoom() {
+  const z = state.zoom;
+  canvasWrapper.style.transform = `scale(${z})`;
+  canvasWrapper.style.transformOrigin = 'center center';
+  document.getElementById('zoom-level').textContent = Math.round(z*100) + '%';
+}
+
+function zoomCanvas(delta) {
+  state.zoom = Math.max(0.1, Math.min(5, state.zoom + delta));
+  applyZoom();
+}
+function zoomFit() {
+  const area = document.getElementById('canvas-area');
+  const zx = (area.clientWidth - 40) / state.canvasW;
+  const zy = (area.clientHeight - 40) / state.canvasH;
+  state.zoom = Math.min(zx, zy, 2);
+  applyZoom();
+}
+function zoomSet(v) { state.zoom = v; applyZoom(); }
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderCanvas() {
+  const ctx = mainCtx;
+  ctx.clearRect(0, 0, state.canvasW, state.canvasH);
+
+  // Background
+  if (state.lightBg) {
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+    // Checkerboard
+    const sz = 10;
+    ctx.fillStyle = '#ddd';
+    for (let y = 0; y < state.canvasH; y += sz*2) {
+      for (let x = 0; x < state.canvasW; x += sz*2) {
+        ctx.fillRect(x, y, sz, sz);
+        ctx.fillRect(x+sz, y+sz, sz, sz);
+      }
+    }
+  }
+
+  // Draw template or custom image
+  if (state.customImage) {
+    ctx.drawImage(state.customImage, 0, 0, state.canvasW, state.canvasH);
+  } else if (state.currentTemplate) {
+    const t = templates.find(x => x.id === state.currentTemplate);
+    if (t) t.draw(ctx, state.canvasW, state.canvasH);
+  } else {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+    ctx.fillStyle = '#555';
+    ctx.font = '18px ' + "var(--font-mono)";
+    ctx.textAlign = 'center';
+    ctx.fillText('Select a template or upload an image', state.canvasW/2, state.canvasH/2);
+  }
+
+  // Draw completed drawings
+  state.drawings.forEach(d => drawDrawingElement(ctx, d));
+
+  // Draw current in-progress drawing
+  if (state.currentDrawing) {
+    drawDrawingElement(ctx, state.currentDrawing);
+  }
+
+  // Draw text boxes
+  state.textBoxes.forEach(tb => {
+    drawTextBox(ctx, tb);
+  });
+
+  // Watermark
+  if (document.getElementById('watermark-toggle').checked) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'right';
+    ctx.strokeText('made with Korb Mematic', state.canvasW - 8, state.canvasH - 8);
+    ctx.fillText('made with Korb Mematic', state.canvasW - 8, state.canvasH - 8);
+    ctx.restore();
+  }
+}
+
+function drawTextBox(ctx, tb) {
+  ctx.save();
+  let text = tb.text || '';
+  if (tb.caps) text = text.toUpperCase();
+  if (!text) { ctx.restore(); return; }
+
+  let fontStr = '';
+  if (tb.italic) fontStr += 'italic ';
+  if (tb.bold) fontStr += 'bold ';
+
+  let fontSize = tb.fontSize;
+  if (tb.autoSize && tb.width > 0) {
+    // Auto-size: shrink to fit width
+    ctx.font = fontStr + fontSize + 'px ' + tb.fontFamily;
+    let measured = ctx.measureText(text).width;
+    while (measured > tb.width - 10 && fontSize > 8) {
+      fontSize--;
+      ctx.font = fontStr + fontSize + 'px ' + tb.fontFamily;
+      measured = ctx.measureText(text).width;
+    }
+  }
+
+  ctx.font = fontStr + fontSize + 'px ' + tb.fontFamily;
+  ctx.textAlign = tb.align;
+  ctx.textBaseline = 'top';
+
+  let tx = tb.x;
+  if (tb.align === 'center') tx = tb.x + tb.width/2;
+  else if (tb.align === 'right') tx = tb.x + tb.width;
+
+  // Word wrap
+  const lines = wrapText(ctx, text, tb.width - 10);
+  const lineHeight = fontSize * 1.2;
+  let ty = tb.y + 5;
+
+  lines.forEach((line, i) => {
+    const ly = ty + i * lineHeight;
+    // Shadow
+    if (tb.shadow) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.restore();
+    }
+    // Stroke
+    if (tb.strokeWidth > 0) {
+      ctx.strokeStyle = tb.strokeColor;
+      ctx.lineWidth = tb.strokeWidth;
+      ctx.lineJoin = 'round';
+      if (tb.shadow) {
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+      }
+      ctx.strokeText(line, tx, ly);
+      ctx.shadowColor = 'transparent';
+    }
+    // Fill
+    ctx.fillStyle = tb.color;
+    if (tb.shadow && tb.strokeWidth === 0) {
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+    }
+    ctx.fillText(line, tx, ly);
+    ctx.shadowColor = 'transparent';
+    // Underline
+    if (tb.underline) {
+      const metrics = ctx.measureText(line);
+      let ux = tx;
+      if (tb.align === 'center') ux -= metrics.width/2;
+      else if (tb.align === 'right') ux -= metrics.width;
+      ctx.beginPath();
+      ctx.moveTo(ux, ly + fontSize + 2);
+      ctx.lineTo(ux + metrics.width, ly + fontSize + 2);
+      ctx.strokeStyle = tb.color;
+      ctx.lineWidth = Math.max(1, fontSize/15);
+      ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+
+function wrapText(ctx, text, maxWidth) {
+  if (maxWidth <= 0) return [text];
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  words.forEach(word => {
+    const test = current ? current + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  });
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
+function drawDrawingElement(ctx, d) {
+  ctx.save();
+  ctx.strokeStyle = d.color;
+  ctx.fillStyle = d.color;
+  ctx.lineWidth = d.size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (d.type === 'pen' && d.points && d.points.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(d.points[0].x, d.points[0].y);
+    for (let i = 1; i < d.points.length; i++) {
+      ctx.lineTo(d.points[i].x, d.points[i].y);
+    }
+    ctx.stroke();
+  } else if (d.type === 'eraser' && d.points && d.points.length > 1) {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(d.points[0].x, d.points[0].y);
+    for (let i = 1; i < d.points.length; i++) {
+      ctx.lineTo(d.points[i].x, d.points[i].y);
+    }
+    ctx.lineWidth = d.size * 3;
+    ctx.stroke();
+  } else if (d.type === 'rect') {
+    const x = Math.min(d.x1, d.x2), y = Math.min(d.y1, d.y2);
+    const rw = Math.abs(d.x2-d.x1), rh = Math.abs(d.y2-d.y1);
+    ctx.strokeRect(x, y, rw, rh);
+  } else if (d.type === 'circle') {
+    const cx = (d.x1+d.x2)/2, cy = (d.y1+d.y2)/2;
+    const rx = Math.abs(d.x2-d.x1)/2, ry = Math.abs(d.y2-d.y1)/2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+    ctx.stroke();
+  } else if (d.type === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(d.x1, d.y1);
+    ctx.lineTo(d.x2, d.y2);
+    ctx.stroke();
+  } else if (d.type === 'arrow') {
+    ctx.beginPath();
+    ctx.moveTo(d.x1, d.y1);
+    ctx.lineTo(d.x2, d.y2);
+    ctx.stroke();
+    // Arrowhead
+    const angle = Math.atan2(d.y2-d.y1, d.x2-d.x1);
+    const headLen = Math.max(10, d.size * 3);
+    ctx.beginPath();
+    ctx.moveTo(d.x2, d.y2);
+    ctx.lineTo(d.x2 - headLen*Math.cos(angle-0.4), d.y2 - headLen*Math.sin(angle-0.4));
+    ctx.lineTo(d.x2 - headLen*Math.cos(angle+0.4), d.y2 - headLen*Math.sin(angle+0.4));
+    ctx.closePath();
+    ctx.fill();
+  } else if (d.type === 'emoji') {
+    ctx.font = d.size + 'px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(d.emoji, d.x, d.y);
+  }
+  ctx.restore();
+}
+
+// ============================================================
+// OVERLAY (selection handles)
+// ============================================================
+function renderOverlay() {
+  overlayCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+  state.textBoxes.forEach(tb => {
+    if (tb.id === state.selectedTextId) {
+      overlayCtx.strokeStyle = 'rgba(255,102,0,0.8)';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.setLineDash([5, 3]);
+      overlayCtx.strokeRect(tb.x, tb.y, tb.width, tb.height);
+      overlayCtx.setLineDash([]);
+      // Resize handle
+      overlayCtx.fillStyle = '#00d4ff';
+      overlayCtx.beginPath();
+      overlayCtx.arc(tb.x + tb.width, tb.y + tb.height, 5, 0, Math.PI*2);
+      overlayCtx.fill();
+    } else {
+      overlayCtx.strokeStyle = 'rgba(0,212,255,0.3)';
+      overlayCtx.lineWidth = 1;
+      overlayCtx.setLineDash([3, 3]);
+      overlayCtx.strokeRect(tb.x, tb.y, tb.width, tb.height);
+      overlayCtx.setLineDash([]);
+    }
+  });
+}
+
+// ============================================================
+// TEXT BOX MANAGEMENT
+// ============================================================
+function createTextBox(text, x, y, w, h, opts) {
+  return {
+    id: nextTextId++,
+    text: text || '',
+    x: x, y: y,
+    width: w || 300,
+    height: h || 60,
+    fontFamily: 'Impact',
+    fontSize: 40,
+    color: '#ffffff',
+    strokeColor: '#000000',
+    strokeWidth: 3,
+    bold: false,
+    italic: false,
+    underline: false,
+    caps: true,
+    shadow: true,
+    autoSize: false,
+    align: 'center',
+    ...opts
+  };
+}
+
+function addTextBox() {
+  saveUndo();
+  const tb = createTextBox('YOUR TEXT', state.canvasW/2-150, state.canvasH/2-30, 300, 60);
+  state.textBoxes.push(tb);
+  state.selectedTextId = tb.id;
+  renderCanvas();
+  renderOverlay();
+  updateTextEditor();
+}
+
+function addTopBottomText() {
+  saveUndo();
+  const top = createTextBox('TOP TEXT', 10, 10, state.canvasW-20, 60);
+  const bottom = createTextBox('BOTTOM TEXT', 10, state.canvasH-70, state.canvasW-20, 60);
+  state.textBoxes.push(top, bottom);
+  state.selectedTextId = top.id;
+  renderCanvas();
+  renderOverlay();
+  updateTextEditor();
+}
+
+function clearAllText() {
+  saveUndo();
+  state.textBoxes = [];
+  state.selectedTextId = null;
+  renderCanvas();
+  renderOverlay();
+  updateTextEditor();
+}
+
+function deleteSelectedText() {
+  if (!state.selectedTextId) return;
+  saveUndo();
+  state.textBoxes = state.textBoxes.filter(t => t.id !== state.selectedTextId);
+  state.selectedTextId = null;
+  renderCanvas();
+  renderOverlay();
+  updateTextEditor();
+}
+
+function getSelectedTextBox() {
+  return state.textBoxes.find(t => t.id === state.selectedTextId);
+}
+
+function updateTextEditor() {
+  const tb = getSelectedTextBox();
+  const editor = document.getElementById('text-editor');
+  const msg = document.getElementById('no-text-msg');
+  if (!tb) {
+    editor.style.display = 'none';
+    msg.style.display = 'block';
+    return;
+  }
+  editor.style.display = 'block';
+  msg.style.display = 'none';
+
+  document.getElementById('te-text').value = tb.text;
+  document.getElementById('te-font').value = tb.fontFamily;
+  document.getElementById('te-size').value = tb.fontSize;
+  document.getElementById('te-size-val').textContent = tb.fontSize;
+  document.getElementById('te-color').value = tb.color;
+  document.getElementById('te-stroke').value = tb.strokeColor;
+  document.getElementById('te-stroke-w').value = tb.strokeWidth;
+  document.getElementById('te-stroke-w-val').textContent = tb.strokeWidth;
+  document.getElementById('te-shadow').checked = tb.shadow;
+  document.getElementById('te-autosize').checked = tb.autoSize;
+
+  document.getElementById('te-bold').classList.toggle('tool-active', tb.bold);
+  document.getElementById('te-italic').classList.toggle('tool-active', tb.italic);
+  document.getElementById('te-underline').classList.toggle('tool-active', tb.underline);
+  document.getElementById('te-caps').classList.toggle('tool-active', tb.caps);
+}
+
+function updateSelectedText() {
+  const tb = getSelectedTextBox();
+  if (!tb) return;
+  tb.text = document.getElementById('te-text').value;
+  tb.fontFamily = document.getElementById('te-font').value;
+  tb.fontSize = parseInt(document.getElementById('te-size').value);
+  document.getElementById('te-size-val').textContent = tb.fontSize;
+  tb.color = document.getElementById('te-color').value;
+  tb.strokeColor = document.getElementById('te-stroke').value;
+  tb.strokeWidth = parseInt(document.getElementById('te-stroke-w').value);
+  document.getElementById('te-stroke-w-val').textContent = tb.strokeWidth;
+  renderCanvas();
+}
+
+function setAlign(a) {
+  const tb = getSelectedTextBox();
+  if (tb) { tb.align = a; renderCanvas(); }
+}
+function toggleBold() {
+  const tb = getSelectedTextBox();
+  if (tb) { tb.bold = !tb.bold; updateTextEditor(); renderCanvas(); }
+}
+function toggleItalic() {
+  const tb = getSelectedTextBox();
+  if (tb) { tb.italic = !tb.italic; updateTextEditor(); renderCanvas(); }
+}
+function toggleUnderline() {
+  const tb = getSelectedTextBox();
+  if (tb) { tb.underline = !tb.underline; updateTextEditor(); renderCanvas(); }
+}
+function toggleCaps() {
+  const tb = getSelectedTextBox();
+  if (tb) { tb.caps = !tb.caps; updateTextEditor(); renderCanvas(); }
+}
+function toggleShadow() {
+  const tb = getSelectedTextBox();
+  if (tb) {
+    tb.shadow = !document.getElementById('te-shadow').checked;
+    document.getElementById('te-shadow').checked = tb.shadow;
+    renderCanvas();
+  }
+}
+function toggleAutoSize() {
+  const tb = getSelectedTextBox();
+  if (tb) {
+    tb.autoSize = !document.getElementById('te-autosize').checked;
+    document.getElementById('te-autosize').checked = tb.autoSize;
+    renderCanvas();
+  }
+}
+
+// ============================================================
+// UNDO / REDO
+// ============================================================
+function getState() {
+  return JSON.parse(JSON.stringify({
+    textBoxes: state.textBoxes,
+    drawings: state.drawings,
+    currentTemplate: state.currentTemplate,
+    canvasW: state.canvasW,
+    canvasH: state.canvasH
+  }));
+}
+
+function restoreState(s) {
+  state.textBoxes = s.textBoxes;
+  state.drawings = s.drawings;
+  state.currentTemplate = s.currentTemplate;
+  state.canvasW = s.canvasW;
+  state.canvasH = s.canvasH;
+  state.selectedTextId = null;
+  resizeCanvases();
+  renderCanvas();
+  renderOverlay();
+  updateTextEditor();
+  buildTemplateGrid();
+}
+
+function saveUndo() {
+  state.undoStack.push(getState());
+  if (state.undoStack.length > 30) state.undoStack.shift();
+  state.redoStack = [];
+}
+
+function undoAction() {
+  if (state.undoStack.length === 0) return;
+  state.redoStack.push(getState());
+  restoreState(state.undoStack.pop());
+  showToast('Undo');
+}
+
+function redoAction() {
+  if (state.redoStack.length === 0) return;
+  state.undoStack.push(getState());
+  restoreState(state.redoStack.pop());
+  showToast('Redo');
+}
+
+// ============================================================
+// DRAWING TOOLS
+// ============================================================
+function setTool(t) {
+  state.tool = t;
+  document.querySelectorAll('[id^="tool-"]').forEach(el => el.classList.remove('tool-active'));
+  const btn = document.getElementById('tool-' + t);
+  if (btn) btn.classList.add('tool-active');
+  overlayCanvas.style.cursor = t === 'select' ? 'default' :
+    t === 'pen' ? 'crosshair' :
+    t === 'eraser' ? 'cell' : 'crosshair';
+}
+
+function getCanvasCoords(e) {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const scaleX = state.canvasW / rect.width;
+  const scaleY = state.canvasH / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY
+  };
+}
+
+// ============================================================
+// MOUSE/TOUCH EVENTS ON OVERLAY
+// ============================================================
+overlayCanvas.addEventListener('mousedown', onPointerDown);
+overlayCanvas.addEventListener('mousemove', onPointerMove);
+overlayCanvas.addEventListener('mouseup', onPointerUp);
+overlayCanvas.addEventListener('mouseleave', onPointerUp);
+
+// Touch support
+overlayCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerDown({clientX: t.clientX, clientY: t.clientY, button: 0});
+});
+overlayCanvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerMove({clientX: t.clientX, clientY: t.clientY});
+});
+overlayCanvas.addEventListener('touchend', e => { e.preventDefault(); onPointerUp({}); });
+
+function onPointerDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const pos = getCanvasCoords(e);
+
+  if (state.tool === 'select') {
+    // Check resize handle first
+    const sel = getSelectedTextBox();
+    if (sel) {
+      const hx = sel.x + sel.width, hy = sel.y + sel.height;
+      if (Math.hypot(pos.x - hx, pos.y - hy) < 10) {
+        state.isResizing = true;
+        state.dragOffset = { x: pos.x - sel.width, y: pos.y - sel.height };
+        return;
+      }
+    }
+    // Check text box click
+    let found = null;
+    for (let i = state.textBoxes.length - 1; i >= 0; i--) {
+      const tb = state.textBoxes[i];
+      if (pos.x >= tb.x && pos.x <= tb.x + tb.width && pos.y >= tb.y && pos.y <= tb.y + tb.height) {
+        found = tb;
+        break;
+      }
+    }
+    if (found) {
+      state.selectedTextId = found.id;
+      state.isDragging = true;
+      state.dragOffset = { x: pos.x - found.x, y: pos.y - found.y };
+      updateTextEditor();
+      renderOverlay();
+    } else {
+      state.selectedTextId = null;
+      state.isDragging = false;
+      updateTextEditor();
+      renderOverlay();
+    }
+  } else if (state.tool === 'pen' || state.tool === 'eraser') {
+    saveUndo();
+    state.isDrawing = true;
+    state.currentDrawing = {
+      type: state.tool,
+      color: document.getElementById('draw-color').value,
+      size: parseInt(document.getElementById('draw-size').value),
+      points: [pos]
+    };
+    renderCanvas();
+  } else if (['rect','circle','line','arrow'].includes(state.tool)) {
+    saveUndo();
+    state.isDrawing = true;
+    state.drawStart = pos;
+    state.currentDrawing = {
+      type: state.tool,
+      color: document.getElementById('draw-color').value,
+      size: parseInt(document.getElementById('draw-size').value),
+      x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y
+    };
+  }
+}
+
+function onPointerMove(e) {
+  const pos = getCanvasCoords(e);
+
+  if (state.isDragging && state.tool === 'select') {
+    const tb = getSelectedTextBox();
+    if (tb) {
+      tb.x = pos.x - state.dragOffset.x;
+      tb.y = pos.y - state.dragOffset.y;
+      renderCanvas();
+      renderOverlay();
+    }
+  } else if (state.isResizing) {
+    const tb = getSelectedTextBox();
+    if (tb) {
+      tb.width = Math.max(40, pos.x - state.dragOffset.x);
+      tb.height = Math.max(20, pos.y - state.dragOffset.y);
+      renderCanvas();
+      renderOverlay();
+    }
+  } else if (state.isDrawing && (state.tool === 'pen' || state.tool === 'eraser')) {
+    if (state.currentDrawing) {
+      state.currentDrawing.points.push(pos);
+      renderCanvas();
+    }
+  } else if (state.isDrawing && state.currentDrawing) {
+    state.currentDrawing.x2 = pos.x;
+    state.currentDrawing.y2 = pos.y;
+    renderCanvas();
+  }
+
+  // Update brush size display
+  document.getElementById('draw-size-val').textContent = document.getElementById('draw-size').value;
+}
+
+function onPointerUp(e) {
+  if (state.isDrawing && state.currentDrawing) {
+    state.drawings.push(state.currentDrawing);
+    state.currentDrawing = null;
+    renderCanvas();
+  }
+  state.isDragging = false;
+  state.isResizing = false;
+  state.isDrawing = false;
+}
+
+// ============================================================
+// IMAGE UPLOAD
+// ============================================================
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadImageFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) loadImageFile(fileInput.files[0]);
+});
+
+// Clipboard paste
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (let item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      loadImageFile(item.getAsFile());
+      return;
+    }
+  }
+});
+
+function loadImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    showToast('Invalid file type', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      saveUndo();
+      state.customImage = img;
+      state.currentTemplate = null;
+      // Fit canvas to image, max 1200px
+      let w = img.width, h = img.height;
+      if (w > 1200) { h = h * 1200/w; w = 1200; }
+      if (h > 900) { w = w * 900/h; h = 900; }
+      state.canvasW = Math.round(w);
+      state.canvasH = Math.round(h);
+      resizeCanvases();
+      renderCanvas();
+      renderOverlay();
+      buildTemplateGrid();
+      showToast('Image loaded!', 'success');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============================================================
+// EMOJI STICKERS
+// ============================================================
+const emojis = ['😀','😂','🤣','😎','🤔','😱','🤯','😤','🥺','💀','🔥','💯','👍','👎','❤️','💔','⭐','🎉','🏆','💰','🚀','💡','⚠️','❌','✅','👀','🧠','💪','🤡','😈','👻','🎵','📌','🗑️','💬','👆','👇','🐶','🐱','🦊'];
+
+function buildEmojiGrid() {
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  emojis.forEach(em => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn';
+    btn.textContent = em;
+    btn.onclick = () => addEmojiSticker(em);
+    grid.appendChild(btn);
+  });
+}
+
+function addEmojiSticker(emoji) {
+  saveUndo();
+  state.drawings.push({
+    type: 'emoji',
+    emoji: emoji,
+    x: state.canvasW/2,
+    y: state.canvasH/2,
+    size: 48,
+    color: '#000'
+  });
+  renderCanvas();
+  showToast('Emoji added! Use pen tool coords to position.');
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+function getExportCanvas() {
+  // Render at full resolution without overlay
+  const c = document.createElement('canvas');
+  c.width = state.canvasW;
+  c.height = state.canvasH;
+  const ctx = c.getContext('2d');
+
+  // Background
+  if (state.customImage) {
+    ctx.drawImage(state.customImage, 0, 0, state.canvasW, state.canvasH);
+  } else if (state.currentTemplate) {
+    const t = templates.find(x => x.id === state.currentTemplate);
+    if (t) t.draw(ctx, state.canvasW, state.canvasH);
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+  }
+
+  state.drawings.forEach(d => drawDrawingElement(ctx, d));
+  state.textBoxes.forEach(tb => drawTextBox(ctx, tb));
+
+  if (document.getElementById('watermark-toggle').checked) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'right';
+    ctx.strokeText('made with Korb Mematic', state.canvasW - 8, state.canvasH - 8);
+    ctx.fillText('made with Korb Mematic', state.canvasW - 8, state.canvasH - 8);
+    ctx.restore();
+  }
+
+  return c;
+}
+
+function exportPNG() {
+  const c = getExportCanvas();
+  const link = document.createElement('a');
+  link.download = 'korb-meme-' + Date.now() + '.png';
+  link.href = c.toDataURL('image/png');
+  link.click();
+  showToast('PNG saved!', 'success');
+  saveToRecent(link.href);
+}
+
+function exportJPG() {
+  const c = getExportCanvas();
+  const q = parseInt(document.getElementById('jpg-quality').value) / 100;
+  const link = document.createElement('a');
+  link.download = 'korb-meme-' + Date.now() + '.jpg';
+  link.href = c.toDataURL('image/jpeg', q);
+  link.click();
+  showToast('JPG saved!', 'success');
+  saveToRecent(link.href);
+}
+
+async function copyToClipboard() {
+  try {
+    const c = getExportCanvas();
+    const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    showToast('Copied to clipboard!', 'success');
+  } catch(e) {
+    showToast('Copy failed: ' + e.message, 'error');
+  }
+}
+
+function shareDataURL() {
+  const c = getExportCanvas();
+  const url = c.toDataURL('image/png');
+  document.getElementById('share-url-box').value = url;
+  document.getElementById('share-modal').classList.remove('hidden');
+}
+
+function saveToRecent(dataUrl) {
+  try {
+    let recent = JSON.parse(localStorage.getItem('korb-mematic-recent') || '[]');
+    // Only store a thumbnail-sized version
+    const thumb = document.createElement('canvas');
+    thumb.width = 120; thumb.height = 100;
+    const img = new Image();
+    img.onload = () => {
+      thumb.getContext('2d').drawImage(img, 0, 0, 120, 100);
+      recent.unshift({ thumb: thumb.toDataURL('image/jpeg', 0.5), date: Date.now() });
+      if (recent.length > 10) recent = recent.slice(0, 10);
+      localStorage.setItem('korb-mematic-recent', JSON.stringify(recent));
+    };
+    img.src = dataUrl;
+  } catch(e) {}
+}
+
+// ============================================================
+// CANVAS BG TOGGLE
+// ============================================================
+function toggleCanvasBg() {
+  state.lightBg = !state.lightBg;
+  document.getElementById('canvas-bg-toggle').checked = state.lightBg;
+  renderCanvas();
+}
+
+// ============================================================
+// TOAST NOTIFICATIONS
+// ============================================================
+function showToast(msg, type) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (type ? ' ' + type : '');
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; }, 2000);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  // Don't capture when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+    // Allow Ctrl shortcuts even in inputs
+    if (!e.ctrlKey && !e.metaKey) return;
+  }
+
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key === 'z') { e.preventDefault(); undoAction(); }
+  else if (mod && e.key === 'y') { e.preventDefault(); redoAction(); }
+  else if (mod && e.key === 's') { e.preventDefault(); exportPNG(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      deleteSelectedText();
+    }
+  }
+});
+
+// ============================================================
+// PREFERENCES (localStorage)
+// ============================================================
+function loadPreferences() {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('korb-mematic-prefs') || '{}');
+    if (prefs.zoom) state.zoom = prefs.zoom;
+    if (prefs.tool) setTool(prefs.tool);
+    if (prefs.drawColor) document.getElementById('draw-color').value = prefs.drawColor;
+    if (prefs.drawSize) document.getElementById('draw-size').value = prefs.drawSize;
+  } catch(e) {}
+}
+
+function savePreferences() {
+  try {
+    localStorage.setItem('korb-mematic-prefs', JSON.stringify({
+      zoom: state.zoom,
+      tool: state.tool,
+      drawColor: document.getElementById('draw-color').value,
+      drawSize: document.getElementById('draw-size').value
+    }));
+  } catch(e) {}
+}
+
+// Save prefs periodically
+setInterval(savePreferences, 5000);
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  buildTemplateGrid();
+  buildEmojiGrid();
+  loadPreferences();
+  setTool('select');
+  renderCanvas();
+  renderOverlay();
+  zoomFit();
+  showToast('Korb Mematic ready!', 'success');
+}
+
+init();
+</script>
+</body>
+</html>
