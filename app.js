@@ -49,7 +49,9 @@ const SECTIONS = {
       { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
       { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
-      { name: 'File Share', file: './tools/civil/file-share-tool.html' }
+      { name: 'File Share', file: './tools/civil/file-share-tool.html' },
+      { name: 'Taiga Scrum Config', file: './tools/civil/korb-taiga-config.html' },
+      { name: 'Gantt Project', file: './tools/civil/gantt-project.html' }
     ]
   },
   hk: {
@@ -98,7 +100,8 @@ const SECTIONS = {
       { name: 'Soundboard', file: './tools/misc/soundboard.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
-      { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
+      { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' },
+      { name: 'Podcast Player', file: './tools/misc/podcast-player.html' }
     ]
   }
 };
