@@ -415,6 +415,8 @@ function renderToolEmbed(key, sec, tool) {
 
 // --- About Page ---
 function renderAboutPage() {
+  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);opacity:0;transition:opacity 2s ease;margin-top:10px;text-align:center;text-shadow:0 0 8px rgba(0,212,255,0.25);';
+
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
@@ -423,26 +425,65 @@ function renderAboutPage() {
       <div class="about-content reveal">
         <h1 class="about-heading" style="display:flex;justify-content:center;"><span style="width:80px;height:100px;color:var(--vfd-cyan);">${K_LOGO_SVG}</span></h1>
         <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.8;font-size:var(--text-base);color:var(--vfd-cyan);text-shadow:0 0 12px rgba(0,212,255,0.3);">"If I have seen further, it is by standing on the shoulders of giants."</p>
-        <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton</p>
-        <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
-        <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.png" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;margin-top:16px;">
-        <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Alan and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;margin-top:16px;">
+        <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton, 1675</p>
+
+        <div style="text-align:center;">
+          <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <p id="about-name-1" style="${nameStyle}">Monte Walter Korb</p>
+        </div>
+
+        <div style="text-align:center;margin-top:16px;">
+          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.png" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
+        </div>
+
+        <div style="text-align:center;margin-top:16px;">
+          <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Alan and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <p id="about-name-3" style="${nameStyle}">Monte Alan Korb</p>
+        </div>
       </div>
+      <audio id="about-audio" autoplay loop style="display:none;"></audio>
     </section>
   `;
   initReveal();
+
+  // Invisible audio player — finds any .mp3 in images folder
+  const audioEl = document.getElementById('about-audio');
+  const mp3Candidates = ['background.mp3', 'music.mp3', 'audio.mp3', 'song.mp3', 'korb.mp3', 'about.mp3'];
+  (async function tryAudio() {
+    // Try known filenames, then fall back to a glob-like probe
+    for (const name of mp3Candidates) {
+      try {
+        const resp = await fetch('./tools/misc/images/' + name, { method: 'HEAD' });
+        if (resp.ok) {
+          audioEl.src = './tools/misc/images/' + name;
+          audioEl.volume = 0.3;
+          audioEl.play().catch(() => {});
+          return;
+        }
+      } catch(e) {}
+    }
+  })();
+
+  // Staggered photo + name reveal
   setTimeout(() => {
     const p1 = document.getElementById('about-photo-1');
+    const n1 = document.getElementById('about-name-1');
     if (p1) p1.style.opacity = '0.9';
-  }, 10000);
+    if (n1) n1.style.opacity = '0.85';
+  }, 5000);
   setTimeout(() => {
     const p2 = document.getElementById('about-photo-2');
+    const n2 = document.getElementById('about-name-2');
     if (p2) p2.style.opacity = '0.9';
-  }, 15000);
+    if (n2) n2.style.opacity = '0.85';
+  }, 10000);
   setTimeout(() => {
     const p3 = document.getElementById('about-photo-3');
+    const n3 = document.getElementById('about-name-3');
     if (p3) p3.style.opacity = '0.9';
-  }, 20000);
+    if (n3) n3.style.opacity = '0.85';
+  }, 15000);
 }
 
 
