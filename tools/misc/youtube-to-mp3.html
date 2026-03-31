@@ -909,117 +909,47 @@ body::before {
     isConverting = true;
 
     const url = urlInput.value.trim();
+    const ytdlpCmd = `yt-dlp -x --audio-format mp3 "${url}"`;
     convertBtn.classList.add('loading');
     hideStatus();
 
+    // Add to history
+    addToHistory(url, currentVideoId);
+
+    // Show conversion options
+    showStatus(`
+      <strong style="color:var(--cyan);font-size:15px;">Choose your download method:</strong>
+      <ul class="fallback-options" style="margin-top:12px;">
+        <li style="margin-bottom:16px;">
+          <strong style="color:var(--green);">Option 1 — Web Converter</strong><br>
+          <span style="color:var(--text-dim);font-size:12px;">Opens cobalt.tools — paste your URL and download as MP3</span><br>
+          <a href="https://cobalt.tools/" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;padding:8px 20px;background:rgba(0,212,255,0.15);border:1px solid var(--cyan);border-radius:4px;color:var(--cyan);text-decoration:none;font-weight:600;letter-spacing:0.05em;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,212,255,0.25)'" onmouseout="this.style.background='rgba(0,212,255,0.15)'">OPEN COBALT.TOOLS &rarr;</a>
+          <br><span style="color:var(--text-dim);font-size:11px;margin-top:6px;display:inline-block;">URL copied to clipboard — just paste it there</span>
+        </li>
+        <li style="margin-bottom:16px;">
+          <strong style="color:var(--orange);">Option 2 — Terminal (best quality)</strong><br>
+          <span style="color:var(--text-dim);font-size:12px;">Run this command locally for highest quality MP3:</span><br>
+          <code onclick="copyText(this)" title="Click to copy" style="margin-top:8px;display:block;">${escapeHtml(ytdlpCmd)}</code>
+          <span class="copy-toast">Copied!</span>
+        </li>
+        <li>
+          <span style="color:var(--text-dim);font-size:11px;">Don't have yt-dlp? Install it:</span><br>
+          <code onclick="copyText(this)" title="Click to copy" style="font-size:12px;">brew install yt-dlp ffmpeg</code>
+          <span class="copy-toast">Copied!</span>
+        </li>
+      </ul>
+    `, 'success');
+
+    // Copy URL to clipboard for easy pasting into cobalt
     try {
-      const body = {
-        url: url,
-        downloadMode: 'audio',
-        audioFormat: 'mp3'
-      };
-
-      // cobalt API supports audioBitrate for specific quality
-      if (selectedQuality !== 'best') {
-        body.audioBitrate = selectedQuality;
-      }
-
-      const resp = await fetch('https://api.cobalt.tools/', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => null);
-        throw { type: 'api', status: resp.status, data: errData };
-      }
-
-      const data = await resp.json();
-
-      if (data.status === 'error' || data.status === 'rate-limit') {
-        throw { type: 'api', status: resp.status, data };
-      }
-
-      // cobalt returns a URL in data.url for direct downloads
-      if (data.url) {
-        addToHistory(url, currentVideoId);
-        showStatus('Download starting...', 'success');
-        toast('Download initiated!', 'success');
-        window.open(data.url, '_blank');
-      } else if (data.status === 'redirect' || data.status === 'stream' || data.status === 'tunnel') {
-        const dlUrl = data.url || data.audio;
-        if (dlUrl) {
-          addToHistory(url, currentVideoId);
-          showStatus('Download starting...', 'success');
-          toast('Download initiated!', 'success');
-          window.open(dlUrl, '_blank');
-        } else {
-          throw { type: 'no_url', data };
-        }
-      } else {
-        throw { type: 'unknown', data };
-      }
-
-    } catch (err) {
-      handleConversionError(err, url);
-    } finally {
-      isConverting = false;
-      convertBtn.classList.remove('loading');
+      await navigator.clipboard.writeText(url);
+      toast('URL copied to clipboard!', 'success');
+    } catch(e) {
+      // clipboard may not be available
     }
-  }
 
-  function handleConversionError(err, url) {
-    const ytdlpCmd = `yt-dlp -x --audio-format mp3 "${url}"`;
-    const cobaltDirect = `https://cobalt.tools/`;
-
-    if (err instanceof TypeError && err.message.includes('fetch')) {
-      // CORS or network error
-      showStatus(`
-        <strong>Browser blocked the request (CORS)</strong><br>
-        Browsers restrict direct API calls to cobalt.tools from other websites. Here are your options:
-        <ul class="fallback-options">
-          <li><a href="${cobaltDirect}" target="_blank" rel="noopener">Open cobalt.tools</a> and paste your URL there</li>
-          <li>Copy this command and run it in your terminal:<br>
-            <code onclick="copyText(this)" title="Click to copy">${escapeHtml(ytdlpCmd)}</code>
-            <span class="copy-toast" id="copy-toast-cmd">Copied!</span>
-          </li>
-          <li>Install yt-dlp: <code onclick="copyText(this)" title="Click to copy">brew install yt-dlp ffmpeg</code>
-            <span class="copy-toast">Copied!</span>
-          </li>
-        </ul>
-      `, 'error');
-    } else if (err.type === 'api') {
-      const msg = err.data?.error?.code || err.data?.text || `API returned status ${err.status}`;
-      showStatus(`
-        <strong>API Error:</strong> ${escapeHtml(String(msg))}<br>
-        <ul class="fallback-options">
-          <li><a href="${cobaltDirect}" target="_blank" rel="noopener">Try cobalt.tools directly</a></li>
-          <li>Terminal command:<br>
-            <code onclick="copyText(this)" title="Click to copy">${escapeHtml(ytdlpCmd)}</code>
-            <span class="copy-toast">Copied!</span>
-          </li>
-        </ul>
-      `, 'error');
-    } else {
-      showStatus(`
-        <strong>Something went wrong</strong><br>
-        <ul class="fallback-options">
-          <li><a href="${cobaltDirect}" target="_blank" rel="noopener">Use cobalt.tools directly</a></li>
-          <li>Terminal command:<br>
-            <code onclick="copyText(this)" title="Click to copy">${escapeHtml(ytdlpCmd)}</code>
-            <span class="copy-toast">Copied!</span>
-          </li>
-          <li>Install yt-dlp: <code onclick="copyText(this)" title="Click to copy">brew install yt-dlp ffmpeg</code>
-            <span class="copy-toast">Copied!</span>
-          </li>
-        </ul>
-      `, 'error');
-    }
-    toast('Conversion failed — see fallback options', 'error');
+    isConverting = false;
+    convertBtn.classList.remove('loading');
   }
 
   // --- Copy helper (exposed globally for inline onclick) ---
