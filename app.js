@@ -478,17 +478,17 @@ function renderAboutPage() {
 
         <div style="text-align:center;">
           <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte Walter Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
-          <p id="about-name-1" style="${nameStyle}">Monte Walter Korb</p>
+          <p id="about-name-1" style="${nameStyle};display:none;">Monte Walter Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
           <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
-          <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
+          <p id="about-name-2" style="${nameStyle};display:none;">Andrew Douglas Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
           <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Monte Alan Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
-          <p id="about-name-3" style="${nameStyle}">Monte Alan Korb</p>
+          <p id="about-name-3" style="${nameStyle};display:none;">Monte Alan Korb</p>
         </div>
 
         <div id="company-history" style="opacity:0;transition:opacity 2.5s ease;max-width:640px;margin:48px auto 0;text-align:left;">
@@ -552,31 +552,33 @@ function renderAboutPage() {
     }
   })();
 
-  // Staggered photo + name reveal (name fades in 1s after its photo)
+  // Staggered photo + name reveal — names stay hidden until photo is visible
+  function revealName(nameId) {
+    const n = document.getElementById(nameId);
+    if (n) { n.style.display = 'block'; requestAnimationFrame(() => { n.style.opacity = '0.85'; }); }
+  }
+
+  // Photo 1: reveal at 5s, name only after photo is showing
   setTimeout(() => {
     const p1 = document.getElementById('about-photo-1');
     if (p1) p1.style.opacity = '0.9';
+    setTimeout(() => revealName('about-name-1'), 1000);
   }, 5000);
-  setTimeout(() => {
-    const n1 = document.getElementById('about-name-1');
-    if (n1) n1.style.opacity = '0.85';
-  }, 6000);
+
+  // Photo 2: reveal at 10s
   setTimeout(() => {
     const p2 = document.getElementById('about-photo-2');
     if (p2) p2.style.opacity = '0.9';
+    setTimeout(() => revealName('about-name-2'), 1000);
   }, 10000);
-  setTimeout(() => {
-    const n2 = document.getElementById('about-name-2');
-    if (n2) n2.style.opacity = '0.85';
-  }, 11000);
+
+  // Photo 3: reveal at 15s
   setTimeout(() => {
     const p3 = document.getElementById('about-photo-3');
     if (p3) p3.style.opacity = '0.9';
+    setTimeout(() => revealName('about-name-3'), 1000);
   }, 15000);
-  setTimeout(() => {
-    const n3 = document.getElementById('about-name-3');
-    if (n3) n3.style.opacity = '0.85';
-  }, 16000);
+
   // Company history fades in after all photos revealed
   setTimeout(() => {
     const history = document.getElementById('company-history');
