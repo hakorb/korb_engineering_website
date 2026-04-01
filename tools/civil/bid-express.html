@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bid Express - Korb Engineering</title>
+<title>Online Bidder - Korb Engineering</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -33,6 +33,9 @@ input,select,button,textarea{font-family:var(--font)}
 .btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 16px;font-size:12px;cursor:pointer;transition:all .2s;letter-spacing:0.03em}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
 .btn-primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.btn-primary:hover{background:#00b8d9;color:#000}
+.btn-danger{background:none;border:1px solid var(--red);color:var(--red)}
+.btn-danger:hover{background:var(--red);color:#000}
 .btn-outline{background:none;border:1px solid var(--border);color:var(--text)}
 .btn-sm{padding:4px 10px;font-size:10px}
 .row{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap}
@@ -52,6 +55,24 @@ input,select,button,textarea{font-family:var(--font)}
 .cal-day:hover{background:var(--bg2)}
 .cal-day.has-bid{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2)}
 .cal-day.today{border:1px solid var(--accent)}
+.status-draft{background:rgba(107,114,128,0.15);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)}
+.status-published{background:rgba(0,212,255,0.1);color:var(--accent);border:1px solid rgba(0,212,255,0.3)}
+.status-accepting{background:rgba(0,255,136,0.1);color:var(--green);border:1px solid rgba(0,255,136,0.3)}
+.status-closed{background:rgba(255,51,68,0.1);color:var(--red);border:1px solid rgba(255,51,68,0.3)}
+.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg2)}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(0,212,255,0.03)}
+.file-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;font-size:11px}
+.file-item .file-name{color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-item .file-size{color:var(--textDim);margin:0 12px;flex-shrink:0}
+.file-item .file-remove{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px}
+.req-tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;font-size:10px;margin:3px}
+.req-tag .remove-req{background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0;margin-left:4px}
+.project-card{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:all .2s}
+.project-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:28px;max-width:700px;width:90%;max-height:85vh;overflow-y:auto}
+.checkbox-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;cursor:pointer}
+.checkbox-row input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
 @media(max-width:768px){
 .header{flex-wrap:wrap;height:auto;padding:8px 12px}
 .htitle{font-size:13px}.hsub{display:none}
@@ -67,25 +88,60 @@ input,select,button,textarea{font-family:var(--font)}
 <div class="header">
   <div class="logo-box"><span>KE</span></div>
   <div class="htitle">KORB ENGINEERING</div>
-  <div class="hsub">Bid Express</div>
+  <div class="hsub">Online Bidder</div>
   <div style="flex:1"></div>
   <button class="btn btn-sm" onclick="resetDemo()">Reset Demo</button>
 </div>
 <div class="tabs" id="tabs"></div>
 <div class="container" id="app"></div>
+<div id="modal-root"></div>
 <div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
 
 <script>
 const LS_KEY='korb_bids';
 const LS_BM='korb_bids_bookmarks';
+const LS_PROJECTS='korb_uploaded_projects';
+const IDB_NAME='korb_online_bidder';
+const IDB_STORE='documents';
+const IDB_VERSION=1;
 const CATEGORIES=['highway','bridge','airport','utility','transit','general'];
 const CAT_COLORS={highway:'#f59e0b',bridge:'#8b5cf6',airport:'#06b6d4',utility:'#10b981',transit:'#ec4899',general:'#6b7280'};
 const STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR'];
+const PROJECT_STATUSES=['draft','published','accepting','closed'];
+const STATUS_LABELS={draft:'Draft',published:'Published',accepting:'Accepting Bids',closed:'Closed'};
+const STATUS_COLORS={draft:'#6b7280',published:'#00d4ff',accepting:'#00ff88',closed:'#ff3344'};
+const BID_REQUIREMENTS=['Performance Bond','Payment Bond','Bid Bond','DBE/MBE/WBE Goal','General Liability Insurance','Professional Liability Insurance','Workers Comp Insurance','Licensed Contractor Required','Pre-Qualification Required','E-Verify Compliance','Drug-Free Workplace','Safety Plan Required','OSHA 30-Hour Certification','Quality Control Plan'];
 
 const fmt$=v=>'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
 const fmtDate=d=>{if(!d)return'\u2014';return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})};
 const daysUntil=d=>{if(!d)return Infinity;return Math.ceil((new Date(d)-new Date())/86400000)};
+const fmtSize=bytes=>{if(bytes<1024)return bytes+' B';if(bytes<1048576)return(bytes/1024).toFixed(1)+' KB';return(bytes/1048576).toFixed(1)+' MB'};
 
+// --- IndexedDB helpers ---
+let dbInstance=null;
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(dbInstance){resolve(dbInstance);return}
+    const req=indexedDB.open(IDB_NAME,IDB_VERSION);
+    req.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains(IDB_STORE)){db.createObjectStore(IDB_STORE,{keyPath:'id'})}};
+    req.onsuccess=e=>{dbInstance=e.target.result;resolve(dbInstance)};
+    req.onerror=e=>reject(e.target.error);
+  });
+}
+function idbPut(doc){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).put(doc);tx.oncomplete=()=>res();tx.onerror=e=>rej(e.target.error)}))}
+function idbGet(id){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readonly');const req=tx.objectStore(IDB_STORE).get(id);req.onsuccess=()=>res(req.result);req.onerror=e=>rej(e.target.error)}))}
+function idbDelete(id){return openDB().then(db=>new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.objectStore(IDB_STORE).delete(id);tx.oncomplete=()=>res();tx.onerror=e=>rej(e.target.error)}))}
+function idbGetAllByProject(projectId){
+  return openDB().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readonly');
+    const store=tx.objectStore(IDB_STORE);
+    const req=store.getAll();
+    req.onsuccess=()=>res((req.result||[]).filter(d=>d.projectId===projectId));
+    req.onerror=e=>rej(e.target.error);
+  }));
+}
+
+// --- Demo bids ---
 function generateDemoBids(){
   const now=new Date();
   const d=off=>{const dt=new Date(now);dt.setDate(dt.getDate()+off);return dt.toISOString().slice(0,10)};
@@ -105,14 +161,24 @@ function generateDemoBids(){
   ];
 }
 
-let bids=[],bookmarks=[],selectedBid=null,searchTerm='',filterState='',filterCategory='',filterMinValue='',filterMaxValue='',filterDeadlineDays='',activeTab='active',calMonth=new Date().getMonth(),calYear=new Date().getFullYear(),newBid={name:'',agency:'',state:'',category:'general',deadline:'',estimatedValue:'',scopeOfWork:'',dbeRequirement:'',preBidMeeting:'',bondingRequirements:'',contactName:'',contactEmail:'',contactPhone:'',documents:''};
+// --- State ---
+let bids=[],bookmarks=[],projects=[],selectedBid=null,searchTerm='',filterState='',filterCategory='',filterMinValue='',filterMaxValue='',filterDeadlineDays='',activeTab='active',calMonth=new Date().getMonth(),calYear=new Date().getFullYear();
+let newBid={name:'',agency:'',state:'',category:'general',deadline:'',estimatedValue:'',scopeOfWork:'',dbeRequirement:'',preBidMeeting:'',bondingRequirements:'',contactName:'',contactEmail:'',contactPhone:'',documents:''};
+let newProject={name:'',description:'',state:'',category:'general',estimatedBudget:'',deadline:'',status:'draft',requirements:[],customRequirement:''};
+let pendingDocs=[];
+let pendingPhotos=[];
+let editingProject=null;
+let viewingProjectId=null;
 
+// --- Data load/save ---
 function loadData(){
   try{const s=localStorage.getItem(LS_KEY);if(s)bids=JSON.parse(s);else{bids=generateDemoBids();localStorage.setItem(LS_KEY,JSON.stringify(bids))}}catch(e){bids=generateDemoBids()}
   try{const b=localStorage.getItem(LS_BM);if(b)bookmarks=JSON.parse(b);else bookmarks=[]}catch(e){bookmarks=[]}
+  try{const p=localStorage.getItem(LS_PROJECTS);if(p)projects=JSON.parse(p);else projects=[]}catch(e){projects=[]}
 }
 function saveBids(){localStorage.setItem(LS_KEY,JSON.stringify(bids))}
 function saveBM(){localStorage.setItem(LS_BM,JSON.stringify(bookmarks))}
+function saveProjects(){localStorage.setItem(LS_PROJECTS,JSON.stringify(projects))}
 function resetDemo(){bids=generateDemoBids();bookmarks=[];selectedBid=null;saveBids();saveBM();render()}
 function toggleBookmark(id,ev){if(ev)ev.stopPropagation();const i=bookmarks.indexOf(id);if(i>=0)bookmarks.splice(i,1);else bookmarks.push(id);saveBM();render()}
 
@@ -133,105 +199,118 @@ function deadlineClass(d){const days=daysUntil(d);if(days<0)return'deadline-urge
 function deadlineText(d){const days=daysUntil(d);if(days<0)return'EXPIRED';if(days===0)return'TODAY';if(days===1)return'TOMORROW';return days+' days'}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
+// --- Tabs ---
 function renderTabs(){
-  const tabs=[{id:'active',label:'Active Bids'},{id:'my-bids',label:`My Bids (${bookmarks.length})`},{id:'calendar',label:'Calendar'},{id:'stats',label:'Statistics'},{id:'create',label:'+ New Bid'}];
-  document.getElementById('tabs').innerHTML=tabs.map(t=>`<button class="tab ${activeTab===t.id?'active':''}" onclick="activeTab='${t.id}';selectedBid=null;render()">${t.label}</button>`).join('');
+  const tabs=[
+    {id:'active',label:'Active Bids'},
+    {id:'my-bids',label:'My Bids ('+bookmarks.length+')'},
+    {id:'calendar',label:'Calendar'},
+    {id:'stats',label:'Statistics'},
+    {id:'create',label:'+ New Bid'},
+    {id:'upload',label:'Upload Project'},
+    {id:'my-projects',label:'My Projects ('+projects.length+')'}
+  ];
+  document.getElementById('tabs').innerHTML=tabs.map(t=>'<button class="tab '+(activeTab===t.id?'active':'')+'" onclick="activeTab=\''+t.id+'\';selectedBid=null;viewingProjectId=null;render()">'+t.label+'</button>').join('');
 }
 
+// --- Bid cards & detail (unchanged) ---
 function renderBidCard(b){
   const days=daysUntil(b.deadline);
   const isBM=bookmarks.includes(b.id);
-  return`<div class="card ${selectedBid===b.id?'selected':''}" onclick="selectedBid='${b.id}';render()">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-      <div style="flex:1">
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-          <span class="badge" style="background:${CAT_COLORS[b.category]}22;color:${CAT_COLORS[b.category]};border:1px solid ${CAT_COLORS[b.category]}44">${b.category}</span>
-          <span style="font-size:10px;color:var(--textDim)">${b.state}</span>
-          <span style="font-size:10px" class="${deadlineClass(b.deadline)}">${deadlineText(b.deadline)}</span>
-        </div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(b.name)}</div>
-        <div style="font-size:11px;color:var(--textDim);margin-bottom:4px">${esc(b.agency)}</div>
-        <div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap">
-          <span style="color:var(--green)">${fmt$(b.estimatedValue)}</span>
-          <span style="color:var(--textDim)">Due: ${fmtDate(b.deadline)}</span>
-        </div>
-      </div>
-      <button class="bookmark-btn" onclick="toggleBookmark('${b.id}',event)" title="${isBM?'Remove bookmark':'Bookmark'}">${isBM?'\u2605':'\u2606'}</button>
-    </div>
-  </div>`;
+  return'<div class="card '+(selectedBid===b.id?'selected':'')+'" onclick="selectedBid=\''+b.id+'\';render()">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+      '<div style="flex:1">'+
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'+
+          '<span class="badge" style="background:'+CAT_COLORS[b.category]+'22;color:'+CAT_COLORS[b.category]+';border:1px solid '+CAT_COLORS[b.category]+'44">'+b.category+'</span>'+
+          '<span style="font-size:10px;color:var(--textDim)">'+b.state+'</span>'+
+          '<span style="font-size:10px" class="'+deadlineClass(b.deadline)+'">'+deadlineText(b.deadline)+'</span>'+
+        '</div>'+
+        '<div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)">'+esc(b.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--textDim);margin-bottom:4px">'+esc(b.agency)+'</div>'+
+        '<div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap">'+
+          '<span style="color:var(--green)">'+fmt$(b.estimatedValue)+'</span>'+
+          '<span style="color:var(--textDim)">Due: '+fmtDate(b.deadline)+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<button class="bookmark-btn" onclick="toggleBookmark(\''+b.id+'\',event)" title="'+(isBM?'Remove bookmark':'Bookmark')+'">'+(isBM?'\u2605':'\u2606')+'</button>'+
+    '</div>'+
+  '</div>';
 }
 
 function renderBidDetail(b){
   if(!b)return'';
   const isBM=bookmarks.includes(b.id);
-  return`<div class="detail-panel">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-          <span class="badge" style="background:${CAT_COLORS[b.category]}22;color:${CAT_COLORS[b.category]};border:1px solid ${CAT_COLORS[b.category]}44">${b.category}</span>
-          <span style="font-size:10px;color:var(--textDim)">${b.state}</span>
-          <span style="font-size:11px;font-weight:700" class="${deadlineClass(b.deadline)}">${deadlineText(b.deadline)} remaining</span>
-        </div>
-        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">${esc(b.name)}</div>
-        <div style="font-size:12px;color:var(--textDim)">${esc(b.agency)}</div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-sm" onclick="toggleBookmark('${b.id}')">${isBM?'\u2605 Bookmarked':'\u2606 Bookmark'}</button>
-        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="archiveBid('${b.id}')">Archive</button>
-      </div>
-    </div>
-    <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
-      <div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Estimated Value</div><div style="font-size:20px;font-weight:700;color:var(--green)">${fmt$(b.estimatedValue)}</div></div>
-      <div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Deadline</div><div style="font-size:14px;font-weight:700;color:var(--text)">${fmtDate(b.deadline)}</div></div>
-      <div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Pre-Bid Meeting</div><div style="font-size:14px;font-weight:700;color:var(--text)">${fmtDate(b.preBidMeeting)}</div></div>
-    </div>
-    <div class="detail-section"><div class="detail-title">Scope of Work</div><div style="font-size:12px;line-height:1.6;color:var(--text)">${esc(b.scopeOfWork)}</div></div>
-    <div class="detail-section"><div class="detail-title">Requirements</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px">
-        <div><span style="color:var(--textDim)">DBE Requirement:</span> <span style="color:var(--accent)">${esc(b.dbeRequirement)}</span></div>
-        <div><span style="color:var(--textDim)">Bonding:</span> <span style="color:var(--text)">${esc(b.bondingRequirements)}</span></div>
-      </div>
-    </div>
-    <div class="detail-section"><div class="detail-title">Contact</div>
-      <div style="font-size:11px;line-height:1.8">
-        <div>${esc(b.contactName)}</div>
-        <div style="color:var(--accent)">${esc(b.contactEmail)}</div>
-        <div style="color:var(--textDim)">${esc(b.contactPhone)}</div>
-      </div>
-    </div>
-    <div class="detail-section"><div class="detail-title">Documents</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${(b.documents||[]).map(d=>`<span style="background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:4px;font-size:10px">${esc(d)}</span>`).join('')}</div>
-    </div>
-    <div style="font-size:9px;color:var(--textMuted);margin-top:12px">Posted: ${fmtDate(b.postedDate)} | ID: ${b.id}</div>
-  </div>`;
+  return'<div class="detail-panel">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
+      '<div>'+
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+          '<span class="badge" style="background:'+CAT_COLORS[b.category]+'22;color:'+CAT_COLORS[b.category]+';border:1px solid '+CAT_COLORS[b.category]+'44">'+b.category+'</span>'+
+          '<span style="font-size:10px;color:var(--textDim)">'+b.state+'</span>'+
+          '<span style="font-size:11px;font-weight:700" class="'+deadlineClass(b.deadline)+'">'+deadlineText(b.deadline)+' remaining</span>'+
+        '</div>'+
+        '<div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">'+esc(b.name)+'</div>'+
+        '<div style="font-size:12px;color:var(--textDim)">'+esc(b.agency)+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="btn btn-sm" onclick="toggleBookmark(\''+b.id+'\')">'+(isBM?'\u2605 Bookmarked':'\u2606 Bookmark')+'</button>'+
+        '<button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="archiveBid(\''+b.id+'\')">Archive</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">'+
+      '<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Estimated Value</div><div style="font-size:20px;font-weight:700;color:var(--green)">'+fmt$(b.estimatedValue)+'</div></div>'+
+      '<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Deadline</div><div style="font-size:14px;font-weight:700;color:var(--text)">'+fmtDate(b.deadline)+'</div></div>'+
+      '<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Pre-Bid Meeting</div><div style="font-size:14px;font-weight:700;color:var(--text)">'+fmtDate(b.preBidMeeting)+'</div></div>'+
+    '</div>'+
+    '<div class="detail-section"><div class="detail-title">Scope of Work</div><div style="font-size:12px;line-height:1.6;color:var(--text)">'+esc(b.scopeOfWork)+'</div></div>'+
+    '<div class="detail-section"><div class="detail-title">Requirements</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px">'+
+        '<div><span style="color:var(--textDim)">DBE Requirement:</span> <span style="color:var(--accent)">'+esc(b.dbeRequirement)+'</span></div>'+
+        '<div><span style="color:var(--textDim)">Bonding:</span> <span style="color:var(--text)">'+esc(b.bondingRequirements)+'</span></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="detail-section"><div class="detail-title">Contact</div>'+
+      '<div style="font-size:11px;line-height:1.8">'+
+        '<div>'+esc(b.contactName)+'</div>'+
+        '<div style="color:var(--accent)">'+esc(b.contactEmail)+'</div>'+
+        '<div style="color:var(--textDim)">'+esc(b.contactPhone)+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="detail-section"><div class="detail-title">Documents</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+(b.documents||[]).map(function(d){return'<span style="background:var(--bg2);border:1px solid var(--border);padding:4px 10px;border-radius:4px;font-size:10px">'+esc(d)+'</span>'}).join('')+'</div>'+
+    '</div>'+
+    '<div style="font-size:9px;color:var(--textMuted);margin-top:12px">Posted: '+fmtDate(b.postedDate)+' | ID: '+b.id+'</div>'+
+  '</div>';
 }
 
+// --- Active Bids ---
 function renderActiveBids(){
   const filtered=getFilteredBids();
-  const sel=bids.find(b=>b.id===selectedBid);
-  return`<div class="filter-bar">
-    <input class="input" style="max-width:250px" placeholder="Search bids..." value="${esc(searchTerm)}" oninput="searchTerm=this.value;render()">
-    <select class="select" onchange="filterState=this.value;render()"><option value="">All States</option>${STATES.map(s=>`<option value="${s}" ${filterState===s?'selected':''}>${s}</option>`).join('')}</select>
-    <select class="select" onchange="filterCategory=this.value;render()"><option value="">All Categories</option>${CATEGORIES.map(c=>`<option value="${c}" ${filterCategory===c?'selected':''}>${c}</option>`).join('')}</select>
-    <select class="select" onchange="filterDeadlineDays=this.value;render()"><option value="">Any Deadline</option><option value="7" ${filterDeadlineDays==='7'?'selected':''}>Next 7 days</option><option value="14" ${filterDeadlineDays==='14'?'selected':''}>Next 14 days</option><option value="30" ${filterDeadlineDays==='30'?'selected':''}>Next 30 days</option></select>
-    <span style="font-size:10px;color:var(--textDim)">${filtered.length} results</span>
-  </div>
-  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-    <div style="flex:1;min-width:300px">${filtered.length?filtered.map(b=>renderBidCard(b)).join(''):'<div style="text-align:center;padding:40px;color:var(--textDim)">No bids match your filters</div>'}</div>
-    ${sel?`<div style="flex:1;min-width:350px;position:sticky;top:68px">${renderBidDetail(sel)}</div>`:''}
-  </div>`;
+  const sel=bids.find(function(b){return b.id===selectedBid});
+  return'<div class="filter-bar">'+
+    '<input class="input" style="max-width:250px" placeholder="Search bids..." value="'+esc(searchTerm)+'" oninput="searchTerm=this.value;render()">'+
+    '<select class="select" onchange="filterState=this.value;render()"><option value="">All States</option>'+STATES.map(function(s){return'<option value="'+s+'" '+(filterState===s?'selected':'')+'>'+s+'</option>'}).join('')+'</select>'+
+    '<select class="select" onchange="filterCategory=this.value;render()"><option value="">All Categories</option>'+CATEGORIES.map(function(c){return'<option value="'+c+'" '+(filterCategory===c?'selected':'')+'>'+c+'</option>'}).join('')+'</select>'+
+    '<select class="select" onchange="filterDeadlineDays=this.value;render()"><option value="">Any Deadline</option><option value="7" '+(filterDeadlineDays==='7'?'selected':'')+'>Next 7 days</option><option value="14" '+(filterDeadlineDays==='14'?'selected':'')+'>Next 14 days</option><option value="30" '+(filterDeadlineDays==='30'?'selected':'')+'>Next 30 days</option></select>'+
+    '<span style="font-size:10px;color:var(--textDim)">'+filtered.length+' results</span>'+
+  '</div>'+
+  '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">'+
+    '<div style="flex:1;min-width:300px">'+(filtered.length?filtered.map(function(b){return renderBidCard(b)}).join(''):'<div style="text-align:center;padding:40px;color:var(--textDim)">No bids match your filters</div>')+'</div>'+
+    (sel?'<div style="flex:1;min-width:350px;position:sticky;top:68px">'+renderBidDetail(sel)+'</div>':'')+
+  '</div>';
 }
 
+// --- My Bids (bookmarked) ---
 function renderMyBids(){
-  const myBids=bids.filter(b=>bookmarks.includes(b.id));
-  const sel=bids.find(b=>b.id===selectedBid);
-  return`<div style="margin-bottom:16px;font-size:12px;color:var(--textDim)">Bookmarked bids for tracking (${myBids.length})</div>
-  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-    <div style="flex:1;min-width:300px">${myBids.length?myBids.map(b=>renderBidCard(b)).join(''):'<div style="text-align:center;padding:40px;color:var(--textDim)">No bookmarked bids. Click the star icon on any bid to bookmark it.</div>'}</div>
-    ${sel?`<div style="flex:1;min-width:350px;position:sticky;top:68px">${renderBidDetail(sel)}</div>`:''}
-  </div>`;
+  const myBids=bids.filter(function(b){return bookmarks.includes(b.id)});
+  const sel=bids.find(function(b){return b.id===selectedBid});
+  return'<div style="margin-bottom:16px;font-size:12px;color:var(--textDim)">Bookmarked bids for tracking ('+myBids.length+')</div>'+
+  '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">'+
+    '<div style="flex:1;min-width:300px">'+(myBids.length?myBids.map(function(b){return renderBidCard(b)}).join(''):'<div style="text-align:center;padding:40px;color:var(--textDim)">No bookmarked bids. Click the star icon on any bid to bookmark it.</div>')+'</div>'+
+    (sel?'<div style="flex:1;min-width:350px;position:sticky;top:68px">'+renderBidDetail(sel)+'</div>':'')+
+  '</div>';
 }
 
+// --- Calendar ---
 function renderCalendar(){
   const first=new Date(calYear,calMonth,1);
   const startDay=first.getDay();
@@ -239,7 +318,7 @@ function renderCalendar(){
   const today=new Date();
   const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const bidsByDay={};
-  bids.filter(b=>b.status==='active').forEach(b=>{
+  bids.filter(function(b){return b.status==='active'}).forEach(function(b){
     const dd=new Date(b.deadline);
     if(dd.getMonth()===calMonth&&dd.getFullYear()===calYear){
       const day=dd.getDate();
@@ -248,101 +327,633 @@ function renderCalendar(){
     }
   });
   let cells='';
-  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>{cells+=`<div class="cal-cell cal-header">${d}</div>`});
-  for(let i=0;i<startDay;i++)cells+=`<div class="cal-cell"></div>`;
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(function(d){cells+='<div class="cal-cell cal-header">'+d+'</div>'});
+  for(let i=0;i<startDay;i++)cells+='<div class="cal-cell"></div>';
   for(let d=1;d<=daysInMonth;d++){
     const isToday=d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
     const hasBid=bidsByDay[d];
-    cells+=`<div class="cal-cell cal-day ${isToday?'today':''} ${hasBid?'has-bid':''}" ${hasBid?`onclick="selectedBid='${hasBid[0].id}';render()"`:''}>
-      <div style="font-weight:${isToday?'700':'400'};color:${isToday?'var(--accent)':'var(--text)'}">${d}</div>
-      ${hasBid?hasBid.map(b=>`<div style="font-size:7px;color:${CAT_COLORS[b.category]};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${esc(b.name).slice(0,15)}</div>`).join(''):''}
-    </div>`;
+    cells+='<div class="cal-cell cal-day '+(isToday?'today':'')+' '+(hasBid?'has-bid':'')+'" '+(hasBid?'onclick="selectedBid=\''+hasBid[0].id+'\';render()"':'')+'>'+
+      '<div style="font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'var(--accent)':'var(--text)')+'">'+d+'</div>'+
+      (hasBid?hasBid.map(function(b){return'<div style="font-size:7px;color:'+CAT_COLORS[b.category]+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">'+esc(b.name).slice(0,15)+'</div>'}).join(''):'')+'</div>';
   }
-  const sel=bids.find(b=>b.id===selectedBid);
-  return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <button class="btn btn-sm" onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--};render()">&larr; Prev</button>
-    <div style="font-size:16px;font-weight:700;color:var(--accent)">${monthNames[calMonth]} ${calYear}</div>
-    <button class="btn btn-sm" onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++};render()">Next &rarr;</button>
-  </div>
-  <div style="display:flex;gap:16px;flex-wrap:wrap">
-    <div style="flex:2;min-width:300px"><div class="cal-grid">${cells}</div></div>
-    ${sel?`<div style="flex:1;min-width:300px">${renderBidDetail(sel)}</div>`:''}
-  </div>`;
+  const sel=bids.find(function(b){return b.id===selectedBid});
+  return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
+    '<button class="btn btn-sm" onclick="calMonth--;if(calMonth<0){calMonth=11;calYear--};render()">&larr; Prev</button>'+
+    '<div style="font-size:16px;font-weight:700;color:var(--accent)">'+monthNames[calMonth]+' '+calYear+'</div>'+
+    '<button class="btn btn-sm" onclick="calMonth++;if(calMonth>11){calMonth=0;calYear++};render()">Next &rarr;</button>'+
+  '</div>'+
+  '<div style="display:flex;gap:16px;flex-wrap:wrap">'+
+    '<div style="flex:2;min-width:300px"><div class="cal-grid">'+cells+'</div></div>'+
+    (sel?'<div style="flex:1;min-width:300px">'+renderBidDetail(sel)+'</div>':'')+
+  '</div>';
 }
 
+// --- Stats ---
 function renderStats(){
-  const active=bids.filter(b=>b.status==='active');
-  const closingSoon=active.filter(b=>{const d=daysUntil(b.deadline);return d>=0&&d<=7}).length;
-  const totalValue=active.reduce((s,b)=>s+(Number(b.estimatedValue)||0),0);
+  const active=bids.filter(function(b){return b.status==='active'});
+  const closingSoon=active.filter(function(b){const d=daysUntil(b.deadline);return d>=0&&d<=7}).length;
+  const totalValue=active.reduce(function(s,b){return s+(Number(b.estimatedValue)||0)},0);
   const avgValue=active.length?totalValue/active.length:0;
-  const byCat={};CATEGORIES.forEach(c=>{byCat[c]=active.filter(b=>b.category===c).length});
-  const byState={};active.forEach(b=>{byState[b.state]=(byState[b.state]||0)+1});
-  const topStates=Object.entries(byState).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const maxCat=Math.max(...Object.values(byCat),1);
-  return`<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-    <div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Active Bids</div><div style="font-size:28px;font-weight:700;color:var(--accent)">${active.length}</div></div>
-    <div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Closing This Week</div><div style="font-size:28px;font-weight:700;color:var(--red)">${closingSoon}</div></div>
-    <div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Total Pipeline Value</div><div style="font-size:28px;font-weight:700;color:var(--green)">${fmt$(totalValue)}</div></div>
-    <div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Avg Bid Value</div><div style="font-size:28px;font-weight:700;color:var(--text)">${fmt$(avgValue)}</div></div>
-    <div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Bookmarked</div><div style="font-size:28px;font-weight:700;color:var(--yellow)">${bookmarks.length}</div></div>
-  </div>
-  <div style="display:flex;gap:16px;flex-wrap:wrap">
-    <div style="flex:1;min-width:300px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:20px">
-      <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">Bids by Category</div>
-      ${CATEGORIES.map(c=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <div style="width:70px;font-size:10px;text-transform:capitalize;color:${CAT_COLORS[c]}">${c}</div>
-        <div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${(byCat[c]/maxCat)*100}%;background:${CAT_COLORS[c]};border-radius:3px;transition:width .3s"></div></div>
-        <div style="width:24px;text-align:right;font-size:11px;font-weight:700">${byCat[c]}</div>
-      </div>`).join('')}
-    </div>
-    <div style="flex:1;min-width:300px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:20px">
-      <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">Top States</div>
-      ${topStates.map(([st,cnt])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px"><span>${st}</span><span style="font-weight:700">${cnt}</span></div>`).join('')}
-    </div>
-  </div>`;
+  const byCat={};CATEGORIES.forEach(function(c){byCat[c]=active.filter(function(b){return b.category===c}).length});
+  const byState={};active.forEach(function(b){byState[b.state]=(byState[b.state]||0)+1});
+  const topStates=Object.entries(byState).sort(function(a,b){return b[1]-a[1]}).slice(0,8);
+  const maxCat=Math.max.apply(null,Object.values(byCat).concat([1]));
+  return'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">'+
+    '<div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Active Bids</div><div style="font-size:28px;font-weight:700;color:var(--accent)">'+active.length+'</div></div>'+
+    '<div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Closing This Week</div><div style="font-size:28px;font-weight:700;color:var(--red)">'+closingSoon+'</div></div>'+
+    '<div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Total Pipeline Value</div><div style="font-size:28px;font-weight:700;color:var(--green)">'+fmt$(totalValue)+'</div></div>'+
+    '<div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Avg Bid Value</div><div style="font-size:28px;font-weight:700;color:var(--text)">'+fmt$(avgValue)+'</div></div>'+
+    '<div class="stat-card"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Bookmarked</div><div style="font-size:28px;font-weight:700;color:var(--yellow)">'+bookmarks.length+'</div></div>'+
+  '</div>'+
+  '<div style="display:flex;gap:16px;flex-wrap:wrap">'+
+    '<div style="flex:1;min-width:300px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:20px">'+
+      '<div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">Bids by Category</div>'+
+      CATEGORIES.map(function(c){return'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<div style="width:70px;font-size:10px;text-transform:capitalize;color:'+CAT_COLORS[c]+'">'+c+'</div>'+
+        '<div style="flex:1;height:16px;background:var(--bg2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+(byCat[c]/maxCat)*100+'%;background:'+CAT_COLORS[c]+';border-radius:3px;transition:width .3s"></div></div>'+
+        '<div style="width:24px;text-align:right;font-size:11px;font-weight:700">'+byCat[c]+'</div>'+
+      '</div>'}).join('')+
+    '</div>'+
+    '<div style="flex:1;min-width:300px;background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:20px">'+
+      '<div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:12px">Top States</div>'+
+      topStates.map(function(entry){return'<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px"><span>'+entry[0]+'</span><span style="font-weight:700">'+entry[1]+'</span></div>'}).join('')+
+    '</div>'+
+  '</div>';
 }
 
+// --- Create Bid (existing) ---
 function renderCreateBid(){
-  return`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:800px">
-    <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px">Create New Bid</div>
-    <div class="row"><div class="field"><div class="label">Project Name *</div><input class="input" value="${esc(newBid.name)}" oninput="newBid.name=this.value"></div></div>
-    <div class="row"><div class="field"><div class="label">Agency *</div><input class="input" value="${esc(newBid.agency)}" oninput="newBid.agency=this.value"></div></div>
-    <div class="row">
-      <div class="field"><div class="label">State</div><select class="select" style="width:100%" onchange="newBid.state=this.value"><option value="">Select</option>${STATES.map(s=>`<option value="${s}" ${newBid.state===s?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><div class="label">Category</div><select class="select" style="width:100%" onchange="newBid.category=this.value">${CATEGORIES.map(c=>`<option value="${c}" ${newBid.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
-    </div>
-    <div class="row">
-      <div class="field"><div class="label">Deadline *</div><input class="input" type="date" value="${newBid.deadline}" onchange="newBid.deadline=this.value"></div>
-      <div class="field"><div class="label">Estimated Value ($)</div><input class="input" type="number" value="${newBid.estimatedValue}" oninput="newBid.estimatedValue=this.value"></div>
-    </div>
-    <div class="row"><div class="field"><div class="label">Scope of Work</div><textarea class="textarea" oninput="newBid.scopeOfWork=this.value">${esc(newBid.scopeOfWork)}</textarea></div></div>
-    <div class="row">
-      <div class="field"><div class="label">DBE Requirement</div><input class="input" value="${esc(newBid.dbeRequirement)}" oninput="newBid.dbeRequirement=this.value"></div>
-      <div class="field"><div class="label">Pre-Bid Meeting</div><input class="input" type="date" value="${newBid.preBidMeeting}" onchange="newBid.preBidMeeting=this.value"></div>
-    </div>
-    <div class="row"><div class="field"><div class="label">Bonding Requirements</div><input class="input" value="${esc(newBid.bondingRequirements)}" oninput="newBid.bondingRequirements=this.value"></div></div>
-    <div class="row">
-      <div class="field"><div class="label">Contact Name</div><input class="input" value="${esc(newBid.contactName)}" oninput="newBid.contactName=this.value"></div>
-      <div class="field"><div class="label">Email</div><input class="input" value="${esc(newBid.contactEmail)}" oninput="newBid.contactEmail=this.value"></div>
-      <div class="field"><div class="label">Phone</div><input class="input" value="${esc(newBid.contactPhone)}" oninput="newBid.contactPhone=this.value"></div>
-    </div>
-    <div class="row"><div class="field"><div class="label">Documents (comma-separated)</div><input class="input" value="${esc(newBid.documents)}" oninput="newBid.documents=this.value"></div></div>
-    <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-primary" onclick="createBid()">Create Bid</button>
-      <button class="btn" onclick="newBid={name:'',agency:'',state:'',category:'general',deadline:'',estimatedValue:'',scopeOfWork:'',dbeRequirement:'',preBidMeeting:'',bondingRequirements:'',contactName:'',contactEmail:'',contactPhone:'',documents:''};render()">Clear</button>
-    </div>
-  </div>`;
+  return'<div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:800px">'+
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px">Create New Bid</div>'+
+    '<div class="row"><div class="field"><div class="label">Project Name *</div><input class="input" value="'+esc(newBid.name)+'" oninput="newBid.name=this.value"></div></div>'+
+    '<div class="row"><div class="field"><div class="label">Agency *</div><input class="input" value="'+esc(newBid.agency)+'" oninput="newBid.agency=this.value"></div></div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">State</div><select class="select" style="width:100%" onchange="newBid.state=this.value"><option value="">Select</option>'+STATES.map(function(s){return'<option value="'+s+'" '+(newBid.state===s?'selected':'')+'>'+s+'</option>'}).join('')+'</select></div>'+
+      '<div class="field"><div class="label">Category</div><select class="select" style="width:100%" onchange="newBid.category=this.value">'+CATEGORIES.map(function(c){return'<option value="'+c+'" '+(newBid.category===c?'selected':'')+'>'+c+'</option>'}).join('')+'</select></div>'+
+    '</div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">Deadline *</div><input class="input" type="date" value="'+newBid.deadline+'" onchange="newBid.deadline=this.value"></div>'+
+      '<div class="field"><div class="label">Estimated Value ($)</div><input class="input" type="number" value="'+newBid.estimatedValue+'" oninput="newBid.estimatedValue=this.value"></div>'+
+    '</div>'+
+    '<div class="row"><div class="field"><div class="label">Scope of Work</div><textarea class="textarea" oninput="newBid.scopeOfWork=this.value">'+esc(newBid.scopeOfWork)+'</textarea></div></div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">DBE Requirement</div><input class="input" value="'+esc(newBid.dbeRequirement)+'" oninput="newBid.dbeRequirement=this.value"></div>'+
+      '<div class="field"><div class="label">Pre-Bid Meeting</div><input class="input" type="date" value="'+newBid.preBidMeeting+'" onchange="newBid.preBidMeeting=this.value"></div>'+
+    '</div>'+
+    '<div class="row"><div class="field"><div class="label">Bonding Requirements</div><input class="input" value="'+esc(newBid.bondingRequirements)+'" oninput="newBid.bondingRequirements=this.value"></div></div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">Contact Name</div><input class="input" value="'+esc(newBid.contactName)+'" oninput="newBid.contactName=this.value"></div>'+
+      '<div class="field"><div class="label">Email</div><input class="input" value="'+esc(newBid.contactEmail)+'" oninput="newBid.contactEmail=this.value"></div>'+
+      '<div class="field"><div class="label">Phone</div><input class="input" value="'+esc(newBid.contactPhone)+'" oninput="newBid.contactPhone=this.value"></div>'+
+    '</div>'+
+    '<div class="row"><div class="field"><div class="label">Documents (comma-separated)</div><input class="input" value="'+esc(newBid.documents)+'" oninput="newBid.documents=this.value"></div></div>'+
+    '<div style="margin-top:16px;display:flex;gap:8px">'+
+      '<button class="btn btn-primary" onclick="createBid()">Create Bid</button>'+
+      '<button class="btn" onclick="newBid={name:\'\',agency:\'\',state:\'\',category:\'general\',deadline:\'\',estimatedValue:\'\',scopeOfWork:\'\',dbeRequirement:\'\',preBidMeeting:\'\',bondingRequirements:\'\',contactName:\'\',contactEmail:\'\',contactPhone:\'\',documents:\'\'};render()">Clear</button>'+
+    '</div>'+
+  '</div>';
 }
 
 function createBid(){
   if(!newBid.name||!newBid.agency||!newBid.deadline)return alert('Name, Agency, and Deadline are required.');
-  const bid={...newBid,id:'BID-'+Date.now(),estimatedValue:Number(newBid.estimatedValue)||0,documents:newBid.documents?newBid.documents.split(',').map(d=>d.trim()).filter(Boolean):[],postedDate:new Date().toISOString().slice(0,10),status:'active'};
+  const bid={...newBid,id:'BID-'+Date.now(),estimatedValue:Number(newBid.estimatedValue)||0,documents:newBid.documents?newBid.documents.split(',').map(function(d){return d.trim()}).filter(Boolean):[],postedDate:new Date().toISOString().slice(0,10),status:'active'};
   bids.unshift(bid);saveBids();
   newBid={name:'',agency:'',state:'',category:'general',deadline:'',estimatedValue:'',scopeOfWork:'',dbeRequirement:'',preBidMeeting:'',bondingRequirements:'',contactName:'',contactEmail:'',contactPhone:'',documents:''};
   activeTab='active';render();
 }
-function archiveBid(id){const b=bids.find(b=>b.id===id);if(b){b.status='archived';selectedBid=null;saveBids();render()}}
+function archiveBid(id){const b=bids.find(function(b){return b.id===id});if(b){b.status='archived';selectedBid=null;saveBids();render()}}
 
+// =============================================
+// UPLOAD PROJECT TAB
+// =============================================
+
+function toggleRequirement(req){
+  const idx=newProject.requirements.indexOf(req);
+  if(idx>=0)newProject.requirements.splice(idx,1);
+  else newProject.requirements.push(req);
+  render();
+}
+
+function addCustomRequirement(){
+  const val=newProject.customRequirement.trim();
+  if(val&&!newProject.requirements.includes(val)){
+    newProject.requirements.push(val);
+    newProject.customRequirement='';
+  }
+  render();
+}
+
+function removeRequirement(req){
+  const idx=newProject.requirements.indexOf(req);
+  if(idx>=0)newProject.requirements.splice(idx,1);
+  render();
+}
+
+function handleDocUpload(ev){
+  const files=ev.target.files;
+  for(let i=0;i<files.length;i++){
+    pendingDocs.push(files[i]);
+  }
+  render();
+}
+
+function handlePhotoUpload(ev){
+  const files=ev.target.files;
+  for(let i=0;i<files.length;i++){
+    pendingPhotos.push(files[i]);
+  }
+  render();
+}
+
+function removePendingDoc(idx){
+  pendingDocs.splice(idx,1);
+  render();
+}
+
+function removePendingPhoto(idx){
+  pendingPhotos.splice(idx,1);
+  render();
+}
+
+function renderUploadProject(){
+  const p=newProject;
+  const selectedReqsHtml=p.requirements.length?
+    '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">'+p.requirements.map(function(r){return'<span class="req-tag">'+esc(r)+'<button class="remove-req" onclick="removeRequirement(\''+esc(r).replace(/'/g,"\\'")+'\')">&times;</button></span>'}).join('')+'</div>':'';
+
+  const docsHtml=pendingDocs.length?
+    pendingDocs.map(function(f,i){return'<div class="file-item"><span class="file-name">'+esc(f.name)+'</span><span class="file-size">'+fmtSize(f.size)+'</span><button class="file-remove" onclick="removePendingDoc('+i+')">&times;</button></div>'}).join(''):'';
+
+  const photosHtml=pendingPhotos.length?
+    pendingPhotos.map(function(f,i){return'<div class="file-item"><span class="file-name">'+esc(f.name)+'</span><span class="file-size">'+fmtSize(f.size)+'</span><button class="file-remove" onclick="removePendingPhoto('+i+')">&times;</button></div>'}).join(''):'';
+
+  return'<div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:900px">'+
+    '<div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Upload Project</div>'+
+    '<div style="font-size:11px;color:var(--textDim);margin-bottom:20px">Create a project to solicit bids from contractors. Documents are stored locally in your browser.</div>'+
+
+    '<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)">PROJECT DETAILS</div>'+
+    '<div class="row"><div class="field"><div class="label">Project Name *</div><input class="input" value="'+esc(p.name)+'" oninput="newProject.name=this.value"></div></div>'+
+    '<div class="row"><div class="field"><div class="label">Description *</div><textarea class="textarea" style="min-height:100px" oninput="newProject.description=this.value">'+esc(p.description)+'</textarea></div></div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">Location (State) *</div><select class="select" style="width:100%" onchange="newProject.state=this.value"><option value="">Select State</option>'+STATES.map(function(s){return'<option value="'+s+'" '+(p.state===s?'selected':'')+'>'+s+'</option>'}).join('')+'</select></div>'+
+      '<div class="field"><div class="label">Category</div><select class="select" style="width:100%" onchange="newProject.category=this.value">'+CATEGORIES.map(function(c){return'<option value="'+c+'" '+(p.category===c?'selected':'')+'>'+c+'</option>'}).join('')+'</select></div>'+
+    '</div>'+
+    '<div class="row">'+
+      '<div class="field"><div class="label">Estimated Budget ($)</div><input class="input" type="number" value="'+p.estimatedBudget+'" oninput="newProject.estimatedBudget=this.value"></div>'+
+      '<div class="field"><div class="label">Deadline *</div><input class="input" type="date" value="'+p.deadline+'" onchange="newProject.deadline=this.value"></div>'+
+    '</div>'+
+    '<div class="row"><div class="field"><div class="label">Project Status</div><select class="select" style="width:100%" onchange="newProject.status=this.value">'+PROJECT_STATUSES.map(function(s){return'<option value="'+s+'" '+(p.status===s?'selected':'')+'>'+STATUS_LABELS[s]+'</option>'}).join('')+'</select></div></div>'+
+
+    '<div style="font-size:12px;font-weight:600;color:var(--accent);margin:20px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)">BID REQUIREMENTS</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;margin-bottom:12px">'+
+      BID_REQUIREMENTS.map(function(r){
+        const checked=p.requirements.includes(r);
+        return'<label class="checkbox-row"><input type="checkbox" '+(checked?'checked':'')+' onchange="toggleRequirement(\''+r.replace(/'/g,"\\'")+'\')">' +r+'</label>';
+      }).join('')+
+    '</div>'+
+    '<div class="row" style="align-items:flex-end">'+
+      '<div class="field"><div class="label">Custom Requirement</div><input class="input" placeholder="e.g., SWPPP Required" value="'+esc(p.customRequirement)+'" oninput="newProject.customRequirement=this.value" onkeydown="if(event.key===\'Enter\'){addCustomRequirement()}"></div>'+
+      '<div><button class="btn btn-sm" onclick="addCustomRequirement()" style="margin-bottom:1px">+ Add</button></div>'+
+    '</div>'+
+    selectedReqsHtml+
+
+    '<div style="font-size:12px;font-weight:600;color:var(--accent);margin:20px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)">PROJECT DOCUMENTS</div>'+
+    '<div style="margin-bottom:12px;font-size:11px;color:var(--textDim)">Upload plans, specifications, reports, and other bid documents.</div>'+
+    '<div class="upload-zone" onclick="document.getElementById(\'doc-input\').click()" ondragover="event.preventDefault();this.classList.add(\'dragover\')" ondragleave="this.classList.remove(\'dragover\')" ondrop="event.preventDefault();this.classList.remove(\'dragover\');handleDocDrop(event)">'+
+      '<div style="font-size:24px;color:var(--textDim);margin-bottom:8px">&#128196;</div>'+
+      '<div style="font-size:12px;color:var(--textDim)">Click to browse or drag & drop files</div>'+
+      '<div style="font-size:10px;color:var(--textMuted);margin-top:4px">PDF, DWG, DXF, DOC, XLS, ZIP, etc.</div>'+
+    '</div>'+
+    '<input type="file" id="doc-input" multiple style="display:none" onchange="handleDocUpload(event)">'+
+    (docsHtml?'<div style="margin-top:10px">'+docsHtml+'</div>':'')+
+
+    '<div style="font-size:12px;font-weight:600;color:var(--accent);margin:20px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)">PHOTOS / IMAGES</div>'+
+    '<div class="upload-zone" onclick="document.getElementById(\'photo-input\').click()" ondragover="event.preventDefault();this.classList.add(\'dragover\')" ondragleave="this.classList.remove(\'dragover\')" ondrop="event.preventDefault();this.classList.remove(\'dragover\');handlePhotoDrop(event)">'+
+      '<div style="font-size:24px;color:var(--textDim);margin-bottom:8px">&#128247;</div>'+
+      '<div style="font-size:12px;color:var(--textDim)">Click to browse or drag & drop images</div>'+
+      '<div style="font-size:10px;color:var(--textMuted);margin-top:4px">JPG, PNG, TIFF, BMP</div>'+
+    '</div>'+
+    '<input type="file" id="photo-input" multiple accept="image/*" style="display:none" onchange="handlePhotoUpload(event)">'+
+    (photosHtml?'<div style="margin-top:10px">'+photosHtml+'</div>':'')+
+
+    '<div style="margin-top:24px;display:flex;gap:8px;border-top:1px solid var(--border);padding-top:16px">'+
+      '<button class="btn btn-primary" onclick="submitProject()">Upload Project</button>'+
+      '<button class="btn" onclick="clearProjectForm()">Clear Form</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function handleDocDrop(ev){
+  const files=ev.dataTransfer.files;
+  for(let i=0;i<files.length;i++)pendingDocs.push(files[i]);
+  render();
+}
+
+function handlePhotoDrop(ev){
+  const files=ev.dataTransfer.files;
+  for(let i=0;i<files.length;i++)pendingPhotos.push(files[i]);
+  render();
+}
+
+function clearProjectForm(){
+  newProject={name:'',description:'',state:'',category:'general',estimatedBudget:'',deadline:'',status:'draft',requirements:[],customRequirement:''};
+  pendingDocs=[];
+  pendingPhotos=[];
+  render();
+}
+
+async function submitProject(){
+  if(!newProject.name||!newProject.description||!newProject.state||!newProject.deadline){
+    return alert('Project Name, Description, State, and Deadline are required.');
+  }
+  const projId='PROJ-'+Date.now();
+  const project={
+    id:projId,
+    name:newProject.name,
+    description:newProject.description,
+    state:newProject.state,
+    category:newProject.category,
+    estimatedBudget:Number(newProject.estimatedBudget)||0,
+    deadline:newProject.deadline,
+    status:newProject.status,
+    requirements:[...newProject.requirements],
+    documentNames:[],
+    photoNames:[],
+    bidsReceived:[],
+    createdDate:new Date().toISOString().slice(0,10),
+    updatedDate:new Date().toISOString().slice(0,10)
+  };
+
+  // Store docs in IndexedDB
+  for(let i=0;i<pendingDocs.length;i++){
+    const f=pendingDocs[i];
+    const buf=await f.arrayBuffer();
+    const docId=projId+'_doc_'+i+'_'+Date.now();
+    await idbPut({id:docId,projectId:projId,type:'document',name:f.name,size:f.size,mimeType:f.type,data:buf});
+    project.documentNames.push({id:docId,name:f.name,size:f.size});
+  }
+  for(let i=0;i<pendingPhotos.length;i++){
+    const f=pendingPhotos[i];
+    const buf=await f.arrayBuffer();
+    const photoId=projId+'_photo_'+i+'_'+Date.now();
+    await idbPut({id:photoId,projectId:projId,type:'photo',name:f.name,size:f.size,mimeType:f.type,data:buf});
+    project.photoNames.push({id:photoId,name:f.name,size:f.size});
+  }
+
+  projects.unshift(project);
+  saveProjects();
+  clearProjectForm();
+  activeTab='my-projects';
+  render();
+}
+
+// =============================================
+// MY PROJECTS TAB
+// =============================================
+
+function renderMyProjects(){
+  if(viewingProjectId){
+    const proj=projects.find(function(p){return p.id===viewingProjectId});
+    if(proj)return renderProjectDetail(proj);
+  }
+  if(!projects.length){
+    return'<div style="text-align:center;padding:60px 20px">'+
+      '<div style="font-size:24px;color:var(--textDim);margin-bottom:12px">No Projects Yet</div>'+
+      '<div style="font-size:12px;color:var(--textMuted);margin-bottom:20px">Upload your first project to start receiving bids.</div>'+
+      '<button class="btn btn-primary" onclick="activeTab=\'upload\';render()">Upload Project</button>'+
+    '</div>';
+  }
+  return'<div style="margin-bottom:16px;font-size:12px;color:var(--textDim)">Your uploaded projects ('+projects.length+')</div>'+
+    projects.map(function(p){return renderProjectCard(p)}).join('');
+}
+
+function renderProjectCard(p){
+  const statusClass='status-'+p.status;
+  return'<div class="project-card" onclick="viewingProjectId=\''+p.id+'\';render()" style="cursor:pointer">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
+      '<div style="flex:1;min-width:200px">'+
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'+
+          '<span class="badge '+statusClass+'">'+STATUS_LABELS[p.status]+'</span>'+
+          '<span class="badge" style="background:'+CAT_COLORS[p.category]+'22;color:'+CAT_COLORS[p.category]+';border:1px solid '+CAT_COLORS[p.category]+'44">'+p.category+'</span>'+
+          '<span style="font-size:10px;color:var(--textDim)">'+p.state+'</span>'+
+        '</div>'+
+        '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">'+esc(p.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--textDim);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(p.description)+'</div>'+
+        '<div style="display:flex;gap:16px;font-size:11px;flex-wrap:wrap">'+
+          (p.estimatedBudget?'<span style="color:var(--green)">Budget: '+fmt$(p.estimatedBudget)+'</span>':'')+
+          '<span style="color:var(--textDim)">Deadline: '+fmtDate(p.deadline)+'</span>'+
+          '<span style="color:var(--textDim)">Docs: '+(p.documentNames||[]).length+'</span>'+
+          '<span style="color:var(--textDim)">Photos: '+(p.photoNames||[]).length+'</span>'+
+          '<span style="color:var(--accent)">Bids: '+(p.bidsReceived||[]).length+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:9px;color:var(--textMuted);white-space:nowrap">Created '+fmtDate(p.createdDate)+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function renderProjectDetail(p){
+  const statusClass='status-'+p.status;
+  return'<div>'+
+    '<button class="btn btn-sm" onclick="viewingProjectId=null;render()" style="margin-bottom:16px">&larr; Back to Projects</button>'+
+    '<div class="detail-panel">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
+        '<div>'+
+          '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'+
+            '<span class="badge '+statusClass+'">'+STATUS_LABELS[p.status]+'</span>'+
+            '<span class="badge" style="background:'+CAT_COLORS[p.category]+'22;color:'+CAT_COLORS[p.category]+';border:1px solid '+CAT_COLORS[p.category]+'44">'+p.category+'</span>'+
+            '<span style="font-size:10px;color:var(--textDim)">'+p.state+'</span>'+
+          '</div>'+
+          '<div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px">'+esc(p.name)+'</div>'+
+          '<div style="font-size:9px;color:var(--textMuted)">ID: '+p.id+' | Created: '+fmtDate(p.createdDate)+' | Updated: '+fmtDate(p.updatedDate)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          '<button class="btn btn-sm" onclick="openEditModal(\''+p.id+'\')">Edit</button>'+
+          '<select class="select" style="padding:4px 8px;font-size:10px" onchange="changeProjectStatus(\''+p.id+'\',this.value)">'+
+            PROJECT_STATUSES.map(function(s){return'<option value="'+s+'" '+(p.status===s?'selected':'')+'>'+STATUS_LABELS[s]+'</option>'}).join('')+
+          '</select>'+
+          '<button class="btn btn-sm btn-danger" onclick="deleteProject(\''+p.id+'\')">Delete</button>'+
+        '</div>'+
+      '</div>'+
+
+      '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">'+
+        (p.estimatedBudget?'<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Estimated Budget</div><div style="font-size:20px;font-weight:700;color:var(--green)">'+fmt$(p.estimatedBudget)+'</div></div>':'')+
+        '<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Deadline</div><div style="font-size:14px;font-weight:700" class="'+deadlineClass(p.deadline)+'">'+fmtDate(p.deadline)+' ('+deadlineText(p.deadline)+')</div></div>'+
+        '<div class="stat-card" style="flex:1 1 150px;min-width:150px"><div style="font-size:9px;color:var(--textDim);text-transform:uppercase">Bids Received</div><div style="font-size:20px;font-weight:700;color:var(--accent)">'+(p.bidsReceived||[]).length+'</div></div>'+
+      '</div>'+
+
+      '<div class="detail-section"><div class="detail-title">Description</div><div style="font-size:12px;line-height:1.6;color:var(--text)">'+esc(p.description)+'</div></div>'+
+
+      (p.requirements&&p.requirements.length?
+        '<div class="detail-section"><div class="detail-title">Bid Requirements</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+
+          p.requirements.map(function(r){return'<span class="req-tag">'+esc(r)+'</span>'}).join('')+
+        '</div></div>':'')+
+
+      '<div class="detail-section"><div class="detail-title">Documents ('+(p.documentNames||[]).length+')</div>'+
+        ((p.documentNames||[]).length?
+          (p.documentNames||[]).map(function(d){
+            return'<div class="file-item"><span class="file-name">'+esc(d.name)+'</span><span class="file-size">'+fmtSize(d.size)+'</span>'+
+              '<button class="btn btn-sm" style="margin-left:8px;padding:2px 8px;font-size:9px" onclick="downloadDoc(\''+d.id+'\',\''+esc(d.name).replace(/'/g,"\\'")+'\')">Download</button>'+
+              '<button class="file-remove" onclick="removeProjectDoc(\''+p.id+'\',\''+d.id+'\')" style="margin-left:4px">&times;</button></div>';
+          }).join(''):'<div style="font-size:11px;color:var(--textDim);padding:8px 0">No documents uploaded</div>')+
+        '<div style="margin-top:8px"><button class="btn btn-sm" onclick="document.getElementById(\'add-doc-'+p.id+'\').click()">+ Add Document</button><input type="file" id="add-doc-'+p.id+'" multiple style="display:none" onchange="addDocsToProject(\''+p.id+'\',event)"></div>'+
+      '</div>'+
+
+      '<div class="detail-section"><div class="detail-title">Photos ('+(p.photoNames||[]).length+')</div>'+
+        '<div id="photo-gallery-'+p.id+'" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>'+
+        ((p.photoNames||[]).length?
+          (p.photoNames||[]).map(function(ph){
+            return'<div class="file-item"><span class="file-name">'+esc(ph.name)+'</span><span class="file-size">'+fmtSize(ph.size)+'</span>'+
+              '<button class="btn btn-sm" style="margin-left:8px;padding:2px 8px;font-size:9px" onclick="downloadDoc(\''+ph.id+'\',\''+esc(ph.name).replace(/'/g,"\\'")+'\')">Download</button>'+
+              '<button class="file-remove" onclick="removeProjectPhoto(\''+p.id+'\',\''+ph.id+'\')" style="margin-left:4px">&times;</button></div>';
+          }).join(''):'<div style="font-size:11px;color:var(--textDim);padding:8px 0">No photos uploaded</div>')+
+        '<div style="margin-top:8px"><button class="btn btn-sm" onclick="document.getElementById(\'add-photo-'+p.id+'\').click()">+ Add Photo</button><input type="file" id="add-photo-'+p.id+'" multiple accept="image/*" style="display:none" onchange="addPhotosToProject(\''+p.id+'\',event)"></div>'+
+      '</div>'+
+
+      '<div class="detail-section"><div class="detail-title">Bids Received</div>'+
+        ((p.bidsReceived||[]).length?
+          '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
+            '<tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:6px;color:var(--textDim)">Bidder</th><th style="text-align:left;padding:6px;color:var(--textDim)">Amount</th><th style="text-align:left;padding:6px;color:var(--textDim)">Date</th><th style="text-align:left;padding:6px;color:var(--textDim)">Notes</th></tr>'+
+            p.bidsReceived.map(function(bid){
+              return'<tr style="border-bottom:1px solid var(--border)"><td style="padding:6px">'+esc(bid.bidder)+'</td><td style="padding:6px;color:var(--green)">'+fmt$(bid.amount)+'</td><td style="padding:6px;color:var(--textDim)">'+fmtDate(bid.date)+'</td><td style="padding:6px;color:var(--textDim)">'+esc(bid.notes)+'</td></tr>';
+            }).join('')+
+          '</table>'
+          :'<div style="font-size:11px;color:var(--textDim);padding:8px 0">No bids received yet</div>')+
+        '<button class="btn btn-sm" style="margin-top:8px" onclick="openAddBidModal(\''+p.id+'\')">+ Record Bid</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+// Load photo thumbnails after rendering
+function loadPhotoThumbnails(projId){
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj||!(proj.photoNames||[]).length)return;
+  const gallery=document.getElementById('photo-gallery-'+projId);
+  if(!gallery)return;
+  (proj.photoNames||[]).forEach(function(ph){
+    idbGet(ph.id).then(function(doc){
+      if(doc&&doc.data){
+        const blob=new Blob([doc.data],{type:doc.mimeType||'image/jpeg'});
+        const url=URL.createObjectURL(blob);
+        const img=document.createElement('img');
+        img.src=url;
+        img.style.cssText='width:80px;height:60px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer';
+        img.title=ph.name;
+        img.onclick=function(){window.open(url,'_blank')};
+        gallery.appendChild(img);
+      }
+    });
+  });
+}
+
+async function downloadDoc(docId,fileName){
+  const doc=await idbGet(docId);
+  if(!doc||!doc.data){alert('Document not found in storage.');return}
+  const blob=new Blob([doc.data],{type:doc.mimeType||'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=fileName;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function removeProjectDoc(projId,docId){
+  if(!confirm('Remove this document?'))return;
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  proj.documentNames=(proj.documentNames||[]).filter(function(d){return d.id!==docId});
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  await idbDelete(docId);
+  render();
+}
+
+async function removeProjectPhoto(projId,photoId){
+  if(!confirm('Remove this photo?'))return;
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  proj.photoNames=(proj.photoNames||[]).filter(function(d){return d.id!==photoId});
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  await idbDelete(photoId);
+  render();
+}
+
+async function addDocsToProject(projId,ev){
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  const files=ev.target.files;
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    const buf=await f.arrayBuffer();
+    const docId=projId+'_doc_'+Date.now()+'_'+i;
+    await idbPut({id:docId,projectId:projId,type:'document',name:f.name,size:f.size,mimeType:f.type,data:buf});
+    if(!proj.documentNames)proj.documentNames=[];
+    proj.documentNames.push({id:docId,name:f.name,size:f.size});
+  }
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  render();
+}
+
+async function addPhotosToProject(projId,ev){
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  const files=ev.target.files;
+  for(let i=0;i<files.length;i++){
+    const f=files[i];
+    const buf=await f.arrayBuffer();
+    const photoId=projId+'_photo_'+Date.now()+'_'+i;
+    await idbPut({id:photoId,projectId:projId,type:'photo',name:f.name,size:f.size,mimeType:f.type,data:buf});
+    if(!proj.photoNames)proj.photoNames=[];
+    proj.photoNames.push({id:photoId,name:f.name,size:f.size});
+  }
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  render();
+}
+
+function changeProjectStatus(projId,newStatus){
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  proj.status=newStatus;
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  render();
+}
+
+async function deleteProject(projId){
+  if(!confirm('Delete this project and all associated documents? This cannot be undone.'))return;
+  const proj=projects.find(function(p){return p.id===projId});
+  if(proj){
+    // Delete docs from IndexedDB
+    const allDocs=(proj.documentNames||[]).concat(proj.photoNames||[]);
+    for(let i=0;i<allDocs.length;i++){
+      await idbDelete(allDocs[i].id);
+    }
+  }
+  projects=projects.filter(function(p){return p.id!==projId});
+  saveProjects();
+  viewingProjectId=null;
+  render();
+}
+
+// --- Edit Modal ---
+function openEditModal(projId){
+  const proj=projects.find(function(p){return p.id===projId});
+  if(!proj)return;
+  editingProject=JSON.parse(JSON.stringify(proj));
+  renderModal();
+}
+
+function closeModal(){
+  editingProject=null;
+  document.getElementById('modal-root').innerHTML='';
+}
+
+function renderModal(){
+  if(!editingProject){document.getElementById('modal-root').innerHTML='';return}
+  const p=editingProject;
+  document.getElementById('modal-root').innerHTML=
+    '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">'+
+      '<div class="modal">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'+
+          '<div style="font-size:14px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px">Edit Project</div>'+
+          '<button class="btn btn-sm" onclick="closeModal()">&times; Close</button>'+
+        '</div>'+
+        '<div class="row"><div class="field"><div class="label">Project Name</div><input class="input" value="'+esc(p.name)+'" oninput="editingProject.name=this.value"></div></div>'+
+        '<div class="row"><div class="field"><div class="label">Description</div><textarea class="textarea" oninput="editingProject.description=this.value">'+esc(p.description)+'</textarea></div></div>'+
+        '<div class="row">'+
+          '<div class="field"><div class="label">State</div><select class="select" style="width:100%" onchange="editingProject.state=this.value"><option value="">Select</option>'+STATES.map(function(s){return'<option value="'+s+'" '+(p.state===s?'selected':'')+'>'+s+'</option>'}).join('')+'</select></div>'+
+          '<div class="field"><div class="label">Category</div><select class="select" style="width:100%" onchange="editingProject.category=this.value">'+CATEGORIES.map(function(c){return'<option value="'+c+'" '+(p.category===c?'selected':'')+'>'+c+'</option>'}).join('')+'</select></div>'+
+        '</div>'+
+        '<div class="row">'+
+          '<div class="field"><div class="label">Estimated Budget ($)</div><input class="input" type="number" value="'+p.estimatedBudget+'" oninput="editingProject.estimatedBudget=this.value"></div>'+
+          '<div class="field"><div class="label">Deadline</div><input class="input" type="date" value="'+p.deadline+'" onchange="editingProject.deadline=this.value"></div>'+
+        '</div>'+
+        '<div class="row"><div class="field"><div class="label">Status</div><select class="select" style="width:100%" onchange="editingProject.status=this.value">'+PROJECT_STATUSES.map(function(s){return'<option value="'+s+'" '+(p.status===s?'selected':'')+'>'+STATUS_LABELS[s]+'</option>'}).join('')+'</select></div></div>'+
+        '<div style="margin-top:16px;display:flex;gap:8px">'+
+          '<button class="btn btn-primary" onclick="saveEditProject()">Save Changes</button>'+
+          '<button class="btn" onclick="closeModal()">Cancel</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+}
+
+function saveEditProject(){
+  if(!editingProject)return;
+  const idx=projects.findIndex(function(p){return p.id===editingProject.id});
+  if(idx<0)return;
+  projects[idx].name=editingProject.name;
+  projects[idx].description=editingProject.description;
+  projects[idx].state=editingProject.state;
+  projects[idx].category=editingProject.category;
+  projects[idx].estimatedBudget=Number(editingProject.estimatedBudget)||0;
+  projects[idx].deadline=editingProject.deadline;
+  projects[idx].status=editingProject.status;
+  projects[idx].updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  closeModal();
+  render();
+}
+
+// --- Add Bid Modal ---
+let addBidTarget=null;
+let addBidData={bidder:'',amount:'',date:'',notes:''};
+
+function openAddBidModal(projId){
+  addBidTarget=projId;
+  addBidData={bidder:'',amount:'',date:new Date().toISOString().slice(0,10),notes:''};
+  renderAddBidModal();
+}
+
+function closeAddBidModal(){
+  addBidTarget=null;
+  document.getElementById('modal-root').innerHTML='';
+}
+
+function renderAddBidModal(){
+  if(!addBidTarget){document.getElementById('modal-root').innerHTML='';return}
+  document.getElementById('modal-root').innerHTML=
+    '<div class="modal-overlay" onclick="if(event.target===this)closeAddBidModal()">'+
+      '<div class="modal" style="max-width:500px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'+
+          '<div style="font-size:14px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px">Record Bid Received</div>'+
+          '<button class="btn btn-sm" onclick="closeAddBidModal()">&times; Close</button>'+
+        '</div>'+
+        '<div class="row"><div class="field"><div class="label">Bidder / Company *</div><input class="input" value="'+esc(addBidData.bidder)+'" oninput="addBidData.bidder=this.value"></div></div>'+
+        '<div class="row">'+
+          '<div class="field"><div class="label">Bid Amount ($) *</div><input class="input" type="number" value="'+addBidData.amount+'" oninput="addBidData.amount=this.value"></div>'+
+          '<div class="field"><div class="label">Date</div><input class="input" type="date" value="'+addBidData.date+'" onchange="addBidData.date=this.value"></div>'+
+        '</div>'+
+        '<div class="row"><div class="field"><div class="label">Notes</div><textarea class="textarea" oninput="addBidData.notes=this.value">'+esc(addBidData.notes)+'</textarea></div></div>'+
+        '<div style="margin-top:16px;display:flex;gap:8px">'+
+          '<button class="btn btn-primary" onclick="saveReceivedBid()">Save Bid</button>'+
+          '<button class="btn" onclick="closeAddBidModal()">Cancel</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+}
+
+function saveReceivedBid(){
+  if(!addBidData.bidder||!addBidData.amount){alert('Bidder and Amount are required.');return}
+  const proj=projects.find(function(p){return p.id===addBidTarget});
+  if(!proj)return;
+  if(!proj.bidsReceived)proj.bidsReceived=[];
+  proj.bidsReceived.push({
+    id:'RBID-'+Date.now(),
+    bidder:addBidData.bidder,
+    amount:Number(addBidData.amount)||0,
+    date:addBidData.date||new Date().toISOString().slice(0,10),
+    notes:addBidData.notes
+  });
+  proj.updatedDate=new Date().toISOString().slice(0,10);
+  saveProjects();
+  closeAddBidModal();
+  render();
+}
+
+// --- Main render ---
 function render(){
   renderTabs();
   const app=document.getElementById('app');
@@ -352,6 +963,12 @@ function render(){
     case'calendar':app.innerHTML=renderCalendar();break;
     case'stats':app.innerHTML=renderStats();break;
     case'create':app.innerHTML=renderCreateBid();break;
+    case'upload':app.innerHTML=renderUploadProject();break;
+    case'my-projects':app.innerHTML=renderMyProjects();break;
+  }
+  // Load photo thumbnails if viewing a project detail
+  if(activeTab==='my-projects'&&viewingProjectId){
+    loadPhotoThumbnails(viewingProjectId);
   }
 }
 loadData();render();

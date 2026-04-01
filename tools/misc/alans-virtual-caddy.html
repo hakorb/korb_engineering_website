@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5"/>
+<title>Alan's Virtual Caddy — Korb Engineering</title>
+<meta name="description" content="Virtual caddy with multiple golf courses. Hole-by-hole guide, club calculator, score tracker, and course tips."/>
+<style>
+:root{
+  --bg:#f6f1e5;--panel:#fffdf6;--text:#14211a;--muted:#5a6b5e;
+  --green:#1f5d3f;--green-dark:#16432d;--green-light:#e8f5ee;
+  --gold:#c9a84c;--gold-light:#faf3dc;--red:#8f2f2f;--red-light:#fce8e8;
+  --blue:#2a5d8f;--blue-light:#e4eef8;
+  --border:#d4d0c4;--border-green:#2d4939;
+  --shadow:0 4px 16px rgba(0,0,0,.1);--radius:14px;
+  --base-font:17px;--button-h:52px;
+  --nav-h:60px;
+}
+body.high-contrast{
+  --bg:#0a0c0b;--panel:#111;--text:#f0fff4;--muted:#c8e6d0;
+  --green:#2ef08a;--green-dark:#24b46a;--green-light:#1a2e22;
+  --gold:#ffd866;--gold-light:#2a2510;--red:#ff6d6d;--red-light:#2e1111;
+  --blue:#6db8ff;--blue-light:#112233;
+  --border:#555;--border-green:#2ef08a;--shadow:none;
+}
+body.xl-text{--base-font:22px;--button-h:62px;--nav-h:70px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;font-size:var(--base-font);
+  line-height:1.45;color:var(--text);background:var(--bg);
+  padding-bottom:calc(var(--nav-h) + 20px);-webkit-tap-highlight-color:transparent;
+  min-height:100vh;}
+button,select,input{font:inherit;border:none;outline:none;}
+input[type=number]{-moz-appearance:textfield;}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+
+/* --- COURSE SELECT SCREEN --- */
+.course-select-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding:20px 14px 40px;}
+.course-select-header{text-align:center;margin-bottom:24px;}
+.course-select-header .eyebrow{font-size:.7em;letter-spacing:2px;text-transform:uppercase;
+  color:var(--gold);margin-bottom:4px;}
+.course-select-header h1{font-size:clamp(28px,6vw,48px);font-weight:800;color:var(--green);line-height:1.1;}
+.course-select-header .sub{font-size:.9em;color:var(--muted);margin-top:6px;}
+.course-cards{display:flex;flex-direction:column;gap:16px;width:100%;max-width:560px;}
+.course-card{background:var(--panel);border:2px solid var(--border);border-radius:var(--radius);
+  padding:20px;cursor:pointer;transition:all .2s;box-shadow:var(--shadow);}
+.course-card:hover,.course-card:focus{border-color:var(--green);transform:translateY(-2px);
+  box-shadow:0 6px 24px rgba(0,0,0,.15);}
+.course-card .cc-name{font-size:1.3em;font-weight:800;color:var(--green);margin-bottom:4px;}
+.course-card .cc-loc{font-size:.85em;color:var(--muted);margin-bottom:10px;}
+.course-card .cc-desc{font-size:.9em;line-height:1.5;margin-bottom:12px;}
+.course-card .cc-stats{display:flex;gap:16px;flex-wrap:wrap;}
+.course-card .cc-stat{text-align:center;}
+.course-card .cc-stat .val{font-size:1.2em;font-weight:800;color:var(--green);}
+.course-card .cc-stat .lbl{font-size:.7em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.course-select-footer{margin-top:24px;font-size:.75em;color:var(--muted);text-align:center;}
+.course-select-footer strong{color:var(--green-dark);}
+
+/* --- HEADER --- */
+.header{background:linear-gradient(135deg,var(--green),var(--green-dark));
+  color:#fff;padding:16px 18px 14px;text-align:center;position:relative;}
+.header .eyebrow{font-size:.7em;letter-spacing:2px;text-transform:uppercase;opacity:.8;margin-bottom:2px;}
+.header h1{font-size:clamp(26px,5.5vw,44px);font-weight:800;line-height:1.1;margin:0;}
+.header .sub{font-size:.85em;opacity:.9;margin-top:4px;font-weight:400;}
+.header-controls{position:absolute;top:10px;right:12px;display:flex;gap:6px;}
+.header-controls button{background:rgba(255,255,255,.18);color:#fff;border-radius:8px;
+  width:36px;height:36px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.header-controls button.active{background:var(--gold);color:#000;}
+.change-course-btn{position:absolute;top:10px;left:12px;background:rgba(255,255,255,.18);
+  color:#fff;border-radius:8px;padding:6px 10px;font-size:.72em;font-weight:600;
+  cursor:pointer;letter-spacing:.3px;}
+.change-course-btn:hover{background:rgba(255,255,255,.3);}
+
+/* --- NAV --- */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);
+  background:var(--panel);border-top:2px solid var(--border);
+  display:flex;z-index:100;box-shadow:0 -2px 12px rgba(0,0,0,.08);}
+.bottom-nav button{flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;background:none;color:var(--muted);
+  cursor:pointer;font-size:.65em;font-weight:600;letter-spacing:.3px;
+  border-right:1px solid var(--border);transition:color .15s,background .15s;}
+.bottom-nav button:last-child{border-right:none;}
+.bottom-nav button .icon{font-size:22px;line-height:1;}
+.bottom-nav button.active{color:var(--green);background:var(--green-light);}
+
+/* --- TABS --- */
+.tab{display:none;padding:14px 12px 24px;max-width:700px;margin:0 auto;width:100%;}
+.tab.active{display:block;}
+
+/* --- CARDS --- */
+.card{background:var(--panel);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.card h2{font-size:1.15em;color:var(--green);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.card h3{font-size:1em;color:var(--green-dark);margin:12px 0 6px;}
+
+/* --- HOLE NAV --- */
+.hole-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;margin-bottom:14px;}
+.hole-grid button{background:var(--green-light);color:var(--green);border-radius:8px;
+  font-weight:700;font-size:.9em;padding:8px 0;cursor:pointer;transition:all .15s;}
+.hole-grid button.active{background:var(--green);color:#fff;}
+.hole-grid button.scored{background:var(--gold-light);border:1.5px solid var(--gold);}
+.hole-grid button.active.scored{background:var(--green);color:#fff;}
+.hole-arrows{display:flex;gap:10px;margin-bottom:14px;}
+.hole-arrows button{flex:1;height:var(--button-h);border-radius:10px;font-weight:700;
+  cursor:pointer;font-size:1em;background:var(--green);color:#fff;}
+.hole-arrows button:disabled{opacity:.35;cursor:default;}
+
+/* --- HOLE DETAIL --- */
+.hole-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;}
+.hole-header .hole-num{font-size:1.6em;font-weight:900;color:var(--green);}
+.hole-header .hole-par{font-size:1.1em;font-weight:700;}
+.hole-header .hole-hdcp{font-size:.85em;color:var(--muted);}
+.tee-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.9em;}
+.tee-table th,.tee-table td{padding:6px 10px;text-align:center;border-bottom:1px solid var(--border);}
+.tee-table th{font-weight:600;color:var(--muted);font-size:.8em;text-transform:uppercase;}
+.tee-blue{color:#2a5d8f;font-weight:700;}
+.tee-white{color:#555;font-weight:700;}
+.tee-red{color:#8f2f2f;font-weight:700;}
+.tip-box{padding:10px 12px;border-radius:10px;margin:8px 0;font-size:.92em;line-height:1.45;}
+.tip-strategy{background:var(--green-light);border-left:4px solid var(--green);}
+.tip-green{background:var(--blue-light);border-left:4px solid var(--blue);}
+.tip-hazard{background:var(--red-light);border-left:4px solid var(--red);}
+.tip-label{font-weight:700;font-size:.8em;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+
+/* --- CLUB CALC --- */
+.calc-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.calc-row label{min-width:110px;font-weight:600;font-size:.9em;}
+.calc-row input,.calc-row select{flex:1;min-width:80px;height:42px;border-radius:8px;
+  border:1.5px solid var(--border);padding:0 10px;background:var(--panel);font-size:1em;}
+.calc-result{background:var(--green);color:#fff;border-radius:var(--radius);
+  padding:18px;text-align:center;margin:16px 0;}
+.calc-result .dist{font-size:2em;font-weight:900;}
+.calc-result .club{font-size:1.3em;font-weight:700;margin-top:4px;}
+.calc-result .detail{font-size:.85em;opacity:.85;margin-top:6px;}
+
+/* --- SCORECARD --- */
+.score-input{display:flex;gap:6px;align-items:center;margin:6px 0;}
+.score-input label{min-width:80px;font-size:.88em;font-weight:600;}
+.score-input .stepper{display:flex;align-items:center;gap:0;}
+.stepper button{width:40px;height:40px;border-radius:8px;background:var(--green-light);
+  color:var(--green);font-size:1.3em;font-weight:700;cursor:pointer;}
+.stepper span{width:44px;text-align:center;font-size:1.1em;font-weight:700;}
+.score-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;}
+.score-summary .stat{background:var(--green-light);border-radius:10px;padding:10px;text-align:center;}
+.score-summary .stat .val{font-size:1.5em;font-weight:900;color:var(--green);}
+.score-summary .stat .lbl{font-size:.75em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.toggle-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+.toggle-row label{font-size:.88em;font-weight:600;min-width:80px;}
+.toggle-btn{width:48px;height:28px;border-radius:14px;background:var(--border);
+  position:relative;cursor:pointer;transition:background .2s;}
+.toggle-btn.on{background:var(--green);}
+.toggle-btn::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;
+  border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle-btn.on::after{transform:translateX(20px);}
+.round-history-item{padding:10px;border-bottom:1px solid var(--border);font-size:.9em;}
+.round-history-item:last-child{border-bottom:none;}
+.round-actions{display:flex;gap:8px;margin:12px 0;}
+.round-actions button{flex:1;height:var(--button-h);border-radius:10px;font-weight:700;
+  cursor:pointer;font-size:.95em;}
+.btn-primary{background:var(--green);color:#fff;}
+.btn-secondary{background:var(--green-light);color:var(--green);border:1.5px solid var(--green);}
+.btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid var(--red);}
+
+/* --- TIPS --- */
+.skill-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;}
+.skill-tabs button{padding:8px 14px;border-radius:20px;font-size:.82em;font-weight:600;
+  cursor:pointer;background:var(--green-light);color:var(--green);transition:all .15s;}
+.skill-tabs button.active{background:var(--green);color:#fff;}
+.tip-card{background:var(--green-light);border-radius:10px;padding:12px;margin-bottom:10px;font-size:.92em;}
+.tip-card strong{color:var(--green-dark);}
+
+/* --- HISTORY CAROUSEL --- */
+.fact-carousel{position:relative;overflow:hidden;min-height:120px;}
+.fact-slide{position:absolute;inset:0;padding:14px;display:flex;align-items:center;
+  justify-content:center;text-align:center;font-size:.95em;line-height:1.5;
+  opacity:0;transition:opacity .4s;}
+.fact-slide.active{opacity:1;position:relative;}
+.carousel-dots{display:flex;justify-content:center;gap:6px;margin-top:8px;}
+.carousel-dots span{width:10px;height:10px;border-radius:50%;background:var(--border);cursor:pointer;}
+.carousel-dots span.active{background:var(--green);}
+.carousel-nav{display:flex;justify-content:center;gap:12px;margin-top:8px;}
+.carousel-nav button{width:38px;height:38px;border-radius:50%;background:var(--green-light);
+  color:var(--green);font-size:1.1em;cursor:pointer;}
+
+/* --- WEATHER --- */
+.weather-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.weather-stat{background:var(--green-light);border-radius:10px;padding:10px;text-align:center;}
+.weather-stat .wval{font-size:1.3em;font-weight:800;color:var(--green);}
+.weather-stat .wlbl{font-size:.72em;color:var(--muted);text-transform:uppercase;}
+.playability{text-align:center;padding:12px;border-radius:10px;margin-top:8px;font-weight:700;}
+.play-great{background:#d4edda;color:#155724;}
+.play-good{background:#fff3cd;color:#856404;}
+.play-poor{background:#f8d7da;color:#721c24;}
+
+/* --- CLUB DISTANCE EDITOR --- */
+.club-editor{font-size:.88em;}
+.club-editor-row{display:flex;align-items:center;gap:6px;margin:4px 0;}
+.club-editor-row label{min-width:90px;font-weight:600;}
+.club-editor-row input{width:70px;height:34px;border-radius:6px;border:1.5px solid var(--border);
+  padding:0 8px;text-align:center;}
+
+/* --- HIDDEN UTILITY --- */
+.hidden{display:none !important;}
+
+@media(min-width:600px){
+  .tab{padding:20px 16px 30px;}
+  .hole-grid{grid-template-columns:repeat(9,1fr);}
+}
+@media(max-width:380px){
+  .hole-grid{grid-template-columns:repeat(6,1fr);}
+}
+</style>
+</head>
+<body>
+
+<!-- COURSE SELECTION SCREEN -->
+<div id="courseSelectScreen" class="course-select-screen">
+  <div class="course-select-header">
+    <div class="eyebrow">Korb Engineering</div>
+    <h1>Alan's Virtual Caddy</h1>
+    <div class="sub">Select a course to get started</div>
+  </div>
+  <div class="course-cards" id="courseCards"></div>
+  <div class="course-select-footer">Built by <strong>Korb Engineering</strong></div>
+</div>
+
+<!-- MAIN APP (hidden until course selected) -->
+<div id="mainApp" class="hidden">
+
+<!-- HEADER -->
+<div class="header">
+  <button class="change-course-btn" onclick="showCourseSelect()">&#9664; Courses</button>
+  <div class="eyebrow">Korb Engineering</div>
+  <h1>Alan's Virtual Caddy</h1>
+  <div class="sub" id="headerSub"></div>
+  <div class="header-controls">
+    <button onclick="toggleContrast()" title="High contrast" id="btnContrast">&#9681;</button>
+    <button onclick="toggleXL()" title="Extra-large text" id="btnXL">A+</button>
+  </div>
+</div>
+
+<!-- TAB CONTENT -->
+<div class="tab active" id="tabHoles"></div>
+<div class="tab" id="tabCalc"></div>
+<div class="tab" id="tabScore"></div>
+<div class="tab" id="tabTips"></div>
+<div class="tab" id="tabHistory"></div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="active" onclick="switchTab('Holes')" id="navHoles"><span class="icon">&#9971;</span>Holes</button>
+  <button onclick="switchTab('Calc')" id="navCalc"><span class="icon">&#128207;</span>Club Calc</button>
+  <button onclick="switchTab('Score')" id="navScore"><span class="icon">&#128221;</span>Scorecard</button>
+  <button onclick="switchTab('Tips')" id="navTips"><span class="icon">&#128161;</span>Tips</button>
+  <button onclick="switchTab('History')" id="navHistory"><span class="icon">&#127942;</span>History</button>
+</nav>
+
+</div><!-- /mainApp -->
+
+<script>
+// ===================== COURSE DATA =====================
+const COURSES = {
+  glenn_riddle: {
+    id: 'glenn_riddle',
+    name: 'Glenn Riddle Golf Course',
+    location: 'Berlin, MD',
+    description: 'A beloved coastal resort course on Maryland\'s Eastern Shore, weaving through wetlands and maritime forest just minutes from Ocean City. Designed by Russell Roberts and opened in 1972, Glenn Riddle offers a unique blend of seaside links character and traditional parkland golf.',
+    holes: [
+      {num:1,par:4,hdcp:7,blue:385,white:365,red:310,
+        strategy:"Favor the right-center off the tee. The fairway narrows at 250 yards with trees tight on the left.",
+        green:"Slightly elevated green that slopes back to front. Aim past the pin on uphill approach.",
+        hazard:"Bunker guards front-right. Trees line the left side from tee to green."},
+      {num:2,par:4,hdcp:11,blue:370,white:350,red:295,
+        strategy:"A manageable par 4 to settle into the round. Driver to the wide fairway leaves a short iron in.",
+        green:"Relatively flat green with subtle right-to-left break. Two-putt territory if on the correct tier.",
+        hazard:"Fairway bunker at 230 yards on the left. Greenside bunker right."},
+      {num:3,par:3,hdcp:15,blue:175,white:158,red:125,
+        strategy:"Take one extra club — this green plays slightly uphill and the wind usually hurts off the ocean. Aim center-left.",
+        green:"Large green with a ridge through the middle. Pin position matters — check the sheet. Back-left is the toughest pin.",
+        hazard:"Deep bunker front-right eats up short-sided approaches. Rough falls off behind."},
+      {num:4,par:5,hdcp:3,blue:520,white:498,red:445,
+        strategy:"Reachable in two for long hitters, but the risk is high. Lay up to 100 yards for a wedge into a tight green.",
+        green:"Narrow, elongated green. Putting from above the hole is treacherous — leave approach below the pin.",
+        hazard:"Water runs the entire left side from 200 yards in. Fairway bunker at 260 right."},
+      {num:5,par:4,hdcp:1,blue:425,white:405,red:360,
+        strategy:"The number-one handicap hole. Hit a controlled tee shot to the right side — the fairway slopes left toward trouble.",
+        green:"Green breaks hard left to right toward the water. Play more break than you see.",
+        hazard:"Pond left of the green. OB stakes right. Fairway bunkers both sides at 240-260 yards."},
+      {num:6,par:4,hdcp:9,blue:390,white:370,red:320,
+        strategy:"Slight dogleg left. A draw off the tee sets up a short approach. Straight ball to right-center is the safe play.",
+        green:"Two-tiered green — getting on the wrong tier means a challenging two-putt. Front pin is below, back pin above.",
+        hazard:"Trees and rough encroach on the left dogleg. Bunker guards front-left of green."},
+      {num:7,par:3,hdcp:13,blue:195,white:175,red:140,
+        strategy:"The longest par 3 on the course. Club up and aim for the fat part of the green — don't chase a tucked pin.",
+        green:"Wide but shallow green. Slopes from back to front with some left-to-right movement near the edges.",
+        hazard:"Three bunkers surround the green. Anything long goes into thick rough with a downhill lie."},
+      {num:8,par:5,hdcp:5,blue:535,white:510,red:465,
+        strategy:"Big hitters can cut the corner over the trees on this dogleg right. Smart play is down the left side with a layup to 120.",
+        green:"Large, undulating green. Three-putts are common. Read the grain — it grows toward the setting sun (west).",
+        hazard:"Fairway bunker at 250 on the right. Creek crosses 80 yards short of the green."},
+      {num:9,par:4,hdcp:17,blue:345,white:330,red:290,
+        strategy:"Short par 4 — a great birdie chance. 3-wood or hybrid off the tee to the flat section, then a wedge in.",
+        green:"Small, well-bunkered green. Pin placement changes the difficulty dramatically. Center of the green is always safe.",
+        hazard:"Bunkers left and right of the green. Over the green is dead — steep falloff behind."},
+      {num:10,par:4,hdcp:8,blue:400,white:380,red:335,
+        strategy:"Back nine opener is a solid par 4. Aim left-center off the tee — the fairway feeds right. Mid-iron approach.",
+        green:"Green tilts back to front. Anything above the hole will be fast. Approach to below the pin.",
+        hazard:"Large fairway bunker on the right at 240 yards. Greenside bunker left."},
+      {num:11,par:4,hdcp:4,blue:415,white:395,red:350,
+        strategy:"Long and demanding. The fairway tightens at 260 yards so consider 3-wood. Accuracy off the tee is key here.",
+        green:"Elevated green with a false front — shots that don't carry will roll back. Take one extra club.",
+        hazard:"Deep bunkers guard both sides of the green. Thick rough and trees right off the tee."},
+      {num:12,par:3,hdcp:16,blue:155,white:140,red:110,
+        strategy:"Shortest par 3. Don't overthink it — a smooth short iron to the center. Avoid being long and left at all costs.",
+        green:"Deceptive green — looks flat but breaks subtly toward the water. Speed control is everything.",
+        hazard:"Water behind and left of the green. Front bunker catches conservative plays."},
+      {num:13,par:5,hdcp:2,blue:545,white:520,red:470,
+        strategy:"The second hardest hole on the course. Three good shots are needed. Favor the right side off the tee — the left is all trouble.",
+        green:"Multi-tiered green. Getting to the right level is essential. Below the hole is your friend.",
+        hazard:"Water along the entire left side. Fairway narrows severely at 280 yards. Bunkers greenside left and right."},
+      {num:14,par:4,hdcp:10,blue:375,white:355,red:305,
+        strategy:"Dogleg right. A fade or straight shot to the left-center of the fairway opens up the approach angle.",
+        green:"Crowned green — balls on the edges will trickle off. Land your approach on the green, not on the fringe.",
+        hazard:"Trees guard the right side of the dogleg. Bunker front-left of the green."},
+      {num:15,par:4,hdcp:6,blue:410,white:390,red:345,
+        strategy:"Long par 4 that usually plays into the prevailing wind. Extra club off the tee and into the green.",
+        green:"Sloped green that breaks toward the ocean (east). More break than you think on longer putts.",
+        hazard:"Bunkers staggered on both sides of the fairway. Greenside bunker front-right is deep and penal."},
+      {num:16,par:3,hdcp:14,blue:170,white:155,red:120,
+        strategy:"Beautiful par 3 with water in play. Pick your club, trust it, and swing smooth. Bail-out is right.",
+        green:"Green slopes front-to-back with a ridge on the left third. Right half is the safer miss.",
+        hazard:"Water fronts the green on the left. Bunker right. Wind swirls here — check it before pulling a club."},
+      {num:17,par:4,hdcp:12,blue:380,white:360,red:315,
+        strategy:"A thinking hole. 3-wood to the widest part of the fairway leaves 150 in. Driver brings bunkers into play.",
+        green:"Tiered green that's wider than deep. Match your approach to the pin level or face a long breaking putt.",
+        hazard:"Two fairway bunkers pinch the landing zone at driver distance. Greenside bunker back-left."},
+      {num:18,par:5,hdcp:18,blue:510,white:485,red:435,
+        strategy:"Finishing hole — reachable in two if you need a birdie. The smart play is a layup to your favorite wedge distance. End the round with a good number.",
+        green:"Large, receptive green. It slopes back-to-front so aggressive approaches will hold. The pin is often back-right on weekends.",
+        hazard:"Bunkers at 250 on the left side. Water short-right of the green catches pulled layups. Bunker behind the green."}
+    ],
+    facts: [
+      "Glenn Riddle Golf Course was designed by Russell Roberts and opened in 1972, the same era when Ocean City was becoming a major East Coast resort destination.",
+      "The course is named after Glenn Riddle Farm, a famous horse-racing stable in Media, Pennsylvania that produced champion thoroughbreds in the 1920s and 1930s.",
+      "Glenn Riddle Farm was home to Man o' War, widely considered one of the greatest racehorses of all time, who won 20 of his 21 career starts.",
+      "Located just minutes from Ocean City, MD, Glenn Riddle is one of the most popular resort courses on the Delmarva Peninsula, attracting golfers from DC, Baltimore, and Philadelphia.",
+      "The course features a mix of coastal and woodland terrain. You may spot osprey, great blue herons, and the occasional bald eagle during your round.",
+      "The Delmarva Peninsula's sandy soil means Glenn Riddle drains well after rain — one of the first courses in the area playable after a storm.",
+      "Ocean City's prevailing winds come from the southwest in summer. The back nine holes that run north-south will play differently morning versus afternoon as the sea breeze shifts.",
+      "Glenn Riddle is part of the Rum Pointe Seaside Golf Links family of courses in the Ocean City area, offering some of the best public golf on Maryland's Eastern Shore.",
+      "The course plays through wetlands and maritime forest, a landscape unique to the mid-Atlantic barrier island region. The ecosystem supports over 300 bird species.",
+      "Berlin, MD — home of Glenn Riddle — was named \"America's Coolest Small Town\" by Budget Travel magazine. It's worth exploring the downtown shops after your round."
+    ],
+    history: 'Glenn Riddle Golf Course was designed by Russell Roberts and opened in <strong>1972</strong> in Berlin, Maryland. The course is named after <strong>Glenn Riddle Farm</strong>, a legendary horse-racing stable based in Media, Pennsylvania. Glenn Riddle Farm was home to <strong>Man o\' War</strong>, one of the greatest thoroughbred racehorses in history.<br><br>Situated just minutes from Ocean City, MD, Glenn Riddle has been a beloved fixture of Delmarva Peninsula golf for over 50 years. The course weaves through coastal wetlands and maritime forest, offering a playing experience that blends seaside links character with traditional Eastern Shore parkland golf.<br><br>The Berlin, MD area — named "America\'s Coolest Small Town" by Budget Travel — offers charming shops, restaurants, and the natural beauty of the Assateague Island National Seashore nearby.',
+    tips: {
+      all:[
+        {t:"The greens at Glenn Riddle run medium-fast. In the morning, dew slows them down — by afternoon they speed up noticeably.",level:'all'},
+        {t:"Prevailing summer winds come from the southwest. Holes running south will play shorter; holes running north will play longer. Adjust accordingly.",level:'all'},
+        {t:"The course drains well thanks to sandy Eastern Shore soil. After rain, the fairways play firmer and faster than you'd expect.",level:'all'},
+        {t:"Tee times before 8 AM are the calmest for wind. Afternoon sea breezes kick up by 1 PM and can add 1-2 clubs on exposed holes.",level:'all'},
+        {t:"The turn (between 9 and 10) is a great time to hydrate and grab a snack. The back nine is slightly longer and you'll need the energy.",level:'all'},
+      ],
+      beg:[
+        {t:"Don't try to be a hero. Use a club you're confident with off the tee — a smooth 5-wood in the fairway beats a sliced driver in the trees.",level:'beg'},
+        {t:"On par 5s, think of them as three-shot holes. Lay up to your favorite distance and take a stress-free approach shot.",level:'beg'},
+        {t:"When in doubt on the greens, aim for the center. The pin is a trap for beginners — the middle of the green is always your friend.",level:'beg'},
+        {t:"Keep a spare ball in your pocket. If you hit one toward water, don't go searching for more than 30 seconds — keep the pace of play moving.",level:'beg'},
+        {t:"Focus on making solid contact, not on distance. A well-struck 7-iron will outperform a mishit 5-iron every time.",level:'beg'},
+      ],
+      int:[
+        {t:"Course management wins here. On holes 4, 5, and 13 (the hardest stretch), play for bogey if you're not in position — don't compound mistakes.",level:'int'},
+        {t:"The par 3s at Glenn Riddle are well-designed but fair. Club selection is 90% of the battle. When between clubs, take the longer one and swing easy.",level:'int'},
+        {t:"Pay attention to pin sheets. The two-tiered greens on holes 6, 13, and 17 play very differently depending on pin position.",level:'int'},
+        {t:"Use the slope on approach shots. Several greens (1, 10, 11) slope front-to-back — landing short and letting the ball feed to the pin is a smart play.",level:'int'},
+        {t:"Track your stats (use the Scorecard tab). After a few rounds, you'll see patterns — maybe your short game needs work, or your driving accuracy is costing you.",level:'int'},
+      ],
+      adv:[
+        {t:"Holes 5 and 13 are scoring separators. If you can manage pars on both, you'll beat most of the field. Plan your strategy before reaching the tee.",level:'adv'},
+        {t:"The greens read faster than they look. Trust the slope data in the hole guide — the coastal influence creates subtle grain effects toward the ocean (east).",level:'adv'},
+        {t:"On calm days, attack. Holes 2, 9, and 18 are birdie opportunities. On windy days, play conservative and let others make mistakes.",level:'adv'},
+        {t:"Short-sided pins are death here. The greenside bunkers are deep with high lips. Always leave yourself on the fat side of the pin for easier up-and-downs.",level:'adv'},
+        {t:"If you're going low, stay aggressive through 14. Holes 15-17 are the toughest closing stretch — bank your birdies early.",level:'adv'},
+      ]
+    },
+    trickiest: [
+      {hole:5,text:"The hardest hole on the course. Water left, OB right, and a green that slopes toward the pond. Play to the right side off the tee and aim for the center-right of the green. A par here is a great score."},
+      {hole:13,text:"Water runs the entire left side. Three solid shots needed. Don't try to reach in two unless you're certain you can carry the water. Lay up right-center and take your medicine."},
+      {hole:11,text:"Long with an elevated green and false front. Club up on your approach — shots that look good in the air will roll back off the front. Better to be 10 feet past the pin than 30 yards short."}
+    ]
+  },
+
+  pinehurst_no2: {
+    id: 'pinehurst_no2',
+    name: 'Pinehurst No. 2',
+    location: 'Pinehurst, NC',
+    description: 'The crown jewel of American golf, redesigned by Donald Ross in 1935 and restored by Coore & Crenshaw in 2011. A classic sandhills parkland course known for its crowned, turtle-back greens and strategic bunkering. Host of multiple U.S. Opens and the 2024 U.S. Open.',
+    holes: [
+      {num:1,par:4,hdcp:9,blue:404,white:389,red:340,
+        strategy:"A gentle opening hole. Aim for the left-center of the fairway — it opens the best angle into the green. Driver is fine here; the fairway is generous.",
+        green:"Classic Ross crowned green. Anything that misses the putting surface will roll away. The center of the green is the target — don't get cute with a tucked pin.",
+        hazard:"Bunkers left and right of the green at greenside. The sandy waste areas frame the fairway but are mostly cosmetic off the tee."},
+      {num:2,par:4,hdcp:7,blue:452,white:434,red:378,
+        strategy:"One of the toughest opening stretches in golf. This long par 4 demands a solid drive to the right side — the fairway kicks left. Mid to long iron approach.",
+        green:"Severely crowned green that sheds anything not on the correct quadrant. Below the hole is critical — above the pin and you're putting off the green.",
+        hazard:"Deep bunker front-left catches the common miss. Wiregrass waste areas right of the fairway. The length alone is the primary defense."},
+      {num:3,par:4,hdcp:13,blue:378,white:361,red:314,
+        strategy:"A shorter par 4 that tempts you into aggressiveness. 3-wood to the plateau in the fairway leaves a short iron. Driver can run through the fairway into sand.",
+        green:"Relatively flat for Pinehurst — one of the more receptive greens. Front-center approach is ideal.",
+        hazard:"Fairway narrows beyond 270 yards with sand left and right. Greenside bunker front-right."},
+      {num:4,par:5,hdcp:1,blue:565,white:541,red:479,
+        strategy:"The number-one handicap hole and the longest on the course. Three precision shots are required. Favor the right side off the tee to avoid the waste area left. Lay up to 100-110 yards for the best angle.",
+        green:"Multi-tiered green with a pronounced ridge. If the pin is back-left, getting close is nearly impossible from the wrong tier. Aim for the center and take your two-putt.",
+        hazard:"Massive waste area runs the entire left side from tee to green. Fairway bunker right at 280. Deep greenside bunker front-right."},
+      {num:5,par:4,hdcp:3,blue:478,white:455,red:398,
+        strategy:"Long, demanding par 4 that plays uphill. You need a big drive to have any chance of reaching this green in two. Consider laying up short and relying on your short game.",
+        green:"One of the most crowned greens on the course. The edges fall off sharply in every direction. Hit the center and take whatever putt you get.",
+        hazard:"Bunkers left at the 250-yard mark. The green complex is surrounded by shaved chipping areas that feed away from the putting surface."},
+      {num:6,par:3,hdcp:15,blue:222,white:201,red:159,
+        strategy:"A long, beautiful par 3. Take enough club — the green is slightly uphill and the sandy waste area short is a difficult up-and-down. Aim center-right.",
+        green:"Elongated green that runs front-to-back. The pin position changes this hole dramatically. A front pin is reachable; a back pin requires a full extra club.",
+        hazard:"Deep bunker front-left. Waste area short and right. Shaved runoff behind the green sends long shots into wiregrass."},
+      {num:7,par:4,hdcp:11,blue:404,white:388,red:341,
+        strategy:"A mid-length par 4 with a generous fairway. This is a scoring opportunity. Hit driver and take a short iron to a receptive green.",
+        green:"Wider than most No. 2 greens with gentle slopes. A good approach here should yield a birdie look. The right side is the bail-out zone.",
+        hazard:"Bunkers frame the green left and right. The waste area at 240 right is mostly out of play for mid-handicappers."},
+      {num:8,par:4,hdcp:5,blue:484,white:460,red:403,
+        strategy:"Another long, brutal par 4. This is the hardest driving hole on the course. Aim left-center — the fairway slopes right. Accept a long approach and play for the middle of the green.",
+        green:"Crowned green with a steep back-to-front slope on the right side. Back-left pin is the hardest location on the course. Play below the hole.",
+        hazard:"Fairway bunker right at 260. Waste area and wiregrass left. Deep greenside bunker front-right collects pulled approaches."},
+      {num:9,par:3,hdcp:17,blue:190,white:174,red:140,
+        strategy:"A beautiful downhill par 3 to close the front nine. Take one less club than the yardage suggests. Aim for the front-center — the green slopes away at the back.",
+        green:"Crowned green that is very difficult to hold from the back. Front pins are accessible; back pins require a high, soft landing shot.",
+        hazard:"Bunkers surround the green. The front-left bunker is especially deep. Short and right is the safest miss."},
+      {num:10,par:5,hdcp:2,blue:575,white:553,red:488,
+        strategy:"The longest hole and the second hardest on the card. A three-shot hole for almost everyone. Drive to right-center, lay up to 100 yards left of the waste area, and wedge in.",
+        green:"Large, rolling green with subtle breaks. Getting on in regulation is an achievement — don't compound by three-putting. Lag putting is key.",
+        hazard:"Enormous waste area runs the full right side. Fairway bunkers left at 265 and 290. Greenside bunkers left and back-right."},
+      {num:11,par:4,hdcp:8,blue:434,white:416,red:367,
+        strategy:"A dogleg left that rewards a draw. The ideal tee shot is right-center, which leaves a mid-iron to a green that sits slightly above the fairway.",
+        green:"Sloping green that falls off dramatically on the right side. Left-center is always the play. Above the hole on this green is a three-putt from 15 feet.",
+        hazard:"Trees and waste area guard the left side of the dogleg. Bunkers right of green. The shaved runoff right sends balls 30 yards from the pin."},
+      {num:12,par:4,hdcp:10,blue:422,white:403,red:358,
+        strategy:"A subtle dogleg right with a slightly uphill approach. Driver to left-center is the play — the fairway is wide but narrows near the green. One of the more honest holes at No. 2.",
+        green:"Moderately crowned green. The front half is more receptive than the back. Play to a front-center target unless the pin is clearly back.",
+        hazard:"Waste area right at the 260-yard mark. Greenside bunkers left and right. Long is better than short here."},
+      {num:13,par:4,hdcp:4,blue:370,white:356,red:310,
+        strategy:"A shorter par 4 that looks easy on the card but the green complex is the defense. Accuracy off the tee matters more than distance. Consider 3-wood to the flat section at 230 yards.",
+        green:"One of the most severely crowned greens on the course. The edges are shaved and anything not on the green will funnel 15-20 yards away. You must land your approach ON the green.",
+        hazard:"Bunker front-left. Shaved runoff areas surround the entire green complex. This is where Ross's genius is most visible."},
+      {num:14,par:4,hdcp:14,blue:440,white:422,red:369,
+        strategy:"Long par 4 with a wide landing area. Bomb your drive and deal with the long approach. The green is large enough to be forgiving if you hit it.",
+        green:"The largest green on the course. Three-putts are common due to the sheer size and multiple tiers. Getting on the correct tier is worth a club change.",
+        hazard:"Sand left at 250 off the tee. Bunkers front-right and back-left of the green."},
+      {num:15,par:3,hdcp:16,blue:204,white:189,red:151,
+        strategy:"A gorgeous par 3 over a valley. Club selection is everything — check the wind carefully. The green sits on a plateau and rejects weak shots.",
+        green:"Crowned green on a plateau — shots that don't hit the putting surface will roll off dramatically. There is no bail-out zone. Hit the green or face a very tough up-and-down.",
+        hazard:"Bunker front-left and front-right. Deep collection area behind the green. Wiregrass and sand surround the entire complex."},
+      {num:16,par:4,hdcp:12,blue:410,white:394,red:348,
+        strategy:"A straight par 4 with a slight uphill approach. Driver to the center of the fairway, then a mid-iron to a well-guarded green. Good execution here sets up a strong finish.",
+        green:"Two-tiered green with a pronounced ridge running left to right. Get on the correct tier or face a long, breaking putt. The lower tier (front) is more forgiving.",
+        hazard:"Bunkers at the 260-yard mark both sides. Greenside bunker front-right is deep. Shaved areas behind the green."},
+      {num:17,par:3,hdcp:18,blue:190,white:175,red:137,
+        strategy:"The final par 3 — and the easiest on the card. A smooth mid-iron to the center-left of the green. This is your birdie chance before the tough closer.",
+        green:"The most forgiving green on the course. Relatively flat with gentle breaks. A good tee shot should leave a makeable birdie putt.",
+        hazard:"Bunker front-right. Sand back-left. The green is below the tee, so take one less club."},
+      {num:18,par:4,hdcp:6,blue:444,white:427,red:374,
+        strategy:"One of the most iconic finishing holes in golf. A long, uphill par 4 to the crowned green in front of the clubhouse. Aim left-center off the tee and hit the best approach you have in you.",
+        green:"The famous turtle-back 18th green at Pinehurst. Severely crowned in all directions. A shot that lands on the green can easily roll 40 feet away. Hit the center and pray. It's the ultimate test of approach play.",
+        hazard:"Deep bunker front-left — the famous Payne Stewart bunker. Sandy waste area right. The crowned green itself is the greatest hazard on the course."}
+    ],
+    facts: [
+      "Pinehurst No. 2 was originally designed by Donald Ross in 1907 and continuously refined by him until his death in 1948. Ross lived in a house overlooking the third green.",
+      "The course was restored to its original Ross intent by Ben Crenshaw and Bill Coore in 2011, removing 40 acres of rough and reintroducing native wiregrass and sandy waste areas.",
+      "Pinehurst No. 2 is the only course to host the U.S. Open, U.S. Women's Open, U.S. Senior Open, U.S. Amateur, and the Ryder Cup.",
+      "In 1999 and 2005, Payne Stewart and Michael Campbell respectively won dramatic U.S. Opens at Pinehurst. Stewart's famous putt on 18 in 1999 is memorialized with a statue.",
+      "The course has no rough in the traditional sense. Instead, native wiregrass, pine straw, and sandy waste areas frame the fairways, recreating the conditions Ross intended.",
+      "Donald Ross's crowned, turtle-back greens are the defining feature of No. 2. They reject anything but the most precise approach shots, making course management essential.",
+      "The Pinehurst resort area in the North Carolina Sandhills features nine courses. No. 2 is the crown jewel, consistently ranked among the top 10 courses in America.",
+      "In 2014, Pinehurst made history by hosting both the U.S. Open and U.S. Women's Open on No. 2 in back-to-back weeks — the first time this had ever been done.",
+      "The sandy soil of the North Carolina Sandhills provides perfect drainage. The course plays firm and fast, rewarding the ground game that Ross championed.",
+      "Ross reportedly said of No. 2: 'I sincerely believe this is the fairest test of championship golf I have ever designed.' The course continues to prove him right."
+    ],
+    history: 'Pinehurst No. 2 was designed by <strong>Donald Ross</strong>, who first laid out the course in <strong>1907</strong> and spent the rest of his life refining it. Ross lived in a cottage overlooking the third green until his death in 1948. The course sits in the <strong>North Carolina Sandhills</strong>, a region of sandy soil, longleaf pines, and wiregrass that provides the perfect canvas for strategic golf.<br><br>In 2011, <strong>Ben Crenshaw and Bill Coore</strong> completed a landmark restoration that removed 40 acres of Bermuda rough and returned the course to Ross\'s original vision — with native sandy waste areas, wiregrass, and pine straw framing the fairways. The result is one of the most celebrated course restorations in history.<br><br>No. 2 has hosted the <strong>U.S. Open</strong> (1999, 2005, 2014, 2024), the <strong>U.S. Women\'s Open</strong>, the <strong>U.S. Senior Open</strong>, the <strong>Ryder Cup</strong>, and the <strong>U.S. Amateur</strong> — the only course to host all five. Payne Stewart\'s famous par putt on the 72nd hole in 1999 remains one of golf\'s most iconic moments.',
+    tips: {
+      all:[
+        {t:"Pinehurst No. 2 is all about the greens. The crowned, turtle-back putting surfaces reject anything that doesn't land on them precisely. Focus on approach play above all else.",level:'all'},
+        {t:"The course plays firm and fast. Use the ground game — bump-and-run shots around the greens are often smarter than high-lofted pitches.",level:'all'},
+        {t:"There is no traditional rough. Misses go into sandy waste areas and wiregrass. While the lie may be clean, the stance and mental challenge are real.",level:'all'},
+        {t:"The greens run fast, typically 11-12 on the Stimpmeter. Downhill putts require extreme touch. When in doubt, leave it short of the hole on downhill putts.",level:'all'},
+        {t:"Hydrate heavily — the Sandhills can be hot and dry, especially in summer. The walking-only policy means you'll cover significant ground.",level:'all'},
+      ],
+      beg:[
+        {t:"Aim for the center of every green. The edges fall away sharply on almost every hole. A 30-foot putt from the middle beats chipping from 20 yards off the green.",level:'beg'},
+        {t:"Club up on every approach. Coming up short at No. 2 means your ball rolls back toward you. Being past the pin is almost always better.",level:'beg'},
+        {t:"Don't worry about waste areas — play them like fairway bunkers. Take one more club and make clean contact. No penalty stroke, just a tricky lie.",level:'beg'},
+        {t:"Practice your bump-and-run before the round. A low, running chip with a 7 or 8-iron is the most useful shot around these greens.",level:'beg'},
+        {t:"Play from the appropriate tees. No. 2 from the back tees is a brute. The forward tees still provide a world-class challenge while being more enjoyable.",level:'beg'},
+      ],
+      int:[
+        {t:"Study the pin sheet carefully. At No. 2, some pin positions are accessible and others are virtually impossible to get close to. Adjust your target accordingly.",level:'int'},
+        {t:"The crowned greens mean your miss direction matters enormously. On holes where the green tilts left, missing right leaves a near-impossible up-and-down.",level:'int'},
+        {t:"Holes 4, 5, 8, and 10 are the four hardest. Play them for bogey if you're not in position — saving pars on 7, 9, and 17 will offset those.",level:'int'},
+        {t:"Pay attention to green contours from 50 yards out. Walking up to the green before your approach can reveal slopes you can't see from the fairway.",level:'int'},
+        {t:"The firmness of the course means drives will roll. Play less club off the tee on shorter par 4s (3, 7, 13) to keep the ball in the fairway.",level:'int'},
+      ],
+      adv:[
+        {t:"No. 2 is won and lost on approach shots. Track your proximity to the hole on approaches — anything inside 20 feet at No. 2 is a quality shot.",level:'adv'},
+        {t:"The 2011 restoration opened up creative short-game options. Use the contours around greens to funnel chips and pitches toward the hole rather than flying everything to the pin.",level:'adv'},
+        {t:"Hole 18's crowned green is the ultimate closer. Your approach must land on the green — period. A shot that bounces on the fringe will roll 30+ feet from the hole.",level:'adv'},
+        {t:"In competition conditions, the greens will be at their fastest. Practice lag putting extensively. Two-putts from 30+ feet are victories at No. 2.",level:'adv'},
+        {t:"Attack early (holes 1, 3, 7, 9, 17) and survive the brutes (4, 5, 8, 10, 18). Course management and patience separate good rounds from great ones here.",level:'adv'},
+      ]
+    },
+    trickiest: [
+      {hole:4,text:"The #1 handicap hole. 565 yards with a massive waste area running the entire left side. Three precision shots are needed. Lay up to 100 yards and take your par — it's a great score here."},
+      {hole:5,text:"478 yards uphill to one of the most crowned greens on the course. Even a perfect approach can roll off the putting surface. Aim dead center and accept a two-putt."},
+      {hole:18,text:"The iconic finisher. 444 yards uphill to the famous turtle-back green in front of the clubhouse. Your approach must land on the green — anything on the fringe rolls away. The front-left bunker (Payne Stewart's bunker) is a difficult up-and-down."}
+    ]
+  }
+};
+
+const DEFAULT_CLUBS = {
+  "Driver":240,"3-Wood":220,"5-Wood":205,"4-Hybrid":195,
+  "4-Iron":185,"5-Iron":175,"6-Iron":165,"7-Iron":155,
+  "8-Iron":145,"9-Iron":135,"PW":125,"GW":110,"SW":95,"LW":75
+};
+
+// ===================== STATE =====================
+let selectedCourseId = null;
+let currentHole = 0;
+let currentTab = 'Holes';
+let scoreData = new Array(18).fill(null).map(()=>({strokes:0,putts:0,fir:false,gir:false}));
+let clubDistances = {};
+let rounds = [];
+let factIndex = 0;
+let weatherData = {temp:'',wind:'',windDir:'',humidity:''};
+let prefs = {contrast:false,xl:false};
+let tipsLevel = 'all';
+
+function getCourse(){return COURSES[selectedCourseId];}
+function getHoles(){return getCourse().holes;}
+
+function loadState(){
+  try{
+    const cd = localStorage.getItem('avc_clubs');
+    clubDistances = cd ? JSON.parse(cd) : {...DEFAULT_CLUBS};
+    const r = localStorage.getItem('avc_rounds');
+    rounds = r ? JSON.parse(r) : [];
+    const p = localStorage.getItem('avc_prefs');
+    if(p){prefs=JSON.parse(p);if(prefs.contrast)document.body.classList.add('high-contrast');if(prefs.xl)document.body.classList.add('xl-text');}
+    const sd = localStorage.getItem('avc_current_score');
+    if(sd) scoreData = JSON.parse(sd);
+    const sc = localStorage.getItem('avc_selected_course');
+    if(sc && COURSES[sc]) selectedCourseId = sc;
+  }catch(e){clubDistances={...DEFAULT_CLUBS};}
+}
+function saveClubs(){try{localStorage.setItem('avc_clubs',JSON.stringify(clubDistances));}catch(e){}}
+function savePrefs(){try{localStorage.setItem('avc_prefs',JSON.stringify(prefs));}catch(e){}}
+function saveRounds(){try{localStorage.setItem('avc_rounds',JSON.stringify(rounds));}catch(e){}}
+function saveCurrentScore(){try{localStorage.setItem('avc_current_score',JSON.stringify(scoreData));}catch(e){}}
+function saveSelectedCourse(){try{localStorage.setItem('avc_selected_course',selectedCourseId);}catch(e){}}
+
+// ===================== COURSE SELECTION =====================
+function renderCourseSelect(){
+  const container = document.getElementById('courseCards');
+  let html = '';
+  for(const key of Object.keys(COURSES)){
+    const c = COURSES[key];
+    const holes = c.holes;
+    const totalPar = holes.reduce((a,h)=>a+h.par,0);
+    const totalBlue = holes.reduce((a,h)=>a+h.blue,0);
+    const totalWhite = holes.reduce((a,h)=>a+h.white,0);
+    html += `<div class="course-card" onclick="selectCourse('${key}')" tabindex="0" onkeydown="if(event.key==='Enter')selectCourse('${key}')">
+      <div class="cc-name">${c.name}</div>
+      <div class="cc-loc">${c.location}</div>
+      <div class="cc-desc">${c.description}</div>
+      <div class="cc-stats">
+        <div class="cc-stat"><div class="val">${totalPar}</div><div class="lbl">Par</div></div>
+        <div class="cc-stat"><div class="val">${totalBlue.toLocaleString()}</div><div class="lbl">Blue Yds</div></div>
+        <div class="cc-stat"><div class="val">${totalWhite.toLocaleString()}</div><div class="lbl">White Yds</div></div>
+        <div class="cc-stat"><div class="val">18</div><div class="lbl">Holes</div></div>
+      </div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function selectCourse(courseId){
+  selectedCourseId = courseId;
+  saveSelectedCourse();
+  // Reset score data when switching courses
+  const prevCourse = localStorage.getItem('avc_score_course');
+  if(prevCourse !== courseId){
+    scoreData = new Array(18).fill(null).map(()=>({strokes:0,putts:0,fir:false,gir:false}));
+    saveCurrentScore();
+    try{localStorage.setItem('avc_score_course',courseId);}catch(e){}
+  }
+  currentHole = 0;
+  factIndex = 0;
+  showMainApp();
+}
+
+function showMainApp(){
+  const c = getCourse();
+  document.getElementById('courseSelectScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('headerSub').textContent = c.name + ' \u00B7 ' + c.location;
+  document.body.style.paddingBottom = 'calc(var(--nav-h) + 20px)';
+  switchTab('Holes');
+}
+
+function showCourseSelect(){
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('courseSelectScreen').classList.remove('hidden');
+  document.body.style.paddingBottom = '0';
+  renderCourseSelect();
+}
+
+// ===================== NAV =====================
+function switchTab(name){
+  currentTab=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab'+name).classList.add('active');
+  document.getElementById('nav'+name).classList.add('active');
+  if(name==='Holes') renderHoles();
+  else if(name==='Calc') renderCalc();
+  else if(name==='Score') renderScore();
+  else if(name==='Tips') renderTips();
+  else if(name==='History') renderHistory();
+  window.scrollTo(0,0);
+}
+
+function toggleContrast(){
+  prefs.contrast=!prefs.contrast;
+  document.body.classList.toggle('high-contrast');
+  document.getElementById('btnContrast').classList.toggle('active',prefs.contrast);
+  savePrefs();
+}
+function toggleXL(){
+  prefs.xl=!prefs.xl;
+  document.body.classList.toggle('xl-text');
+  document.getElementById('btnXL').classList.toggle('active',prefs.xl);
+  savePrefs();
+}
+
+// ===================== HOLES TAB =====================
+function renderHoles(){
+  const HOLES = getHoles();
+  const h = HOLES[currentHole];
+  let html = `<div class="hole-grid">`;
+  for(let i=0;i<18;i++){
+    const scored = scoreData[i].strokes>0?'scored':'';
+    const active = i===currentHole?'active':'';
+    html+=`<button class="${active} ${scored}" onclick="currentHole=${i};renderHoles();">${i+1}</button>`;
+  }
+  html+=`</div>`;
+  html+=`<div class="hole-arrows">
+    <button ${currentHole===0?'disabled':''} onclick="currentHole--;renderHoles();">&#9664; Prev</button>
+    <button ${currentHole===17?'disabled':''} onclick="currentHole++;renderHoles();">Next &#9654;</button>
+  </div>`;
+  html+=`<div class="card">
+    <div class="hole-header">
+      <span class="hole-num">Hole ${h.num}</span>
+      <span class="hole-par">Par ${h.par}</span>
+      <span class="hole-hdcp">HDCP ${h.hdcp}</span>
+    </div>
+    <table class="tee-table">
+      <tr><th>Tee</th><th>Yards</th></tr>
+      <tr><td class="tee-blue">&#9679; Blue</td><td class="tee-blue">${h.blue}</td></tr>
+      <tr><td class="tee-white">&#9675; White</td><td class="tee-white">${h.white}</td></tr>
+      <tr><td class="tee-red">&#9679; Red</td><td class="tee-red">${h.red}</td></tr>
+    </table>
+    <div class="tip-box tip-strategy"><div class="tip-label">&#127919; Strategy</div>${h.strategy}</div>
+    <div class="tip-box tip-green"><div class="tip-label">&#127948; Green Notes</div>${h.green}</div>
+    <div class="tip-box tip-hazard"><div class="tip-label">&#9888;&#65039; Hazards</div>${h.hazard}</div>
+  </div>`;
+
+  // Quick score entry for this hole
+  const s = scoreData[currentHole];
+  html+=`<div class="card"><h2>&#128221; Quick Score — Hole ${h.num}</h2>`;
+  html+=makeStepper('Strokes',s.strokes,'strokes');
+  html+=makeStepper('Putts',s.putts,'putts');
+  html+=`<div class="toggle-row"><label>FIR</label><div class="toggle-btn ${s.fir?'on':''}" onclick="toggleScoreField(${currentHole},'fir')"></div></div>`;
+  if(h.par>3) html+=``;
+  html+=`<div class="toggle-row"><label>GIR</label><div class="toggle-btn ${s.gir?'on':''}" onclick="toggleScoreField(${currentHole},'gir')"></div></div>`;
+  html+=`</div>`;
+
+  document.getElementById('tabHoles').innerHTML=html;
+}
+
+function makeStepper(label,val,field){
+  return `<div class="score-input"><label>${label}</label><div class="stepper">
+    <button onclick="adjustScore(${currentHole},'${field}',-1)">-</button>
+    <span>${val}</span>
+    <button onclick="adjustScore(${currentHole},'${field}',1)">+</button>
+  </div></div>`;
+}
+
+function adjustScore(hole,field,delta){
+  scoreData[hole][field]=Math.max(0,scoreData[hole][field]+delta);
+  saveCurrentScore();
+  if(currentTab==='Holes') renderHoles();
+  if(currentTab==='Score') renderScore();
+}
+
+function toggleScoreField(hole,field){
+  scoreData[hole][field]=!scoreData[hole][field];
+  saveCurrentScore();
+  if(currentTab==='Holes') renderHoles();
+  if(currentTab==='Score') renderScore();
+}
+
+// ===================== CLUB CALC =====================
+function renderCalc(){
+  let html=`<div class="card"><h2>&#128207; Club Recommendation</h2>
+    <div class="calc-row"><label>Distance (yds)</label><input type="number" id="calcDist" value="150" min="0" max="600" inputmode="numeric"></div>
+    <div class="calc-row"><label>Wind (mph)</label><input type="number" id="calcWind" value="0" min="0" max="50" inputmode="numeric">
+      <select id="calcWindDir"><option value="0">None</option><option value="head">Headwind</option><option value="tail">Tailwind</option><option value="cross">Crosswind</option></select></div>
+    <div class="calc-row"><label>Elevation</label><select id="calcElev"><option value="0">Level</option><option value="up">Uphill</option><option value="down">Downhill</option></select></div>
+    <div class="calc-row"><label>Temp (&deg;F)</label><input type="number" id="calcTemp" value="75" min="20" max="120" inputmode="numeric"></div>
+    <button class="btn-primary" style="width:100%;height:var(--button-h);border-radius:10px;font-weight:700;font-size:1em;margin-top:8px;" onclick="calculateClub()">Get Recommendation</button>
+    <div id="calcResultArea"></div>
+  </div>`;
+
+  // Club distance editor
+  html+=`<div class="card"><h2>&#9881;&#65039; Your Club Distances</h2>
+    <p style="font-size:.85em;color:var(--muted);margin-bottom:10px;">Customize these to match your game. Distances are saved automatically.</p>
+    <div class="club-editor">`;
+  const clubNames = Object.keys(clubDistances);
+  for(const c of clubNames){
+    html+=`<div class="club-editor-row"><label>${c}</label><input type="number" value="${clubDistances[c]}" inputmode="numeric"
+      onchange="clubDistances['${c}']=parseInt(this.value)||0;saveClubs();"> yds</div>`;
+  }
+  html+=`</div>
+    <button class="btn-secondary" style="margin-top:10px;width:100%;height:40px;border-radius:8px;font-size:.9em;cursor:pointer;" onclick="clubDistances={...DEFAULT_CLUBS};saveClubs();renderCalc();">Reset to Defaults</button>
+  </div>`;
+  document.getElementById('tabCalc').innerHTML=html;
+}
+
+function calculateClub(){
+  const dist = parseInt(document.getElementById('calcDist').value)||150;
+  const wind = parseInt(document.getElementById('calcWind').value)||0;
+  const windDir = document.getElementById('calcWindDir').value;
+  const elev = document.getElementById('calcElev').value;
+  const temp = parseInt(document.getElementById('calcTemp').value)||75;
+
+  let adjusted = dist;
+  if(windDir==='head') adjusted += wind * 1.0;
+  else if(windDir==='tail') adjusted -= wind * 0.7;
+  else if(windDir==='cross') adjusted += wind * 0.3;
+
+  if(elev==='up') adjusted *= 1.05;
+  else if(elev==='down') adjusted *= 0.93;
+
+  adjusted += (temp - 75) * 0.2;
+  adjusted = Math.round(adjusted);
+
+  const clubs = Object.entries(clubDistances).sort((a,b)=>b[1]-a[1]);
+  let bestClub = clubs[clubs.length-1][0];
+  let bestDist = clubs[clubs.length-1][1];
+  for(const [name,d] of clubs){
+    if(d >= adjusted){bestClub=name;bestDist=d;}
+    else break;
+  }
+
+  let detail = `Actual: ${dist} yds`;
+  const factors = [];
+  if(windDir==='head') factors.push(`+${wind} headwind`);
+  if(windDir==='tail') factors.push(`-${Math.round(wind*0.7)} tailwind`);
+  if(windDir==='cross') factors.push(`crosswind ${wind} mph`);
+  if(elev==='up') factors.push('uphill +5%');
+  if(elev==='down') factors.push('downhill -7%');
+  if(temp!==75) factors.push(`${temp}&deg;F`);
+  if(factors.length) detail += ' &middot; ' + factors.join(', ');
+
+  document.getElementById('calcResultArea').innerHTML=`
+    <div class="calc-result">
+      <div class="dist">Plays Like ${adjusted} yds</div>
+      <div class="club">${bestClub} (${bestDist} yds)</div>
+      <div class="detail">${detail}</div>
+    </div>`;
+}
+
+// ===================== SCORECARD =====================
+function renderScore(){
+  const HOLES = getHoles();
+  let totalStrokes=0,totalPar=0,totalPutts=0,firCount=0,firEligible=0,girCount=0,holesPlayed=0;
+  for(let i=0;i<18;i++){
+    const s=scoreData[i], h=HOLES[i];
+    if(s.strokes>0){
+      holesPlayed++;totalStrokes+=s.strokes;totalPar+=h.par;totalPutts+=s.putts;
+      if(h.par>=4){firEligible++;if(s.fir)firCount++;}
+      if(s.gir)girCount++;
+    }
+  }
+  const vspar = totalStrokes - totalPar;
+  const vspStr = vspar===0?'E':(vspar>0?'+'+vspar:''+vspar);
+
+  let html=`<div class="card"><h2>&#128221; Round Summary</h2>
+    <div class="score-summary">
+      <div class="stat"><div class="val">${totalStrokes||'\u2014'}</div><div class="lbl">Total</div></div>
+      <div class="stat"><div class="val">${holesPlayed>0?vspStr:'\u2014'}</div><div class="lbl">vs Par</div></div>
+      <div class="stat"><div class="val">${holesPlayed>0?totalPutts:'\u2014'}</div><div class="lbl">Putts</div></div>
+      <div class="stat"><div class="val">${firEligible>0?Math.round(firCount/firEligible*100)+'%':'\u2014'}</div><div class="lbl">FIR</div></div>
+      <div class="stat"><div class="val">${holesPlayed>0?Math.round(girCount/holesPlayed*100)+'%':'\u2014'}</div><div class="lbl">GIR</div></div>
+      <div class="stat"><div class="val">${holesPlayed>0?(totalPutts/holesPlayed).toFixed(1):'\u2014'}</div><div class="lbl">Putts/Hole</div></div>
+    </div></div>`;
+
+  html+=`<div class="card"><h2>Hole-by-Hole</h2><table class="tee-table" style="font-size:.85em;">
+    <tr><th>Hole</th><th>Par</th><th>Score</th><th>+/-</th><th>Putts</th></tr>`;
+  for(let i=0;i<18;i++){
+    const h=HOLES[i],s=scoreData[i];
+    const diff = s.strokes>0 ? s.strokes-h.par : '';
+    const diffStr = diff===''?'\u2014':diff===0?'E':diff>0?'+'+diff:''+diff;
+    const diffColor = diff<0?'color:var(--green)':diff>0?'color:var(--red)':'';
+    html+=`<tr style="cursor:pointer;" onclick="currentHole=${i};switchTab('Holes');">
+      <td><strong>${i+1}</strong></td><td>${h.par}</td>
+      <td><strong>${s.strokes||'\u2014'}</strong></td>
+      <td style="${diffColor}">${diffStr}</td>
+      <td>${s.strokes>0?s.putts:'\u2014'}</td></tr>`;
+  }
+  html+=`</table></div>`;
+
+  html+=`<div class="round-actions">
+    <button class="btn-primary" onclick="saveRound()">Save Round</button>
+    <button class="btn-danger" onclick="if(confirm('Clear all scores for this round?')){scoreData=new Array(18).fill(null).map(()=>({strokes:0,putts:0,fir:false,gir:false}));saveCurrentScore();renderScore();}">New Round</button>
+  </div>`;
+
+  if(rounds.length>0){
+    html+=`<div class="card"><h2>&#128197; Round History</h2>`;
+    for(let i=rounds.length-1;i>=0;i--){
+      const r=rounds[i];
+      const courseLabel = r.course ? (COURSES[r.course] ? COURSES[r.course].name : r.course) : 'Unknown';
+      html+=`<div class="round-history-item">
+        <strong>${r.date}</strong> &mdash; ${courseLabel}<br>
+        Score: ${r.total} (${r.vspar}) &middot; ${r.holesPlayed} holes &middot; ${r.putts} putts
+        <br><span style="font-size:.8em;color:var(--muted);">FIR: ${r.fir} &middot; GIR: ${r.gir}</span>
+      </div>`;
+    }
+    html+=`<button class="btn-danger" style="width:100%;height:38px;border-radius:8px;font-size:.85em;margin-top:8px;cursor:pointer;" onclick="if(confirm('Delete all round history?')){rounds=[];saveRounds();renderScore();}">Clear History</button>`;
+    html+=`</div>`;
+  }
+
+  document.getElementById('tabScore').innerHTML=html;
+}
+
+function saveRound(){
+  const HOLES = getHoles();
+  let totalStrokes=0,totalPar=0,totalPutts=0,firCount=0,firEligible=0,girCount=0,holesPlayed=0;
+  for(let i=0;i<18;i++){
+    const s=scoreData[i],h=HOLES[i];
+    if(s.strokes>0){holesPlayed++;totalStrokes+=s.strokes;totalPar+=h.par;totalPutts+=s.putts;
+      if(h.par>=4){firEligible++;if(s.fir)firCount++;}
+      if(s.gir)girCount++;}
+  }
+  if(holesPlayed===0){alert('No scores entered yet.');return;}
+  const vspar=totalStrokes-totalPar;
+  const vspStr=vspar===0?'E':(vspar>0?'+'+vspar:''+vspar);
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  rounds.push({
+    date:dateStr,total:totalStrokes,vspar:vspStr,holesPlayed:holesPlayed,
+    putts:totalPutts,fir:firEligible>0?Math.round(firCount/firEligible*100)+'%':'N/A',
+    gir:holesPlayed>0?Math.round(girCount/holesPlayed*100)+'%':'N/A',
+    scores:scoreData.map(s=>({...s})),
+    course:selectedCourseId
+  });
+  saveRounds();
+  scoreData=new Array(18).fill(null).map(()=>({strokes:0,putts:0,fir:false,gir:false}));
+  saveCurrentScore();
+  alert('Round saved!');
+  renderScore();
+}
+
+// ===================== TIPS TAB =====================
+function renderTips(){
+  const course = getCourse();
+  const HOLES = course.holes;
+  let html = `<div class="card"><h2>&#128161; Course Tips & Strategy</h2>
+    <div class="skill-tabs">
+      <button class="${tipsLevel==='all'?'active':''}" onclick="tipsLevel='all';renderTips();">All</button>
+      <button class="${tipsLevel==='beg'?'active':''}" onclick="tipsLevel='beg';renderTips();">Beginner</button>
+      <button class="${tipsLevel==='int'?'active':''}" onclick="tipsLevel='int';renderTips();">Intermediate</button>
+      <button class="${tipsLevel==='adv'?'active':''}" onclick="tipsLevel='adv';renderTips();">Advanced</button>
+    </div>`;
+
+  const tips = course.tips;
+  const show = tipsLevel==='all' ? [...tips.all,...tips.beg,...tips.int,...tips.adv] : tips[tipsLevel];
+  for(const tip of show){
+    const badge = tip.level==='beg'?'Beginner':tip.level==='int'?'Intermediate':tip.level==='adv'?'Advanced':'General';
+    html+=`<div class="tip-card"><strong>${badge}:</strong> ${tip.t}</div>`;
+  }
+  html+=`</div>`;
+
+  // Trickiest holes
+  html+=`<div class="card"><h2>&#127919; Trickiest Holes</h2>`;
+  for(const t of course.trickiest){
+    const h = HOLES[t.hole-1];
+    html+=`<div class="tip-card"><strong>Hole ${t.hole} (HDCP ${h.hdcp}, Par ${h.par}, ${h.blue} yds):</strong> ${t.text}</div>`;
+  }
+  html+=`</div>`;
+
+  // Weather
+  html+=`<div class="card"><h2>&#127780; Course Conditions</h2>
+    <p style="font-size:.85em;color:var(--muted);margin-bottom:10px;">Enter current conditions to factor into club selection.</p>
+    <div class="calc-row"><label>Temp (&deg;F)</label><input type="number" id="wxTemp" value="${weatherData.temp}" placeholder="75" inputmode="numeric" onchange="weatherData.temp=this.value;updateWeather();"></div>
+    <div class="calc-row"><label>Wind (mph)</label><input type="number" id="wxWind" value="${weatherData.wind}" placeholder="10" inputmode="numeric" onchange="weatherData.wind=this.value;updateWeather();">
+      <select id="wxDir" onchange="weatherData.windDir=this.value;updateWeather();">
+        <option value="">Dir</option><option value="N" ${weatherData.windDir==='N'?'selected':''}>N</option><option value="NE" ${weatherData.windDir==='NE'?'selected':''}>NE</option>
+        <option value="E" ${weatherData.windDir==='E'?'selected':''}>E</option><option value="SE" ${weatherData.windDir==='SE'?'selected':''}>SE</option>
+        <option value="S" ${weatherData.windDir==='S'?'selected':''}>S</option><option value="SW" ${weatherData.windDir==='SW'?'selected':''}>SW</option>
+        <option value="W" ${weatherData.windDir==='W'?'selected':''}>W</option><option value="NW" ${weatherData.windDir==='NW'?'selected':''}>NW</option>
+      </select></div>
+    <div class="calc-row"><label>Humidity (%)</label><input type="number" id="wxHum" value="${weatherData.humidity}" placeholder="50" inputmode="numeric" onchange="weatherData.humidity=this.value;updateWeather();"></div>
+    <div id="weatherDisplay"></div>
+  </div>`;
+
+  document.getElementById('tabTips').innerHTML=html;
+  updateWeather();
+}
+
+function updateWeather(){
+  const t=parseInt(weatherData.temp)||0, w=parseInt(weatherData.wind)||0, h=parseInt(weatherData.humidity)||0;
+  if(!t&&!w&&!h){const el=document.getElementById('weatherDisplay');if(el)el.innerHTML='';return;}
+  let score=100;
+  if(w>20)score-=30; else if(w>10)score-=15; else if(w>5)score-=5;
+  if(t<50)score-=20; else if(t<60)score-=10; else if(t>95)score-=15;
+  if(h>85)score-=10;
+  score=Math.max(0,Math.min(100,score));
+  const cls=score>=70?'play-great':score>=40?'play-good':'play-poor';
+  const lbl=score>=70?'Great conditions':score>=40?'Moderate conditions':'Tough conditions';
+
+  let html=`<div class="weather-grid" style="margin-top:12px;">`;
+  if(t)html+=`<div class="weather-stat"><div class="wval">${t}&deg;F</div><div class="wlbl">Temperature</div></div>`;
+  if(w)html+=`<div class="weather-stat"><div class="wval">${w} mph ${weatherData.windDir||''}</div><div class="wlbl">Wind</div></div>`;
+  if(h)html+=`<div class="weather-stat"><div class="wval">${h}%</div><div class="wlbl">Humidity</div></div>`;
+  html+=`<div class="weather-stat"><div class="wval">${score}</div><div class="wlbl">Play Score</div></div>`;
+  html+=`</div><div class="playability ${cls}" style="margin-top:8px;">${lbl} &mdash; Playability: ${score}/100</div>`;
+  const el=document.getElementById('weatherDisplay');
+  if(el)el.innerHTML=html;
+}
+
+// ===================== HISTORY TAB =====================
+function renderHistory(){
+  const course = getCourse();
+  const HOLES = course.holes;
+  const FACTS = course.facts;
+
+  let html=`<div class="card"><h2>&#127942; ${course.name}</h2>
+    <h3>Course History</h3>
+    <p style="margin-bottom:10px;">${course.history}</p>
+  </div>`;
+
+  // Fun facts carousel
+  html+=`<div class="card"><h2>&#128218; Fun Facts</h2>
+    <div class="fact-carousel" id="factCarousel">`;
+  for(let i=0;i<FACTS.length;i++){
+    html+=`<div class="fact-slide ${i===factIndex?'active':''}">${FACTS[i]}</div>`;
+  }
+  html+=`</div>
+    <div class="carousel-dots" id="carouselDots">`;
+  for(let i=0;i<FACTS.length;i++){
+    html+=`<span class="${i===factIndex?'active':''}" onclick="factIndex=${i};renderHistory();"></span>`;
+  }
+  html+=`</div>
+    <div class="carousel-nav">
+      <button onclick="factIndex=(factIndex-1+FACTS.length)%FACTS.length;renderHistory();">&#9664;</button>
+      <button onclick="factIndex=(factIndex+1)%FACTS.length;renderHistory();">&#9654;</button>
+    </div>
+  </div>`;
+
+  // Course stats
+  html+=`<div class="card"><h2>&#9971; Course Stats</h2>
+    <table class="tee-table" style="font-size:.9em;">
+      <tr><th></th><th>Blue</th><th>White</th><th>Red</th></tr>
+      <tr><td style="font-weight:600;">Front 9</td><td>${HOLES.slice(0,9).reduce((a,h)=>a+h.blue,0)}</td><td>${HOLES.slice(0,9).reduce((a,h)=>a+h.white,0)}</td><td>${HOLES.slice(0,9).reduce((a,h)=>a+h.red,0)}</td></tr>
+      <tr><td style="font-weight:600;">Back 9</td><td>${HOLES.slice(9).reduce((a,h)=>a+h.blue,0)}</td><td>${HOLES.slice(9).reduce((a,h)=>a+h.white,0)}</td><td>${HOLES.slice(9).reduce((a,h)=>a+h.red,0)}</td></tr>
+      <tr style="font-weight:700;"><td>Total</td><td>${HOLES.reduce((a,h)=>a+h.blue,0)}</td><td>${HOLES.reduce((a,h)=>a+h.white,0)}</td><td>${HOLES.reduce((a,h)=>a+h.red,0)}</td></tr>
+      <tr><td style="font-weight:600;">Par</td><td colspan="3" style="text-align:center;">${HOLES.reduce((a,h)=>a+h.par,0)}</td></tr>
+    </table>
+  </div>`;
+
+  document.getElementById('tabHistory').innerHTML=html;
+}
+
+// ===================== INIT =====================
+loadState();
+document.getElementById('btnContrast').classList.toggle('active',prefs.contrast);
+document.getElementById('btnXL').classList.toggle('active',prefs.xl);
+
+if(selectedCourseId){
+  // Returning user — go straight to the app with their last course
+  showMainApp();
+} else {
+  // First visit — show course selection
+  renderCourseSelect();
+}
+
+// Auto-rotate facts
+setInterval(()=>{if(currentTab==='History' && selectedCourseId){const FACTS=getCourse().facts;factIndex=(factIndex+1)%FACTS.length;renderHistory();}},6000);
+</script>
+</body>
+</html>

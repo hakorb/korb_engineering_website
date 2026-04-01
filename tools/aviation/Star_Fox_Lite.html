@@ -61,6 +61,15 @@ canvas{display:block}
 #fire-btn{bottom:40px;right:40px;width:85px;height:85px}
 #roll-btn{bottom:140px;right:50px;width:60px;height:60px;font-size:10px}
 #bomb-btn{bottom:40px;right:140px;width:60px;height:60px;font-size:10px}
+#pause-overlay{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  z-index:25;background:rgba(0,0,20,0.85);
+}
+#pause-overlay h1{font-size:48px;color:#fc0;text-shadow:0 0 20px #fa0;letter-spacing:8px;margin-bottom:20px}
+#pause-overlay p{font-size:14px;color:#8cf;letter-spacing:3px}
+#high-scores-display{margin-top:20px;text-align:center;color:#8cf;font-size:12px;line-height:2}
+#high-scores-display h3{color:#fc0;font-size:14px;letter-spacing:4px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -75,8 +84,10 @@ canvas{display:block}
     <b>ARROW KEYS / WASD</b> Move &bull; <b>SPACE</b> Fire (hold to charge)<br>
     <b>Z / X</b> Barrel Roll &bull; <b>B</b> Smart Bomb<br>
     <b>UP</b> = Boost &bull; <b>DOWN</b> = Brake<br>
+    <b>P / ESC</b> Pause<br>
     Touch: Joystick + Fire / Roll / Bomb buttons
   </div>
+  <div id="high-scores-display"></div>
 </div>
 
 <div id="game-over-screen" style="display:none;">
@@ -93,6 +104,11 @@ canvas{display:block}
   <div class="score-display" id="vic-score">0</div>
   <div class="wave-display" id="vic-wave">ALL WAVES CLEARED</div>
   <button class="btn" id="vic-restart-btn">NEW MISSION</button>
+</div>
+
+<div id="pause-overlay">
+  <h1>PAUSED</h1>
+  <p>PRESS P OR ESC TO RESUME</p>
 </div>
 
 <div id="touch-controls">
@@ -222,7 +238,10 @@ let touchFiring = false;
 let touchRoll = false;
 let touchBomb = false;
 
-document.addEventListener('keydown', e => { keys[e.code] = true; e.preventDefault(); });
+document.addEventListener('keydown', e => {
+  if ((e.code === 'KeyP' || e.code === 'Escape') && game && game.running) { togglePause(); e.preventDefault(); return; }
+  keys[e.code] = true; e.preventDefault();
+});
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
 // Double-tap detection for barrel roll
@@ -284,6 +303,39 @@ document.getElementById('roll-btn').addEventListener('touchstart', e => { e.prev
 document.getElementById('roll-btn').addEventListener('touchend', e => { touchRoll = false; });
 document.getElementById('bomb-btn').addEventListener('touchstart', e => { e.preventDefault(); touchBomb = true; });
 document.getElementById('bomb-btn').addEventListener('touchend', e => { touchBomb = false; });
+
+// ---- HIGH SCORE SYSTEM ----
+function getHighScores() {
+  try { return JSON.parse(localStorage.getItem('starfox_lite_scores')) || []; }
+  catch(e) { return []; }
+}
+function saveHighScore(score, wave, zone) {
+  const scores = getHighScores();
+  scores.push({ score, wave, zone: ZONE_NAMES[zone] || 'CORNERIA', date: Date.now() });
+  scores.sort((a, b) => b.score - a.score);
+  while (scores.length > 5) scores.pop();
+  localStorage.setItem('starfox_lite_scores', JSON.stringify(scores));
+}
+function renderHighScores() {
+  const el = document.getElementById('high-scores-display');
+  if (!el) return;
+  const scores = getHighScores();
+  if (scores.length === 0) { el.innerHTML = ''; return; }
+  let html = '<h3>HIGH SCORES</h3>';
+  scores.forEach((s, i) => {
+    html += `<div style="color:${i===0?'#fc0':'#8cf'}">${(i+1)}. ${String(s.score).padStart(8,'0')} - ${s.zone} W${s.wave}</div>`;
+  });
+  el.innerHTML = html;
+}
+
+// ---- PAUSE SYSTEM ----
+let gamePaused = false;
+function togglePause() {
+  if (!game || !game.running) return;
+  gamePaused = !gamePaused;
+  document.getElementById('pause-overlay').style.display = gamePaused ? 'flex' : 'none';
+  if (!gamePaused) game.lastTime = performance.now(); // prevent dt spike
+}
 
 // ---- GAME STATE ----
 let game = null;
@@ -399,6 +451,11 @@ function initGame() {
     // Stars
     stars: [],
 
+    // Environmental hazards
+    asteroids: [],
+    hazards: [],       // buildings, mines, meteors, flame pillars
+    hazardTimer: 0,
+
     // Frame
     frame: 0,
     dt: 1,
@@ -434,14 +491,16 @@ function spawnFormation(type, count, yBase, zStart) {
     const zOff = Math.abs(i - (count - 1) / 2) * 40;
     const hpMap = { fighter: 1, heavy: 3, cruiser: 8, bomber: 5, ace: 2 };
     const sizeMap = { fighter: 18, heavy: 25, cruiser: 45, bomber: 35, ace: 16 };
+    const waveHpBonus = game ? Math.floor(game.wave / 4) : 0;
+    const baseHp = (hpMap[type] || 1) + waveHpBonus;
     const enemy = {
       type: type,
       x: spread,
       y: yBase || (Math.random() * 0.4 - 0.2),
       z: (zStart || 600) + zOff,
-      vx: 0, vy: 0, vz: type === 'ace' ? -4.5 : -3,
-      hp: hpMap[type] || 1,
-      maxHp: hpMap[type] || 1,
+      vx: 0, vy: 0, vz: type === 'ace' ? -4.5 : type === 'bomber' ? -1.5 : -3,
+      hp: baseHp,
+      maxHp: baseHp,
       size: sizeMap[type] || 15,
       hitTimer: 0,
       fireTimer: Math.random() * 120 + 60,
@@ -481,11 +540,13 @@ function spawnBoss(zone) {
     { name: 'ANDROSS', hp: 120, size: 110, color: '#864', accent: '#ff4', phases: 3 },
   ];
   const bt = bossTypes[Math.min(zone, bossTypes.length - 1)];
+  const bossHpScale = 1 + (game.wave > 4 ? (game.wave - 4) * 0.08 : 0);
+  const scaledHp = Math.round(bt.hp * bossHpScale);
   game.boss = {
     name: bt.name,
     x: 0, y: -0.1,
     z: 500,
-    hp: bt.hp, maxHp: bt.hp,
+    hp: scaledHp, maxHp: scaledHp,
     size: bt.size,
     color: bt.color,
     accent: bt.accent,
@@ -532,9 +593,10 @@ function advanceWave() {
     setTimeout(() => {
       if (!game || !game.running || game.boss) return;
       const types = ['fighter', 'fighter', 'fighter', 'heavy'];
-      if (difficulty > 3) types.push('cruiser');
+      if (difficulty > 3) types.push('cruiser', 'bomber');
+      if (difficulty > 5) types.push('ace', 'ace');
       const type = types[Math.floor(Math.random() * types.length)];
-      const count = type === 'cruiser' ? 1 : Math.min(3 + Math.floor(difficulty / 3), 6);
+      const count = type === 'cruiser' ? 1 : type === 'bomber' ? Math.min(2, 1 + Math.floor(difficulty / 5)) : type === 'ace' ? Math.min(3, 1 + Math.floor(difficulty / 4)) : Math.min(3 + Math.floor(difficulty / 3), 6);
       const yBase = Math.random() * 0.4 - 0.2;
       spawnFormation(type, count, yBase, 500 + f * 100);
     }, f * 1500);
@@ -911,6 +973,57 @@ function drawEnemy(e) {
       ctx.fillStyle = '#0f0';
       ctx.fillRect(-bw / 2, -sz - 10, bw * (e.hp / e.maxHp), 4);
     }
+  } else if (e.type === 'bomber') {
+    // Large heavy bomber - wide body with bomb bay
+    ctx.fillStyle = hitFlash ? '#fff' : '#866';
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 0.6);
+    ctx.lineTo(-sz, -sz * 0.1);
+    ctx.lineTo(-sz * 0.9, sz * 0.5);
+    ctx.lineTo(sz * 0.9, sz * 0.5);
+    ctx.lineTo(sz, -sz * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    // Bomb bay (dark center)
+    ctx.fillStyle = hitFlash ? '#fdd' : '#433';
+    ctx.fillRect(-sz * 0.3, sz * 0.1, sz * 0.6, sz * 0.35);
+    // Wing stripes
+    ctx.fillStyle = hitFlash ? '#faa' : '#a44';
+    ctx.fillRect(-sz * 0.85, -sz * 0.05, sz * 0.4, sz * 0.12);
+    ctx.fillRect(sz * 0.45, -sz * 0.05, sz * 0.4, sz * 0.12);
+    // HP bar
+    if (e.hp < e.maxHp) {
+      const bw = sz * 1.6;
+      ctx.fillStyle = '#300';
+      ctx.fillRect(-bw / 2, -sz * 0.6 - 10, bw, 4);
+      ctx.fillStyle = '#0f0';
+      ctx.fillRect(-bw / 2, -sz * 0.6 - 10, bw * (e.hp / e.maxHp), 4);
+    }
+  } else if (e.type === 'ace') {
+    // Fast Wolfen-style ace fighter - sleek, angular
+    ctx.fillStyle = hitFlash ? '#fff' : '#a6a';
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 1.1);
+    ctx.lineTo(-sz * 0.5, sz * 0.1);
+    ctx.lineTo(-sz * 0.9, sz * 0.5);
+    ctx.lineTo(0, sz * 0.2);
+    ctx.lineTo(sz * 0.9, sz * 0.5);
+    ctx.lineTo(sz * 0.5, sz * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    // Inner accent
+    ctx.fillStyle = hitFlash ? '#fdf' : '#638';
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 0.7);
+    ctx.lineTo(-sz * 0.3, sz * 0.1);
+    ctx.lineTo(sz * 0.3, sz * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    // Afterburner glow
+    ctx.fillStyle = `rgba(200,100,255,${0.5 + Math.sin(game.frame * 0.4) * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(0, sz * 0.3, sz * 0.15, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   ctx.restore();
@@ -1317,8 +1430,197 @@ function drawHUD() {
   }
 }
 
+// ---- ENVIRONMENTAL HAZARDS ----
+function spawnAsteroid(x, y, z, size) {
+  game.asteroids.push({
+    x: x !== undefined ? x : (Math.random() * 1.4 - 0.7),
+    y: y !== undefined ? y : (Math.random() * 0.5 - 0.25),
+    z: z || (600 + Math.random() * 200),
+    vx: (Math.random() - 0.5) * 0.003,
+    vy: (Math.random() - 0.5) * 0.002,
+    vz: -(2 + Math.random() * 2),
+    size: size || (20 + Math.random() * 25),
+    hp: size ? Math.ceil(size / 15) : 2,
+    rotation: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.05,
+    hitTimer: 0,
+    vertices: (() => { // irregular polygon
+      const n = 6 + Math.floor(Math.random() * 4);
+      const v = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const r = 0.7 + Math.random() * 0.3;
+        v.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+      }
+      return v;
+    })(),
+  });
+}
+
+function spawnHazard(type, x, y, z) {
+  const h = { type, x: x || 0, y: y || 0, z: z || (600 + Math.random() * 200), timer: 0, life: 600, active: false, size: 20 };
+  if (type === 'building') {
+    h.x = x !== undefined ? x : (Math.random() * 1.4 - 0.7);
+    h.y = 0.45;
+    h.size = 15 + Math.random() * 20;
+    h.height = 40 + Math.random() * 40;
+  } else if (type === 'mine') {
+    h.x = x !== undefined ? x : (Math.random() * 1.2 - 0.6);
+    h.y = y !== undefined ? y : (Math.random() * 0.4 - 0.2);
+    h.size = 12;
+    h.fuseTimer = 120 + Math.random() * 60; // time before explode
+    h.exploded = false;
+  } else if (type === 'meteor') {
+    h.x = x !== undefined ? x : (Math.random() * 1.2 - 0.6);
+    h.y = -0.5;
+    h.vy = 0.008 + Math.random() * 0.005;
+    h.size = 10 + Math.random() * 15;
+  } else if (type === 'flame') {
+    h.x = x !== undefined ? x : (Math.random() * 1.2 - 0.6);
+    h.y = 0.5;
+    h.size = 8;
+    h.riseTimer = 0;
+    h.maxRise = 0.6 + Math.random() * 0.3;
+    h.rising = true;
+  }
+  game.hazards.push(h);
+}
+
+function drawAsteroid(a) {
+  const p = project(a.x, a.y, a.z);
+  if (p.scale < 0.02 || a.z < -10) return;
+  const sz = a.size * p.scale;
+  const sx = p.sx, sy = p.sy;
+  const hitFlash = a.hitTimer > 0;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(a.rotation);
+
+  ctx.fillStyle = hitFlash ? '#fff' : '#776';
+  ctx.beginPath();
+  ctx.moveTo(a.vertices[0].x * sz, a.vertices[0].y * sz);
+  for (let i = 1; i < a.vertices.length; i++) {
+    ctx.lineTo(a.vertices[i].x * sz, a.vertices[i].y * sz);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Dark side shading
+  ctx.fillStyle = hitFlash ? '#ddd' : '#554';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  for (let i = 0; i < Math.floor(a.vertices.length / 2); i++) {
+    ctx.lineTo(a.vertices[i].x * sz * 0.8, a.vertices[i].y * sz * 0.8);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawHazard(h) {
+  if (h.type === 'building') {
+    const p = project(h.x, h.y, h.z);
+    if (p.scale < 0.03) return;
+    const sz = h.size * p.scale;
+    const ht = h.height * p.scale;
+    ctx.fillStyle = '#556';
+    ctx.fillRect(p.sx - sz * 0.5, p.sy - ht, sz, ht);
+    ctx.fillStyle = '#334';
+    ctx.fillRect(p.sx - sz * 0.5, p.sy - ht, sz * 0.4, ht);
+    // Antenna
+    ctx.fillStyle = '#888';
+    ctx.fillRect(p.sx - 1, p.sy - ht - sz * 0.5, 2, sz * 0.5);
+    // Windows (blinking)
+    ctx.fillStyle = (game.frame + Math.floor(h.x * 100)) % 40 < 20 ? '#ff8' : '#aa6';
+    for (let wy = 0; wy < 3; wy++) {
+      for (let wx = 0; wx < 2; wx++) {
+        ctx.fillRect(p.sx - sz * 0.3 + wx * sz * 0.35, p.sy - ht + wy * ht * 0.3 + ht * 0.1, sz * 0.15, ht * 0.12);
+      }
+    }
+  } else if (h.type === 'mine') {
+    const p = project(h.x, h.y, h.z);
+    if (p.scale < 0.03) return;
+    const sz = h.size * p.scale;
+    const flashWarn = h.fuseTimer < 60 && Math.sin(game.frame * 0.3) > 0;
+    if (h.exploded) {
+      // Explosion radius
+      const exSz = sz * 4 * (1 - h.timer / 30);
+      ctx.fillStyle = `rgba(255,100,0,${0.6 * (1 - h.timer / 30)})`;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, exSz, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Spiky mine
+      ctx.fillStyle = flashWarn ? '#f44' : '#888';
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, sz, 0, Math.PI * 2);
+      ctx.fill();
+      // Spikes
+      ctx.strokeStyle = flashWarn ? '#f88' : '#aaa';
+      ctx.lineWidth = 2 * p.scale;
+      for (let s = 0; s < 8; s++) {
+        const a = s * Math.PI / 4;
+        ctx.beginPath();
+        ctx.moveTo(p.sx + Math.cos(a) * sz, p.sy + Math.sin(a) * sz);
+        ctx.lineTo(p.sx + Math.cos(a) * sz * 1.6, p.sy + Math.sin(a) * sz * 1.6);
+        ctx.stroke();
+      }
+      // Center light
+      ctx.fillStyle = flashWarn ? '#f00' : '#444';
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, sz * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (h.type === 'meteor') {
+    const p = project(h.x, h.y, h.z);
+    if (p.scale < 0.02) return;
+    const sz = h.size * p.scale;
+    ctx.fillStyle = '#b64';
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, sz, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#843';
+    ctx.beginPath();
+    ctx.arc(p.sx - sz * 0.2, p.sy - sz * 0.1, sz * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Fire trail
+    ctx.fillStyle = `rgba(255,150,50,${0.5 + Math.sin(game.frame * 0.3) * 0.3})`;
+    ctx.beginPath();
+    ctx.moveTo(p.sx - sz * 0.4, p.sy - sz * 0.3);
+    ctx.lineTo(p.sx, p.sy - sz * 2);
+    ctx.lineTo(p.sx + sz * 0.4, p.sy - sz * 0.3);
+    ctx.closePath();
+    ctx.fill();
+  } else if (h.type === 'flame') {
+    const p = project(h.x, h.y, h.z);
+    if (p.scale < 0.03) return;
+    const sz = h.size * p.scale;
+    const riseH = h.riseTimer * 80 * p.scale;
+    // Flame pillar
+    const gradient = ctx.createLinearGradient(p.sx, p.sy, p.sx, p.sy - riseH);
+    gradient.addColorStop(0, 'rgba(255,100,0,0.8)');
+    gradient.addColorStop(0.5, 'rgba(255,200,0,0.6)');
+    gradient.addColorStop(1, 'rgba(255,255,100,0.1)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(p.sx - sz, p.sy - riseH, sz * 2, riseH);
+    // Flicker particles at top
+    ctx.fillStyle = `rgba(255,255,0,${0.4 + Math.sin(game.frame * 0.5 + h.x * 10) * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(p.sx + Math.sin(game.frame * 0.2) * sz, p.sy - riseH, sz * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Base glow
+    ctx.fillStyle = 'rgba(255,50,0,0.5)';
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, sz * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 // ---- UPDATE LOGIC ----
 function update() {
+  if (gamePaused) return;
   const now = performance.now();
   const rawDt = (now - game.lastTime) / 16.67;
   game.dt = Math.min(rawDt, 3);
@@ -1446,6 +1748,15 @@ function update() {
       t.hp -= 3;
       t.hitTimer = 8;
     }
+    // Damage asteroids
+    for (const a of game.asteroids) {
+      a.hp -= 3;
+      a.hitTimer = 8;
+    }
+    // Detonate mines
+    for (const h of game.hazards) {
+      if (h.type === 'mine' && !h.exploded) h.fuseTimer = 0;
+    }
     game.enemyBolts = [];
     keys['KeyB'] = false;
     touchBomb = false;
@@ -1511,12 +1822,37 @@ function update() {
         }
       }
     }
+    // Hit asteroids
+    if (!hit) {
+      for (const a of game.asteroids) {
+        const p1 = project(b.x, b.y, b.z);
+        const p2 = project(a.x, a.y, a.z);
+        const dist = Math.hypot(p1.sx - p2.sx, p1.sy - p2.sy);
+        const hitRadius = a.size * p2.scale + 10 + chargedBonus;
+        if (dist < hitRadius && Math.abs(b.z - a.z) < 60) {
+          a.hp -= b.damage || 1;
+          a.hitTimer = 6;
+          hit = true;
+          playSound('shield');
+          spawnExplosion(p2.sx, p2.sy, 3, '#aa8', '#665', 2, 10);
+          if (!b.charged) break;
+        }
+      }
+    }
     if (hit) game.playerBolts.splice(i, 1);
   }
 
   // Update enemy bolts
   for (let i = game.enemyBolts.length - 1; i >= 0; i--) {
     const b = game.enemyBolts[i];
+    // Homing torpedo logic (SARUMARINE)
+    if (b.homing && b.z > 20) {
+      const hdx = game.px - b.x;
+      const hdy = game.py - b.y;
+      const hStr = b.homingStr || 0.03;
+      b.vx += hdx * hStr * dt;
+      b.vy += hdy * hStr * dt;
+    }
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.z += b.vz * dt;
@@ -1549,24 +1885,70 @@ function update() {
     e.y += e.vy * dt;
     e.wobble += 0.02 * dt;
 
+    // Difficulty scaling: enemies get faster as waves progress
+    const diffScale = 1 + game.wave * 0.05;
+
     // Slight wobble
     if (e.type === 'fighter') {
       e.x += Math.sin(e.wobble) * 0.003 * dt;
       e.y += Math.cos(e.wobble * 1.3) * 0.002 * dt;
     }
 
-    // Shoot at player
+    // Ace evasion: dodge player bolts
+    if (e.type === 'ace') {
+      e.x += Math.sin(e.wobble * 2) * 0.008 * dt; // fast weaving
+      e.y += Math.cos(e.wobble * 1.7) * 0.005 * dt;
+      // Dodge incoming player bolts
+      for (const bolt of game.playerBolts) {
+        if (Math.abs(bolt.z - e.z) < 100 && Math.abs(bolt.x - e.x) < 0.15) {
+          e.x += (e.x > bolt.x ? 0.02 : -0.02) * dt;
+        }
+      }
+    }
+
+    // Bomber behavior: slow, drops bombs downward
+    if (e.type === 'bomber') {
+      e.vz = -1.5; // slower approach
+      e.strafeTimer -= dt;
+      if (e.strafeTimer <= 0) {
+        e.strafeTimer = 90 + Math.random() * 60;
+        e.strafeDir *= -1;
+      }
+      e.x += e.strafeDir * 0.002 * dt; // slow lateral drift
+      // Drop carpet bombs
+      if (e.fireTimer <= 0 && e.z > 80 && e.z < 500) {
+        e.fireTimer = 40 + Math.random() * 30;
+        // Drop 3 bombs in a spread
+        for (let bi = -1; bi <= 1; bi++) {
+          game.enemyBolts.push({
+            x: e.x + bi * 0.05, y: e.y, z: e.z,
+            vx: bi * 0.5, vy: 2.5, vz: -2,
+          });
+        }
+      }
+    }
+
+    // Shoot at player (difficulty-scaled fire rate)
     e.fireTimer -= dt;
-    if (e.fireTimer <= 0 && e.z > 50 && e.z < 500) {
-      e.fireTimer = 60 + Math.random() * 90;
+    const baseFireRate = Math.max(30, (60 + Math.random() * 90) / diffScale);
+    if (e.fireTimer <= 0 && e.z > 50 && e.z < 500 && e.type !== 'bomber') {
+      e.fireTimer = baseFireRate;
       const dx = game.px - e.x;
       const dy = game.py - e.y;
       const dz = -e.z;
+      const boltSpeed = Math.min(6, 4 * diffScale);
       const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
       game.enemyBolts.push({
         x: e.x, y: e.y, z: e.z,
-        vx: dx / len * 4, vy: dy / len * 4, vz: dz / len * 4,
+        vx: dx / len * boltSpeed, vy: dy / len * boltSpeed, vz: dz / len * boltSpeed,
       });
+      // Aces fire a second shot slightly offset
+      if (e.type === 'ace' && Math.random() < 0.5) {
+        game.enemyBolts.push({
+          x: e.x + 0.03, y: e.y, z: e.z,
+          vx: dx / len * boltSpeed + 0.3, vy: dy / len * boltSpeed, vz: dz / len * boltSpeed,
+        });
+      }
     }
 
     if (e.hitTimer > 0) e.hitTimer -= dt;
@@ -1578,7 +1960,7 @@ function update() {
       playSound(e.type === 'cruiser' ? 'bigexplosion' : 'explosion');
 
       // Score
-      const baseScore = e.type === 'fighter' ? 100 : e.type === 'heavy' ? 250 : 500;
+      const baseScore = e.type === 'fighter' ? 100 : e.type === 'heavy' ? 250 : e.type === 'bomber' ? 400 : e.type === 'ace' ? 350 : 500;
       addScore(baseScore, p.sx, p.sy);
 
       // Maybe drop powerup
@@ -1652,14 +2034,14 @@ function update() {
     b.x += (b.targetX - b.x) * 0.02 * dt;
     b.y += (b.targetY - b.y) * 0.02 * dt;
 
-    // Fire patterns
-    const fireRate = b.phase === 2 ? 20 : 35;
+    // Fire patterns - unique per boss, enhanced in phase 2
+    const fireRate = b.phase === 2 ? 18 : 35;
     if (b.fireTimer > fireRate) {
       b.fireTimer = 0;
       b.patternIdx++;
 
       if (b.phase === 1) {
-        // Single aimed shots
+        // Phase 1: Single aimed shots (all bosses)
         const dx = game.px - b.x;
         const dy = game.py - b.y;
         const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
@@ -1668,16 +2050,148 @@ function update() {
           vx: dx / len * 3.5, vy: dy / len * 3.5, vz: -b.z / len * 3.5,
         });
       } else {
-        // Spread pattern
-        for (let a = -2; a <= 2; a++) {
-          const angle = a * 0.15;
-          const dx = game.px - b.x + Math.sin(angle) * 0.5;
-          const dy = game.py - b.y + Math.cos(angle) * 0.3;
+        // Phase 2: Unique attacks per boss
+        const bossIdx = ['GRANGA', 'ATTACK CARRIER', 'SARUMARINE', 'STAR WOLF', 'ANDROSS'].indexOf(b.name);
+
+        if (bossIdx === 0) {
+          // GRANGA: Charges toward player then retreats
+          if (b.patternIdx % 6 < 3) {
+            // Charge toward player
+            b.targetX = game.px;
+            b.targetY = game.py;
+            b.x += (game.px - b.x) * 0.08 * dt;
+            b.y += (game.py - b.y) * 0.08 * dt;
+            b.z -= 3 * dt;
+            if (b.z < 150) b.z = 150;
+          } else {
+            // Retreat and fire spread
+            b.z += 2 * dt;
+            if (b.z > 500) b.z = 500;
+            for (let a = -2; a <= 2; a++) {
+              const angle = a * 0.2;
+              const dx = game.px - b.x + Math.sin(angle) * 0.5;
+              const dy = game.py - b.y;
+              const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
+              game.enemyBolts.push({
+                x: b.x + angle * 0.1, y: b.y, z: b.z,
+                vx: dx / len * 4, vy: dy / len * 4, vz: -b.z / len * 4,
+              });
+            }
+          }
+        } else if (bossIdx === 1) {
+          // ATTACK CARRIER: Launches mini-fighters
+          if (b.patternIdx % 4 === 0) {
+            // Spawn mini-fighters
+            for (let mf = 0; mf < 3; mf++) {
+              const spread = (mf - 1) * 0.12;
+              game.enemies.push({
+                type: 'fighter',
+                x: b.x + spread, y: b.y + 0.05,
+                z: b.z,
+                vx: spread * 0.02, vy: 0, vz: -4,
+                hp: 1, maxHp: 1,
+                size: 14, hitTimer: 0,
+                fireTimer: 40 + Math.random() * 40,
+                angle: 0, wobble: Math.random() * Math.PI * 2,
+                strafeTimer: 0, strafeDir: Math.random() > 0.5 ? 1 : -1,
+              });
+            }
+          } else {
+            // Wide spread shots
+            for (let a = -3; a <= 3; a++) {
+              const angle = a * 0.12;
+              const dx = game.px - b.x + angle * 0.4;
+              const dy = game.py - b.y;
+              const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
+              game.enemyBolts.push({
+                x: b.x + angle * 0.08, y: b.y, z: b.z,
+                vx: dx / len * 3, vy: dy / len * 3, vz: -b.z / len * 3,
+              });
+            }
+          }
+        } else if (bossIdx === 2) {
+          // SARUMARINE: Fires homing torpedoes
+          for (let t = 0; t < 2; t++) {
+            const side = t === 0 ? -1 : 1;
+            game.enemyBolts.push({
+              x: b.x + side * 0.15, y: b.y + 0.05, z: b.z,
+              vx: side * 0.5, vy: 0.3, vz: -3,
+              homing: true, homingStr: 0.04,
+            });
+          }
+          // Also normal spread
+          if (b.patternIdx % 3 === 0) {
+            for (let a = -2; a <= 2; a++) {
+              const dx = game.px - b.x + a * 0.15;
+              const dy = game.py - b.y;
+              const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
+              game.enemyBolts.push({
+                x: b.x, y: b.y, z: b.z,
+                vx: dx / len * 3, vy: dy / len * 3, vz: -b.z / len * 3,
+              });
+            }
+          }
+        } else if (bossIdx === 3) {
+          // STAR WOLF: Mirrors player movements
+          b.targetX = -game.px; // mirror X
+          b.targetY = game.py;  // match Y
+          b.x += (b.targetX - b.x) * 0.06 * dt;
+          b.y += (b.targetY - b.y) * 0.06 * dt;
+          // Rapid accurate fire
+          const dx = game.px - b.x;
+          const dy = game.py - b.y;
           const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
           game.enemyBolts.push({
-            x: b.x + Math.sin(angle) * 0.1, y: b.y, z: b.z,
-            vx: dx / len * 3, vy: dy / len * 3, vz: -b.z / len * 3,
+            x: b.x, y: b.y, z: b.z,
+            vx: dx / len * 5, vy: dy / len * 5, vz: -b.z / len * 5,
           });
+          // Second shot slightly offset
+          game.enemyBolts.push({
+            x: b.x + 0.05, y: b.y, z: b.z,
+            vx: dx / len * 4.5, vy: dy / len * 4.5, vz: -b.z / len * 4.5,
+          });
+        } else if (bossIdx === 4) {
+          // ANDROSS: Inhale (pull player toward center) then exhale spread
+          if (b.patternIdx % 8 < 4) {
+            // Inhale phase: pull player toward boss center
+            game.px += (b.x - game.px) * 0.015 * dt;
+            game.py += (b.y - game.py) * 0.01 * dt;
+            // Visual: converging particles
+            if (game.frame % 4 === 0) {
+              const ang = Math.random() * Math.PI * 2;
+              const bp = project(b.x, b.y, b.z);
+              game.particles.push({
+                x: bp.sx + Math.cos(ang) * 150, y: bp.sy + Math.sin(ang) * 100,
+                vx: -Math.cos(ang) * 4, vy: -Math.sin(ang) * 3,
+                life: 20, maxLife: 20,
+                color: '#f4f', size: 4, polygon: false,
+              });
+            }
+          } else {
+            // Exhale: massive spread shot
+            if (b.patternIdx % 8 === 4) {
+              for (let a = 0; a < 12; a++) {
+                const angle = (a / 12) * Math.PI * 2;
+                game.enemyBolts.push({
+                  x: b.x, y: b.y, z: b.z,
+                  vx: Math.cos(angle) * 2.5, vy: Math.sin(angle) * 2.5, vz: -3.5,
+                });
+              }
+              playSound('charged');
+            }
+          }
+        } else {
+          // Fallback spread pattern
+          for (let a = -2; a <= 2; a++) {
+            const angle = a * 0.15;
+            const dx = game.px - b.x + Math.sin(angle) * 0.5;
+            const dy = game.py - b.y + Math.cos(angle) * 0.3;
+            const len = Math.sqrt(dx * dx + dy * dy + b.z * b.z);
+            game.enemyBolts.push({
+              x: b.x + Math.sin(angle) * 0.1, y: b.y, z: b.z,
+              vx: dx / len * 3, vy: dy / len * 3, vz: -b.z / len * 3,
+            });
+          }
         }
       }
     }
@@ -1706,6 +2220,7 @@ function update() {
         setTimeout(() => {
           if (game) {
             game.running = false;
+            saveHighScore(game.score, game.wave, game.zone);
             document.getElementById('victory-screen').style.display = 'flex';
             document.getElementById('vic-score').textContent = game.score.toString().padStart(8, '0');
             document.getElementById('vic-wave').textContent = 'ALL ' + game.wave + ' WAVES CLEARED';
@@ -1713,6 +2228,167 @@ function update() {
         }, 2000);
       }
     }
+  }
+
+  // --- Update asteroids ---
+  for (let i = game.asteroids.length - 1; i >= 0; i--) {
+    const a = game.asteroids[i];
+    a.z += a.vz * dt;
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    a.rotation += a.rotSpeed * dt;
+    if (a.hitTimer > 0) a.hitTimer -= dt;
+
+    // Dead? Break into smaller pieces
+    if (a.hp <= 0) {
+      const p = project(a.x, a.y, a.z);
+      spawnExplosion(p.sx, p.sy, 10, '#aa8', '#665', 4, 20);
+      playSound('explosion');
+      addScore(50, p.sx, p.sy);
+      // Spawn 2 smaller asteroids if big enough
+      if (a.size > 15) {
+        spawnAsteroid(a.x - 0.05, a.y, a.z, a.size * 0.5);
+        spawnAsteroid(a.x + 0.05, a.y, a.z, a.size * 0.5);
+      }
+      game.asteroids.splice(i, 1);
+      continue;
+    }
+
+    // Collide with player?
+    if (!game.rolling && a.z < 60 && a.z > -10) {
+      const ap = project(a.x, a.y, a.z);
+      const playerSx = CX + game.px * W * 0.3;
+      const playerSy = H * 0.62 + game.py * H * 0.2;
+      const dist = Math.hypot(ap.sx - playerSx, ap.sy - playerSy);
+      if (dist < a.size * ap.scale + 20) {
+        game.shields -= 15;
+        a.hp -= 2;
+        a.hitTimer = 8;
+        playSound('shield');
+        spawnExplosion(ap.sx, ap.sy, 8, '#aa8', '#f84', 3, 12);
+      }
+    }
+
+    if (a.z < -50) game.asteroids.splice(i, 1);
+  }
+
+  // --- Update environmental hazards ---
+  game.hazardTimer += dt;
+  // Spawn zone-specific hazards periodically
+  if (game.hazardTimer > 90 && !game.boss) {
+    game.hazardTimer = 0;
+    if (game.zone === 0 && Math.random() < 0.4) {
+      spawnHazard('building');
+    } else if (game.zone === 1 && Math.random() < 0.5) {
+      spawnAsteroid();
+    } else if (game.zone === 2 && Math.random() < 0.35) {
+      spawnHazard('mine');
+    } else if (game.zone === 3 && Math.random() < 0.45) {
+      // Meteor shower: spawn several at once
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let m = 0; m < count; m++) {
+        spawnHazard('meteor', (Math.random() * 1.4 - 0.7), -0.5, 300 + Math.random() * 300);
+      }
+    } else if (game.zone === 4 && Math.random() < 0.4) {
+      spawnHazard('flame');
+    }
+  }
+
+  for (let i = game.hazards.length - 1; i >= 0; i--) {
+    const h = game.hazards[i];
+    h.timer += dt;
+    h.life -= dt;
+    const playerSx = CX + game.px * W * 0.3;
+    const playerSy = H * 0.62 + game.py * H * 0.2;
+
+    if (h.type === 'building') {
+      h.z -= game.speed * 0.5 * dt;
+      // Collide with player?
+      if (!game.rolling && h.z < 60 && h.z > -10) {
+        const bp = project(h.x, h.y, h.z);
+        const dist = Math.hypot(bp.sx - playerSx, bp.sy - playerSy);
+        if (dist < h.size * bp.scale + 15 && playerSy > bp.sy - h.height * bp.scale) {
+          game.shields -= 20;
+          playSound('shield');
+          spawnExplosion(bp.sx, bp.sy, 12, '#888', '#555', 4, 15);
+          game.hazards.splice(i, 1);
+          continue;
+        }
+      }
+      if (h.z < -50) { game.hazards.splice(i, 1); continue; }
+    } else if (h.type === 'mine') {
+      h.z -= 1.5 * dt;
+      h.fuseTimer -= dt;
+      if (h.fuseTimer <= 0 && !h.exploded) {
+        h.exploded = true;
+        h.timer = 0;
+        playSound('explosion');
+        // Damage player if in radius
+        const mp = project(h.x, h.y, h.z);
+        const dist = Math.hypot(mp.sx - playerSx, mp.sy - playerSy);
+        if (dist < 120 && h.z < 100 && !game.rolling) {
+          game.shields -= 15;
+          playSound('shield');
+        }
+        // Also damage nearby enemies
+        for (const e of game.enemies) {
+          if (Math.abs(e.x - h.x) < 0.2 && Math.abs(e.z - h.z) < 80) {
+            e.hp -= 3;
+            e.hitTimer = 8;
+          }
+        }
+      }
+      if (h.exploded && h.timer > 30) { game.hazards.splice(i, 1); continue; }
+      // Non-exploded mine collision
+      if (!h.exploded && !game.rolling && h.z < 60 && h.z > -10) {
+        const mp = project(h.x, h.y, h.z);
+        const dist = Math.hypot(mp.sx - playerSx, mp.sy - playerSy);
+        if (dist < 25) {
+          h.fuseTimer = 0; // trigger explosion on contact
+        }
+      }
+      if (h.z < -50 && !h.exploded) { game.hazards.splice(i, 1); continue; }
+    } else if (h.type === 'meteor') {
+      h.z -= 2 * dt;
+      h.y += (h.vy || 0.008) * dt * 60;
+      // Collide with player
+      if (!game.rolling && h.z < 60 && h.z > -10) {
+        const mp = project(h.x, h.y, h.z);
+        const dist = Math.hypot(mp.sx - playerSx, mp.sy - playerSy);
+        if (dist < h.size * mp.scale + 18) {
+          game.shields -= 12;
+          playSound('shield');
+          spawnExplosion(mp.sx, mp.sy, 8, '#b64', '#f84', 3, 12);
+          game.hazards.splice(i, 1);
+          continue;
+        }
+      }
+      if (h.z < -50 || h.y > 0.6) { game.hazards.splice(i, 1); continue; }
+    } else if (h.type === 'flame') {
+      h.z -= game.speed * 0.5 * dt;
+      if (h.rising) {
+        h.riseTimer += 0.02 * dt;
+        if (h.riseTimer >= h.maxRise) h.rising = false;
+      } else {
+        h.riseTimer -= 0.015 * dt;
+      }
+      // Collide with player (pillar area)
+      if (!game.rolling && h.z < 80 && h.z > -10 && h.riseTimer > 0.1) {
+        const fp = project(h.x, h.y, h.z);
+        const xDist = Math.abs(fp.sx - playerSx);
+        const riseH = h.riseTimer * 80 * fp.scale;
+        if (xDist < 20 && playerSy > fp.sy - riseH && playerSy < fp.sy) {
+          game.shields -= 8 * dt;
+          if (game.frame % 10 === 0) {
+            playSound('shield');
+            spawnExplosion(playerSx, playerSy, 3, '#f84', '#ff4', 2, 8);
+          }
+        }
+      }
+      if (h.z < -50 || (h.riseTimer <= 0 && !h.rising)) { game.hazards.splice(i, 1); continue; }
+    }
+
+    if (h.life <= 0) game.hazards.splice(i, 1);
   }
 
   // --- Update powerups ---
@@ -1802,6 +2478,8 @@ function update() {
       playSound('bigexplosion');
 
       setTimeout(() => {
+        saveHighScore(game.score, game.wave, game.zone);
+        renderHighScores();
         document.getElementById('game-over-screen').style.display = 'flex';
         document.getElementById('final-score').textContent = game.score.toString().padStart(8, '0');
         document.getElementById('final-wave').textContent = 'WAVE ' + game.wave + ' - ' + ZONE_NAMES[game.zone];
@@ -1905,6 +2583,12 @@ function render() {
   // Powerups
   game.powerups.sort((a, b) => b.z - a.z).forEach(drawPowerup);
 
+  // Asteroids
+  game.asteroids.sort((a, b) => b.z - a.z).forEach(drawAsteroid);
+
+  // Environmental hazards
+  game.hazards.sort((a, b) => b.z - a.z).forEach(drawHazard);
+
   // Turrets
   game.turrets.sort((a, b) => b.z - a.z).forEach(drawTurret);
 
@@ -1944,6 +2628,8 @@ function startGame() {
   document.getElementById('start-screen').style.display = 'none';
   document.getElementById('game-over-screen').style.display = 'none';
   document.getElementById('victory-screen').style.display = 'none';
+  document.getElementById('pause-overlay').style.display = 'none';
+  gamePaused = false;
   initGame();
   ensureAudio();
 }
@@ -1962,6 +2648,7 @@ document.addEventListener('keydown', e => {
 // Init render loop (shows stars before game start)
 initGame();
 game.running = false;
+renderHighScores();
 gameLoop();
 </script>
 </body>
