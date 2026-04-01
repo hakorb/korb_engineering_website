@@ -39,7 +39,9 @@ const SECTIONS = {
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
-      { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' }
+      { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
+      { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' },
+      { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' }
     ]
   },
   civil: {
@@ -75,7 +77,9 @@ const SECTIONS = {
       { name: 'Submittal Review', file: './tools/civil/submittal-review.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
       { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
-      { name: 'Online Bidder', file: './tools/civil/bid-express.html' }
+      { name: 'Online Bidder', file: './tools/civil/bid-express.html' },
+      { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
+      { name: 'Unit Converter', file: './tools/civil/engineering-unit-converter.html' }
     ]
   },
   hk: {
@@ -134,7 +138,8 @@ const SECTIONS = {
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
-      { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' }
+      { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
+      { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' }
     ]
   }
 };
