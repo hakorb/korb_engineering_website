@@ -129,7 +129,6 @@ const SECTIONS = {
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
       { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
-      { name: 'Korb Legacy', file: './tools/misc/korb-legacy.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' }
