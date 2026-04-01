@@ -30,55 +30,54 @@ const SECTIONS = {
       <ellipse cx="24" cy="14" rx="1.5" ry="2.5" stroke-width="0.7" opacity="0.5"/>
     </svg>`,
     tools: [
-      { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
-      { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
-      { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
-      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'AI Meeting Notes', file: './tools/aviation/ai-meeting-note-taker.html' },
       { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
+      { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
+      { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
+      { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
+      { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
-      { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
-      { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' },
-      { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' }
+      { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
+      { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' }
     ]
   },
   civil: {
     title: '',
     icon: K_LOGO_SVG,
     tools: [
-      { name: 'Daily Field Report', file: './tools/civil/DailyFieldReport.html' },
-      { name: 'ETAM Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
-      { name: 'HEC-RAS Open', file: './tools/civil/HECRASOpen.html' },
-      { name: 'Meeting Recorder', file: './tools/civil/meeting.html' },
-      { name: 'OpenProject', file: './tools/civil/openproject.html' },
-      { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
-      { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
-      { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
-      { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
-      { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
-      { name: 'File Share', file: './tools/civil/file-share-tool.html' },
-      { name: 'Taiga Scrum Config', file: './tools/civil/korb-taiga-config.html' },
-      { name: 'Gantt Project', file: './tools/civil/gantt-project.html' },
-      { name: 'LaTeX Editor', file: './tools/civil/harrison-latex-editor.html' },
-      { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
       { name: 'AssetMax', file: './tools/civil/assetmax.html' },
+      { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
+      { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
+      { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
       { name: 'Capital Planning', file: './tools/civil/capital-planning.html' },
+      { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
+      { name: 'Daily Field Report', file: './tools/civil/DailyFieldReport.html' },
+      { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
+      { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
       { name: 'EPANet Water', file: './tools/civil/epanet-water.html' },
       { name: 'Earned Value Mgmt', file: './tools/civil/earned-value-mgmt.html' },
       { name: 'Erosion Control', file: './tools/civil/erosion-control.html' },
+      { name: 'ETAM Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
+      { name: 'File Share', file: './tools/civil/file-share-tool.html' },
       { name: 'Front End Documents', file: './tools/civil/front-end-documents.html' },
+      { name: 'Gantt Project', file: './tools/civil/gantt-project.html' },
       { name: 'Geospatial Tools', file: './tools/civil/geospatial-tools.html' },
       { name: 'HEC-HMS', file: './tools/civil/hec-hms.html' },
+      { name: 'HEC-RAS Open', file: './tools/civil/HECRASOpen.html' },
+      { name: 'LaTeX Editor', file: './tools/civil/harrison-latex-editor.html' },
+      { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
+      { name: 'Meeting Recorder', file: './tools/civil/meeting.html' },
+      { name: 'Online Bidder', file: './tools/civil/bid-express.html' },
       { name: 'OpenFOAM CFD', file: './tools/civil/openfoam-cfd.html' },
+      { name: 'OpenProject', file: './tools/civil/openproject.html' },
       { name: 'PCI Inspector', file: './tools/civil/pci-inspector.html' },
+      { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
       { name: 'PWL Calculator', file: './tools/civil/pwl-calculator.html' },
       { name: 'Submittal Review', file: './tools/civil/submittal-review.html' },
-      { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
-      { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
-      { name: 'Online Bidder', file: './tools/civil/bid-express.html' },
-      { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
+      { name: 'Taiga Scrum Config', file: './tools/civil/korb-taiga-config.html' },
+      { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
       { name: 'Unit Converter', file: './tools/civil/engineering-unit-converter.html' }
     ]
   },
@@ -93,9 +92,9 @@ const SECTIONS = {
     locked: true,
     password: 'potato1',
     tools: [
-      { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
       { name: 'Korb Dossier', file: './tools/hk/korb-dossier.html' },
+      { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       {
         name: 'Super Secret Access!',
         type: 'folder',
@@ -117,30 +116,31 @@ const SECTIONS = {
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
     tools: [
-      { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
+      { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
-      { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
-      { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
-      { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
-      { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
-      { name: 'Tetris', file: './tools/misc/tetris.html' },
-      { name: 'Simon', file: './tools/misc/simon.html' },
-      { name: 'Soundboard', file: './tools/misc/soundboard.html' },
-      { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
-      { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
-      { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' },
-      { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
-      { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
-      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
-      { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
-      { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
-      { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
+      { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
-      { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
+      { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
+      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
+      { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
-      { name: 'Tanks', file: './tools/misc/tanks.html' }
+      { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
+      { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
+      { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
+      { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
+      { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
+      { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
+      { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
+      { name: 'Simon', file: './tools/misc/simon.html' },
+      { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
+      { name: 'Soundboard', file: './tools/misc/soundboard.html' },
+      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
+      { name: 'Tanks', file: './tools/misc/tanks.html' },
+      { name: 'Tetris', file: './tools/misc/tetris.html' },
+      { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
+      { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
     ]
   }
 };
@@ -482,7 +482,7 @@ function renderAboutPage() {
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.png" alt="Andrew Douglas Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
           <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
         </div>
 
