@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenFOAM CFD | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#111a24;--border:#1a2a3a;--accent:#00d4ff;--gold:#f0a500;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--dim:rgba(226,232,240,0.45);--muted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:13px}
+input,select,textarea{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:12px;padding:7px 10px;border-radius:4px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:200px;font-size:11px;line-height:1.6}
+button{font-family:var(--font);cursor:pointer;font-size:11px;letter-spacing:0.05em}
+label{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px}
+.header{height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14;position:sticky;top:0;z-index:100}
+.header-title{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:0.12em}
+.header-sub{font-size:10px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-left:8px}
+.tabs{display:flex;gap:0;padding:0 20px;border-bottom:1px solid var(--border);overflow-x:auto;background:var(--bg1)}
+.tab{padding:10px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--dim);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;transition:all .2s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg2)}
+.tab:hover{color:var(--text)}
+.body{padding:20px;max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+.field{margin-bottom:10px}
+.btn{padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);text-transform:uppercase;transition:all .2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{border-color:var(--accent);color:var(--accent)}
+.btn-gold{border-color:var(--gold);color:var(--gold)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.result-box{background:var(--bg2);padding:10px;border-radius:4px;border:1px solid var(--border)}
+.result-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em}
+.result-value{font-size:14px;color:var(--green);margin-top:2px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:16px;font-size:11px;line-height:1.6;overflow-x:auto;white-space:pre;max-height:400px;overflow-y:auto}
+.demo-btn{padding:8px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;cursor:pointer;transition:all .2s}
+.demo-btn:hover{border-color:var(--gold);color:var(--gold)}
+table{width:100%;border-collapse:collapse}
+th,td{padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;text-align:left}
+th{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:0.1em}
+canvas{width:100%;border-radius:4px;border:1px solid var(--border)}
+@media(max-width:768px){.grid2,.grid3,.grid4{grid-template-columns:1fr}.body{padding:12px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">OPENFOAM CFD</div>
+  <div class="header-sub">Computational Fluid Dynamics</div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="body" id="app"></div>
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS='korb_openfoam';
+const TABS=['setup','mesh','boundaries','dictionaries','visualization'];
+let tab='setup';
+
+const SIM_TYPES=['Pipe Flow','Open Channel','Stormwater Drainage','Wind Loading','HVAC Duct','Culvert Hydraulics','Weir Overflow','Pump Station'];
+const TURB_MODELS=['laminar','k-epsilon','k-omega SST','RNG k-epsilon','Spalart-Allmaras'];
+const SOLVERS=[{id:'simpleFoam',label:'simpleFoam (steady-state)'},{id:'pimpleFoam',label:'pimpleFoam (transient)'},{id:'interFoam',label:'interFoam (multiphase)'},{id:'potentialFoam',label:'potentialFoam (potential flow)'}];
+const FLUID_PRESETS={'Water (20C)':{density:998.2,viscosity:1.004e-6},'Air (20C)':{density:1.205,viscosity:1.516e-5},'Seawater':{density:1025,viscosity:1.08e-6},'Custom':{density:1000,viscosity:1e-6}};
+const VEL_TYPES=['fixedValue','zeroGradient','noSlip','slip','pressureInletOutletVelocity'];
+const PRES_TYPES=['fixedValue','zeroGradient','totalPressure','fixedFluxPressure'];
+const TURB_BC=['fixedValue','zeroGradient','kqRWallFunction','omegaWallFunction','epsilonWallFunction','nutkWallFunction'];
+const BOUNDS=['inlet','outlet','walls','top','bottom'];
+
+const DEMOS={
+  '24-inch Storm Drain':{projectName:'24-inch Storm Drain Analysis',description:'24" RCP storm drain pipe flow',simType:'Pipe Flow',turbModel:'k-epsilon',solver:'simpleFoam',startTime:0,endTime:100,deltaT:1,writeInterval:10,fluidPreset:'Water (20C)',density:998.2,viscosity:1.004e-6,domainL:10,domainW:0.61,domainH:0.61,inletVel:2.5,nx:100,ny:30,nz:30,grading:1.2},
+  'Detention Pond Outlet':{projectName:'Detention Pond Outlet',description:'Multiphase flow of detention pond outlet',simType:'Open Channel',turbModel:'k-epsilon',solver:'interFoam',startTime:0,endTime:50,deltaT:0.01,writeInterval:1,fluidPreset:'Water (20C)',density:998.2,viscosity:1.004e-6,domainL:15,domainW:8,domainH:3,inletVel:0.8,nx:150,ny:80,nz:30,grading:1.1},
+  'Building Wind Study':{projectName:'Commercial Building Wind Loading',description:'Wind pressure on 3-story commercial building',simType:'Wind Loading',turbModel:'k-omega SST',solver:'simpleFoam',startTime:0,endTime:500,deltaT:1,writeInterval:50,fluidPreset:'Air (20C)',density:1.205,viscosity:1.516e-5,domainL:200,domainW:100,domainH:60,inletVel:45,nx:200,ny:100,nz:60,grading:1.3},
+  'Box Culvert 6x4':{projectName:'6ft x 4ft Box Culvert',description:'Hydraulic analysis of RC box culvert',simType:'Culvert Hydraulics',turbModel:'k-epsilon',solver:'simpleFoam',startTime:0,endTime:200,deltaT:1,writeInterval:20,fluidPreset:'Water (20C)',density:998.2,viscosity:1.004e-6,domainL:20,domainW:1.83,domainH:1.22,inletVel:3.0,nx:200,ny:36,nz:24,grading:1.15},
+};
+
+function defaultState(){return{
+  projectName:'New CFD Project',description:'',simType:'Pipe Flow',turbModel:'k-epsilon',solver:'simpleFoam',
+  startTime:0,endTime:100,deltaT:1,writeInterval:10,
+  fluidPreset:'Water (20C)',density:998.2,viscosity:1.004e-6,
+  domainL:10,domainW:2,domainH:2,inletVel:1.0,
+  nx:100,ny:20,nz:20,grading:1.0,
+  boundaries:{
+    inlet:{velocity:'fixedValue',pressure:'zeroGradient',turbulence:'fixedValue'},
+    outlet:{velocity:'zeroGradient',pressure:'fixedValue',turbulence:'zeroGradient'},
+    walls:{velocity:'noSlip',pressure:'zeroGradient',turbulence:'nutkWallFunction'},
+    top:{velocity:'slip',pressure:'zeroGradient',turbulence:'zeroGradient'},
+    bottom:{velocity:'noSlip',pressure:'zeroGradient',turbulence:'nutkWallFunction'},
+  }
+}}
+
+let s=loadS()||defaultState();
+function loadS(){try{const d=JSON.parse(localStorage.getItem(LS));return d&&d.projectName?d:null}catch{return null}}
+function saveS(){localStorage.setItem(LS,JSON.stringify(s))}
+function up(k,v){s[k]=v;saveS()}
+
+function renderTabs(){document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="tab='${t}';render()">${t}</button>`).join('')}
+function render(){renderTabs();const a=document.getElementById('app');({setup:renderSetup,mesh:renderMesh,boundaries:renderBoundaries,dictionaries:renderDicts,visualization:renderVis})[tab](a)}
+
+function renderSetup(el){
+  const charLen=Math.min(s.domainW,s.domainH);
+  const re=(s.inletVel*charLen)/s.viscosity;
+  const regime=re<2300?'Laminar':re<4000?'Transitional':'Turbulent';
+  const regimeClr=re<2300?'var(--green)':re<4000?'var(--gold)':'var(--red)';
+  el.innerHTML=`
+    <div class="card"><div class="card-title">Demo Configurations</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${Object.keys(DEMOS).map(k=>`<button class="demo-btn" onclick="loadDemo('${k}')">${k}</button>`).join('')}</div>
+    </div>
+    <div class="card"><div class="card-title">Project Setup</div>
+      <div class="grid2">
+        <div class="field"><label>Project Name</label><input value="${s.projectName}" oninput="up('projectName',this.value)"></div>
+        <div class="field"><label>Simulation Type</label><select onchange="up('simType',this.value)">${SIM_TYPES.map(t=>`<option ${s.simType===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Description</label><input value="${s.description||''}" oninput="up('description',this.value)"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-title">Solver & Turbulence</div>
+        <div class="field"><label>Solver</label><select onchange="up('solver',this.value)">${SOLVERS.map(x=>`<option value="${x.id}" ${s.solver===x.id?'selected':''}>${x.label}</option>`).join('')}</select></div>
+        <div class="field"><label>Turbulence Model</label><select onchange="up('turbModel',this.value)">${TURB_MODELS.map(t=>`<option ${s.turbModel===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="grid4">
+          <div class="field"><label>Start Time</label><input type="number" value="${s.startTime}" oninput="up('startTime',parseFloat(this.value)||0)"></div>
+          <div class="field"><label>End Time</label><input type="number" value="${s.endTime}" oninput="up('endTime',parseFloat(this.value)||100)"></div>
+          <div class="field"><label>Delta T</label><input type="number" step="0.001" value="${s.deltaT}" oninput="up('deltaT',parseFloat(this.value)||1)"></div>
+          <div class="field"><label>Write Interval</label><input type="number" value="${s.writeInterval}" oninput="up('writeInterval',parseFloat(this.value)||10)"></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">Fluid Properties</div>
+        <div class="field"><label>Fluid Preset</label><select onchange="setFluid(this.value)">${Object.keys(FLUID_PRESETS).map(f=>`<option ${s.fluidPreset===f?'selected':''}>${f}</option>`).join('')}</select></div>
+        <div class="grid2">
+          <div class="field"><label>Density (kg/m3)</label><input type="number" step="0.1" value="${s.density}" oninput="up('density',parseFloat(this.value)||1000)"></div>
+          <div class="field"><label>Kin. Viscosity (m2/s)</label><input type="number" step="1e-7" value="${s.viscosity}" oninput="up('viscosity',parseFloat(this.value)||1e-6)"></div>
+        </div>
+        <div class="field"><label>Inlet Velocity (m/s)</label><input type="number" step="0.1" value="${s.inletVel}" oninput="up('inletVel',parseFloat(this.value)||1)"></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Flow Analysis</div>
+      <div class="stat-grid">
+        <div class="result-box"><div class="result-label">Reynolds Number</div><div class="result-value">${re.toFixed(0)}</div></div>
+        <div class="result-box"><div class="result-label">Flow Regime</div><div class="result-value" style="color:${regimeClr}">${regime}</div></div>
+        <div class="result-box"><div class="result-label">Courant (est)</div><div class="result-value">${(s.inletVel*s.deltaT/(s.domainL/s.nx)).toFixed(3)}</div></div>
+        <div class="result-box"><div class="result-label">Simulation Type</div><div class="result-value" style="font-size:12px">${s.simType}</div></div>
+      </div>
+    </div>`;
+}
+
+function setFluid(preset){up('fluidPreset',preset);if(FLUID_PRESETS[preset]){up('density',FLUID_PRESETS[preset].density);up('viscosity',FLUID_PRESETS[preset].viscosity);render()}}
+function loadDemo(name){const cfg=DEMOS[name];if(cfg){Object.assign(s,defaultState(),cfg);s.boundaries=defaultState().boundaries;saveS();render()}}
+
+function renderMesh(el){
+  const totalCells=s.nx*s.ny*s.nz;
+  const ar=Math.max(s.domainL/s.nx,s.domainW/s.ny,s.domainH/s.nz)/Math.min(s.domainL/s.nx,s.domainW/s.ny,s.domainH/s.nz);
+  const mq=totalCells>500000&&ar<5?'Good':totalCells>50000&&ar<10?'Fair':'Poor';
+  const mqC=mq==='Good'?'var(--green)':mq==='Fair'?'var(--gold)':'var(--red)';
+  el.innerHTML=`
+    <div class="grid2">
+      <div class="card"><div class="card-title">Domain Dimensions (meters)</div>
+        <div class="grid3">
+          <div class="field"><label>Length (X)</label><input type="number" step="0.1" value="${s.domainL}" oninput="up('domainL',parseFloat(this.value)||1);render()"></div>
+          <div class="field"><label>Width (Y)</label><input type="number" step="0.1" value="${s.domainW}" oninput="up('domainW',parseFloat(this.value)||1);render()"></div>
+          <div class="field"><label>Height (Z)</label><input type="number" step="0.1" value="${s.domainH}" oninput="up('domainH',parseFloat(this.value)||1);render()"></div>
+        </div>
+        <div class="field"><label>Wall Grading</label><input type="number" step="0.05" value="${s.grading}" oninput="up('grading',parseFloat(this.value)||1);render()"></div>
+      </div>
+      <div class="card"><div class="card-title">Cell Count</div>
+        <div class="grid3">
+          <div class="field"><label>NX</label><input type="number" value="${s.nx}" oninput="up('nx',parseInt(this.value)||10);render()"></div>
+          <div class="field"><label>NY</label><input type="number" value="${s.ny}" oninput="up('ny',parseInt(this.value)||10);render()"></div>
+          <div class="field"><label>NZ</label><input type="number" value="${s.nz}" oninput="up('nz',parseInt(this.value)||10);render()"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Mesh Quality</div>
+      <div class="stat-grid">
+        <div class="result-box"><div class="result-label">Total Cells</div><div class="result-value">${totalCells.toLocaleString()}</div></div>
+        <div class="result-box"><div class="result-label">Aspect Ratio</div><div class="result-value">${ar.toFixed(2)}</div></div>
+        <div class="result-box"><div class="result-label">Quality</div><div class="result-value" style="color:${mqC}">${mq}</div></div>
+        <div class="result-box"><div class="result-label">Cell Size X</div><div class="result-value">${(s.domainL/s.nx).toFixed(4)} m</div></div>
+        <div class="result-box"><div class="result-label">Cell Size Y</div><div class="result-value">${(s.domainW/s.ny).toFixed(4)} m</div></div>
+        <div class="result-box"><div class="result-label">Cell Size Z</div><div class="result-value">${(s.domainH/s.nz).toFixed(4)} m</div></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Domain Visualization</div><canvas id="meshCanvas" width="600" height="300"></canvas></div>`;
+  drawMesh();
+}
+
+function drawMesh(){
+  const c=document.getElementById('meshCanvas');if(!c)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  const mx=80,my=60;const scale=Math.min((W-2*mx)/s.domainL,(H-2*my)/Math.max(s.domainW,s.domainH))*0.7;
+  const ox=mx,oy=H-my;const dz=s.domainH*scale*0.3;
+  // Front face
+  ctx.strokeStyle='#00d4ff';ctx.lineWidth=1.5;
+  ctx.strokeRect(ox,oy-s.domainH*scale,s.domainL*scale,s.domainH*scale);
+  // Top face
+  ctx.beginPath();ctx.moveTo(ox,oy-s.domainH*scale);ctx.lineTo(ox+dz*0.7,oy-s.domainH*scale-dz);ctx.lineTo(ox+s.domainL*scale+dz*0.7,oy-s.domainH*scale-dz);ctx.lineTo(ox+s.domainL*scale,oy-s.domainH*scale);ctx.closePath();ctx.stroke();
+  // Side face
+  ctx.beginPath();ctx.moveTo(ox+s.domainL*scale,oy);ctx.lineTo(ox+s.domainL*scale+dz*0.7,oy-dz);ctx.lineTo(ox+s.domainL*scale+dz*0.7,oy-s.domainH*scale-dz);ctx.lineTo(ox+s.domainL*scale,oy-s.domainH*scale);ctx.closePath();ctx.stroke();
+  // Grid lines
+  ctx.strokeStyle='#00d4ff33';ctx.lineWidth=0.5;
+  const gx=Math.min(10,s.nx),gy=Math.min(10,s.nz);
+  for(let i=1;i<gx;i++){const x=ox+i*(s.domainL*scale/gx);ctx.beginPath();ctx.moveTo(x,oy);ctx.lineTo(x,oy-s.domainH*scale);ctx.stroke()}
+  for(let i=1;i<gy;i++){const y=oy-i*(s.domainH*scale/gy);ctx.beginPath();ctx.moveTo(ox,y);ctx.lineTo(ox+s.domainL*scale,y);ctx.stroke()}
+  // Labels
+  ctx.fillStyle='#00d4ff';ctx.font='11px JetBrains Mono';ctx.textAlign='center';
+  ctx.fillText(s.domainL+'m',ox+s.domainL*scale/2,oy+18);
+  ctx.save();ctx.translate(ox-14,oy-s.domainH*scale/2);ctx.rotate(-Math.PI/2);ctx.fillText(s.domainH+'m',0,0);ctx.restore();
+  // Inlet arrow
+  ctx.fillStyle='#00ff88';ctx.font='10px JetBrains Mono';ctx.textAlign='right';
+  ctx.fillText('INLET',ox-8,oy-s.domainH*scale/2);
+  for(let i=0;i<3;i++){const ay=oy-s.domainH*scale*0.3-i*s.domainH*scale*0.2;ctx.strokeStyle='#00ff88';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(ox-30,ay);ctx.lineTo(ox-4,ay);ctx.stroke();ctx.beginPath();ctx.moveTo(ox-4,ay);ctx.lineTo(ox-10,ay-4);ctx.moveTo(ox-4,ay);ctx.lineTo(ox-10,ay+4);ctx.stroke()}
+  ctx.fillStyle='#ff3344';ctx.textAlign='left';ctx.fillText('OUTLET',ox+s.domainL*scale+8,oy-s.domainH*scale/2);
+}
+
+function renderBoundaries(el){
+  el.innerHTML=`<div class="card"><div class="card-title">Boundary Conditions</div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Boundary</th><th>Velocity (U)</th><th>Pressure (p)</th><th>Turbulence</th></tr></thead>
+      <tbody>${BOUNDS.map(b=>`<tr>
+        <td style="color:var(--gold);text-transform:uppercase">${b}</td>
+        <td><select onchange="s.boundaries['${b}'].velocity=this.value;saveS()" style="width:180px">${VEL_TYPES.map(v=>`<option ${s.boundaries[b].velocity===v?'selected':''}>${v}</option>`).join('')}</select></td>
+        <td><select onchange="s.boundaries['${b}'].pressure=this.value;saveS()" style="width:180px">${PRES_TYPES.map(v=>`<option ${s.boundaries[b].pressure===v?'selected':''}>${v}</option>`).join('')}</select></td>
+        <td><select onchange="s.boundaries['${b}'].turbulence=this.value;saveS()" style="width:180px">${TURB_BC.map(v=>`<option ${s.boundaries[b].turbulence===v?'selected':''}>${v}</option>`).join('')}</select></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderDicts(el){
+  const nu=s.viscosity;const kVal=(1.5*Math.pow(s.inletVel*0.05,2)).toExponential(3);
+  const epsVal=(0.09*Math.pow(parseFloat(kVal),1.5)/(0.07*Math.min(s.domainW,s.domainH))).toExponential(3);
+  const controlDict=`FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * //
+
+application     ${s.solver};
+startFrom       startTime;
+startTime       ${s.startTime};
+stopAt          endTime;
+endTime         ${s.endTime};
+deltaT          ${s.deltaT};
+writeControl    timeStep;
+writeInterval   ${s.writeInterval};
+purgeWrite      0;
+writePrecision  6;
+timePrecision   6;
+runTimeModifiable true;`;
+
+  const transportProps=`FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * //
+
+transportModel  Newtonian;
+nu              [0 2 -1 0 0 0 0] ${nu};`;
+
+  const blockMeshDict=`FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * //
+
+convertToMeters 1;
+
+vertices
+(
+    (0 0 0)
+    (${s.domainL} 0 0)
+    (${s.domainL} ${s.domainW} 0)
+    (0 ${s.domainW} 0)
+    (0 0 ${s.domainH})
+    (${s.domainL} 0 ${s.domainH})
+    (${s.domainL} ${s.domainW} ${s.domainH})
+    (0 ${s.domainW} ${s.domainH})
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (${s.nx} ${s.ny} ${s.nz}) simpleGrading (1 ${s.grading} ${s.grading})
+);
+
+boundary
+(
+    inlet  { type patch; faces ((0 4 7 3)); }
+    outlet { type patch; faces ((1 2 6 5)); }
+    walls  { type wall;  faces ((0 1 5 4)); }
+    top    { type patch; faces ((4 5 6 7)); }
+    bottom { type wall;  faces ((0 3 2 1)); }
+);`;
+
+  const uDict=`FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+${BOUNDS.map(b=>`    ${b}
+    {
+        type            ${s.boundaries[b].velocity};${s.boundaries[b].velocity==='fixedValue'?`\n        value           uniform (${b==='inlet'?s.inletVel+' 0 0':'0 0 0'});`:''}
+    }`).join('\n')}
+}`;
+
+  el.innerHTML=`<div class="card"><div class="card-title">Generated OpenFOAM Dictionaries</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="copyDict('controlDict')">Copy controlDict</button>
+      <button class="btn btn-primary" onclick="copyDict('blockMeshDict')">Copy blockMeshDict</button>
+      <button class="btn btn-primary" onclick="copyDict('uDict')">Copy U</button>
+      <button class="btn btn-gold" onclick="exportAllDicts()">Export All</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">system/controlDict</div><div class="code-block" id="controlDict">${escHL(controlDict)}</div></div>
+  <div class="card"><div class="card-title">constant/transportProperties</div><div class="code-block" id="transportProps">${escHL(transportProps)}</div></div>
+  <div class="card"><div class="card-title">system/blockMeshDict</div><div class="code-block" id="blockMeshDict">${escHL(blockMeshDict)}</div></div>
+  <div class="card"><div class="card-title">0/U</div><div class="code-block" id="uDict">${escHL(uDict)}</div></div>`;
+
+  window._dicts={controlDict,transportProps,blockMeshDict,uDict};
+}
+
+function escHL(text){
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/(\/\/.*)/g,'<span style="color:rgba(226,232,240,0.3)">$1</span>')
+    .replace(/\b(FoamFile|version|format|class|object|application|startFrom|startTime|stopAt|endTime|deltaT|writeControl|writeInterval|purgeWrite|writePrecision|timePrecision|runTimeModifiable|type|value|uniform|internalField|boundaryField|dimensions|transportModel|nu|convertToMeters|vertices|blocks|hex|simpleGrading|boundary|patch|wall|faces)\b/g,'<span style="color:#00d4ff">$1</span>')
+    .replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/g,'<span style="color:#f0a500">$1</span>');
+}
+
+function copyDict(id){
+  const keys={controlDict:'controlDict',blockMeshDict:'blockMeshDict',uDict:'uDict',transportProps:'transportProps'};
+  if(window._dicts&&window._dicts[id]){navigator.clipboard.writeText(window._dicts[id]);alert('Copied to clipboard!')}
+}
+function exportAllDicts(){
+  if(!window._dicts)return;
+  const all=Object.entries(window._dicts).map(([k,v])=>`// === ${k} ===\n${v}`).join('\n\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([all],{type:'text/plain'}));a.download='korb_openfoam_dicts.txt';a.click();
+}
+
+function renderVis(el){
+  el.innerHTML=`<div class="card"><div class="card-title">Flow Visualization</div>
+    <canvas id="visCanvas" width="800" height="400"></canvas>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-green" id="startBtn" onclick="toggleSim()">Start Simulation</button>
+      <button class="btn btn-red" onclick="resetSim()">Reset</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Residual Monitor</div>
+    <canvas id="residCanvas" width="800" height="250"></canvas>
+  </div>`;
+  drawVis();drawResiduals();
+}
+
+let simRunning=false;let particles=[];let simFrame=0;let residuals=[];
+function toggleSim(){simRunning=!simRunning;if(simRunning)animateSim();document.getElementById('startBtn').textContent=simRunning?'Pause':'Start Simulation'}
+function resetSim(){simRunning=false;particles=[];simFrame=0;residuals=[];document.getElementById('startBtn').textContent='Start Simulation';drawVis();drawResiduals()}
+
+function animateSim(){
+  if(!simRunning)return;
+  if(particles.length<80&&Math.random()>0.3){particles.push({x:0,y:Math.random(),vx:0.005+Math.random()*0.01,vy:(Math.random()-0.5)*0.002,age:0})}
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy*=0.98;p.age++;if(p.y<0||p.y>1)p.vy*=-0.8});
+  particles=particles.filter(p=>p.x<1.05&&p.age<300);
+  simFrame++;
+  if(simFrame%5===0){const r=Math.max(0.0001,Math.exp(-simFrame*0.01)*(0.5+0.5*Math.random()));residuals.push(r);if(residuals.length>200)residuals.shift()}
+  drawVis();drawResiduals();
+  requestAnimationFrame(animateSim);
+}
+
+function drawVis(){
+  const c=document.getElementById('visCanvas');if(!c)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  const mx=60,my=40,pW=W-2*mx,pH=H-2*my;
+  ctx.strokeStyle='#1a2a3a';ctx.lineWidth=2;ctx.strokeRect(mx,my,pW,pH);
+  ctx.fillStyle='#00ff8833';ctx.fillRect(mx-2,my,4,pH);
+  ctx.fillStyle='#ff334433';ctx.fillRect(mx+pW-2,my,4,pH);
+  ctx.fillStyle='#00ff88';ctx.font='9px JetBrains Mono';ctx.textAlign='center';ctx.fillText('INLET',mx,my-6);
+  ctx.fillStyle='#ff3344';ctx.fillText('OUTLET',mx+pW,my-6);
+  particles.forEach(p=>{
+    const x=mx+p.x*pW,y=my+p.y*pH;
+    const speed=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
+    const hue=Math.min(1,speed/0.015);
+    const r=Math.round(hue*255),g=Math.round((1-Math.abs(hue-0.5)*2)*255),b=Math.round((1-hue)*255);
+    ctx.fillStyle=`rgba(${r},${g},${b},${Math.max(0.3,1-p.age/300)})`;
+    ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+  });
+  ctx.fillStyle='var(--dim)';ctx.font='10px JetBrains Mono';ctx.textAlign='left';
+  ctx.fillText('Particles: '+particles.length,mx+10,H-10);
+  ctx.fillText('Frame: '+simFrame,mx+150,H-10);
+}
+
+function drawResiduals(){
+  const c=document.getElementById('residCanvas');if(!c)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  if(residuals.length<2)return;
+  const mx=60,my=20,pW=W-mx-20,pH=H-my-30;
+  ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(mx,my+pH);ctx.lineTo(mx+pW,my+pH);ctx.stroke();
+  const maxR=Math.max(...residuals);const minR=Math.min(...residuals,1e-6);
+  ctx.strokeStyle='#00d4ff';ctx.lineWidth=1.5;ctx.beginPath();
+  residuals.forEach((r,i)=>{
+    const x=mx+(i/(residuals.length-1))*pW;
+    const logR=(Math.log10(Math.max(r,1e-8))-Math.log10(Math.max(minR,1e-8)))/(Math.log10(maxR)-Math.log10(Math.max(minR,1e-8)));
+    const y=my+pH-(logR*pH);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });ctx.stroke();
+  ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='9px JetBrains Mono';ctx.textAlign='center';ctx.fillText('Iteration',mx+pW/2,H-4);
+  ctx.save();ctx.translate(12,my+pH/2);ctx.rotate(-Math.PI/2);ctx.fillText('Residual (log)',0,0);ctx.restore();
+}
+
+render();
+</script>
+</body>
+</html>

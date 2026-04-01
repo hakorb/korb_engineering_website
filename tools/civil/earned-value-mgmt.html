@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earned Value Management | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#0c1219;--border:#1a2a3a;--accent:#00d4ff;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--textDim:rgba(226,232,240,0.45);--textMuted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+input,select,button{font-family:var(--font)}
+.header{position:sticky;top:0;z-index:100;height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.header-title{font-size:14px;font-weight:700;letter-spacing:0.12em;color:var(--accent);text-shadow:0 0 10px rgba(0,212,255,0.3)}
+.header-sub{font-size:9px;color:var(--textDim);letter-spacing:0.15em;text-transform:uppercase}
+.health-badge{padding:4px 10px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:0.1em}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:12px 16px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;position:relative;overflow:hidden}
+.kpi-bar{position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-label{font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px}
+.kpi-value{font-size:18px;font-weight:700}
+.kpi-sub{font-size:9px;color:var(--textMuted);margin-top:2px}
+.tabs{display:flex;gap:0;padding:0 16px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:8px 14px;background:transparent;border:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--textDim);font-size:9px;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px 4px 0 0;white-space:nowrap}
+.tab.active{background:var(--bg2);border-color:var(--accent);border-bottom-color:transparent;color:var(--accent)}
+.content{padding:16px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px}
+.card-title{font-size:10px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.btn{background:transparent;border:1px solid var(--border);color:var(--textDim);font-size:9px;padding:5px 12px;border-radius:3px;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase;transition:all 0.15s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+input[type="text"],input[type="number"],input[type="date"],select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:11px;padding:4px 8px;border-radius:3px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{padding:6px 8px;border-bottom:2px solid var(--border);font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
+.overflow-x{overflow-x:auto}
+.flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.progress-bar{height:6px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width 0.3s}
+.form-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:9px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em}
+.variance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+@media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.header-sub{display:none}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">EVM CONSOLE</div>
+  <div class="header-sub">Earned Value Management</div>
+  <div style="flex:1"></div>
+  <div id="health-badge"></div>
+  <button class="btn" onclick="loadDemo()">Load Demo</button>
+</div>
+
+<div class="kpi-grid" id="kpis"></div>
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS_KEY='korb_evm';
+const TABS=['s-curve','wbs','variance','forecasts','setup'];
+let currentTab='s-curve';
+let project=null;
+
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function fmt$(v){if(Math.abs(v)>=1e6)return'$'+(v/1e6).toFixed(2)+'M';if(Math.abs(v)>=1e3)return'$'+(v/1e3).toFixed(1)+'K';return'$'+(v||0).toFixed(0)}
+function fmtPct(v){return v.toFixed(1)+'%'}
+
+function load(){try{const d=JSON.parse(localStorage.getItem(LS_KEY));if(d&&d.bac)project=d}catch{}}
+function save(){if(project)localStorage.setItem(LS_KEY,JSON.stringify(project))}
+
+function calcEVM(){
+  if(!project)return null;
+  const bac=project.bac||0;const wbs=project.wbs||[];
+  let pv=0,ev=0,ac=0;
+  for(const item of wbs){pv+=(item.budget||0)*((item.plannedPct||0)/100);ev+=(item.budget||0)*((item.pctComplete||0)/100);ac+=(item.actualCost||0)}
+  const sv=ev-pv,cv=ev-ac;const spi=pv>0?ev/pv:1;const cpi=ac>0?ev/ac:1;
+  const eac_cpi=cpi>0?bac/cpi:bac*2;const eac_composite=ac>0&&cpi>0&&spi>0?ac+(bac-ev)/(cpi*spi):bac;
+  const etc=eac_cpi-ac;const vac=bac-eac_cpi;
+  const tcpi=(bac-ev)>0&&(bac-ac)>0?(bac-ev)/(bac-ac):1;
+  return{bac,pv,ev,ac,sv,cv,spi,cpi,eac:eac_cpi,eac_composite,etc,vac,tcpi,pctComplete:bac>0?(ev/bac)*100:0,pctSpent:bac>0?(ac/bac)*100:0,pctPlanned:bac>0?(pv/bac)*100:0};
+}
+
+function getHealth(evm){
+  if(!evm)return{level:'nominal',label:'NO DATA',color:'var(--textDim)'};
+  if(evm.spi<0.8||evm.cpi<0.8)return{level:'critical',label:'STALL WARNING',color:'var(--red)'};
+  if(evm.spi<0.9||evm.cpi<0.9)return{level:'warning',label:'CAUTION',color:'#ff8800'};
+  if(evm.spi<0.95||evm.cpi<0.95)return{level:'watch',label:'WATCH',color:'var(--yellow)'};
+  return{level:'nominal',label:'NOMINAL',color:'var(--green)'};
+}
+
+function kpiColor(val,good=0.95,warn=0.9){if(val>=good)return'var(--green)';if(val>=warn)return'var(--yellow)';return'var(--red)'}
+
+function loadDemo(){
+  project={
+    id:genId(),name:'Runway Rehabilitation',bac:2500000,duration:18,client:'Metro Airport Authority',contract:'MAA-2026-112',startDate:'2025-10-01',
+    wbs:[
+      {id:genId(),name:'Mobilization',budget:125000,pctComplete:100,actualCost:118000,plannedPct:100},
+      {id:genId(),name:'Demolition & Removal',budget:375000,pctComplete:85,actualCost:340000,plannedPct:90},
+      {id:genId(),name:'Subgrade Prep',budget:300000,pctComplete:60,actualCost:210000,plannedPct:70},
+      {id:genId(),name:'P-209 Base Course',budget:450000,pctComplete:30,actualCost:185000,plannedPct:45},
+      {id:genId(),name:'P-401 HMA Surface',budget:625000,pctComplete:0,actualCost:0,plannedPct:10},
+      {id:genId(),name:'Markings & Lighting',budget:250000,pctComplete:0,actualCost:0,plannedPct:0},
+      {id:genId(),name:'Testing & QA',budget:175000,pctComplete:15,actualCost:30000,plannedPct:20},
+      {id:genId(),name:'Demobilization & Closeout',budget:200000,pctComplete:0,actualCost:0,plannedPct:0}
+    ]
+  };save();render();
+}
+
+function addWbsItem(){
+  if(!project)return;
+  project.wbs.push({id:genId(),name:'New Item',budget:0,pctComplete:0,actualCost:0,plannedPct:0});
+  save();render();
+}
+function updateWbs(id,field,val){
+  if(!project)return;
+  const item=project.wbs.find(w=>w.id===id);if(!item)return;
+  item[field]=['budget','pctComplete','actualCost','plannedPct'].includes(field)?parseFloat(val)||0:val;
+  save();render();
+}
+function deleteWbs(id){if(!project)return;project.wbs=project.wbs.filter(w=>w.id!==id);save();render()}
+function updateProject(field,val){
+  if(!project)return;
+  project[field]=field==='bac'||field==='duration'?parseFloat(val)||0:val;save();render();
+}
+
+function renderKpis(){
+  const evm=calcEVM();const h=getHealth(evm);
+  document.getElementById('health-badge').innerHTML=`<span class="health-badge" style="border:1px solid ${h.color};color:${h.color}">${h.label}</span>`;
+  if(!evm){document.getElementById('kpis').innerHTML='<div class="kpi"><div class="kpi-label">Status</div><div class="kpi-value" style="color:var(--textDim);font-size:12px">No project loaded</div></div>';return}
+  document.getElementById('kpis').innerHTML=[
+    ['BAC',fmt$(evm.bac),'var(--text)','Budget at Completion'],
+    ['EV',fmt$(evm.ev),'var(--accent)','Earned Value'],
+    ['PV',fmt$(evm.pv),'var(--yellow)','Planned Value'],
+    ['AC',fmt$(evm.ac),evm.ac>evm.ev?'var(--red)':'var(--green)','Actual Cost'],
+    ['SPI',evm.spi.toFixed(2),kpiColor(evm.spi),'Schedule Performance'],
+    ['CPI',evm.cpi.toFixed(2),kpiColor(evm.cpi),'Cost Performance'],
+    ['SV',fmt$(evm.sv),evm.sv>=0?'var(--green)':'var(--red)','Schedule Variance'],
+    ['CV',fmt$(evm.cv),evm.cv>=0?'var(--green)':'var(--red)','Cost Variance'],
+    ['EAC',fmt$(evm.eac),evm.eac>evm.bac?'var(--red)':'var(--green)','Estimate at Completion'],
+    ['% Complete',fmtPct(evm.pctComplete),'var(--accent)','Work Completed']
+  ].map(([l,v,c,sub])=>`<div class="kpi"><div class="kpi-bar" style="background:${c};opacity:0.4"></div><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c}">${v}</div><div class="kpi-sub">${sub}</div></div>`).join('');
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${currentTab===t?'active':''}" onclick="currentTab='${t}';render()">${t}</button>`).join('');
+}
+
+function drawSCurve(){
+  const evm=calcEVM();if(!evm||!project)return;
+  setTimeout(()=>{
+    const c=document.getElementById('scurve-canvas');if(!c)return;
+    const ctx=c.getContext('2d');c.width=c.parentElement.clientWidth-2;c.height=350;
+    const w=c.width,h=c.height,pad={l:60,r:30,t:20,b:40},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    ctx.fillStyle='#060c12';ctx.fillRect(0,0,w,h);
+
+    const dur=project.duration||12;const bac=project.bac||1;
+    // Grid
+    for(let i=0;i<=5;i++){const y=pad.t+ph*(1-i/5);ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
+      ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='right';ctx.fillText(fmt$(bac*i/5),pad.l-5,y+3)}
+    for(let i=0;i<=dur;i+=Math.ceil(dur/10)){const x=pad.l+i/dur*pw;ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='center';ctx.fillText('M'+i,x,h-10)}
+
+    // PV curve (S-curve)
+    ctx.beginPath();ctx.strokeStyle='var(--yellow)';ctx.lineWidth=2;
+    for(let i=0;i<=dur;i++){const t=i/dur;const pvPct=1/(1+Math.exp(-10*(t-0.5)));
+      const x=pad.l+i/dur*pw;const y=pad.t+ph*(1-pvPct);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+    ctx.stroke();
+
+    // EV line (up to current progress)
+    const curPeriod=Math.round(dur*evm.pctPlanned/100);
+    if(curPeriod>0){
+      ctx.beginPath();ctx.strokeStyle='var(--accent)';ctx.lineWidth=2.5;
+      for(let i=0;i<=curPeriod;i++){const evPct=evm.pctComplete/100*(i/curPeriod);
+        const x=pad.l+i/dur*pw;const y=pad.t+ph*(1-evPct);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+      ctx.stroke();
+
+      // AC line
+      ctx.beginPath();ctx.strokeStyle='var(--red)';ctx.lineWidth=2;ctx.setLineDash([6,3]);
+      for(let i=0;i<=curPeriod;i++){const acPct=evm.pctSpent/100*(i/curPeriod);
+        const x=pad.l+i/dur*pw;const y=pad.t+ph*(1-acPct);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+      ctx.stroke();ctx.setLineDash([]);
+    }
+
+    // BAC line
+    ctx.strokeStyle='rgba(226,232,240,0.15)';ctx.setLineDash([4,4]);ctx.beginPath();
+    const bacY=pad.t;ctx.moveTo(pad.l,bacY);ctx.lineTo(w-pad.r,bacY);ctx.stroke();ctx.setLineDash([]);
+
+    // Legend
+    const leg=[['PV (Planned)','#ffcc00'],['EV (Earned)','#00d4ff'],['AC (Actual)','#ff3344']];
+    leg.forEach(([label,color],i)=>{const lx=pad.l+10+i*120;const ly=pad.t+10;
+      ctx.fillStyle=color;ctx.fillRect(lx,ly,12,3);ctx.fillStyle='rgba(226,232,240,0.5)';ctx.font='9px JetBrains Mono';ctx.textAlign='left';ctx.fillText(label,lx+16,ly+4)});
+  },50);
+}
+
+function renderSCurve(){
+  const evm=calcEVM();
+  if(!project)return'<div class="card"><div style="text-align:center;color:var(--textMuted);padding:40px">No project loaded. Click "Load Demo" or create one in Setup tab.</div></div>';
+  drawSCurve();
+  return`<div class="card">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="card-title">S-Curve Analysis</div>
+      <div style="font-size:11px;color:var(--textDim)">${project.name} | ${project.client||''}</div>
+    </div>
+    <canvas id="scurve-canvas" style="width:100%;height:350px;border:1px solid var(--border);border-radius:6px"></canvas>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px">
+      <div><div style="font-size:9px;color:var(--textDim);text-transform:uppercase;margin-bottom:4px">Work Progress</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${evm?.pctComplete||0}%;background:var(--accent)"></div></div>
+        <div style="font-size:10px;color:var(--accent);margin-top:2px">${fmtPct(evm?.pctComplete||0)} complete</div></div>
+      <div><div style="font-size:9px;color:var(--textDim);text-transform:uppercase;margin-bottom:4px">Budget Spent</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${evm?.pctSpent||0}%;background:${(evm?.pctSpent||0)>(evm?.pctComplete||0)?'var(--red)':'var(--green)'}"></div></div>
+        <div style="font-size:10px;margin-top:2px">${fmtPct(evm?.pctSpent||0)} spent</div></div>
+      <div><div style="font-size:9px;color:var(--textDim);text-transform:uppercase;margin-bottom:4px">Planned Progress</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${evm?.pctPlanned||0}%;background:var(--yellow)"></div></div>
+        <div style="font-size:10px;color:var(--yellow);margin-top:2px">${fmtPct(evm?.pctPlanned||0)} planned</div></div>
+    </div>
+  </div>`;
+}
+
+function renderWbs(){
+  if(!project)return'<div class="card"><div style="text-align:center;color:var(--textMuted);padding:20px">No project loaded</div></div>';
+  return`<div class="card">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="card-title">Work Breakdown Structure</div>
+      <button class="btn btn-green" onclick="addWbsItem()">+ WBS Item</button>
+    </div>
+    <div class="overflow-x"><table><thead><tr>
+      ${['WBS Element','Budget','Planned %','% Complete','Actual Cost','EV','CV','CPI',''].map(h=>`<th>${h}</th>`).join('')}
+    </tr></thead><tbody>
+      ${(project.wbs||[]).map(item=>{
+        const ev=(item.budget||0)*(item.pctComplete||0)/100;const cv=ev-(item.actualCost||0);const cpi=(item.actualCost||0)>0?ev/(item.actualCost||0):1;
+        return`<tr>
+          <td><input type="text" value="${item.name}" onchange="updateWbs('${item.id}','name',this.value)" style="width:160px"></td>
+          <td><input type="number" value="${item.budget}" onchange="updateWbs('${item.id}','budget',this.value)" style="width:100px"></td>
+          <td><input type="number" value="${item.plannedPct}" min="0" max="100" onchange="updateWbs('${item.id}','plannedPct',this.value)" style="width:60px"></td>
+          <td><input type="number" value="${item.pctComplete}" min="0" max="100" onchange="updateWbs('${item.id}','pctComplete',this.value)" style="width:60px"></td>
+          <td><input type="number" value="${item.actualCost}" onchange="updateWbs('${item.id}','actualCost',this.value)" style="width:100px"></td>
+          <td style="color:var(--accent)">${fmt$(ev)}</td>
+          <td style="color:${cv>=0?'var(--green)':'var(--red)'}">${fmt$(cv)}</td>
+          <td style="color:${kpiColor(cpi)};font-weight:700">${cpi.toFixed(2)}</td>
+          <td><button class="btn btn-red" style="font-size:8px;padding:2px 8px" onclick="deleteWbs('${item.id}')">Del</button></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderVariance(){
+  const evm=calcEVM();if(!evm)return'<div class="card"><div style="text-align:center;color:var(--textMuted);padding:20px">No data</div></div>';
+  return`<div class="variance-grid">
+    <div class="card">
+      <div class="card-title">Schedule Variance (SV)</div>
+      <div style="font-size:28px;font-weight:700;color:${evm.sv>=0?'var(--green)':'var(--red)'}">${fmt$(evm.sv)}</div>
+      <div style="font-size:11px;color:var(--textDim);margin-top:6px">SPI: <span style="color:${kpiColor(evm.spi)};font-weight:700">${evm.spi.toFixed(3)}</span></div>
+      <div style="font-size:10px;color:var(--textMuted);margin-top:4px">${evm.spi>=1?'Ahead of schedule':'Behind schedule by '+fmtPct((1-evm.spi)*100)}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Cost Variance (CV)</div>
+      <div style="font-size:28px;font-weight:700;color:${evm.cv>=0?'var(--green)':'var(--red)'}">${fmt$(evm.cv)}</div>
+      <div style="font-size:11px;color:var(--textDim);margin-top:6px">CPI: <span style="color:${kpiColor(evm.cpi)};font-weight:700">${evm.cpi.toFixed(3)}</span></div>
+      <div style="font-size:10px;color:var(--textMuted);margin-top:4px">${evm.cpi>=1?'Under budget':'Over budget by '+fmt$(Math.abs(evm.cv))}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Variance at Completion (VAC)</div>
+      <div style="font-size:28px;font-weight:700;color:${evm.vac>=0?'var(--green)':'var(--red)'}">${fmt$(evm.vac)}</div>
+      <div style="font-size:10px;color:var(--textMuted);margin-top:4px">Projected ${evm.vac>=0?'under':'over'} budget by ${fmtPct(Math.abs(evm.vac/evm.bac)*100)}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">TCPI (To-Complete Performance Index)</div>
+      <div style="font-size:28px;font-weight:700;color:${evm.tcpi<=1.1?'var(--green)':evm.tcpi<=1.2?'var(--yellow)':'var(--red)'}">${evm.tcpi.toFixed(3)}</div>
+      <div style="font-size:10px;color:var(--textMuted);margin-top:4px">Required CPI for remaining work to meet BAC</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">WBS Element Variance</div>
+    ${(project?.wbs||[]).map(item=>{
+      const ev=(item.budget||0)*(item.pctComplete||0)/100;const cv=ev-(item.actualCost||0);const pct=item.budget>0?cv/item.budget*100:0;
+      return`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:11px">${item.name}</span>
+          <span style="font-size:11px;color:${cv>=0?'var(--green)':'var(--red)'}">${fmt$(cv)}</span>
+        </div>
+        <div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:${Math.min(100,Math.abs(pct))}%;background:${cv>=0?'var(--green)':'var(--red)'}"></div></div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderForecasts(){
+  const evm=calcEVM();if(!evm)return'<div class="card"><div style="text-align:center;color:var(--textMuted);padding:20px">No data</div></div>';
+  return`<div class="card">
+    <div class="card-title">Estimate at Completion (EAC) Methods</div>
+    <div class="overflow-x"><table><thead><tr><th>Method</th><th>Formula</th><th>EAC</th><th>vs BAC</th></tr></thead><tbody>
+      ${[
+        ['EAC (CPI)','BAC / CPI',evm.eac],
+        ['EAC (Composite)','AC + (BAC-EV) / (CPI*SPI)',evm.eac_composite],
+        ['EAC (New Estimate)','AC + (BAC-EV)',evm.ac+(evm.bac-evm.ev)],
+        ['EAC (Optimistic)','AC + (BAC-EV)/1',evm.ac+(evm.bac-evm.ev)]
+      ].map(([name,formula,val])=>{const diff=val-evm.bac;return`<tr>
+        <td style="font-weight:600">${name}</td>
+        <td style="color:var(--textDim);font-size:10px">${formula}</td>
+        <td style="color:var(--accent);font-weight:700">${fmt$(val)}</td>
+        <td style="color:${diff<=0?'var(--green)':'var(--red)'}">${diff>=0?'+':''}${fmt$(diff)}</td>
+      </tr>`}).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Estimate to Complete (ETC)</div>
+    <div style="font-size:24px;font-weight:700;color:var(--yellow)">${fmt$(evm.etc)}</div>
+    <div style="font-size:11px;color:var(--textDim);margin-top:4px">Remaining cost to complete the project at current CPI</div>
+    <div class="progress-bar" style="height:12px;margin-top:10px;position:relative">
+      <div class="progress-fill" style="width:${evm.pctSpent}%;background:var(--accent)"></div>
+      <div style="position:absolute;top:0;height:100%;left:${evm.pctSpent}%;width:${100-evm.pctSpent}%;background:rgba(255,204,0,0.3)"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--textDim);margin-top:4px">
+      <span>AC: ${fmt$(evm.ac)}</span><span>ETC: ${fmt$(evm.etc)}</span><span>BAC: ${fmt$(evm.bac)}</span>
+    </div>
+  </div>`;
+}
+
+function renderSetup(){
+  if(!project)project={id:genId(),name:'',bac:0,duration:12,client:'',contract:'',startDate:'',wbs:[]};
+  return`<div class="card">
+    <div class="card-title">Project Setup</div>
+    <div class="form-row">
+      <div class="form-group"><div class="form-label">Project Name</div><input type="text" value="${project.name||''}" onchange="updateProject('name',this.value)"></div>
+      <div class="form-group"><div class="form-label">Client</div><input type="text" value="${project.client||''}" onchange="updateProject('client',this.value)"></div>
+      <div class="form-group"><div class="form-label">Contract #</div><input type="text" value="${project.contract||''}" onchange="updateProject('contract',this.value)"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><div class="form-label">Budget at Completion (BAC)</div><input type="number" value="${project.bac||0}" onchange="updateProject('bac',this.value)"></div>
+      <div class="form-group"><div class="form-label">Duration (months)</div><input type="number" value="${project.duration||12}" onchange="updateProject('duration',this.value)"></div>
+      <div class="form-group"><div class="form-label">Start Date</div><input type="date" value="${project.startDate||''}" onchange="updateProject('startDate',this.value)"></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-accent" onclick="save();render()">Save Project</button>
+      <button class="btn btn-red" onclick="if(confirm('Reset project?')){project=null;localStorage.removeItem(LS_KEY);render()}">Reset</button>
+    </div>
+  </div>`;
+}
+
+function render(){
+  renderKpis();renderTabs();
+  const c=document.getElementById('content');
+  if(currentTab==='s-curve'){c.innerHTML=renderSCurve();drawSCurve()}
+  else if(currentTab==='wbs')c.innerHTML=renderWbs();
+  else if(currentTab==='variance')c.innerHTML=renderVariance();
+  else if(currentTab==='forecasts')c.innerHTML=renderForecasts();
+  else if(currentTab==='setup')c.innerHTML=renderSetup();
+}
+
+load();render();
+</script>
+</body>
+</html>

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPANet Water - Distribution Network Analysis | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#0c1219;--border:#1a2a3a;--accent:#00d4ff;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--blue:#3b82f6;--text:#e2e8f0;--textDim:rgba(226,232,240,0.45);--textMuted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+input,select,button{font-family:var(--font)}
+.header{position:sticky;top:0;z-index:100;height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.header-title{font-size:14px;font-weight:700;letter-spacing:0.12em;color:var(--accent);text-shadow:0 0 10px rgba(0,212,255,0.3)}
+.header-sub{font-size:9px;color:var(--textDim);letter-spacing:0.15em;text-transform:uppercase}
+.tabs{display:flex;gap:0;padding:0 16px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:8px 14px;background:transparent;border:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--textDim);font-size:9px;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px 4px 0 0;white-space:nowrap}
+.tab.active{background:var(--bg2);border-color:var(--accent);border-bottom-color:transparent;color:var(--accent)}
+.content{padding:16px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px}
+.card-title{font-size:10px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.btn{background:transparent;border:1px solid var(--border);color:var(--textDim);font-size:9px;padding:5px 12px;border-radius:3px;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase;transition:all 0.15s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.btn-accent{border-color:var(--accent);color:var(--accent)}
+input[type="text"],input[type="number"],select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:11px;padding:4px 8px;border-radius:3px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{padding:6px 8px;border-bottom:2px solid var(--border);font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
+.overflow-x{overflow-x:auto}
+.flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center}
+.kpi-label{font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px}
+.kpi-value{font-size:16px;font-weight:700}
+.network-canvas{border:1px solid var(--border);border-radius:6px;background:#060c12;cursor:crosshair}
+.form-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:9px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em}
+.demand-bar{display:flex;align-items:flex-end;gap:2px;height:80px}
+.demand-col{flex:1;background:var(--accent);border-radius:2px 2px 0 0;min-width:8px;transition:height 0.2s}
+@media(max-width:768px){.header-sub{display:none}.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">EPANET WATER</div>
+  <div class="header-sub">Distribution Network Analysis</div>
+  <div style="flex:1"></div>
+  <button class="btn btn-accent" onclick="runSimulation()">Run Analysis</button>
+  <button class="btn" onclick="loadDemo()">Load Demo</button>
+</div>
+
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS_KEY='korb_epanet_water';
+const TABS=['network','junctions','pipes','analysis','fire-flow','chlorine','demand'];
+let currentTab='network';
+let network={name:'',junctions:[],reservoirs:[],tanks:[],pipes:[],pumps:[]};
+let results={nodeResults:{},linkResults:{}};
+let selectedNode=null;let selectedPipe=null;
+
+const PIPE_CATALOG=[{size:4,id:4},{size:6,id:6},{size:8,id:8},{size:10,id:10},{size:12,id:12},{size:16,id:16},{size:20,id:20},{size:24,id:24}];
+const MATERIALS=[{name:'Ductile Iron',c:130},{name:'PVC',c:150},{name:'HDPE',c:140},{name:'Concrete',c:120},{name:'Steel',c:140}];
+const DEMAND_PATTERNS={residential:[0.5,0.4,0.3,0.3,0.4,0.6,1.0,1.4,1.6,1.5,1.3,1.2,1.1,1.0,1.0,1.1,1.3,1.5,1.6,1.4,1.2,1.0,0.8,0.6],commercial:[0.2,0.2,0.2,0.2,0.3,0.5,0.8,1.2,1.5,1.6,1.6,1.5,1.4,1.5,1.6,1.6,1.5,1.2,0.8,0.5,0.3,0.2,0.2,0.2],fire_flow:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]};
+
+function uid(){return'n'+Math.random().toString(36).slice(2,9)}
+function load(){try{const d=JSON.parse(localStorage.getItem(LS_KEY));if(d&&d.junctions)network=d}catch{}}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify(network))}
+
+function buildDemo(){
+  const jData=[
+    {id:'J1',x:220,y:200,elev:200,demand:50},{id:'J2',x:400,y:200,elev:195,demand:80},
+    {id:'J3',x:580,y:200,elev:190,demand:60},{id:'J4',x:760,y:200,elev:185,demand:70},
+    {id:'J5',x:220,y:350,elev:198,demand:100},{id:'J6',x:400,y:350,elev:192,demand:120},
+    {id:'J7',x:580,y:350,elev:188,demand:90},{id:'J8',x:760,y:350,elev:182,demand:110},
+    {id:'J9',x:220,y:500,elev:202,demand:40},{id:'J10',x:400,y:500,elev:196,demand:60},
+    {id:'J11',x:580,y:500,elev:190,demand:80},{id:'J12',x:760,y:500,elev:184,demand:50}
+  ];
+  const junctions=jData.map(j=>({...j,type:'junction',pattern:'residential'}));
+  const reservoirs=[{id:'R1',type:'reservoir',x:80,y:200,head:300},{id:'R2',type:'reservoir',x:80,y:500,head:280}];
+  const tanks=[{id:'T1',type:'tank',x:900,y:120,elevation:250,diameter:50,minLevel:5,maxLevel:25,initLevel:15}];
+  const pData=[['P1','J1','J2',1800,12,130],['P2','J2','J3',1800,10,130],['P3','J3','J4',1800,8,130],['P4','J5','J6',1800,10,130],['P5','J6','J7',1800,8,130],['P6','J7','J8',1800,8,130],['P7','J9','J10',1800,8,130],['P8','J10','J11',1800,6,130],['P9','J11','J12',1800,6,130],['P10','J1','J5',1500,10,130],['P11','J2','J6',1500,8,130],['P12','J3','J7',1500,6,130],['P13','J5','J9',1500,8,130],['P14','J6','J10',1500,6,130],['P15','J7','J11',1500,6,130],['P16','J4','T1',1500,12,130],['P17','J8','J12',1800,8,130],['P18','R2','J9',1400,12,130]];
+  const pipes=pData.map(p=>({id:p[0],type:'pipe',node1:p[1],node2:p[2],length:p[3],diameter:p[4],roughness:p[5],status:'open'}));
+  const pumps=[{id:'PU1',type:'pump',node1:'R1',node2:'J1',status:'on',headGain:100}];
+  network={name:'Main Street Distribution System',junctions,reservoirs,tanks,pipes,pumps};
+  save();render();
+}
+function loadDemo(){buildDemo()}
+
+function hazenWilliams(Q,L,d,C){
+  if(Math.abs(Q)<1e-6)return 0;
+  return Math.sign(Q)*(4.727*L*Math.pow(Math.abs(Q),1.852))/(Math.pow(C,1.852)*Math.pow(d,4.87));
+}
+
+function runSimulation(){
+  const allNodes={};
+  network.junctions.forEach(n=>{allNodes[n.id]={...n,head:n.elev+50,isFixed:false}});
+  network.reservoirs.forEach(n=>{allNodes[n.id]={...n,head:n.head,elev:0,demand:0,isFixed:true}});
+  network.tanks.forEach(n=>{allNodes[n.id]={...n,head:n.elevation+n.initLevel,elev:n.elevation,demand:0,isFixed:true}});
+
+  const links=network.pipes.filter(p=>p.status!=='closed').map(p=>({...p,flow:50}));
+  network.pumps.filter(p=>p.status!=='off').forEach(p=>{links.push({...p,isPump:true,flow:200})});
+
+  for(let iter=0;iter<80;iter++){
+    let maxErr=0;
+    for(const j of network.junctions){
+      if(!allNodes[j.id]||allNodes[j.id].isFixed)continue;
+      let flowSum=0,dFlowSum=0.001;
+      for(const link of links){
+        let sign=0;
+        if(link.node2===j.id)sign=1;else if(link.node1===j.id)sign=-1;else continue;
+        if(link.isPump){flowSum+=sign*link.flow;dFlowSum+=0.001;continue}
+        const h1=allNodes[link.node1]?.head||200;const h2=allNodes[link.node2]?.head||200;
+        const dh=h1-h2;const r=(4.727*link.length)/(Math.pow(link.roughness,1.852)*Math.pow(link.diameter,4.87));
+        if(r>0&&Math.abs(dh)>1e-6){
+          const q=Math.sign(dh)*Math.pow(Math.abs(dh)/r,1/1.852);link.flow=q;flowSum+=sign*q;
+          dFlowSum+=Math.abs((1/1.852)*Math.pow(Math.abs(dh)/r,1/1.852-1)/r);
+        }
+      }
+      const imbalance=flowSum-(j.demand||0);maxErr=Math.max(maxErr,Math.abs(imbalance));
+      if(dFlowSum>1e-10)allNodes[j.id].head-=(imbalance/dFlowSum)*0.5;
+    }
+    if(maxErr<0.1)break;
+  }
+
+  results={nodeResults:{},linkResults:{}};
+  Object.entries(allNodes).forEach(([id,n])=>{
+    results.nodeResults[id]={head:n.head,pressure:n.head-(n.elev||0),demand:n.demand||0};
+  });
+  links.forEach(l=>{
+    const h1=allNodes[l.node1]?.head||0;const h2=allNodes[l.node2]?.head||0;
+    const vel=l.diameter>0?Math.abs(l.flow)/(0.4085*Math.pow(l.diameter/12,2)):0;
+    results.linkResults[l.id]={flow:l.flow,headloss:Math.abs(h1-h2),velocity:vel};
+  });
+  save();render();
+}
+
+function getNodePos(id){
+  const n=[...network.junctions,...network.reservoirs,...network.tanks].find(x=>x.id===id);
+  return n?{x:n.x,y:n.y}:null;
+}
+
+function drawNetwork(){
+  setTimeout(()=>{
+    const c=document.getElementById('net-canvas');if(!c)return;
+    const ctx=c.getContext('2d');
+    const rect=c.parentElement.getBoundingClientRect();
+    c.width=rect.width-2;c.height=500;
+    ctx.clearRect(0,0,c.width,c.height);
+
+    const allN=[...network.junctions,...network.reservoirs,...network.tanks];
+    if(allN.length===0){ctx.fillStyle='rgba(226,232,240,0.25)';ctx.font='14px JetBrains Mono';ctx.textAlign='center';ctx.fillText('No network data. Click "Load Demo" to start.',c.width/2,250);return}
+
+    const xs=allN.map(n=>n.x);const ys=allN.map(n=>n.y);
+    const minX=Math.min(...xs)-50,maxX=Math.max(...xs)+50,minY=Math.min(...ys)-50,maxY=Math.max(...ys)+50;
+    const scaleX=(c.width-40)/(maxX-minX||1);const scaleY=(c.height-40)/(maxY-minY||1);
+    const scale=Math.min(scaleX,scaleY);
+    const tx=n=>20+(n.x-minX)*scale;const ty=n=>20+(n.y-minY)*scale;
+
+    // Pipes
+    network.pipes.forEach(p=>{
+      const n1=getNodePos(p.node1);const n2=getNodePos(p.node2);if(!n1||!n2)return;
+      const lr=results.linkResults[p.id];const vel=lr?.velocity||0;
+      ctx.beginPath();ctx.moveTo(20+(n1.x-minX)*scale,20+(n1.y-minY)*scale);
+      ctx.lineTo(20+(n2.x-minX)*scale,20+(n2.y-minY)*scale);
+      ctx.strokeStyle=vel>5?'#ff3344':vel>3?'#f59e0b':vel>1?'#00d4ff':'#1a2a3a';
+      ctx.lineWidth=Math.max(1,p.diameter/6);ctx.stroke();
+      // Label
+      const mx=(20+(n1.x-minX)*scale+20+(n2.x-minX)*scale)/2;const my=(20+(n1.y-minY)*scale+20+(n2.y-minY)*scale)/2;
+      ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='8px JetBrains Mono';ctx.textAlign='center';ctx.fillText(p.id,mx,my-4);
+    });
+
+    // Pumps
+    network.pumps.forEach(p=>{
+      const n1=getNodePos(p.node1);const n2=getNodePos(p.node2);if(!n1||!n2)return;
+      const x1=20+(n1.x-minX)*scale,y1=20+(n1.y-minY)*scale,x2=20+(n2.x-minX)*scale,y2=20+(n2.y-minY)*scale;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle='#f0a500';ctx.lineWidth=3;ctx.stroke();
+      const mx=(x1+x2)/2,my=(y1+y2)/2;
+      ctx.beginPath();ctx.arc(mx,my,8,0,Math.PI*2);ctx.fillStyle='#f0a500';ctx.fill();
+      ctx.fillStyle='#000';ctx.font='bold 8px JetBrains Mono';ctx.textAlign='center';ctx.fillText('P',mx,my+3);
+    });
+
+    // Nodes
+    allN.forEach(n=>{
+      const x=20+(n.x-minX)*scale,y=20+(n.y-minY)*scale;
+      const nr=results.nodeResults[n.id];const pressure=nr?.pressure||0;
+      if(n.type==='reservoir'){ctx.fillStyle='#3b82f6';ctx.fillRect(x-8,y-8,16,16);ctx.fillStyle='#fff';ctx.font='bold 8px JetBrains Mono';ctx.textAlign='center';ctx.fillText('R',x,y+3)}
+      else if(n.type==='tank'){ctx.fillStyle='#8b5cf6';ctx.beginPath();ctx.moveTo(x-8,y+8);ctx.lineTo(x+8,y+8);ctx.lineTo(x+6,y-8);ctx.lineTo(x-6,y-8);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 8px JetBrains Mono';ctx.textAlign='center';ctx.fillText('T',x,y+3)}
+      else{ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fillStyle=pressure<20?'#ff3344':pressure<40?'#f59e0b':'#00ff88';ctx.fill()}
+      ctx.fillStyle='rgba(226,232,240,0.5)';ctx.font='9px JetBrains Mono';ctx.textAlign='center';ctx.fillText(n.id,x,y-10);
+      if(nr){ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='8px JetBrains Mono';ctx.fillText((pressure).toFixed(0)+' psi',x,y+16)}
+    });
+  },50);
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${currentTab===t?'active':''}" onclick="currentTab='${t}';render()">${t}</button>`).join('');
+}
+
+function renderNetworkTab(){
+  const nj=network.junctions.length;const np=network.pipes.length;const nr=network.reservoirs.length;const nt=network.tanks.length;
+  const totalDemand=network.junctions.reduce((s,j)=>s+(j.demand||0),0);
+  drawNetwork();
+  return`<div class="kpi-row">
+    ${[['Junctions',nj,'var(--accent)'],['Pipes',np,'var(--green)'],['Reservoirs',nr,'var(--blue)'],['Tanks',nt,'#8b5cf6'],['Total Demand',totalDemand+' GPM','var(--yellow)'],['Network',network.name||'--','var(--textDim)']].map(([l,v,c])=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c};font-size:14px">${v}</div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title">Network Visualization</div>
+    <canvas id="net-canvas" class="network-canvas" style="width:100%;height:500px"></canvas>
+    <div style="display:flex;gap:16px;margin-top:10px;font-size:9px;color:var(--textDim)">
+      <span><span style="color:#00ff88">&#9679;</span> Pressure OK</span>
+      <span><span style="color:#f59e0b">&#9679;</span> Low Pressure</span>
+      <span><span style="color:#ff3344">&#9679;</span> Critical</span>
+      <span><span style="color:#3b82f6">&#9632;</span> Reservoir</span>
+      <span><span style="color:#8b5cf6">&#9650;</span> Tank</span>
+    </div>
+  </div>`;
+}
+
+function renderJunctionsTab(){
+  return`<div class="card">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="card-title">Junctions (${network.junctions.length})</div>
+      <button class="btn btn-green" onclick="addJunction()">+ Junction</button>
+    </div>
+    <div class="overflow-x"><table><thead><tr>
+      ${['ID','X','Y','Elevation (ft)','Demand (GPM)','Pattern','Pressure (psi)','Head (ft)',''].map(h=>`<th>${h}</th>`).join('')}
+    </tr></thead><tbody>
+      ${network.junctions.map(j=>{
+        const nr=results.nodeResults[j.id];
+        return`<tr>
+          <td style="color:var(--accent)">${j.id}</td>
+          <td><input type="number" value="${j.x}" onchange="updateJunction('${j.id}','x',this.value)" style="width:60px"></td>
+          <td><input type="number" value="${j.y}" onchange="updateJunction('${j.id}','y',this.value)" style="width:60px"></td>
+          <td><input type="number" value="${j.elev}" onchange="updateJunction('${j.id}','elev',this.value)" style="width:70px"></td>
+          <td><input type="number" value="${j.demand}" onchange="updateJunction('${j.id}','demand',this.value)" style="width:70px"></td>
+          <td><select onchange="updateJunction('${j.id}','pattern',this.value)" style="width:auto">${Object.keys(DEMAND_PATTERNS).map(p=>`<option ${j.pattern===p?'selected':''}>${p}</option>`).join('')}</select></td>
+          <td style="color:${(nr?.pressure||0)<20?'var(--red)':(nr?.pressure||0)<40?'var(--yellow)':'var(--green)'};font-weight:700">${(nr?.pressure||0).toFixed(1)}</td>
+          <td>${(nr?.head||0).toFixed(1)}</td>
+          <td><button class="btn btn-red" style="font-size:8px;padding:2px 8px" onclick="deleteJunction('${j.id}')">Del</button></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Reservoirs & Tanks</div>
+    <div class="overflow-x"><table><thead><tr><th>ID</th><th>Type</th><th>Head/Elev (ft)</th><th>Details</th></tr></thead><tbody>
+      ${network.reservoirs.map(r=>`<tr><td style="color:var(--blue)">${r.id}</td><td>Reservoir</td><td>${r.head}</td><td>Fixed head source</td></tr>`).join('')}
+      ${network.tanks.map(t=>`<tr><td style="color:#8b5cf6">${t.id}</td><td>Tank</td><td>${t.elevation}</td><td>Dia: ${t.diameter}ft, Level: ${t.initLevel}/${t.maxLevel}ft</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderPipesTab(){
+  return`<div class="card">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="card-title">Pipes (${network.pipes.length})</div>
+      <button class="btn btn-green" onclick="addPipe()">+ Pipe</button>
+    </div>
+    <div class="overflow-x"><table><thead><tr>
+      ${['ID','From','To','Length (ft)','Diameter (in)','Roughness (C)','Status','Flow (GPM)','Velocity (fps)','Headloss (ft)',''].map(h=>`<th>${h}</th>`).join('')}
+    </tr></thead><tbody>
+      ${network.pipes.map(p=>{
+        const lr=results.linkResults[p.id];const vel=lr?.velocity||0;
+        return`<tr>
+          <td style="color:var(--accent)">${p.id}</td>
+          <td><input type="text" value="${p.node1}" onchange="updatePipe('${p.id}','node1',this.value)" style="width:50px"></td>
+          <td><input type="text" value="${p.node2}" onchange="updatePipe('${p.id}','node2',this.value)" style="width:50px"></td>
+          <td><input type="number" value="${p.length}" onchange="updatePipe('${p.id}','length',this.value)" style="width:70px"></td>
+          <td><select onchange="updatePipe('${p.id}','diameter',this.value)" style="width:auto">${PIPE_CATALOG.map(s=>`<option value="${s.size}" ${p.diameter===s.size?'selected':''}>${s.size}"</option>`).join('')}</select></td>
+          <td><select onchange="updatePipe('${p.id}','roughness',this.value)" style="width:auto">${MATERIALS.map(m=>`<option value="${m.c}" ${p.roughness===m.c?'selected':''}>${m.name} (${m.c})</option>`).join('')}</select></td>
+          <td style="color:${p.status==='open'?'var(--green)':'var(--red)'}">${p.status}</td>
+          <td>${(lr?.flow||0).toFixed(1)}</td>
+          <td style="color:${vel>5?'var(--red)':vel>3?'var(--yellow)':'var(--green)'}">${vel.toFixed(2)}</td>
+          <td>${(lr?.headloss||0).toFixed(2)}</td>
+          <td><button class="btn btn-red" style="font-size:8px;padding:2px 8px" onclick="deletePipe('${p.id}')">Del</button></td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderAnalysis(){
+  const pressures=Object.entries(results.nodeResults).map(([id,n])=>({id,pressure:n.pressure})).filter(n=>network.junctions.find(j=>j.id===n.id));
+  const minP=pressures.length>0?Math.min(...pressures.map(p=>p.pressure)):0;
+  const maxP=pressures.length>0?Math.max(...pressures.map(p=>p.pressure)):0;
+  const avgP=pressures.length>0?pressures.reduce((s,p)=>s+p.pressure,0)/pressures.length:0;
+  const lowPressure=pressures.filter(p=>p.pressure<20);
+  const velocities=Object.entries(results.linkResults).map(([id,l])=>({id,velocity:l.velocity}));
+  const highVel=velocities.filter(v=>v.velocity>5);
+
+  return`<div class="kpi-row">
+    ${[['Min Pressure',minP.toFixed(1)+' psi',minP<20?'var(--red)':'var(--green)'],['Max Pressure',maxP.toFixed(1)+' psi','var(--accent)'],['Avg Pressure',avgP.toFixed(1)+' psi','var(--green)'],['Low Pressure Nodes',lowPressure.length,lowPressure.length>0?'var(--red)':'var(--green)'],['High Velocity Pipes',highVel.length,highVel.length>0?'var(--yellow)':'var(--green)']].map(([l,v,c])=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c};font-size:14px">${v}</div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title">Pressure Distribution</div>
+    ${pressures.length===0?'<div style="color:var(--textMuted);text-align:center;padding:20px">Run analysis to see results</div>':
+      pressures.sort((a,b)=>a.pressure-b.pressure).map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="width:50px;font-size:10px;color:var(--accent)">${p.id}</span>
+        <div style="flex:1;height:8px;background:var(--bg2);border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.min(100,p.pressure/maxP*100)}%;background:${p.pressure<20?'#ff3344':p.pressure<40?'#f59e0b':'#00ff88'};border-radius:4px"></div></div>
+        <span style="width:60px;text-align:right;font-size:11px;font-weight:700;color:${p.pressure<20?'var(--red)':p.pressure<40?'var(--yellow)':'var(--green)'}">${p.pressure.toFixed(1)}</span>
+      </div>`).join('')}
+  </div>
+  ${lowPressure.length>0?`<div class="card" style="border-color:var(--red)">
+    <div class="card-title" style="color:var(--red)">Low Pressure Warnings (&lt;20 psi)</div>
+    ${lowPressure.map(p=>`<div style="padding:4px 0;font-size:11px;color:var(--red)">${p.id}: ${p.pressure.toFixed(1)} psi</div>`).join('')}
+  </div>`:''}`;
+}
+
+function renderFireFlow(){
+  return`<div class="card">
+    <div class="card-title">Fire Flow Analysis</div>
+    <p style="font-size:11px;color:var(--textDim);margin-bottom:14px">Select a junction node and specify fire flow demand to test available fire flow while maintaining minimum residual pressure (20 psi).</p>
+    <div class="form-row">
+      <div class="form-group"><div class="form-label">Test Node</div>
+        <select id="ff-node"><option value="">Select junction...</option>${network.junctions.map(j=>`<option value="${j.id}">${j.id} - ${j.elev}ft elev</option>`).join('')}</select></div>
+      <div class="form-group"><div class="form-label">Fire Flow Demand (GPM)</div>
+        <input type="number" id="ff-demand" value="1500"></div>
+      <div class="form-group"><div class="form-label">Min Residual Pressure (psi)</div>
+        <input type="number" id="ff-min-pres" value="20"></div>
+      <div class="form-group" style="justify-content:flex-end"><button class="btn btn-accent" onclick="runFireFlow()">Test Fire Flow</button></div>
+    </div>
+    <div id="ff-results" style="margin-top:14px"></div>
+  </div>`;
+}
+
+function runFireFlow(){
+  const nodeId=document.getElementById('ff-node').value;
+  const ffDemand=parseFloat(document.getElementById('ff-demand').value)||1500;
+  const minPres=parseFloat(document.getElementById('ff-min-pres').value)||20;
+  if(!nodeId){document.getElementById('ff-results').innerHTML='<div style="color:var(--red)">Select a node first</div>';return}
+  const normalPressure=results.nodeResults[nodeId]?.pressure||0;
+  const estimatedPressure=Math.max(0,normalPressure-ffDemand*0.03);
+  const pass=estimatedPressure>=minPres;
+  const availFlow=Math.max(0,(normalPressure-minPres)/0.03);
+  document.getElementById('ff-results').innerHTML=`
+    <div class="kpi-row">
+      ${[['Normal Pressure',normalPressure.toFixed(1)+' psi','var(--green)'],['Residual Pressure',estimatedPressure.toFixed(1)+' psi',pass?'var(--green)':'var(--red)'],['Available Flow',Math.round(availFlow)+' GPM','var(--accent)'],['Result',pass?'PASS':'FAIL',pass?'var(--green)':'var(--red)']].map(([l,v,c])=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c};font-size:14px">${v}</div></div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--textDim);margin-top:8px">ISO requirement: minimum 1,000 GPM for 2 hours for residential areas, 3,500 GPM for commercial.</div>`;
+}
+
+function renderChlorine(){
+  const decayRate=0.5;const initialCl=2.0;const hours=Array.from({length:49},(v,i)=>i*0.5);
+  const canvasId='cl-canvas-'+Date.now();
+  setTimeout(()=>{
+    const c=document.getElementById(canvasId);if(!c)return;
+    const ctx=c.getContext('2d');c.width=c.parentElement.clientWidth-2;c.height=250;
+    const w=c.width,h=c.height,pad={l:50,r:20,t:20,b:30},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    ctx.fillStyle='#060c12';ctx.fillRect(0,0,w,h);
+    for(let i=0;i<=4;i++){const y=pad.t+ph*(1-i/4);ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
+      ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='right';ctx.fillText((i*0.5).toFixed(1)+' mg/L',pad.l-5,y+3)}
+    ctx.beginPath();ctx.strokeStyle='var(--accent)';ctx.lineWidth=2;
+    hours.forEach((hr,i)=>{const cl=initialCl*Math.exp(-decayRate*hr/24);const x=pad.l+i/(hours.length-1)*pw;const y=pad.t+ph*(1-cl/2);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.strokeStyle='#00d4ff';ctx.stroke();
+    ctx.strokeStyle='rgba(255,51,68,0.5)';ctx.setLineDash([4,4]);ctx.beginPath();
+    const minY=pad.t+ph*(1-0.2/2);ctx.moveTo(pad.l,minY);ctx.lineTo(w-pad.r,minY);ctx.stroke();
+    ctx.setLineDash([]);ctx.fillStyle='rgba(255,51,68,0.5)';ctx.font='9px JetBrains Mono';ctx.textAlign='left';ctx.fillText('Min Residual (0.2 mg/L)',pad.l+5,minY-5);
+    for(let i=0;i<=24;i+=6){const x=pad.l+i/24*pw;ctx.fillStyle='rgba(226,232,240,0.3)';ctx.font='9px JetBrains Mono';ctx.textAlign='center';ctx.fillText(i+'h',x,h-5)}
+  },50);
+  return`<div class="card">
+    <div class="card-title">Chlorine Decay Modeling</div>
+    <div class="form-row" style="margin-bottom:14px">
+      <div class="form-group"><div class="form-label">Initial Chlorine (mg/L)</div><input type="number" value="2.0" disabled></div>
+      <div class="form-group"><div class="form-label">Bulk Decay Rate (1/day)</div><input type="number" value="0.5" disabled></div>
+      <div class="form-group"><div class="form-label">Wall Decay Rate (1/day)</div><input type="number" value="0.1" disabled></div>
+    </div>
+    <canvas id="${canvasId}" style="width:100%;height:250px;border:1px solid var(--border);border-radius:6px"></canvas>
+    <div style="font-size:9px;color:var(--textDim);margin-top:8px">First-order decay model: C(t) = C0 * e^(-kt). EPA minimum residual: 0.2 mg/L free chlorine.</div>
+  </div>`;
+}
+
+function renderDemand(){
+  return`<div class="card">
+    <div class="card-title">Demand Patterns (24-Hour Multipliers)</div>
+    ${Object.entries(DEMAND_PATTERNS).map(([name,pattern])=>`<div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px;text-transform:capitalize;color:var(--accent)">${name.replace('_',' ')}</div>
+      <div class="demand-bar">
+        ${pattern.map((v,i)=>`<div class="demand-col" style="height:${v/Math.max(...pattern)*100}%;opacity:${0.4+v/Math.max(...pattern)*0.6}" title="Hour ${i}: ${v}x"></div>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--textMuted);margin-top:4px"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function addJunction(){
+  const id='J'+(network.junctions.length+1);
+  network.junctions.push({id,type:'junction',x:400+Math.random()*100,y:300+Math.random()*100,elev:200,demand:50,pattern:'residential'});
+  save();render();
+}
+function updateJunction(id,field,val){
+  const j=network.junctions.find(x=>x.id===id);if(!j)return;
+  j[field]=['x','y','elev','demand'].includes(field)?parseFloat(val)||0:val;save();render();
+}
+function deleteJunction(id){network.junctions=network.junctions.filter(j=>j.id!==id);save();render()}
+function addPipe(){
+  const id='P'+(network.pipes.length+1);
+  network.pipes.push({id,type:'pipe',node1:'',node2:'',length:1000,diameter:8,roughness:130,status:'open'});
+  save();render();
+}
+function updatePipe(id,field,val){
+  const p=network.pipes.find(x=>x.id===id);if(!p)return;
+  p[field]=['length','diameter','roughness'].includes(field)?parseFloat(val)||0:val;save();render();
+}
+function deletePipe(id){network.pipes=network.pipes.filter(p=>p.id!==id);save();render()}
+
+function render(){
+  renderTabs();
+  const c=document.getElementById('content');
+  if(currentTab==='network'){c.innerHTML=renderNetworkTab();drawNetwork()}
+  else if(currentTab==='junctions')c.innerHTML=renderJunctionsTab();
+  else if(currentTab==='pipes')c.innerHTML=renderPipesTab();
+  else if(currentTab==='analysis')c.innerHTML=renderAnalysis();
+  else if(currentTab==='fire-flow')c.innerHTML=renderFireFlow();
+  else if(currentTab==='chlorine')c.innerHTML=renderChlorine();
+  else if(currentTab==='demand')c.innerHTML=renderDemand();
+}
+
+load();render();
+</script>
+</body>
+</html>

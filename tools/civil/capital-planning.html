@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capital Planning - CIP Budget Planner | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#0c1219;--border:#1a2a3a;--accent:#00d4ff;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--textDim:rgba(226,232,240,0.45);--textMuted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+input,select,button{font-family:var(--font)}
+.header{position:sticky;top:0;z-index:100;height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.header-title{font-size:14px;font-weight:700;letter-spacing:0.12em;color:var(--accent);text-shadow:0 0 10px rgba(0,212,255,0.3)}
+.header-sub{font-size:9px;color:var(--textDim);letter-spacing:0.15em;text-transform:uppercase}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding:14px 16px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center}
+.kpi-label{font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px}
+.kpi-value{font-size:18px;font-weight:700}
+.tabs{display:flex;gap:0;padding:0 16px;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:8px 14px;background:transparent;border:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--textDim);font-size:9px;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px 4px 0 0;white-space:nowrap}
+.tab.active{background:var(--bg2);border-color:var(--accent);border-bottom-color:transparent;color:var(--accent)}
+.content{padding:16px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:16px;margin-bottom:12px}
+.card-title{font-size:10px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.btn{background:transparent;border:1px solid var(--border);color:var(--textDim);font-size:9px;padding:5px 12px;border-radius:3px;cursor:pointer;letter-spacing:0.05em;text-transform:uppercase;transition:all 0.15s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+input[type="text"],input[type="number"],select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:11px;padding:4px 8px;border-radius:3px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{padding:6px 8px;border-bottom:2px solid var(--border);font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em;text-align:left;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
+.overflow-x{overflow-x:auto}
+.flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.bar-track{height:14px;background:var(--bg2);border-radius:3px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:3px;transition:width 0.3s}
+.gauge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:16px}
+@media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.header-sub{display:none}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">CAPITAL PLANNING</div>
+  <div class="header-sub">CIP Budget Planner</div>
+  <div style="flex:1"></div>
+  <button class="btn" onclick="printReport()">Print Report</button>
+</div>
+
+<div class="kpi-grid" id="kpis"></div>
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS_KEY='korb_capital_planning';
+const CATEGORIES=['Roads','Bridges','Water','Sewer','Drainage','Buildings'];
+const FUNDING_SOURCES=['Federal','State','Local','Bonds','Grants','Other'];
+const CAT_COLORS={Roads:'#f59e0b',Bridges:'#ef4444',Water:'#3b82f6',Sewer:'#8b5cf6',Drainage:'#06b6d4',Buildings:'#f97316'};
+const TABS=['budget','pipeline','stip','charts'];
+
+let currentTab='budget';
+const baseYear=new Date().getFullYear();
+const years=[0,1,2,3,4].map(i=>baseYear+i);
+let budgets={};
+let projects=[];
+let editingId=null;
+
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function fmt$(v){if(Math.abs(v)>=1e9)return'$'+(v/1e9).toFixed(2)+'B';if(Math.abs(v)>=1e6)return'$'+(v/1e6).toFixed(2)+'M';if(Math.abs(v)>=1e3)return'$'+(v/1e3).toFixed(1)+'K';return'$'+(v||0).toFixed(0)}
+
+function load(){
+  try{const d=JSON.parse(localStorage.getItem(LS_KEY));if(d){budgets=d.budgets||{};projects=d.projects||[]}}catch{}
+  CATEGORIES.forEach(cat=>{years.forEach(y=>{const k=cat+'_'+y;if(!budgets[k])budgets[k]={planned:0,committed:0}})});
+}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify({budgets,projects}))}
+
+function updateBudget(cat,year,field,value){budgets[cat+'_'+year][field]=parseFloat(value)||0;save();render()}
+
+function addProject(){
+  const p={id:genId(),name:'',category:'Roads',estimatedCost:0,assignedYear:baseYear,funding:{Federal:0,State:0,Local:0,Bonds:0,Grants:0,Other:0}};
+  projects.push(p);editingId=p.id;save();render();
+}
+function updateProject(id,field,value){
+  const p=projects.find(x=>x.id===id);if(!p)return;
+  if(field.startsWith('funding.')){const fk=field.split('.')[1];p.funding[fk]=parseFloat(value)||0}
+  else if(field==='estimatedCost')p[field]=parseFloat(value)||0;
+  else p[field]=value;
+  save();render();
+}
+function deleteProject(id){projects=projects.filter(p=>p.id!==id);save();render()}
+
+function getCatTotals(){
+  return CATEGORIES.map(cat=>{
+    const planned=years.reduce((s,y)=>s+(budgets[cat+'_'+y]?.planned||0),0);
+    const committed=years.reduce((s,y)=>s+(budgets[cat+'_'+y]?.committed||0),0);
+    const projectCost=projects.filter(p=>p.category===cat).reduce((s,p)=>s+(parseFloat(p.estimatedCost)||0),0);
+    return{cat,planned,committed,remaining:planned-committed,projectCost};
+  });
+}
+
+function renderKpis(){
+  const ct=getCatTotals();
+  const gt=ct.reduce((s,c)=>s+c.planned,0);const gc=ct.reduce((s,c)=>s+c.committed,0);
+  document.getElementById('kpis').innerHTML=[
+    ['Total Planned',fmt$(gt),'var(--green)'],['Committed',fmt$(gc),'var(--accent)'],
+    ['Remaining',fmt$(gt-gc),gt-gc>=0?'var(--green)':'var(--red)'],['Projects',String(projects.length),'var(--yellow)']
+  ].map(([l,v,c])=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-value" style="color:${c}">${v}</div></div>`).join('');
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${currentTab===t?'active':''}" onclick="currentTab='${t}';render()">${t}</button>`).join('');
+}
+
+function renderBudget(){
+  const ct=getCatTotals();const gt=ct.reduce((s,c)=>s+c.planned,0);const gc=ct.reduce((s,c)=>s+c.committed,0);
+  return`<div class="card"><div class="card-title">Multi-Year Budget Table</div>
+  <div class="overflow-x"><table><thead>
+    <tr style="border-bottom:2px solid var(--border)">
+      <th>Category</th>
+      ${years.map(y=>`<th colspan="2" style="text-align:center;color:var(--accent);border-left:1px solid var(--border)">FY ${y}</th>`).join('')}
+      <th style="text-align:right;color:var(--yellow);border-left:1px solid var(--border)">Total</th>
+      <th style="text-align:right">Remaining</th>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <th></th>
+      ${years.map(()=>`<th style="text-align:center;border-left:1px solid var(--border)">Planned</th><th style="text-align:center">Committed</th>`).join('')}
+      <th style="border-left:1px solid var(--border)"></th><th></th>
+    </tr>
+  </thead><tbody>
+    ${CATEGORIES.map(cat=>{
+      const c=ct.find(x=>x.cat===cat);
+      return`<tr>
+        <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${CAT_COLORS[cat]};margin-right:6px"></span>${cat}</td>
+        ${years.map(y=>{const k=cat+'_'+y;return`
+          <td style="border-left:1px solid var(--border);text-align:center"><input type="number" value="${budgets[k]?.planned||0}" onchange="updateBudget('${cat}',${y},'planned',this.value)" style="width:80px;text-align:right"></td>
+          <td style="text-align:center"><input type="number" value="${budgets[k]?.committed||0}" onchange="updateBudget('${cat}',${y},'committed',this.value)" style="width:80px;text-align:right"></td>
+        `}).join('')}
+        <td style="text-align:right;color:var(--green);border-left:1px solid var(--border)">${fmt$(c?.planned||0)}</td>
+        <td style="text-align:right;color:${(c?.remaining||0)>=0?'var(--green)':'var(--red)'}">${fmt$(c?.remaining||0)}</td>
+      </tr>`;
+    }).join('')}
+    <tr style="border-top:2px solid var(--yellow)">
+      <td style="color:var(--yellow);font-weight:700">TOTAL</td>
+      ${years.map(y=>{
+        const yp=CATEGORIES.reduce((s,c)=>s+(budgets[c+'_'+y]?.planned||0),0);
+        const yc=CATEGORIES.reduce((s,c)=>s+(budgets[c+'_'+y]?.committed||0),0);
+        return`<td style="text-align:center;color:var(--green);border-left:1px solid var(--border)">${fmt$(yp)}</td><td style="text-align:center;color:var(--accent)">${fmt$(yc)}</td>`;
+      }).join('')}
+      <td style="text-align:right;color:var(--yellow);font-weight:700;border-left:1px solid var(--border)">${fmt$(gt)}</td>
+      <td style="text-align:right;color:${gt-gc>=0?'var(--green)':'var(--red)'};font-weight:700">${fmt$(gt-gc)}</td>
+    </tr>
+  </tbody></table></div></div>`;
+}
+
+function renderPipeline(){
+  return`<div class="card">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="card-title">Project Pipeline (${projects.length})</div>
+      <button class="btn btn-green" onclick="addProject()">+ Project</button>
+    </div>
+    <div class="overflow-x"><table><thead><tr>
+      ${['Project Name','Category','Est. Cost','FY',...FUNDING_SOURCES,'Funded Total',''].map(h=>`<th>${h}</th>`).join('')}
+    </tr></thead><tbody>
+      ${projects.map(p=>{
+        const ft=FUNDING_SOURCES.reduce((s,f)=>s+(p.funding?.[f]||0),0);const ed=editingId===p.id;
+        return`<tr>
+          <td>${ed?`<input type="text" value="${p.name}" onchange="updateProject('${p.id}','name',this.value)" style="width:160px">`:`<span style="cursor:pointer" onclick="editingId='${p.id}';render()">${p.name||'(unnamed)'}</span>`}</td>
+          <td>${ed?`<select onchange="updateProject('${p.id}','category',this.value)">${CATEGORIES.map(c=>`<option ${p.category===c?'selected':''}>${c}</option>`).join('')}</select>`:`<span style="color:${CAT_COLORS[p.category]}">${p.category}</span>`}</td>
+          <td>${ed?`<input type="number" value="${p.estimatedCost}" onchange="updateProject('${p.id}','estimatedCost',this.value)" style="width:100px">`:`<span style="color:var(--green)">${fmt$(parseFloat(p.estimatedCost)||0)}</span>`}</td>
+          <td><select onchange="updateProject('${p.id}','assignedYear',this.value)" style="width:80px">${years.map(y=>`<option ${String(p.assignedYear)===String(y)?'selected':''}>${y}</option>`).join('')}</select></td>
+          ${FUNDING_SOURCES.map(f=>`<td>${ed?`<input type="number" value="${p.funding?.[f]||0}" onchange="updateProject('${p.id}','funding.${f}',this.value)" style="width:70px">`:`<span style="color:var(--textDim)">${fmt$(p.funding?.[f]||0)}</span>`}</td>`).join('')}
+          <td style="color:var(--accent);font-weight:700">${fmt$(ft)}</td>
+          <td style="display:flex;gap:4px">
+            ${ed?`<button class="btn btn-green" style="font-size:8px;padding:2px 8px" onclick="editingId=null;render()">Done</button>`
+              :`<button class="btn" style="font-size:8px;padding:2px 8px" onclick="editingId='${p.id}';render()">Edit</button>`}
+            <button class="btn btn-red" style="font-size:8px;padding:2px 8px" onclick="deleteProject('${p.id}')">Del</button>
+          </td>
+        </tr>`;
+      }).join('')}
+      ${projects.length===0?`<tr><td colspan="${10+FUNDING_SOURCES.length}" style="text-align:center;color:var(--textMuted);padding:30px">No projects in pipeline</td></tr>`:''}
+    </tbody></table></div>
+  </div>`;
+}
+
+function renderStip(){
+  const stipYears=years.map(y=>{
+    const yp=projects.filter(p=>parseInt(p.assignedYear)===y);
+    const fed=yp.reduce((s,p)=>s+(p.funding?.Federal||0),0);
+    const st=yp.reduce((s,p)=>s+(p.funding?.State||0),0);
+    const loc=yp.reduce((s,p)=>s+FUNDING_SOURCES.filter(f=>f!=='Federal'&&f!=='State').reduce((fs,f)=>fs+(p.funding?.[f]||0),0),0);
+    return{year:y,projects:yp,fed,st,loc,total:fed+st+loc};
+  });
+  return`<div class="card-title" style="padding:0 0 12px 0">STIP -- State Transportation Improvement Program View</div>
+  ${stipYears.map(sy=>`<div class="card">
+    <div class="flex-between" style="margin-bottom:12px">
+      <div style="font-size:14px;color:var(--yellow)">FY ${sy.year}</div>
+      <div style="display:flex;gap:16px">
+        ${[['Federal',sy.fed,'#3b82f6'],['State',sy.st,'#10b981'],['Local/Other',sy.loc,'#f59e0b'],['Total',sy.total,'var(--accent)']].map(([l,v,c])=>`<div style="text-align:right"><div style="font-size:8px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.08em">${l}</div><div style="font-size:13px;color:${c}">${fmt$(v)}</div></div>`).join('')}
+      </div>
+    </div>
+    ${sy.projects.length===0?`<div style="color:var(--textMuted);font-size:11px">No projects assigned to FY ${sy.year}</div>`:''}
+    ${sy.projects.map(p=>`<div style="display:flex;align-items:center;gap:12px;padding:6px 0;border-top:1px solid var(--border)">
+      <span style="width:8px;height:8px;border-radius:2px;background:${CAT_COLORS[p.category]};flex-shrink:0"></span>
+      <span style="flex:1;font-size:11px">${p.name||'(unnamed)'}</span>
+      <span style="font-size:10px;color:#3b82f6">Fed: ${fmt$(p.funding?.Federal||0)}</span>
+      <span style="font-size:10px;color:#10b981">State: ${fmt$(p.funding?.State||0)}</span>
+      <span style="font-size:10px;color:#f59e0b">Local: ${fmt$(p.funding?.Local||0)}</span>
+      <span style="font-size:11px;color:var(--green)">${fmt$(parseFloat(p.estimatedCost)||0)}</span>
+    </div>`).join('')}
+  </div>`).join('')}`;
+}
+
+function renderCharts(){
+  const ct=getCatTotals();const maxBudget=Math.max(...ct.map(c=>c.planned),1);
+  return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card">
+      <div class="card-title">Budget by Category</div>
+      ${ct.map(c=>`<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px">${c.cat}</span>
+          <span style="font-size:11px;color:var(--green)">${fmt$(c.planned)}</span>
+        </div>
+        <div class="bar-track" style="position:relative">
+          <div class="bar-fill" style="width:${(c.planned/maxBudget)*100}%;background:${CAT_COLORS[c.cat]};opacity:0.4"></div>
+          <div class="bar-fill" style="position:absolute;top:0;width:${(c.committed/maxBudget)*100}%;background:${CAT_COLORS[c.cat]}"></div>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="card-title">Budget Utilization</div>
+      <div class="gauge-grid">
+        ${ct.filter(c=>c.planned>0).map(c=>{
+          const pct=Math.min(100,(c.committed/c.planned)*100);const circ=2*Math.PI*36;const offset=circ-(pct/100)*circ;
+          return`<div style="text-align:center">
+            <svg width="90" height="90" style="display:block;margin:0 auto">
+              <circle cx="45" cy="45" r="36" fill="none" stroke="var(--bg2)" stroke-width="6"/>
+              <circle cx="45" cy="45" r="36" fill="none" stroke="${CAT_COLORS[c.cat]}" stroke-width="6" stroke-linecap="round"
+                stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 45 45)" style="transition:stroke-dashoffset 0.5s"/>
+              <text x="45" y="48" text-anchor="middle" fill="var(--text)" style="font-size:14px;font-family:var(--font);font-weight:700">${pct.toFixed(0)}%</text>
+            </svg>
+            <div style="font-size:10px;color:var(--textDim);margin-top:4px">${c.cat}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function printReport(){
+  const ct=getCatTotals();const gt=ct.reduce((s,c)=>s+c.planned,0);
+  const w=window.open('','','width=900,height=700');
+  w.document.write(`<html><head><title>CIP Report</title><style>
+    body{font-family:'JetBrains Mono',monospace;padding:40px}table{width:100%;border-collapse:collapse;margin:16px 0}
+    th,td{padding:6px;border-bottom:1px solid #ccc;text-align:left;font-size:11px}th{border-bottom:2px solid #000;font-size:9px;text-transform:uppercase}
+    h1{font-size:18px}h2{font-size:14px;margin-top:20px}
+  </style></head><body>
+    <h1>KORB ENGINEERING - Capital Improvement Program</h1>
+    <p>FY ${baseYear} - ${baseYear+4} | Total Planned: ${fmt$(gt)}</p>
+    <h2>Budget Summary</h2><table><tr><th>Category</th>${years.map(y=>'<th>FY '+y+'</th>').join('')}<th>Total</th></tr>
+    ${ct.map(c=>'<tr><td>'+c.cat+'</td>'+years.map(y=>'<td>'+fmt$(budgets[c.cat+'_'+y]?.planned||0)+'</td>').join('')+'<td><b>'+fmt$(c.planned)+'</b></td></tr>').join('')}
+    </table>
+    <h2>Project Pipeline</h2><table><tr><th>Project</th><th>Category</th><th>Cost</th><th>FY</th></tr>
+    ${projects.map(p=>'<tr><td>'+p.name+'</td><td>'+p.category+'</td><td>'+fmt$(p.estimatedCost||0)+'</td><td>'+p.assignedYear+'</td></tr>').join('')}
+    </table></body></html>`);
+  w.document.close();w.print();
+}
+
+function render(){
+  renderKpis();renderTabs();
+  const c=document.getElementById('content');
+  if(currentTab==='budget')c.innerHTML=renderBudget();
+  else if(currentTab==='pipeline')c.innerHTML=renderPipeline();
+  else if(currentTab==='stip')c.innerHTML=renderStip();
+  else if(currentTab==='charts')c.innerHTML=renderCharts();
+}
+
+load();render();
+</script>
+</body>
+</html>

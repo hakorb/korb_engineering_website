@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Lunar Lander | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050a0f;overflow:hidden;touch-action:none;font-family:'JetBrains Mono',monospace}
+canvas{display:block;width:100%;height:100%}
+#touchControls{display:none;position:fixed;bottom:0;left:0;right:0;padding:20px;z-index:50}
+.touch-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.touch-btn{width:80px;height:80px;border-radius:50%;border:2px solid rgba(0,212,255,0.4);background:rgba(0,212,255,0.1);color:#00d4ff;font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;cursor:pointer;transition:background 0.1s}
+.touch-btn.active{background:rgba(0,212,255,0.35);border-color:#00d4ff}
+.touch-btn.thrust{width:120px;height:120px;border-color:rgba(240,165,0,0.5);background:rgba(240,165,0,0.1);color:#f0a500;font-size:13px}
+.touch-btn.thrust.active{background:rgba(240,165,0,0.35);border-color:#f0a500}
+#difficultySelect{position:fixed;top:14px;right:14px;z-index:20;background:rgba(5,10,15,0.8);border:1px solid #1a2535;border-radius:6px;padding:6px 10px;color:#00d4ff;font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;outline:none}
+#difficultySelect option{background:#050a0f;color:#e2e8f0}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<select id="difficultySelect">
+  <option value="easy">EASY</option>
+  <option value="normal" selected>NORMAL</option>
+  <option value="hard">HARD</option>
+  <option value="insane">INSANE</option>
+</select>
+
+<div id="touchControls">
+  <div class="touch-row">
+    <div class="touch-btn" id="btnLeft">LEFT</div>
+    <div class="touch-btn thrust" id="btnThrust">THRUST</div>
+    <div class="touch-btn" id="btnRight">RIGHT</div>
+  </div>
+</div>
+
+<!-- Korb Engineering Badge -->
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const SCORE_KEY = 'korb_rocket_scores';
+
+// Difficulty settings
+const DIFFICULTIES = {
+  easy:   { gravity: 1.0, thrust: 4.0, hThrust: 2.2, fuel: 150, fuelBurn: 8, hBurn: 4, safeV: 3, hardV: 6, safeH: 2, padScale: 1.5 },
+  normal: { gravity: 1.62, thrust: 3.2, hThrust: 1.8, fuel: 100, fuelBurn: 12, hBurn: 6, safeV: 2, hardV: 5, safeH: 1, padScale: 1.0 },
+  hard:   { gravity: 2.0, thrust: 3.0, hThrust: 1.5, fuel: 80, fuelBurn: 15, hBurn: 8, safeV: 1.5, hardV: 4, safeH: 0.8, padScale: 0.7 },
+  insane: { gravity: 2.5, thrust: 2.8, hThrust: 1.2, fuel: 60, fuelBurn: 18, hBurn: 10, safeV: 1.0, hardV: 3, safeH: 0.6, padScale: 0.5 }
+};
+
+const DT = 1/60;
+const WORLD_HEIGHT = 600;
+
+let state = 'title';
+let diff = 'normal';
+let game = null;
+let terrain = null;
+let stars = null;
+let particles = [];
+let score = 0;
+let keys = {};
+let touches = { thrust: false, left: false, right: false };
+
+function getDiff() { return DIFFICULTIES[diff]; }
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  if (state === 'title') {
+    stars = generateStars(canvas.width, canvas.height);
+    terrain = generateTerrain(canvas.width, canvas.height);
+  }
+}
+
+function generateTerrain(w, h) {
+  const d = getDiff();
+  const pts = [];
+  const surfaceY = h * 0.88;
+  const padWidth = 80 * d.padScale;
+  const padCenter = w * 0.3 + Math.random() * w * 0.4;
+  const padLeft = padCenter - padWidth / 2;
+  const padRight = padCenter + padWidth / 2;
+  for (let x = 0; x <= w; x += 8) {
+    if (x >= padLeft && x <= padRight) pts.push({x, y: surfaceY});
+    else {
+      const dist = Math.min(Math.abs(x - padLeft), Math.abs(x - padRight));
+      const ramp = Math.min(dist / 40, 1);
+      pts.push({x, y: surfaceY - Math.random() * 30 * ramp});
+    }
+  }
+  return {points: pts, padCenter, padLeft, padRight, surfaceY, padWidth};
+}
+
+function generateStars(w, h, count = 200) {
+  const s = [];
+  for (let i = 0; i < count; i++) s.push({x: Math.random()*w, y: Math.random()*h*0.85, r: Math.random()*1.5+0.3, brightness: Math.random()*0.6+0.4});
+  return s;
+}
+
+function getHighScores() {
+  try { return JSON.parse(localStorage.getItem(SCORE_KEY) || '[]'); } catch { return []; }
+}
+
+function saveScore(s) {
+  const scores = getHighScores();
+  scores.push({score: s, date: new Date().toISOString(), difficulty: diff});
+  scores.sort((a,b) => b.score - a.score);
+  localStorage.setItem(SCORE_KEY, JSON.stringify(scores.slice(0, 10)));
+}
+
+function resetGame() {
+  const w = canvas.width, h = canvas.height;
+  const d = getDiff();
+  terrain = generateTerrain(w, h);
+  stars = generateStars(w, h);
+  particles = [];
+  score = 0;
+  game = {
+    x: w/2, y: 50,
+    vx: (Math.random() - 0.5) * 20, vy: 0,
+    fuel: d.fuel, thrust: false, thrustLeft: false, thrustRight: false,
+    time: 0, flameFlicker: 0
+  };
+}
+
+function spawnExplosion(x, y) {
+  const colors = ['255,165,0','255,80,20','255,220,50','255,50,10','200,200,200'];
+  for (let i = 0; i < 80; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 180 + 40;
+    particles.push({x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - Math.random()*60, r: Math.random()*3.5+1, alpha: 1, decay: Math.random()*0.6+0.4, color: colors[Math.floor(Math.random()*colors.length)]});
+  }
+}
+
+function drawStars() {
+  if (!stars) return;
+  for (const s of stars) { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fillStyle = `rgba(255,255,255,${s.brightness})`; ctx.fill(); }
+}
+
+function drawTerrain() {
+  const t = terrain;
+  if (!t) return;
+  ctx.beginPath(); ctx.moveTo(0, canvas.height);
+  for (const p of t.points) ctx.lineTo(p.x, p.y);
+  ctx.lineTo(canvas.width, canvas.height); ctx.closePath();
+  ctx.fillStyle = '#2a2a2a'; ctx.fill();
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < t.points.length; i++) { const p = t.points[i]; if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
+  ctx.stroke();
+  // Landing pad
+  ctx.fillStyle = '#444'; ctx.fillRect(t.padLeft, t.surfaceY - 3, t.padWidth, 6);
+  ctx.fillStyle = '#f0a500'; ctx.fillRect(t.padLeft + 4, t.surfaceY - 10, 3, 10); ctx.fillRect(t.padRight - 7, t.surfaceY - 10, 3, 10);
+  ctx.font = 'bold 16px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('H', t.padCenter, t.surfaceY - 8);
+}
+
+function drawRocket(g) {
+  ctx.save(); ctx.translate(g.x, g.y);
+  // Main flame
+  if (g.thrust && g.fuel > 0) {
+    g.flameFlicker = (g.flameFlicker + 1) % 6;
+    const fl = 14 + Math.random()*10 + (g.flameFlicker < 3 ? 4 : 0);
+    const fw = 5 + Math.random()*3;
+    const grad = ctx.createLinearGradient(0, 10, 0, 10 + fl);
+    grad.addColorStop(0, 'rgba(255,200,50,0.95)'); grad.addColorStop(0.4, 'rgba(255,120,20,0.8)'); grad.addColorStop(1, 'rgba(255,60,10,0)');
+    ctx.beginPath(); ctx.moveTo(-fw, 10); ctx.lineTo(0, 10+fl); ctx.lineTo(fw, 10); ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-fw*0.4, 10); ctx.lineTo(0, 10+fl*0.6); ctx.lineTo(fw*0.4, 10); ctx.closePath(); ctx.fillStyle = 'rgba(255,255,200,0.7)'; ctx.fill();
+  }
+  // Lateral flames
+  if (g.thrustRight && g.fuel > 0) { const fl = 6+Math.random()*5; ctx.beginPath(); ctx.moveTo(-6,-2); ctx.lineTo(-6-fl,0); ctx.lineTo(-6,2); ctx.closePath(); ctx.fillStyle = 'rgba(255,160,30,0.7)'; ctx.fill(); }
+  if (g.thrustLeft && g.fuel > 0) { const fl = 6+Math.random()*5; ctx.beginPath(); ctx.moveTo(6,-2); ctx.lineTo(6+fl,0); ctx.lineTo(6,2); ctx.closePath(); ctx.fillStyle = 'rgba(255,160,30,0.7)'; ctx.fill(); }
+  // Body
+  ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(-8,10); ctx.lineTo(-4,8); ctx.lineTo(4,8); ctx.lineTo(8,10); ctx.closePath();
+  ctx.fillStyle = '#d4d4d8'; ctx.fill(); ctx.strokeStyle = '#a1a1aa'; ctx.lineWidth = 1; ctx.stroke();
+  // Window
+  ctx.beginPath(); ctx.arc(0,-4,3,0,Math.PI*2); ctx.fillStyle = '#00d4ff'; ctx.fill();
+  // Fins
+  ctx.fillStyle = '#71717a';
+  ctx.beginPath(); ctx.moveTo(-8,10); ctx.lineTo(-12,14); ctx.lineTo(-6,10); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(8,10); ctx.lineTo(12,14); ctx.lineTo(6,10); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawHUD(g) {
+  const t = terrain;
+  const d = getDiff();
+  const altitude = Math.max(0, ((t.surfaceY - g.y - 14) / (t.surfaceY - 50)) * WORLD_HEIGHT);
+  ctx.save();
+  // HUD panel
+  const pw = 210, px = canvas.width - pw - 10;
+  ctx.fillStyle = 'rgba(5,10,15,0.8)'; ctx.fillRect(px, 10, pw, 150);
+  ctx.strokeStyle = '#1a2535'; ctx.lineWidth = 1; ctx.strokeRect(px, 10, pw, 150);
+  ctx.font = '10px "JetBrains Mono", monospace'; ctx.fillStyle = '#00d4ff'; ctx.textAlign = 'left';
+  ctx.fillText('FLIGHT DATA', px + 10, 28);
+  ctx.fillText(diff.toUpperCase(), px + pw - 10 - ctx.measureText(diff.toUpperCase()).width, 28);
+  ctx.font = '12px "JetBrains Mono", monospace';
+  const lines = [`ALT:    ${altitude.toFixed(1)} m`, `V-SPD:  ${g.vy.toFixed(2)} m/s`, `H-SPD:  ${g.vx.toFixed(2)} m/s`, `FUEL:   ${g.fuel.toFixed(1)}%`];
+  lines.forEach((line, i) => {
+    if (i === 1) ctx.fillStyle = Math.abs(g.vy) > d.hardV ? '#ef4444' : Math.abs(g.vy) > d.safeV ? '#f0a500' : '#10b981';
+    else if (i === 2) ctx.fillStyle = Math.abs(g.vx) > d.safeH ? '#f0a500' : '#10b981';
+    else if (i === 3) ctx.fillStyle = g.fuel < 20 ? '#ef4444' : g.fuel < 50 ? '#f0a500' : '#10b981';
+    else ctx.fillStyle = '#e2e8f0';
+    ctx.fillText(line, px + 10, 48 + i * 22);
+  });
+  if (state === 'landed') { ctx.fillStyle = '#f0a500'; ctx.fillText(`SCORE:  ${score}`, px + 10, 48 + 4*22); }
+  // Fuel gauge
+  const gx = 20, gy = 60, gh = 200, gw = 14;
+  const fuelPct = g.fuel / d.fuel;
+  ctx.fillStyle = 'rgba(5,10,15,0.8)'; ctx.fillRect(gx-4,gy-20,gw+8,gh+36);
+  ctx.strokeStyle = '#1a2535'; ctx.strokeRect(gx-4,gy-20,gw+8,gh+36);
+  ctx.fillStyle = '#00d4ff'; ctx.font = '10px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+  ctx.fillText('FUEL', gx+gw/2, gy-6);
+  ctx.strokeStyle = '#1a2535'; ctx.strokeRect(gx, gy, gw, gh);
+  const fillH = gh * fuelPct;
+  ctx.fillStyle = fuelPct < 0.2 ? '#ef4444' : fuelPct < 0.5 ? '#f0a500' : '#10b981';
+  ctx.fillRect(gx+1, gy+gh-fillH, gw-2, fillH);
+  ctx.fillStyle = '#e2e8f0'; ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillText(`${Math.round(g.fuel)}%`, gx+gw/2, gy+gh+14);
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) { ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle = `rgba(${p.color},${p.alpha})`; ctx.fill(); }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i]; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 40*dt; p.alpha -= p.decay*dt; p.r *= 0.998;
+    if (p.alpha <= 0) particles.splice(i, 1);
+  }
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = '#050a0f'; ctx.fillRect(0, 0, w, h);
+  drawStars(); drawTerrain();
+  const d = getDiff();
+
+  if (state === 'title') {
+    const demoG = {x:w/2, y:h*0.38, thrust:false, fuel:100, thrustLeft:false, thrustRight:false, flameFlicker:0};
+    drawRocket(demoG);
+    ctx.save(); ctx.textAlign = 'center';
+    ctx.font = 'bold 42px "JetBrains Mono", monospace'; ctx.fillStyle = '#00d4ff';
+    ctx.shadowColor = '#00d4ff'; ctx.shadowBlur = 20; ctx.fillText('LUNAR LANDER', w/2, h*0.2); ctx.shadowBlur = 0;
+    ctx.font = '14px "JetBrains Mono", monospace'; ctx.fillStyle = '#e2e8f0';
+    const isMobile = 'ontouchstart' in window;
+    ctx.fillText(isMobile ? 'Tap THRUST to Start' : 'Press SPACE to Start', w/2, h*0.27);
+    ctx.font = '11px "JetBrains Mono", monospace'; ctx.fillStyle = 'rgba(226,232,240,0.5)';
+    ctx.fillText(isMobile ? 'Use on-screen controls' : 'SPACE = Thrust  |  LEFT/RIGHT = Steer', w/2, h*0.32);
+    ctx.fillText('Land gently on the pad marked "H"', w/2, h*0.35);
+    const scores = getHighScores();
+    if (scores.length > 0) {
+      ctx.font = 'bold 13px "JetBrains Mono", monospace'; ctx.fillStyle = '#f0a500';
+      ctx.fillText('HIGH SCORES', w/2, h*0.55);
+      ctx.font = '11px "JetBrains Mono", monospace'; ctx.fillStyle = '#e2e8f0';
+      scores.slice(0,5).forEach((s,i) => { ctx.fillText(`${i+1}. ${s.score} pts ${s.difficulty ? '('+s.difficulty+')' : ''}`, w/2, h*0.59+i*20); });
+    }
+    ctx.restore();
+  }
+
+  if (state === 'playing') {
+    const g = game, t = terrain;
+    if (!g || !t) return;
+    g.thrust = (keys['Space'] || touches.thrust) && g.fuel > 0;
+    g.thrustLeft = (keys['ArrowLeft'] || touches.left) && g.fuel > 0;
+    g.thrustRight = (keys['ArrowRight'] || touches.right) && g.fuel > 0;
+    g.vy += d.gravity * DT;
+    if (g.thrust) { g.vy -= d.thrust * DT; g.fuel -= d.fuelBurn * DT; }
+    if (g.thrustLeft) { g.vx -= d.hThrust * DT; g.fuel -= d.hBurn * DT; }
+    if (g.thrustRight) { g.vx += d.hThrust * DT; g.fuel -= d.hBurn * DT; }
+    g.fuel = Math.max(0, g.fuel);
+    g.x += g.vx * DT * (h / WORLD_HEIGHT) * 30;
+    g.y += g.vy * DT * (h / WORLD_HEIGHT) * 30;
+    g.time += DT;
+    if (g.x < 0) g.x = w; if (g.x > w) g.x = 0;
+    // Find terrain height
+    let terrainY = t.surfaceY;
+    for (let i = 0; i < t.points.length - 1; i++) {
+      const p1 = t.points[i], p2 = t.points[i+1];
+      if (g.x >= p1.x && g.x <= p2.x) { terrainY = p1.y + (g.x-p1.x)/(p2.x-p1.x)*(p2.y-p1.y); break; }
+    }
+    if (g.y + 14 >= terrainY) {
+      g.y = terrainY - 14;
+      const onPad = g.x >= t.padLeft && g.x <= t.padRight;
+      if (Math.abs(g.vy) > d.hardV || !onPad) {
+        state = 'crashed'; spawnExplosion(g.x, g.y);
+      } else if (Math.abs(g.vy) > d.safeV || Math.abs(g.vx) > d.safeH) {
+        const precision = Math.max(0, 1 - Math.abs(g.x - t.padCenter)/(t.padWidth/2));
+        score = Math.max(0, Math.round(1000 + g.fuel*5 + precision*200 - 300));
+        saveScore(score); state = 'landed'; g.vy = 0; g.vx = 0;
+      } else {
+        const precision = Math.max(0, 1 - Math.abs(g.x - t.padCenter)/(t.padWidth/2));
+        score = Math.round(1000 + g.fuel*5 + precision*200);
+        saveScore(score); state = 'landed'; g.vy = 0; g.vx = 0;
+      }
+    }
+    if (g.y < 10) { g.y = 10; g.vy = Math.max(g.vy, 0); }
+    drawRocket(g); drawHUD(g);
+  }
+
+  if (state === 'landed') {
+    if (game) { drawRocket(game); drawHUD(game); }
+    ctx.save(); ctx.textAlign = 'center';
+    ctx.font = 'bold 32px "JetBrains Mono", monospace'; ctx.fillStyle = '#10b981';
+    ctx.shadowColor = '#10b981'; ctx.shadowBlur = 16; ctx.fillText('LANDING SUCCESSFUL', w/2, h*0.3); ctx.shadowBlur = 0;
+    ctx.font = 'bold 24px "JetBrains Mono", monospace'; ctx.fillStyle = '#f0a500'; ctx.fillText(`SCORE: ${score}`, w/2, h*0.37);
+    ctx.font = '14px "JetBrains Mono", monospace'; ctx.fillStyle = '#e2e8f0';
+    ctx.fillText('ontouchstart' in window ? 'Tap THRUST to play again' : 'Press SPACE to play again', w/2, h*0.43);
+    ctx.restore();
+  }
+
+  if (state === 'crashed') {
+    updateParticles(DT); drawParticles();
+    ctx.save(); ctx.textAlign = 'center';
+    ctx.font = 'bold 32px "JetBrains Mono", monospace'; ctx.fillStyle = '#ef4444';
+    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 20; ctx.fillText('MISSION FAILED', w/2, h*0.3); ctx.shadowBlur = 0;
+    ctx.font = '14px "JetBrains Mono", monospace'; ctx.fillStyle = '#e2e8f0';
+    ctx.fillText('ontouchstart' in window ? 'Tap THRUST to retry' : 'Press SPACE to retry', w/2, h*0.37);
+    ctx.restore();
+  }
+
+  // Watermark
+  ctx.save(); ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = 'rgba(226,232,240,0.15)';
+  ctx.textAlign = 'right'; ctx.fillText('KORB ENGINEERING', w-12, h-12); ctx.restore();
+}
+
+// Input
+window.addEventListener('keydown', e => {
+  if (e.repeat) return; keys[e.code] = true;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (state === 'title' || state === 'landed' || state === 'crashed') { state = 'playing'; resetGame(); }
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Touch controls
+if ('ontouchstart' in window) {
+  document.getElementById('touchControls').style.display = 'block';
+  function setupTouch(id, key) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); touches[key] = true; el.classList.add('active');
+      if (key === 'thrust' && (state === 'title' || state === 'landed' || state === 'crashed')) { state = 'playing'; resetGame(); }
+    });
+    el.addEventListener('touchend', e => { e.preventDefault(); touches[key] = false; el.classList.remove('active'); });
+    el.addEventListener('touchcancel', e => { touches[key] = false; el.classList.remove('active'); });
+  }
+  setupTouch('btnThrust', 'thrust');
+  setupTouch('btnLeft', 'left');
+  setupTouch('btnRight', 'right');
+}
+
+// Difficulty
+document.getElementById('difficultySelect').addEventListener('change', e => { diff = e.target.value; });
+
+window.addEventListener('resize', resize);
+resize();
+stars = generateStars(canvas.width, canvas.height);
+terrain = generateTerrain(canvas.width, canvas.height);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEC-HMS | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#111a24;--border:#1a2a3a;--accent:#00d4ff;--gold:#f0a500;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--dim:rgba(226,232,240,0.45);--muted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:13px}
+input,select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:12px;padding:7px 10px;border-radius:4px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+button{font-family:var(--font);cursor:pointer;font-size:11px;letter-spacing:0.05em}
+label{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px}
+.header{height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14;position:sticky;top:0;z-index:100}
+.header-title{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:0.12em}
+.header-sub{font-size:10px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-left:8px}
+.tabs{display:flex;gap:0;padding:0 20px;border-bottom:1px solid var(--border);overflow-x:auto;background:var(--bg1)}
+.tab{padding:10px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--dim);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;transition:all .2s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg2)}
+.tab:hover{color:var(--text)}
+.body{padding:20px;max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+.field{margin-bottom:10px}
+.btn{padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);text-transform:uppercase;transition:all .2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{border-color:var(--accent);color:var(--accent)}
+.btn-gold{border-color:var(--gold);color:var(--gold)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.result-box{background:var(--bg2);padding:10px;border-radius:4px;border:1px solid var(--border)}
+.result-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em}
+.result-value{font-size:14px;color:var(--green);margin-top:2px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;text-align:left}
+th{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:0.1em}
+canvas{width:100%;border-radius:4px;border:1px solid var(--border)}
+@media(max-width:768px){.grid2,.grid3,.grid4{grid-template-columns:1fr}.body{padding:12px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">HEC-HMS</div>
+  <div class="header-sub">Hydrologic Modeling System</div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="body" id="app"></div>
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS='korb_hechms';
+const TABS=['watershed','storm','results','routing'];
+let tab='watershed';
+
+const SCS_DIST={
+  'Type I':[0,.035,.076,.125,.156,.194,.254,.515,.624,.682,.727,.767,.799,.826,.85,.871,.889,.906,.922,.936,.949,.96,.97,.981,1],
+  'Type IA':[0,.02,.05,.082,.116,.156,.206,.504,.6,.664,.716,.76,.796,.825,.85,.873,.892,.908,.922,.936,.948,.96,.97,.982,1],
+  'Type II':[0,.011,.022,.035,.048,.063,.08,.098,.12,.147,.181,.235,.663,.772,.82,.854,.88,.9,.916,.928,.939,.948,.957,.965,1],
+  'Type III':[0,.02,.043,.072,.089,.115,.148,.167,.189,.216,.25,.298,.5,.702,.751,.785,.811,.834,.853,.867,.886,.895,.943,.971,1],
+};
+const RAIN_DEPTHS={'2-yr':{6:2.5,12:3.2,24:4},'5-yr':{6:3.2,12:4,24:5.2},'10-yr':{6:3.8,12:4.8,24:6.2},'25-yr':{6:4.6,12:5.8,24:7.5},'50-yr':{6:5.2,12:6.6,24:8.5},'100-yr':{6:5.9,12:7.5,24:9.8},'500-yr':{6:7.5,12:9.5,24:12.5}};
+const COLORS=['#f0a500','#00d4ff','#10b981','#ef4444','#a78bfa','#fb923c'];
+
+let proj=loadProj()||defaultProj();
+let results=null;
+
+function defaultProj(){return{
+  name:'Turkey Creek Watershed',location:'Escambia County, FL',description:'Urban watershed draining to Pensacola Bay',
+  totalArea:2400,areaUnit:'acres',
+  subBasins:[
+    {id:1,name:'Residential North',area:850,cn:78,tc:1.2,lag:43.2},
+    {id:2,name:'Commercial Center',area:420,cn:90,tc:0.6,lag:21.6},
+    {id:3,name:'Eastside Park',area:380,cn:61,tc:1.8,lag:64.8},
+    {id:4,name:'Undeveloped South',area:750,cn:55,tc:2.5,lag:90.0},
+  ],
+  stormType:'Type II',returnPeriod:'25-yr',duration:24,rainfall:7.5,
+  routing:{method:'Muskingum',K:0.5,X:0.2,subReaches:3},
+}}
+
+function loadProj(){try{const d=JSON.parse(localStorage.getItem(LS));return d&&d.subBasins?d:null}catch{return null}}
+function saveProj(){localStorage.setItem(LS,JSON.stringify(proj))}
+
+function renderTabs(){document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="tab='${t}';render()">${t}</button>`).join('')}
+
+function render(){renderTabs();const a=document.getElementById('app');({watershed:renderWatershed,storm:renderStorm,results:renderResults,routing:renderRouting})[tab](a)}
+
+function renderWatershed(el){
+  el.innerHTML=`
+    <div class="card"><div class="card-title">Project Information</div>
+      <div class="grid3">
+        <div class="field"><label>Watershed Name</label><input value="${proj.name}" oninput="proj.name=this.value;saveProj()"></div>
+        <div class="field"><label>Location</label><input value="${proj.location}" oninput="proj.location=this.value;saveProj()"></div>
+        <div class="field"><label>Total Area (${proj.areaUnit})</label><input type="number" value="${proj.totalArea}" oninput="proj.totalArea=parseFloat(this.value)||0;saveProj()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">Sub-Basins (${proj.subBasins.length})</div>
+        <button class="btn btn-green" onclick="addSubBasin()">+ Add Sub-Basin</button>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Name</th><th>Area (ac)</th><th>Curve Number</th><th>Tc (hr)</th><th>Lag (min)</th><th>S (in)</th><th>Ia (in)</th><th></th></tr></thead>
+        <tbody>${proj.subBasins.map((sb,i)=>{
+          const S=(1000/sb.cn)-10;const Ia=0.2*S;
+          return`<tr>
+            <td><input value="${sb.name}" style="width:140px" oninput="proj.subBasins[${i}].name=this.value;saveProj()"></td>
+            <td><input type="number" value="${sb.area}" style="width:70px" oninput="proj.subBasins[${i}].area=parseFloat(this.value)||0;saveProj()"></td>
+            <td><input type="number" value="${sb.cn}" style="width:60px" min="30" max="100" oninput="proj.subBasins[${i}].cn=parseFloat(this.value)||70;proj.subBasins[${i}].lag=proj.subBasins[${i}].tc*60*0.6;saveProj()"></td>
+            <td><input type="number" value="${sb.tc}" step="0.1" style="width:60px" oninput="proj.subBasins[${i}].tc=parseFloat(this.value)||1;proj.subBasins[${i}].lag=parseFloat(this.value)*60*0.6;saveProj()"></td>
+            <td style="color:var(--gold)">${sb.lag.toFixed(1)}</td>
+            <td style="color:var(--accent)">${S.toFixed(2)}</td>
+            <td style="color:var(--accent)">${Ia.toFixed(2)}</td>
+            <td><button class="btn btn-red" style="padding:2px 8px;font-size:9px" onclick="proj.subBasins.splice(${i},1);saveProj();render()">DEL</button></td>
+          </tr>`}).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card"><div class="card-title">Basin Schematic</div>
+      <canvas id="schematicCanvas" width="600" height="300"></canvas>
+    </div>`;
+  drawSchematic();
+}
+
+function addSubBasin(){
+  const id=proj.subBasins.length?Math.max(...proj.subBasins.map(s=>s.id))+1:1;
+  proj.subBasins.push({id,name:'New Sub-Basin',area:100,cn:70,tc:1.0,lag:36});
+  saveProj();render();
+}
+
+function drawSchematic(){
+  const c=document.getElementById('schematicCanvas');if(!c)return;
+  const ctx=c.getContext('2d');const W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  const n=proj.subBasins.length;if(!n)return;
+  const boxW=120,boxH=45,jctX=320,jctY=H/2,outX=480,outY=H/2;
+  proj.subBasins.forEach((sb,i)=>{
+    const y=20+i*((H-40)/Math.max(n,1));const clr=COLORS[i%COLORS.length];
+    ctx.fillStyle=clr+'33';ctx.strokeStyle=clr;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.roundRect(30,y,boxW,boxH,5);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#e2e8f0';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+    ctx.fillText(sb.name,30+boxW/2,y+18);
+    ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='9px sans-serif';
+    ctx.fillText(sb.area+' ac | CN='+sb.cn,30+boxW/2,y+32);
+    ctx.strokeStyle=clr+'88';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(30+boxW,y+boxH/2);ctx.lineTo(jctX-14,jctY);ctx.stroke();
+  });
+  ctx.fillStyle='#00d4ff44';ctx.strokeStyle='#00d4ff';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(jctX,jctY,14,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#00d4ff';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText('JCT',jctX,jctY+3);
+  ctx.strokeStyle='#e2e8f066';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(jctX+14,jctY);ctx.lineTo(outX-14,outY);ctx.stroke();
+  ctx.fillStyle='#00ff8844';ctx.strokeStyle='#00ff88';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(outX,outY,14,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#00ff88';ctx.fillText('OUT',outX,outY+3);
+}
+
+function renderStorm(el){
+  const dist=SCS_DIST[proj.stormType];
+  el.innerHTML=`
+    <div class="card"><div class="card-title">Storm Parameters</div>
+      <div class="grid4">
+        <div class="field"><label>Storm Distribution</label><select onchange="proj.stormType=this.value;updateRainfall();saveProj();render()">${Object.keys(SCS_DIST).map(t=>`<option ${proj.stormType===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>Return Period</label><select onchange="proj.returnPeriod=this.value;updateRainfall();saveProj();render()">${Object.keys(RAIN_DEPTHS).map(t=>`<option ${proj.returnPeriod===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label>Duration (hr)</label><select onchange="proj.duration=parseInt(this.value);updateRainfall();saveProj();render()">${[6,12,24].map(d=>`<option ${proj.duration===d?'selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="field"><label>Total Rainfall (in)</label><input type="number" step="0.1" value="${proj.rainfall}" oninput="proj.rainfall=parseFloat(this.value)||0;saveProj()"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-title">Rainfall Hyetograph</div><canvas id="hyetoCanvas" width="500" height="250"></canvas></div>
+      <div class="card"><div class="card-title">SCS Unit Hydrograph</div><canvas id="uhCanvas" width="500" height="250"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">Run Simulation</div>
+        <button class="btn btn-gold" onclick="runSimulation()">Compute Runoff</button>
+      </div>
+      <div id="quickResults"></div>
+    </div>`;
+  drawHyetograph();drawUnitHydrograph();
+}
+
+function updateRainfall(){
+  const rd=RAIN_DEPTHS[proj.returnPeriod];
+  if(rd&&rd[proj.duration])proj.rainfall=rd[proj.duration];
+}
+
+function drawHyetograph(){
+  const c=document.getElementById('hyetoCanvas');if(!c)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  const dist=SCS_DIST[proj.stormType];const steps=dist.length-1;
+  const inc=[];for(let i=1;i<=steps;i++)inc.push((dist[i]-dist[i-1])*proj.rainfall);
+  const maxI=Math.max(...inc,0.1);const barW=(W-60)/steps,plotH=H-40;
+  ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(50,10);ctx.lineTo(50,plotH+10);ctx.lineTo(W-10,plotH+10);ctx.stroke();
+  ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='10px JetBrains Mono';ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const v=(maxI*(4-i)/4).toFixed(2),y=10+(plotH*i/4);ctx.fillText(v,46,y+3)}
+  for(let i=0;i<steps;i++){
+    const bH=(inc[i]/maxI)*plotH,x=50+i*barW,y=10+plotH-bH;
+    ctx.fillStyle='#00d4ff99';ctx.fillRect(x+1,y,barW-2,bH);
+    ctx.strokeStyle='#00d4ff';ctx.lineWidth=.5;ctx.strokeRect(x+1,y,barW-2,bH);
+  }
+  ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='9px JetBrains Mono';ctx.textAlign='center';
+  for(let i=0;i<=steps;i+=Math.max(1,Math.floor(steps/6)))ctx.fillText((proj.duration*i/steps).toFixed(0)+'h',50+i*barW,plotH+24);
+  ctx.fillStyle='#00d4ff';ctx.font='11px JetBrains Mono';ctx.fillText('Rainfall Hyetograph (inches)',W/2,H-2);
+}
+
+function drawUnitHydrograph(){
+  const c=document.getElementById('uhCanvas');if(!c)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  if(!proj.subBasins.length)return;
+  const sb=proj.subBasins[0];const Tp=sb.lag/60+proj.duration/(2*24);const A=sb.area/640;
+  const Qp=484*A/Tp;const Tb=2.67*Tp;
+  const plotW=W-60,plotH=H-40;
+  ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(50,10);ctx.lineTo(50,plotH+10);ctx.lineTo(W-10,plotH+10);ctx.stroke();
+  ctx.strokeStyle='#f0a500';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<=100;i++){
+    const t=(i/100)*Tb;let q;
+    if(t<=Tp)q=Qp*Math.pow(t/Tp,3)*Math.exp(3*(1-t/Tp));
+    else q=Qp*Math.exp(-4.5*((t-Tp)/(Tb-Tp)));
+    const x=50+(t/Tb)*plotW,y=10+plotH-(q/Qp)*plotH*0.9;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha=0.15;ctx.fillStyle='#f0a500';ctx.lineTo(50+plotW,plotH+10);ctx.lineTo(50,plotH+10);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='10px JetBrains Mono';ctx.textAlign='center';
+  ctx.fillText('Tp='+Tp.toFixed(1)+'h',50+(Tp/Tb)*plotW,plotH+24);
+  ctx.fillText('Tb='+Tb.toFixed(1)+'h',50+plotW,plotH+24);
+  ctx.textAlign='right';ctx.fillText('Qp='+Qp.toFixed(0),46,18);
+  ctx.fillStyle='#f0a500';ctx.textAlign='center';ctx.font='11px JetBrains Mono';ctx.fillText('SCS Unit Hydrograph ('+sb.name+')',W/2,H-2);
+}
+
+function runSimulation(){
+  const dist=SCS_DIST[proj.stormType];const steps=dist.length-1;const dt=proj.duration/steps;
+  const inc=[];for(let i=1;i<=steps;i++)inc.push((dist[i]-dist[i-1])*proj.rainfall);
+  const subHydros=[];const subNames=[];
+  proj.subBasins.forEach(sb=>{
+    const S=(1000/sb.cn)-10;const Ia=0.2*S;
+    const excessInc=[];let cumP=0;
+    for(let i=0;i<steps;i++){
+      cumP+=inc[i];
+      const Pe=cumP<=Ia?0:((cumP-Ia)**2)/(cumP-Ia+S);
+      const prevPe=i>0?(()=>{let cp2=0;for(let j=0;j<i;j++)cp2+=inc[j];return cp2<=Ia?0:((cp2-Ia)**2)/(cp2-Ia+S)})():0;
+      excessInc.push(Math.max(0,Pe-prevPe));
+    }
+    const Tp=sb.lag/60+dt/2;const A=sb.area/640;const Qp=484*A/Tp;const Tb=2.67*Tp;
+    const uhSteps=Math.ceil(Tb/dt)+1;const uh=[];
+    for(let i=0;i<=uhSteps;i++){
+      const t=i*dt;let q;
+      if(t<=Tp)q=Qp*Math.pow(t/Tp,3)*Math.exp(3*(1-t/Tp));
+      else q=Qp*Math.exp(-4.5*((t-Tp)/(Tb-Tp)));
+      uh.push(q);
+    }
+    const totalSteps=steps+uhSteps;const hydro=new Array(totalSteps).fill(0);
+    for(let i=0;i<steps;i++)for(let j=0;j<uh.length;j++)if(i+j<totalSteps)hydro[i+j]+=excessInc[i]*uh[j]/Qp*Qp;
+    subHydros.push(hydro);subNames.push(sb.name);
+  });
+  const maxLen=Math.max(...subHydros.map(h=>h.length));
+  const combined=new Array(maxLen).fill(0);
+  subHydros.forEach(h=>{for(let i=0;i<h.length;i++)combined[i]+=h[i]});
+  results={combined,subHydrographs:subHydros,subNames,dt,steps};
+  tab='results';render();
+}
+
+function renderResults(el){
+  if(!results){el.innerHTML='<div class="card"><div style="color:var(--muted);text-align:center;padding:40px">Run simulation from Storm tab first</div></div>';return;}
+  const peakQ=Math.max(...results.combined);
+  const peakIdx=results.combined.indexOf(peakQ);
+  const peakTime=(peakIdx*results.dt).toFixed(1);
+  const totalVol=results.combined.reduce((a,b)=>a+b,0)*results.dt*3600/43560;
+  el.innerHTML=`
+    <div class="card"><div class="card-title">Simulation Results</div>
+      <div class="stat-grid">
+        <div class="result-box"><div class="result-label">Peak Discharge</div><div class="result-value">${peakQ.toFixed(0)} cfs</div></div>
+        <div class="result-box"><div class="result-label">Time to Peak</div><div class="result-value">${peakTime} hr</div></div>
+        <div class="result-box"><div class="result-label">Total Volume</div><div class="result-value">${totalVol.toFixed(0)} ac-ft</div></div>
+        <div class="result-box"><div class="result-label">Storm</div><div class="result-value">${proj.returnPeriod} ${proj.stormType}</div></div>
+        <div class="result-box"><div class="result-label">Duration</div><div class="result-value">${proj.duration} hr</div></div>
+        <div class="result-box"><div class="result-label">Rainfall</div><div class="result-value">${proj.rainfall} in</div></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Composite Hydrograph</div>
+      <canvas id="resultCanvas" width="800" height="400"></canvas>
+    </div>
+    <div class="card"><div class="card-title">Sub-Basin Summary</div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Sub-Basin</th><th>Area (ac)</th><th>CN</th><th>Peak Q (cfs)</th><th>Time to Peak (hr)</th><th>Runoff Vol (ac-ft)</th></tr></thead>
+        <tbody>${results.subHydrographs.map((h,i)=>{
+          const pk=Math.max(...h);const pkI=h.indexOf(pk);const vol=h.reduce((a,b)=>a+b,0)*results.dt*3600/43560;
+          return`<tr><td style="color:${COLORS[i%COLORS.length]}">${results.subNames[i]}</td><td>${proj.subBasins[i].area}</td><td>${proj.subBasins[i].cn}</td><td style="color:var(--gold)">${pk.toFixed(0)}</td><td>${(pkI*results.dt).toFixed(1)}</td><td>${vol.toFixed(1)}</td></tr>`
+        }).join('')}</tbody>
+      </table></div>
+    </div>
+    <div style="display:flex;gap:8px"><button class="btn btn-gold" onclick="exportResults()">Export CSV</button><button class="btn" onclick="saveProj()">Save Project</button></div>`;
+  drawResultsChart();
+}
+
+function drawResultsChart(){
+  const c=document.getElementById('resultCanvas');if(!c||!results)return;
+  const ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0f1620';ctx.fillRect(0,0,W,H);
+  const m={l:60,r:20,t:20,b:40};const pW=W-m.l-m.r,pH=H-m.t-m.b;
+  const allQ=results.combined;const maxT=allQ.length-1;const maxQ=Math.max(...allQ,1);
+  ctx.strokeStyle='#1a2a3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(m.l,m.t);ctx.lineTo(m.l,m.t+pH);ctx.lineTo(W-m.r,m.t+pH);ctx.stroke();
+  ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='10px JetBrains Mono';ctx.textAlign='right';
+  for(let i=0;i<=5;i++){const v=(maxQ*(5-i)/5).toFixed(0),y=m.t+(pH*i/5);ctx.fillText(v,m.l-5,y+3);
+    ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.beginPath();ctx.moveTo(m.l,y);ctx.lineTo(W-m.r,y);ctx.stroke()}
+  ctx.textAlign='center';
+  for(let i=0;i<=maxT;i+=Math.max(1,Math.floor(maxT/8))){
+    ctx.fillText((proj.duration*i/maxT).toFixed(0)+'h',m.l+(i/maxT)*pW,m.t+pH+16)}
+  results.subHydrographs.forEach((sh,idx)=>{
+    ctx.strokeStyle=COLORS[idx%COLORS.length]+'aa';ctx.lineWidth=1;ctx.beginPath();
+    sh.forEach((q,t)=>{const x=m.l+(t/maxT)*pW,y=m.t+pH-(q/maxQ)*pH;t===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke()});
+  ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();
+  allQ.forEach((q,t)=>{const x=m.l+(t/maxT)*pW,y=m.t+pH-(q/maxQ)*pH;t===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});ctx.stroke();
+  const pkI=allQ.indexOf(Math.max(...allQ));const pkX=m.l+(pkI/maxT)*pW,pkY=m.t+pH-(allQ[pkI]/maxQ)*pH;
+  ctx.fillStyle='#ff3344';ctx.beginPath();ctx.arc(pkX,pkY,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ff3344';ctx.font='bold 11px JetBrains Mono';ctx.textAlign='center';
+  ctx.fillText('Peak: '+allQ[pkI].toFixed(0)+' cfs',pkX,pkY-12);
+  const lgX=W-m.r-160;ctx.fillStyle='#050a0fdd';ctx.fillRect(lgX-6,m.t+4,160,18+results.subHydrographs.length*16);
+  ctx.strokeStyle='#1a2a3a';ctx.strokeRect(lgX-6,m.t+4,160,18+results.subHydrographs.length*16);
+  ctx.fillStyle='#fff';ctx.font='bold 10px JetBrains Mono';ctx.textAlign='left';ctx.fillText('Combined',lgX+18,m.t+18);
+  ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(lgX,m.t+14);ctx.lineTo(lgX+14,m.t+14);ctx.stroke();
+  results.subHydrographs.forEach((_,idx)=>{const y=m.t+34+idx*16;
+    ctx.strokeStyle=COLORS[idx%COLORS.length];ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(lgX,y-3);ctx.lineTo(lgX+14,y-3);ctx.stroke();
+    ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='9px JetBrains Mono';ctx.fillText(results.subNames[idx],lgX+18,y)});
+}
+
+function exportResults(){
+  if(!results)return;
+  let csv='Time(hr),Combined(cfs)'+results.subNames.map(n=>','+n+'(cfs)').join('')+'\n';
+  for(let i=0;i<results.combined.length;i++){
+    csv+=(proj.duration*i/(results.combined.length-1)).toFixed(2)+','+results.combined[i].toFixed(1);
+    results.subHydrographs.forEach(h=>{csv+=','+(h[i]||0).toFixed(1)});csv+='\n';
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='korb_hec_hms_results.csv';a.click();
+}
+
+function renderRouting(el){
+  const r=proj.routing;
+  el.innerHTML=`<div class="card"><div class="card-title">Channel Routing Parameters</div>
+    <div class="grid3">
+      <div class="field"><label>Method</label><select onchange="proj.routing.method=this.value;saveProj()"><option ${r.method==='Muskingum'?'selected':''}>Muskingum</option><option ${r.method==='Lag'?'selected':''}>Lag</option><option ${r.method==='Kinematic Wave'?'selected':''}>Kinematic Wave</option></select></div>
+      <div class="field"><label>K (travel time, hr)</label><input type="number" step="0.1" value="${r.K}" oninput="proj.routing.K=parseFloat(this.value)||0;saveProj()"></div>
+      <div class="field"><label>X (weighting factor)</label><input type="number" step="0.05" value="${r.X}" min="0" max="0.5" oninput="proj.routing.X=parseFloat(this.value)||0;saveProj()"></div>
+    </div>
+    <div class="field"><label>Sub-Reaches</label><input type="number" value="${r.subReaches}" oninput="proj.routing.subReaches=parseInt(this.value)||1;saveProj()"></div>
+    <div style="margin-top:12px;padding:12px;background:var(--bg2);border-radius:4px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--dim);margin-bottom:6px">MUSKINGUM COEFFICIENTS</div>
+      <div style="font-size:12px;color:var(--text)">C0 = ${((-r.K*r.X+0.5*r.K/(r.subReaches||1))/(r.K-r.K*r.X+0.5*r.K/(r.subReaches||1))).toFixed(4)}</div>
+      <div style="font-size:12px;color:var(--text)">C1 = ${((r.K*r.X+0.5*r.K/(r.subReaches||1))/(r.K-r.K*r.X+0.5*r.K/(r.subReaches||1))).toFixed(4)}</div>
+      <div style="font-size:12px;color:var(--text)">C2 = ${((r.K-r.K*r.X-0.5*r.K/(r.subReaches||1))/(r.K-r.K*r.X+0.5*r.K/(r.subReaches||1))).toFixed(4)}</div>
+    </div>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>

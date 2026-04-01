@@ -32,7 +32,13 @@ const SECTIONS = {
     tools: [
       { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
-      { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' }
+      { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
+      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
+      { name: 'AI Meeting Notes', file: './tools/aviation/ai-meeting-note-taker.html' },
+      { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
+      { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
+      { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
+      { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' }
     ]
   },
   civil: {
@@ -51,7 +57,24 @@ const SECTIONS = {
       { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
       { name: 'File Share', file: './tools/civil/file-share-tool.html' },
       { name: 'Taiga Scrum Config', file: './tools/civil/korb-taiga-config.html' },
-      { name: 'Gantt Project', file: './tools/civil/gantt-project.html' }
+      { name: 'Gantt Project', file: './tools/civil/gantt-project.html' },
+      { name: 'LaTeX Editor', file: './tools/civil/harrison-latex-editor.html' },
+      { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
+      { name: 'AssetMax', file: './tools/civil/assetmax.html' },
+      { name: 'Capital Planning', file: './tools/civil/capital-planning.html' },
+      { name: 'EPANet Water', file: './tools/civil/epanet-water.html' },
+      { name: 'Earned Value Mgmt', file: './tools/civil/earned-value-mgmt.html' },
+      { name: 'Erosion Control', file: './tools/civil/erosion-control.html' },
+      { name: 'Front End Documents', file: './tools/civil/front-end-documents.html' },
+      { name: 'Geospatial Tools', file: './tools/civil/geospatial-tools.html' },
+      { name: 'HEC-HMS', file: './tools/civil/hec-hms.html' },
+      { name: 'OpenFOAM CFD', file: './tools/civil/openfoam-cfd.html' },
+      { name: 'PCI Inspector', file: './tools/civil/pci-inspector.html' },
+      { name: 'PWL Calculator', file: './tools/civil/pwl-calculator.html' },
+      { name: 'Submittal Review', file: './tools/civil/submittal-review.html' },
+      { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
+      { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
+      { name: 'Bid Express', file: './tools/civil/bid-express.html' }
     ]
   },
   hk: {
@@ -66,7 +89,7 @@ const SECTIONS = {
     password: 'potato1',
     tools: [
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
-      { name: 'Situation Monitor', file: './tools/hk/Situation Monitor \u2014 Geopolitical Dashboard/index.html' },
+      { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
       {
         name: 'Super Secret Access!',
         type: 'folder',
@@ -74,7 +97,8 @@ const SECTIONS = {
         password: 'potato2',
         _unlocked: false,
         tools: [
-          { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' }
+          { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
+          { name: 'QA/QC Checklist', file: './tools/hk/super-secret-access/qaqc-checklist.html' }
         ]
       }
     ]
@@ -102,7 +126,13 @@ const SECTIONS = {
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
       { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
-      { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' }
+      { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
+      { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
+      { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
+      { name: 'Korb Legacy', file: './tools/misc/korb-legacy.html' },
+      { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
+      { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
+      { name: 'Digital Library', file: './tools/misc/digital-library.html' }
     ]
   }
 };
@@ -437,12 +467,10 @@ function renderAboutPage() {
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-2" src="./tools/misc/images/Andy-and-harrison.PNG" alt="Andy and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
           <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Alan and Harrison Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
           <p id="about-name-3" style="${nameStyle}">Monte Alan Korb</p>
         </div>
       </div>
@@ -477,15 +505,11 @@ function renderAboutPage() {
     if (n1) n1.style.opacity = '0.85';
   }, 5000);
   setTimeout(() => {
-    const p2 = document.getElementById('about-photo-2');
     const n2 = document.getElementById('about-name-2');
-    if (p2) p2.style.opacity = '0.9';
     if (n2) n2.style.opacity = '0.85';
   }, 10000);
   setTimeout(() => {
-    const p3 = document.getElementById('about-photo-3');
     const n3 = document.getElementById('about-name-3');
-    if (p3) p3.style.opacity = '0.9';
     if (n3) n3.style.opacity = '0.85';
   }, 15000);
 }

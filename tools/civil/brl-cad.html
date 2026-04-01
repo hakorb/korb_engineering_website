@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRL-CAD Modeler - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1822;--border:#1a2a3a;--accent:#00d4ff;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--textDim:rgba(226,232,240,0.45);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+input,select,button,textarea{font-family:var(--font)}
+.header{height:48px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;position:sticky;top:0;z-index:100}
+.logo-box{width:32px;height:32px;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(0,212,255,0.25);flex-shrink:0}
+.logo-box span{font-size:10px;font-weight:700;color:var(--accent)}
+.htitle{font-size:14px;font-weight:700;letter-spacing:0.12em;color:var(--accent)}
+.hsub{font-size:9px;color:rgba(0,212,255,0.35);letter-spacing:0.15em;text-transform:uppercase}
+.main{display:flex;height:calc(100vh - 48px)}
+.sidebar{width:280px;background:var(--bg1);border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+.viewport{flex:1;display:flex;flex-direction:column;position:relative}
+.canvas-wrap{flex:1;position:relative;background:var(--bg)}
+canvas{display:block;width:100%;height:100%}
+.toolbar{display:flex;gap:4px;padding:8px;background:var(--bg1);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.btn{background:transparent;border:1px solid var(--border);color:var(--textDim);font-size:9px;padding:4px 10px;border-radius:3px;cursor:pointer;letter-spacing:0.06em;text-transform:uppercase;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.08)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.panel{padding:12px}
+.panel-title{font-size:10px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+.label{font-size:9px;color:var(--textDim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;display:block}
+.input{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:11px;padding:4px 8px;border-radius:3px;outline:none}
+.input:focus{border-color:var(--accent)}
+.select{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-size:11px;padding:4px 8px;border-radius:3px;outline:none;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.prim-item{padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:4px;cursor:pointer;transition:all .15s;font-size:10px}
+.prim-item:hover{border-color:var(--accent)}
+.prim-item.selected{border-color:var(--accent);background:rgba(0,212,255,0.06)}
+.info-bar{display:flex;gap:16px;padding:6px 12px;background:var(--bg1);border-top:1px solid var(--border);font-size:9px;color:var(--textDim);flex-wrap:wrap}
+.csg-item{padding:6px 8px;border:1px solid var(--border);border-radius:3px;margin-bottom:4px;font-size:10px;display:flex;justify-content:space-between;align-items:center}
+.divider{border-top:1px solid var(--border);margin:10px 0}
+@media(max-width:768px){
+.main{flex-direction:column}
+.sidebar{width:100%;max-height:40vh;border-right:none;border-bottom:1px solid var(--border)}
+.canvas-wrap{min-height:300px}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-box"><span>KE</span></div>
+  <div class="htitle">KORB ENGINEERING</div>
+  <div class="hsub">BRL-CAD CSG Modeler</div>
+  <div style="flex:1"></div>
+  <button class="btn" onclick="loadBridgeDemo()">Bridge Demo</button>
+  <button class="btn" onclick="exportJSON()">Export</button>
+</div>
+<div class="main">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="viewport">
+    <div class="toolbar" id="toolbar"></div>
+    <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+    <div class="info-bar" id="infobar"></div>
+  </div>
+</div>
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS='korb_brlcad';
+const PRIM_TYPES=['Box','Sphere','Cylinder','Cone','Torus','Ellipsoid'];
+const MATERIALS={Concrete:{density:150,color:'#888888'},Steel:{density:490,color:'#708090'},Asphalt:{density:145,color:'#333333'},Earth:{density:100,color:'#8B6914'},Water:{density:62.4,color:'#1E90FF'},Glass:{density:156,color:'#ADD8E6'},Custom:{density:100,color:'#ffffff'}};
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+function defaultPrim(type){
+  const b={id:uid(),type,name:type+'_'+uid().slice(0,4),x:0,y:0,z:0,rx:0,ry:0,rz:0,material:'Concrete',color:'#888888'};
+  switch(type){
+    case'Box':return{...b,w:2,h:1,d:2};
+    case'Sphere':return{...b,radius:1};
+    case'Cylinder':return{...b,radius:0.5,height:2};
+    case'Cone':return{...b,radius:1,height:2};
+    case'Torus':return{...b,majorR:1.5,minorR:0.3};
+    case'Ellipsoid':return{...b,rx2:1,ry2:0.5,rz2:0.75};
+    default:return b;
+  }
+}
+function calcVolume(p){
+  switch(p.type){
+    case'Box':return p.w*p.h*p.d;
+    case'Sphere':return(4/3)*Math.PI*Math.pow(p.radius,3);
+    case'Cylinder':return Math.PI*p.radius*p.radius*p.height;
+    case'Cone':return(1/3)*Math.PI*p.radius*p.radius*p.height;
+    case'Torus':return 2*Math.PI*Math.PI*p.majorR*p.minorR*p.minorR;
+    case'Ellipsoid':return(4/3)*Math.PI*p.rx2*p.ry2*p.rz2;
+    default:return 0;
+  }
+}
+function calcSA(p){
+  switch(p.type){
+    case'Box':return 2*(p.w*p.h+p.h*p.d+p.w*p.d);
+    case'Sphere':return 4*Math.PI*p.radius*p.radius;
+    case'Cylinder':return 2*Math.PI*p.radius*(p.radius+p.height);
+    case'Cone':{const s=Math.sqrt(p.radius*p.radius+p.height*p.height);return Math.PI*p.radius*(p.radius+s);}
+    case'Torus':return 4*Math.PI*Math.PI*p.majorR*p.minorR;
+    case'Ellipsoid':{const a=p.rx2,b=p.ry2,c=p.rz2;return 4*Math.PI*Math.pow((Math.pow(a*b,1.6)+Math.pow(a*c,1.6)+Math.pow(b*c,1.6))/3,1/1.6);}
+    default:return 0;
+  }
+}
+
+function bridgeDemo(){return[
+  {...defaultPrim('Box'),id:uid(),name:'Bridge_Deck',x:0,y:3,z:0,w:12,h:0.5,d:4,material:'Concrete',color:'#888888'},
+  {...defaultPrim('Cylinder'),id:uid(),name:'Pier_1',x:-3,y:0,z:0,radius:0.4,height:3,material:'Concrete',color:'#999999'},
+  {...defaultPrim('Cylinder'),id:uid(),name:'Pier_2',x:3,y:0,z:0,radius:0.4,height:3,material:'Concrete',color:'#999999'},
+  {...defaultPrim('Box'),id:uid(),name:'Abutment_L',x:-6,y:0,z:0,w:1,h:3.5,d:4.5,material:'Concrete',color:'#777777'},
+  {...defaultPrim('Box'),id:uid(),name:'Abutment_R',x:6,y:0,z:0,w:1,h:3.5,d:4.5,material:'Concrete',color:'#777777'},
+]}
+
+let primitives=[];
+let selectedId=null;
+let csgOps=[];
+let viewAngles={az:35,el:25};
+let zoom=30;
+let snapGrid=true;
+let dragging=false;
+let dragStart={x:0,y:0};
+
+function load(){try{const s=localStorage.getItem(LS);if(s){const d=JSON.parse(s);primitives=d.primitives||bridgeDemo();csgOps=d.csgOps||[];viewAngles=d.viewAngles||{az:35,el:25};zoom=d.zoom||30}else{primitives=bridgeDemo()}}catch(e){primitives=bridgeDemo()}}
+function save(){localStorage.setItem(LS,JSON.stringify({primitives,csgOps,viewAngles,zoom}))}
+function loadBridgeDemo(){primitives=bridgeDemo();csgOps=[];selectedId=null;save();render()}
+
+function project3D(x3,y3,z3,cx,cy){
+  const azR=viewAngles.az*Math.PI/180,elR=viewAngles.el*Math.PI/180;
+  const cosA=Math.cos(azR),sinA=Math.sin(azR),cosE=Math.cos(elR),sinE=Math.sin(elR);
+  const xr=x3*cosA-z3*sinA;
+  const zr=x3*sinA+z3*cosA;
+  const yr=y3*cosE-zr*sinE;
+  return{x:cx+xr*zoom,y:cy-yr*zoom,depth:zr*cosE+y3*sinE};
+}
+
+function getWireframeEdges(p){
+  const edges=[];
+  const add=(a,b)=>edges.push([a,b]);
+  switch(p.type){
+    case'Box':{
+      const hw=p.w/2,hd=p.d/2;
+      const v=[[p.x-hw,p.y,p.z-hd],[p.x+hw,p.y,p.z-hd],[p.x+hw,p.y,p.z+hd],[p.x-hw,p.y,p.z+hd],[p.x-hw,p.y+p.h,p.z-hd],[p.x+hw,p.y+p.h,p.z-hd],[p.x+hw,p.y+p.h,p.z+hd],[p.x-hw,p.y+p.h,p.z+hd]];
+      [0,1,2,3].forEach(i=>{add(v[i],v[(i+1)%4]);add(v[i+4],v[((i+1)%4)+4]);add(v[i],v[i+4])});break;
+    }
+    case'Sphere':{
+      const n=16;
+      for(let ring=0;ring<3;ring++){
+        const pts=[];
+        for(let i=0;i<=n;i++){const a=(i/n)*Math.PI*2;
+          if(ring===0)pts.push([p.x+p.radius*Math.cos(a),p.y+p.radius*Math.sin(a),p.z]);
+          else if(ring===1)pts.push([p.x+p.radius*Math.cos(a),p.y,p.z+p.radius*Math.sin(a)]);
+          else pts.push([p.x,p.y+p.radius*Math.cos(a),p.z+p.radius*Math.sin(a)]);
+        }
+        for(let i=0;i<pts.length-1;i++)add(pts[i],pts[i+1]);
+      }break;
+    }
+    case'Cylinder':{
+      const n=16;const bot=[],top=[];
+      for(let i=0;i<=n;i++){const a=(i/n)*Math.PI*2;bot.push([p.x+p.radius*Math.cos(a),p.y,p.z+p.radius*Math.sin(a)]);top.push([p.x+p.radius*Math.cos(a),p.y+p.height,p.z+p.radius*Math.sin(a)])}
+      for(let i=0;i<n;i++){add(bot[i],bot[i+1]);add(top[i],top[i+1])}
+      for(let i=0;i<n;i+=4)add(bot[i],top[i]);break;
+    }
+    case'Cone':{
+      const n=16;const bot=[];const tip=[p.x,p.y+p.height,p.z];
+      for(let i=0;i<=n;i++){const a=(i/n)*Math.PI*2;bot.push([p.x+p.radius*Math.cos(a),p.y,p.z+p.radius*Math.sin(a)])}
+      for(let i=0;i<n;i++)add(bot[i],bot[i+1]);
+      for(let i=0;i<n;i+=4)add(bot[i],tip);break;
+    }
+    case'Torus':{
+      const ns=16,nt=12;
+      for(let i=0;i<ns;i++){
+        const a=(i/ns)*Math.PI*2,a2=((i+1)/ns)*Math.PI*2;
+        const cx1=p.x+p.majorR*Math.cos(a),cz1=p.z+p.majorR*Math.sin(a);
+        const cx2=p.x+p.majorR*Math.cos(a2),cz2=p.z+p.majorR*Math.sin(a2);
+        for(let j=0;j<nt;j++){
+          const b=(j/nt)*Math.PI*2;
+          const r=p.minorR*Math.cos(b),ry=p.minorR*Math.sin(b);
+          const p1=[cx1+r*Math.cos(a),p.y+ry,cz1+r*Math.sin(a)];
+          const p2=[cx2+r*Math.cos(a2),p.y+ry,cz2+r*Math.sin(a2)];
+          add(p1,p2);
+        }
+      }
+      for(let i=0;i<4;i++){
+        const a=(i/4)*Math.PI*2;
+        const cx1=p.x+p.majorR*Math.cos(a),cz1=p.z+p.majorR*Math.sin(a);
+        const pts=[];
+        for(let j=0;j<=nt;j++){const b=(j/nt)*Math.PI*2;pts.push([cx1+p.minorR*Math.cos(b)*Math.cos(a),p.y+p.minorR*Math.sin(b),cz1+p.minorR*Math.cos(b)*Math.sin(a)])}
+        for(let j=0;j<pts.length-1;j++)add(pts[j],pts[j+1]);
+      }break;
+    }
+    case'Ellipsoid':{
+      const n=16;
+      for(let ring=0;ring<3;ring++){
+        const pts=[];
+        for(let i=0;i<=n;i++){const a=(i/n)*Math.PI*2;
+          if(ring===0)pts.push([p.x+p.rx2*Math.cos(a),p.y+p.ry2*Math.sin(a),p.z]);
+          else if(ring===1)pts.push([p.x+p.rx2*Math.cos(a),p.y,p.z+p.rz2*Math.sin(a)]);
+          else pts.push([p.x,p.y+p.ry2*Math.cos(a),p.z+p.rz2*Math.sin(a)]);
+        }
+        for(let i=0;i<pts.length-1;i++)add(pts[i],pts[i+1]);
+      }break;
+    }
+  }
+  return edges;
+}
+
+function drawCanvas(){
+  const canvas=document.getElementById('canvas');
+  const rect=canvas.parentElement.getBoundingClientRect();
+  canvas.width=rect.width*window.devicePixelRatio;
+  canvas.height=rect.height*window.devicePixelRatio;
+  canvas.style.width=rect.width+'px';
+  canvas.style.height=rect.height+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio,window.devicePixelRatio);
+  const W=rect.width,H=rect.height;
+  const cx=W/2,cy=H/2;
+
+  ctx.fillStyle='#050a0f';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  if(snapGrid){
+    ctx.strokeStyle='rgba(0,212,255,0.06)';ctx.lineWidth=0.5;
+    for(let i=-20;i<=20;i++){
+      const p1=project3D(i,0,-20,cx,cy),p2=project3D(i,0,20,cx,cy);
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+      const p3=project3D(-20,0,i,cx,cy),p4=project3D(20,0,i,cx,cy);
+      ctx.beginPath();ctx.moveTo(p3.x,p3.y);ctx.lineTo(p4.x,p4.y);ctx.stroke();
+    }
+  }
+
+  // Axes
+  const o=project3D(0,0,0,cx,cy);
+  const ax=[{dir:[3,0,0],color:'#ff3344',label:'X'},{dir:[0,3,0],color:'#00ff88',label:'Y'},{dir:[0,0,3],color:'#00d4ff',label:'Z'}];
+  ax.forEach(a=>{
+    const e=project3D(...a.dir,cx,cy);
+    ctx.strokeStyle=a.color;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(e.x,e.y);ctx.stroke();
+    ctx.fillStyle=a.color;ctx.font='10px JetBrains Mono';ctx.fillText(a.label,e.x+4,e.y-4);
+  });
+
+  // Draw primitives
+  primitives.forEach(p=>{
+    const isSel=p.id===selectedId;
+    const edges=getWireframeEdges(p);
+    ctx.strokeStyle=isSel?'#00d4ff':(p.color||'#888888');
+    ctx.lineWidth=isSel?1.5:0.8;
+    ctx.globalAlpha=isSel?1:0.7;
+    edges.forEach(([a,b])=>{
+      const pa=project3D(a[0],a[1],a[2],cx,cy);
+      const pb=project3D(b[0],b[1],b[2],cx,cy);
+      ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke();
+    });
+    ctx.globalAlpha=1;
+
+    // Label
+    const lp=project3D(p.x,p.y+(p.h||p.height||p.radius||1)+0.3,p.z,cx,cy);
+    ctx.fillStyle=isSel?'#00d4ff':'rgba(226,232,240,0.4)';
+    ctx.font=(isSel?'bold ':'')+' 9px JetBrains Mono';
+    ctx.textAlign='center';ctx.fillText(p.name,lp.x,lp.y);ctx.textAlign='left';
+  });
+}
+
+function renderToolbar(){
+  document.getElementById('toolbar').innerHTML=`
+    ${PRIM_TYPES.map(t=>`<button class="btn" onclick="addPrimitive('${t}')">+ ${t}</button>`).join('')}
+    <div style="width:1px;background:var(--border);margin:0 4px"></div>
+    <button class="btn ${snapGrid?'active':''}" onclick="snapGrid=!snapGrid;save();render()">Grid</button>
+    <button class="btn" onclick="viewAngles={az:0,el:90};render()">Top</button>
+    <button class="btn" onclick="viewAngles={az:0,el:0};render()">Front</button>
+    <button class="btn" onclick="viewAngles={az:90,el:0};render()">Side</button>
+    <button class="btn" onclick="viewAngles={az:35,el:25};render()">Iso</button>
+    <button class="btn" onclick="zoom=Math.min(100,zoom+5);save();render()">Zoom+</button>
+    <button class="btn" onclick="zoom=Math.max(5,zoom-5);save();render()">Zoom-</button>
+    ${selectedId?`<div style="width:1px;background:var(--border);margin:0 4px"></div><button class="btn btn-red" onclick="deletePrim()">Delete</button><button class="btn" onclick="dupPrim()">Duplicate</button>`:''}
+  `;
+}
+
+function renderSidebar(){
+  const sel=primitives.find(p=>p.id===selectedId);
+  let html='<div class="panel"><div class="panel-title">Primitives ('+primitives.length+')</div>';
+  primitives.forEach(p=>{
+    const vol=calcVolume(p);
+    html+=`<div class="prim-item ${p.id===selectedId?'selected':''}" onclick="selectPrim('${p.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:${p.id===selectedId?'var(--accent)':'var(--text)'}">${esc(p.name)}</span>
+        <span style="font-size:8px;color:var(--textDim)">${p.type}</span>
+      </div>
+      <div style="font-size:8px;color:var(--textDim);margin-top:2px">Vol: ${vol.toFixed(2)} cu.ft | ${p.material}</div>
+    </div>`;
+  });
+  html+='</div>';
+
+  if(sel){
+    html+=`<div class="divider"></div><div class="panel"><div class="panel-title">Properties: ${esc(sel.name)}</div>
+      <div style="margin-bottom:6px"><div class="label">Name</div><input class="input" value="${esc(sel.name)}" onchange="updPrim('${sel.id}','name',this.value)"></div>
+      <div class="grid3" style="margin-bottom:6px"><div><div class="label">X</div><input class="input" type="number" step="0.1" value="${sel.x}" onchange="updPrimN('${sel.id}','x',this.value)"></div><div><div class="label">Y</div><input class="input" type="number" step="0.1" value="${sel.y}" onchange="updPrimN('${sel.id}','y',this.value)"></div><div><div class="label">Z</div><input class="input" type="number" step="0.1" value="${sel.z}" onchange="updPrimN('${sel.id}','z',this.value)"></div></div>`;
+    if(sel.type==='Box')html+=`<div class="grid3" style="margin-bottom:6px"><div><div class="label">Width</div><input class="input" type="number" step="0.1" value="${sel.w}" onchange="updPrimN('${sel.id}','w',this.value)"></div><div><div class="label">Height</div><input class="input" type="number" step="0.1" value="${sel.h}" onchange="updPrimN('${sel.id}','h',this.value)"></div><div><div class="label">Depth</div><input class="input" type="number" step="0.1" value="${sel.d}" onchange="updPrimN('${sel.id}','d',this.value)"></div></div>`;
+    if(sel.type==='Sphere')html+=`<div style="margin-bottom:6px"><div class="label">Radius</div><input class="input" type="number" step="0.1" value="${sel.radius}" onchange="updPrimN('${sel.id}','radius',this.value)"></div>`;
+    if(sel.type==='Cylinder')html+=`<div class="grid2" style="margin-bottom:6px"><div><div class="label">Radius</div><input class="input" type="number" step="0.1" value="${sel.radius}" onchange="updPrimN('${sel.id}','radius',this.value)"></div><div><div class="label">Height</div><input class="input" type="number" step="0.1" value="${sel.height}" onchange="updPrimN('${sel.id}','height',this.value)"></div></div>`;
+    if(sel.type==='Cone')html+=`<div class="grid2" style="margin-bottom:6px"><div><div class="label">Radius</div><input class="input" type="number" step="0.1" value="${sel.radius}" onchange="updPrimN('${sel.id}','radius',this.value)"></div><div><div class="label">Height</div><input class="input" type="number" step="0.1" value="${sel.height}" onchange="updPrimN('${sel.id}','height',this.value)"></div></div>`;
+    if(sel.type==='Torus')html+=`<div class="grid2" style="margin-bottom:6px"><div><div class="label">Major R</div><input class="input" type="number" step="0.1" value="${sel.majorR}" onchange="updPrimN('${sel.id}','majorR',this.value)"></div><div><div class="label">Minor R</div><input class="input" type="number" step="0.1" value="${sel.minorR}" onchange="updPrimN('${sel.id}','minorR',this.value)"></div></div>`;
+    if(sel.type==='Ellipsoid')html+=`<div class="grid3" style="margin-bottom:6px"><div><div class="label">RX</div><input class="input" type="number" step="0.1" value="${sel.rx2}" onchange="updPrimN('${sel.id}','rx2',this.value)"></div><div><div class="label">RY</div><input class="input" type="number" step="0.1" value="${sel.ry2}" onchange="updPrimN('${sel.id}','ry2',this.value)"></div><div><div class="label">RZ</div><input class="input" type="number" step="0.1" value="${sel.rz2}" onchange="updPrimN('${sel.id}','rz2',this.value)"></div></div>`;
+    html+=`<div class="grid2" style="margin-bottom:6px"><div><div class="label">Material</div><select class="select" onchange="updPrim('${sel.id}','material',this.value);updPrim('${sel.id}','color',MATERIALS[this.value].color)">${Object.keys(MATERIALS).map(m=>`<option ${sel.material===m?'selected':''}>${m}</option>`).join('')}</select></div><div><div class="label">Color</div><input class="input" type="color" value="${sel.color}" onchange="updPrim('${sel.id}','color',this.value)" style="height:28px;padding:2px"></div></div>`;
+    const vol=calcVolume(sel),sa=calcSA(sel),dens=MATERIALS[sel.material]?.density||100;
+    html+=`<div style="margin-top:8px;font-size:9px;color:var(--textDim)">
+      <div>Volume: <span style="color:var(--accent)">${vol.toFixed(3)} cu.ft</span></div>
+      <div>Surface Area: <span style="color:var(--accent)">${sa.toFixed(3)} sq.ft</span></div>
+      <div>Weight: <span style="color:var(--green)">${(vol*dens).toFixed(1)} lbs</span> (${(vol*dens/2000).toFixed(2)} tons)</div>
+    </div></div>`;
+  }
+
+  // CSG Operations
+  html+=`<div class="divider"></div><div class="panel"><div class="panel-title">CSG Boolean Operations</div>
+    <div style="margin-bottom:6px"><div class="label">Prim A</div><select class="select" id="csgA">${primitives.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+    <div style="margin-bottom:6px"><div class="label">Operation</div><select class="select" id="csgOp"><option value="union">Union (+)</option><option value="subtract">Subtract (-)</option><option value="intersect">Intersect (&amp;)</option></select></div>
+    <div style="margin-bottom:6px"><div class="label">Prim B</div><select class="select" id="csgB">${primitives.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+    <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="addCSG()">Apply CSG</button>
+    ${csgOps.map((c,i)=>`<div class="csg-item"><span>${esc(c.nameA)} <span style="color:var(--accent)">${c.op}</span> ${esc(c.nameB)}</span><button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:9px" onclick="csgOps.splice(${i},1);save();render()">x</button></div>`).join('')}
+  </div>`;
+
+  // Totals
+  const totalVol=primitives.reduce((s,p)=>s+calcVolume(p),0);
+  const totalWeight=primitives.reduce((s,p)=>s+calcVolume(p)*(MATERIALS[p.material]?.density||100),0);
+  html+=`<div class="divider"></div><div class="panel"><div class="panel-title">Model Summary</div>
+    <div style="font-size:9px;color:var(--textDim)">
+      <div>Primitives: <span style="color:var(--text)">${primitives.length}</span></div>
+      <div>Total Volume: <span style="color:var(--accent)">${totalVol.toFixed(2)} cu.ft</span></div>
+      <div>Total Weight: <span style="color:var(--green)">${totalWeight.toFixed(1)} lbs</span> (${(totalWeight/2000).toFixed(2)} tons)</div>
+      <div>CSG Operations: <span style="color:var(--text)">${csgOps.length}</span></div>
+    </div>
+  </div>`;
+
+  document.getElementById('sidebar').innerHTML=html;
+}
+
+function renderInfobar(){
+  const sel=primitives.find(p=>p.id===selectedId);
+  document.getElementById('infobar').innerHTML=`
+    <span>View: Az ${viewAngles.az.toFixed(0)} El ${viewAngles.el.toFixed(0)}</span>
+    <span>Zoom: ${zoom}</span>
+    <span>Primitives: ${primitives.length}</span>
+    ${sel?`<span style="color:var(--accent)">Selected: ${sel.name} (${sel.type})</span>`:'<span>No selection</span>'}
+    <span>Grid: ${snapGrid?'ON':'OFF'}</span>
+  `;
+}
+
+function addPrimitive(type){const p=defaultPrim(type);primitives.push(p);selectedId=p.id;save();render()}
+function selectPrim(id){selectedId=selectedId===id?null:id;render()}
+function deletePrim(){if(!selectedId)return;primitives=primitives.filter(p=>p.id!==selectedId);selectedId=null;save();render()}
+function dupPrim(){const orig=primitives.find(p=>p.id===selectedId);if(!orig)return;const dup={...orig,id:uid(),name:orig.name+'_copy',x:orig.x+1};primitives.push(dup);selectedId=dup.id;save();render()}
+function updPrim(id,k,v){const p=primitives.find(p=>p.id===id);if(p)p[k]=v;save();render()}
+function updPrimN(id,k,v){const p=primitives.find(p=>p.id===id);if(p)p[k]=parseFloat(v)||0;save();render()}
+function addCSG(){const a=document.getElementById('csgA').value,b=document.getElementById('csgB').value,op=document.getElementById('csgOp').value;const pA=primitives.find(p=>p.id===a),pB=primitives.find(p=>p.id===b);if(!pA||!pB||a===b)return;csgOps.push({primA:a,primB:b,op,nameA:pA.name,nameB:pB.name});save();render()}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function exportJSON(){
+  const data={primitives,csgOps,totalVolume:primitives.reduce((s,p)=>s+calcVolume(p),0)};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='korb_brlcad_model.json';a.click();
+}
+
+// Mouse interaction for orbit
+const canvas=document.getElementById('canvas');
+canvas.addEventListener('mousedown',e=>{dragging=true;dragStart={x:e.clientX,y:e.clientY}});
+canvas.addEventListener('mousemove',e=>{if(!dragging)return;const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;viewAngles.az+=dx*0.5;viewAngles.el=Math.max(-89,Math.min(89,viewAngles.el+dy*0.5));dragStart={x:e.clientX,y:e.clientY};save();render()});
+canvas.addEventListener('mouseup',()=>{dragging=false});
+canvas.addEventListener('mouseleave',()=>{dragging=false});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(5,Math.min(100,zoom-(e.deltaY>0?2:-2)));save();render()},{passive:false});
+
+// Touch support
+let touchStart=null;
+canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY}}},{passive:true});
+canvas.addEventListener('touchmove',e=>{if(!touchStart||e.touches.length!==1)return;const dx=e.touches[0].clientX-touchStart.x,dy=e.touches[0].clientY-touchStart.y;viewAngles.az+=dx*0.5;viewAngles.el=Math.max(-89,Math.min(89,viewAngles.el+dy*0.5));touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};save();render()},{passive:true});
+canvas.addEventListener('touchend',()=>{touchStart=null},{passive:true});
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key==='Delete'&&selectedId){deletePrim()}
+  if(e.ctrlKey&&e.key==='d'&&selectedId){e.preventDefault();dupPrim()}
+});
+
+function render(){renderToolbar();renderSidebar();renderInfobar();drawCanvas()}
+window.addEventListener('resize',render);
+load();render();
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geospatial Tools | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--card:#111a24;--border:#1a2a3a;--accent:#00d4ff;--gold:#f0a500;--green:#00ff88;--red:#ff3344;--yellow:#ffcc00;--text:#e2e8f0;--dim:rgba(226,232,240,0.45);--muted:rgba(226,232,240,0.25);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:13px}
+input,select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:12px;padding:7px 10px;border-radius:4px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+button{font-family:var(--font);cursor:pointer;font-size:11px;letter-spacing:0.05em}
+label{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px}
+.header{height:52px;background:linear-gradient(180deg,var(--bg2),var(--bg1));border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14;position:sticky;top:0;z-index:100}
+.header-title{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:0.12em}
+.header-sub{font-size:10px;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-left:8px}
+.tabs{display:flex;gap:0;padding:0 20px;border-bottom:1px solid var(--border);overflow-x:auto;background:var(--bg1)}
+.tab{padding:10px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--dim);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;transition:all .2s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg2)}
+.tab:hover{color:var(--text)}
+.body{padding:20px;max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:20px;margin-bottom:16px}
+.card-title{font-size:11px;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.field{margin-bottom:10px}
+.btn{padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--dim);text-transform:uppercase;transition:all .2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{border-color:var(--accent);color:var(--accent)}
+.btn-gold{border-color:var(--gold);color:var(--gold)}
+.btn-green{border-color:var(--green);color:var(--green)}
+.btn-red{border-color:var(--red);color:var(--red)}
+.result-box{background:var(--bg2);padding:10px;border-radius:4px;border:1px solid var(--border);margin-top:8px}
+.result-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em}
+.result-value{font-size:14px;color:var(--green);margin-top:2px}
+.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;text-align:left}
+th{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:0.1em}
+.tag{display:inline-block;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-size:9px;margin-right:4px;color:var(--gold)}
+@media(max-width:768px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .results-grid{grid-template-columns:1fr}
+  .body{padding:12px}
+  .header{padding:0 12px}
+  .tabs{padding:0 12px}
+  .form-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">GEOSPATIAL TOOLS</div>
+  <div class="header-sub">Coordinate & Survey Toolkit</div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="body" id="app"></div>
+<div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
+
+<script>
+const LS='korb_geospatial';
+const TABS=['converter','distance','area','sites','survey','datums'];
+let tab='converter';
+let state=loadState();
+
+function loadState(){try{return JSON.parse(localStorage.getItem(LS))||{sites:[],points:[]}}catch{return{sites:[],points:[]}}}
+function saveState(){localStorage.setItem(LS,JSON.stringify(state))}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+
+// Coordinate math
+function ddToDms(dd){const a=Math.abs(dd),d=Math.floor(a),mF=(a-d)*60,m=Math.floor(mF),s=((mF-m)*60);return{d,m,s:parseFloat(s.toFixed(4)),sign:dd>=0?1:-1}}
+function dmsToDd(d,m,s,sign){return sign*(Math.abs(d)+m/60+s/3600)}
+function ddToUtm(lat,lng){
+  const a=6378137,f=1/298.257223563,e=Math.sqrt(2*f-f*f),e2=e*e/(1-e*e),k0=0.9996;
+  const zone=Math.floor((lng+180)/6)+1,lngO=(zone-1)*6-180+3;
+  const lr=lat*Math.PI/180,lnr=(lng-lngO)*Math.PI/180;
+  const N=a/Math.sqrt(1-e*e*Math.sin(lr)**2),T2=Math.tan(lr)**2,C=e2*Math.cos(lr)**2,A=Math.cos(lr)*lnr;
+  const M=a*((1-e*e/4-3*e**4/64-5*e**6/256)*lr-(3*e*e/8+3*e**4/32+45*e**6/1024)*Math.sin(2*lr)+(15*e**4/256+45*e**6/1024)*Math.sin(4*lr)-(35*e**6/3072)*Math.sin(6*lr));
+  const east=k0*N*(A+(1-T2+C)*A**3/6+(5-18*T2+T2*T2+72*C-58*e2)*A**5/120)+500000;
+  let north=k0*(M+N*Math.tan(lr)*(A*A/2+(5-T2+9*C+4*C*C)*A**4/24+(61-58*T2+T2*T2+600*C-330*e2)*A**6/720));
+  if(lat<0)north+=10000000;
+  return{zone,band:lat>=0?'N':'S',easting:east.toFixed(2),northing:north.toFixed(2)}
+}
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+}
+function polygonArea(coords){
+  if(coords.length<3)return 0;let area=0;
+  for(let i=0;i<coords.length;i++){const j=(i+1)%coords.length;
+    const xi=coords[i].lng*Math.PI/180*6371000*Math.cos(coords[i].lat*Math.PI/180);
+    const yi=coords[i].lat*Math.PI/180*6371000;
+    const xj=coords[j].lng*Math.PI/180*6371000*Math.cos(coords[j].lat*Math.PI/180);
+    const yj=coords[j].lat*Math.PI/180*6371000;
+    area+=xi*yj-xj*yi}
+  return Math.abs(area)/2
+}
+
+const datumShifts={NAD83:{dx:0,dy:0,dz:0,desc:'GRS80 ellipsoid, North American Datum 1983'},WGS84:{dx:0,dy:0,dz:0,desc:'WGS84 ellipsoid, GPS global datum'},NAD27:{dx:-8,dy:160,dz:176,desc:'Clarke 1866 ellipsoid, North American Datum 1927'}};
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="tab='${t}';render()">${t}</button>`).join('');
+}
+
+function render(){
+  renderTabs();
+  const a=document.getElementById('app');
+  ({converter:renderConverter,distance:renderDistance,area:renderArea,sites:renderSites,survey:renderSurvey,datums:renderDatums})[tab](a);
+}
+
+function renderConverter(el){
+  el.innerHTML=`<div class="grid2">
+    <div class="card"><div class="card-title">Decimal Degrees Input</div>
+      <div class="grid2">
+        <div class="field"><label>Latitude</label><input id="cLat" placeholder="e.g. 30.2672"></div>
+        <div class="field"><label>Longitude</label><input id="cLng" placeholder="e.g. -97.7431"></div>
+      </div>
+      <div style="margin-top:4px"><label>Input Format</label>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button class="btn btn-primary" onclick="convertDD()">DD</button>
+          <button class="btn" onclick="convertDMS()">DMS</button>
+        </div>
+      </div>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+        <div class="card-title">DMS Input</div>
+        <div style="display:flex;gap:6px;align-items:end;flex-wrap:wrap">
+          <div class="field" style="width:50px"><label>Lat D</label><input id="dmsLatD" placeholder="30"></div>
+          <div class="field" style="width:50px"><label>M</label><input id="dmsLatM" placeholder="16"></div>
+          <div class="field" style="width:60px"><label>S</label><input id="dmsLatS" placeholder="1.92"></div>
+          <div class="field" style="width:40px"><label>Dir</label><select id="dmsLatDir"><option>N</option><option>S</option></select></div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:end;flex-wrap:wrap;margin-top:4px">
+          <div class="field" style="width:50px"><label>Lng D</label><input id="dmsLngD" placeholder="97"></div>
+          <div class="field" style="width:50px"><label>M</label><input id="dmsLngM" placeholder="44"></div>
+          <div class="field" style="width:60px"><label>S</label><input id="dmsLngS" placeholder="35.16"></div>
+          <div class="field" style="width:40px"><label>Dir</label><select id="dmsLngDir"><option>W</option><option>E</option></select></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title" style="color:var(--green)">Results</div><div id="convResults" style="color:var(--muted)">Enter coordinates and click DD or DMS</div></div>
+  </div>`;
+}
+
+function convertDD(){
+  const lat=parseFloat(document.getElementById('cLat').value);
+  const lng=parseFloat(document.getElementById('cLng').value);
+  if(isNaN(lat)||isNaN(lng))return;
+  showConvResults(lat,lng);
+}
+
+function convertDMS(){
+  const ld=parseFloat(document.getElementById('dmsLatD').value)||0;
+  const lm=parseFloat(document.getElementById('dmsLatM').value)||0;
+  const ls=parseFloat(document.getElementById('dmsLatS').value)||0;
+  const ldir=document.getElementById('dmsLatDir').value==='S'?-1:1;
+  const gd=parseFloat(document.getElementById('dmsLngD').value)||0;
+  const gm=parseFloat(document.getElementById('dmsLngM').value)||0;
+  const gs=parseFloat(document.getElementById('dmsLngS').value)||0;
+  const gdir=document.getElementById('dmsLngDir').value==='W'?-1:1;
+  const lat=dmsToDd(ld,lm,ls,ldir);
+  const lng=dmsToDd(gd,gm,gs,gdir);
+  showConvResults(lat,lng);
+}
+
+function showConvResults(lat,lng){
+  const dmsLat=ddToDms(lat),dmsLng=ddToDms(lng);
+  const utm=ddToUtm(lat,lng);
+  document.getElementById('convResults').innerHTML=`
+    <div class="result-box"><div class="result-label">Decimal Degrees</div><div class="result-value">${lat.toFixed(6)}, ${lng.toFixed(6)}</div></div>
+    <div class="result-box" style="margin-top:8px"><div class="result-label">DMS</div>
+      <div class="result-value">Lat: ${dmsLat.d}&deg; ${dmsLat.m}' ${dmsLat.s}" ${dmsLat.sign>=0?'N':'S'}</div>
+      <div class="result-value">Lng: ${dmsLng.d}&deg; ${dmsLng.m}' ${dmsLng.s}" ${dmsLng.sign>=0?'E':'W'}</div>
+    </div>
+    <div class="result-box" style="margin-top:8px"><div class="result-label">UTM</div>
+      <div class="result-value">Zone ${utm.zone}${utm.band} &nbsp; E ${utm.easting} &nbsp; N ${utm.northing}</div>
+    </div>`;
+}
+
+function renderDistance(el){
+  el.innerHTML=`<div class="card"><div class="card-title">Distance Calculator (Haversine)</div>
+    <div class="grid2">
+      <div><label>Point 1 Latitude</label><input id="d1Lat" placeholder="30.2672"></div>
+      <div><label>Point 1 Longitude</label><input id="d1Lng" placeholder="-97.7431"></div>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Point 2 Latitude</label><input id="d2Lat" placeholder="29.7604"></div>
+      <div><label>Point 2 Longitude</label><input id="d2Lng" placeholder="-95.3698"></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:12px" onclick="calcDist()">Calculate Distance</button>
+    <div id="distResults"></div>
+  </div>`;
+}
+
+function calcDist(){
+  const p=[{lat:parseFloat(document.getElementById('d1Lat').value),lng:parseFloat(document.getElementById('d1Lng').value)},{lat:parseFloat(document.getElementById('d2Lat').value),lng:parseFloat(document.getElementById('d2Lng').value)}];
+  if(p.some(x=>isNaN(x.lat)||isNaN(x.lng)))return;
+  const m=haversine(p[0].lat,p[0].lng,p[1].lat,p[1].lng);
+  const bearing=Math.atan2(Math.sin((p[1].lng-p[0].lng)*Math.PI/180)*Math.cos(p[1].lat*Math.PI/180),Math.cos(p[0].lat*Math.PI/180)*Math.sin(p[1].lat*Math.PI/180)-Math.sin(p[0].lat*Math.PI/180)*Math.cos(p[1].lat*Math.PI/180)*Math.cos((p[1].lng-p[0].lng)*Math.PI/180))*180/Math.PI;
+  document.getElementById('distResults').innerHTML=`<div class="results-grid">
+    ${[['Feet',(m*3.28084).toFixed(2)],['Miles',(m/1609.344).toFixed(4)],['Meters',m.toFixed(2)],['Kilometers',(m/1000).toFixed(4)]].map(([l,v])=>`<div class="result-box"><div class="result-label">${l}</div><div class="result-value">${v}</div></div>`).join('')}
+  </div>
+  <div class="result-box" style="margin-top:8px"><div class="result-label">Bearing</div><div class="result-value">${((bearing+360)%360).toFixed(2)}&deg;</div></div>`;
+}
+
+let areaPts=[{lat:'',lng:''},{lat:'',lng:''},{lat:'',lng:''}];
+function renderArea(el){
+  el.innerHTML=`<div class="card"><div class="card-title">Area Calculator (Polygon)</div>
+    ${areaPts.map((p,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+      <span style="font-size:10px;color:var(--dim);width:24px">P${i+1}</span>
+      <input placeholder="Lat" value="${p.lat}" oninput="areaPts[${i}].lat=this.value">
+      <input placeholder="Lng" value="${p.lng}" oninput="areaPts[${i}].lng=this.value">
+    </div>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn" onclick="areaPts.push({lat:'',lng:''});render()">+ Point</button>
+      ${areaPts.length>3?'<button class="btn" onclick="areaPts.pop();render()">- Point</button>':''}
+      <button class="btn btn-primary" onclick="calcArea()">Calculate Area</button>
+    </div>
+    <div id="areaResults"></div>
+  </div>`;
+}
+
+function calcArea(){
+  const coords=areaPts.map(p=>({lat:parseFloat(p.lat),lng:parseFloat(p.lng)})).filter(p=>!isNaN(p.lat)&&!isNaN(p.lng));
+  if(coords.length<3)return;
+  const sqm=polygonArea(coords);
+  document.getElementById('areaResults').innerHTML=`<div class="results-grid">
+    ${[['Sq Feet',(sqm*10.7639).toFixed(1)],['Acres',(sqm/4046.86).toFixed(4)],['Sq Meters',sqm.toFixed(1)],['Sq Km',(sqm/1e6).toFixed(6)]].map(([l,v])=>`<div class="result-box"><div class="result-label">${l}</div><div class="result-value">${v}</div></div>`).join('')}
+  </div>`;
+}
+
+function renderSites(el){
+  const s=state.sites||[];
+  el.innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin-bottom:0">Project Site Registry (${s.length})</div>
+      <button class="btn btn-gold" onclick="exportCsv(state.sites,'korb_sites.csv',['name','lat','lng','datum','description','tags'])">Export CSV</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
+      <div class="field" style="flex:2;min-width:120px"><label>Name</label><input id="sName"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Latitude</label><input id="sLat" placeholder="30.2672"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Longitude</label><input id="sLng" placeholder="-97.7431"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Datum</label><select id="sDatum"><option>NAD83</option><option>WGS84</option><option>NAD27</option></select></div>
+      <div class="field" style="flex:2;min-width:120px"><label>Description</label><input id="sDesc"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Tags</label><input id="sTags" placeholder="comma,sep"></div>
+      <button class="btn btn-green" style="margin-bottom:10px" onclick="addSite()">+ Add</button>
+    </div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>${['Name','Lat','Lng','Datum','Description','Tags',''].map(h=>'<th>'+h+'</th>').join('')}</tr></thead>
+      <tbody>${s.length===0?'<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">No sites registered</td></tr>':
+        s.map(si=>`<tr>
+          <td>${si.name}</td><td>${si.lat}</td><td>${si.lng}</td>
+          <td style="color:var(--accent)">${si.datum}</td>
+          <td style="color:var(--dim)">${si.description||''}</td>
+          <td>${(si.tags||'').split(',').filter(t=>t.trim()).map(t=>'<span class="tag">'+t.trim()+'</span>').join('')}</td>
+          <td><button class="btn btn-red" style="padding:2px 8px;font-size:9px" onclick="delSite('${si.id}')">DEL</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function addSite(){
+  const n=document.getElementById('sName').value;if(!n)return;
+  state.sites.push({id:genId(),name:n,lat:document.getElementById('sLat').value,lng:document.getElementById('sLng').value,datum:document.getElementById('sDatum').value,description:document.getElementById('sDesc').value,tags:document.getElementById('sTags').value,created:new Date().toISOString()});
+  saveState();render();
+}
+function delSite(id){state.sites=state.sites.filter(s=>s.id!==id);saveState();render()}
+
+function renderSurvey(el){
+  const p=state.points||[];
+  el.innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin-bottom:0">Survey Point Log (${p.length})</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-gold" onclick="exportCsv(state.points,'korb_survey_points.csv',['pointId','northing','easting','elevation','description'])">Export CSV</button>
+        <button class="btn" onclick="importCsv()">Import CSV</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
+      <div class="field" style="flex:1;min-width:80px"><label>Point ID</label><input id="pId" placeholder="CP-001"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Northing</label><input id="pN"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Easting</label><input id="pE"></div>
+      <div class="field" style="flex:1;min-width:80px"><label>Elevation</label><input id="pEl"></div>
+      <div class="field" style="flex:2;min-width:120px"><label>Description</label><input id="pDesc"></div>
+      <button class="btn btn-green" style="margin-bottom:10px" onclick="addPoint()">+ Add</button>
+    </div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>${['Point ID','Northing','Easting','Elevation','Description','Date',''].map(h=>'<th>'+h+'</th>').join('')}</tr></thead>
+      <tbody>${p.length===0?'<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">No survey points logged</td></tr>':
+        p.map(pt=>`<tr>
+          <td style="color:var(--gold)">${pt.pointId}</td><td>${pt.northing}</td><td>${pt.easting}</td><td>${pt.elevation}</td>
+          <td style="color:var(--dim)">${pt.description||''}</td>
+          <td style="font-size:10px;color:var(--dim)">${pt.created?new Date(pt.created).toLocaleDateString():''}</td>
+          <td><button class="btn btn-red" style="padding:2px 8px;font-size:9px" onclick="delPoint('${pt.id}')">DEL</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function addPoint(){
+  const pid=document.getElementById('pId').value;if(!pid)return;
+  state.points.push({id:genId(),pointId:pid,northing:document.getElementById('pN').value,easting:document.getElementById('pE').value,elevation:document.getElementById('pEl').value,description:document.getElementById('pDesc').value,created:new Date().toISOString()});
+  saveState();render();
+}
+function delPoint(id){state.points=state.points.filter(p=>p.id!==id);saveState();render()}
+
+function exportCsv(data,filename,headers){
+  const csv=[headers.join(','),...data.map(r=>headers.map(h=>`"${(r[h]||'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();
+}
+
+function importCsv(){
+  const input=document.createElement('input');input.type='file';input.accept='.csv';
+  input.onchange=e=>{const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();reader.onload=ev=>{
+      const lines=ev.target.result.split('\n').filter(l=>l.trim());
+      if(lines.length<2)return;
+      const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+      for(let i=1;i<lines.length;i++){
+        const vals=lines[i].split(',').map(v=>v.trim().replace(/"/g,''));
+        const obj={id:genId(),created:new Date().toISOString()};
+        headers.forEach((h,j)=>{obj[h]=vals[j]||''});
+        if(obj.pointId)state.points.push(obj);
+      }
+      saveState();render();
+    };reader.readAsText(file);
+  };input.click();
+}
+
+function renderDatums(el){
+  el.innerHTML=`<div class="grid3">${Object.entries(datumShifts).map(([name,info])=>`
+    <div class="card">
+      <div style="font-size:14px;color:var(--gold);margin-bottom:8px;letter-spacing:0.1em">${name}</div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.5">${info.desc}</div>
+      <div class="grid3">
+        ${[['dX',info.dx],['dY',info.dy],['dZ',info.dz]].map(([l,v])=>`<div class="result-box" style="text-align:center">
+          <div class="result-label">${l}</div>
+          <div style="font-size:13px;color:${v===0?'var(--green)':'var(--yellow)'}">${v>0?'+':''}${v} m</div>
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:12px;font-size:10px;color:var(--muted)">${name==='NAD27'?'Shift from NAD27 to WGS84 (Molodensky approx)':'Reference datum (no shift required)'}</div>
+    </div>`).join('')}</div>`;
+}
+
+render();
+</script>
+</body>
+</html>

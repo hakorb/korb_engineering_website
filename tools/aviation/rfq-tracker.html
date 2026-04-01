@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RFQ Tracker | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--bg3:#141c28;--border:#1a2535;--accent:#00d4ff;--accentDim:rgba(0,212,255,0.15);--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#e2e8f0;--textDim:rgba(226,232,240,0.45);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.5;min-height:100vh}
+::selection{background:var(--accent);color:var(--bg)}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+.app{max-width:1400px;margin:0 auto;padding:16px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:18px;font-weight:600;color:var(--accent);letter-spacing:1px}
+.header h1 span{color:var(--textDim);font-weight:300}
+
+.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--textDim);font-family:var(--font);font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s}
+.tab:hover{border-color:var(--accent);color:var(--text)}
+.tab.active{background:var(--accentDim);border-color:var(--accent);color:var(--accent)}
+
+.panel{border:1px solid var(--border);border-radius:6px;background:var(--bg1);padding:16px;margin-bottom:12px}
+.panel h2{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:12px}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:16px}
+.stat{padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);text-align:center}
+.stat .label{font-size:9px;color:var(--textDim);text-transform:uppercase}
+.stat .value{font-size:18px;font-weight:700;color:var(--accent);margin-top:2px}
+
+.filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+
+.input{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:12px;padding:6px 10px;border-radius:4px;outline:none}
+.input:focus{border-color:var(--accent)}
+select.input{cursor:pointer}
+
+.btn{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text);font-family:var(--font);font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-accent{background:var(--accentDim);border-color:var(--accent);color:var(--accent)}
+
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:8px;border-bottom:1px solid var(--border);color:var(--accent);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--text)}
+td{padding:8px;border-bottom:1px solid rgba(26,37,53,0.5)}
+tr:hover td{background:rgba(0,212,255,0.03)}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:500}
+.urgency-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+
+.rfq-row{transition:all .2s}
+.rfq-row.expanded{background:var(--bg2)}
+.detail-panel{padding:12px;background:var(--bg2);border-top:1px solid var(--border)}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+@media(max-width:800px){.form-grid{grid-template-columns:1fr 1fr}table{font-size:10px}th,td{padding:6px 4px}}
+@media(max-width:500px){.form-grid{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:3px}
+.form-group label{font-size:9px;color:var(--textDim);text-transform:uppercase}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:600px;width:100%;max-height:90vh;overflow:auto}
+
+.bookmark-star{cursor:pointer;font-size:14px;transition:all .2s}
+.bookmark-star:hover{transform:scale(1.2)}
+
+.korb-badge{position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="korb-badge">Korb Engineering</div>
+<script>
+(function(){
+const LS_KEY='korb_rfq';
+const uid=()=>Math.random().toString(36).slice(2,10);
+const fmtDollar=v=>v>=1e6?'$'+(v/1e6).toFixed(1)+'M':'$'+(v/1e3).toFixed(0)+'K';
+const fmtDate=d=>new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+const daysUntil=d=>Math.ceil((new Date(d)-new Date())/86400000);
+const day=86400000;
+const rng=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+function urgencyColor(due){const d=daysUntil(due);if(d<0)return'#6b7280';if(d<7)return'var(--red)';if(d<=14)return'var(--yellow)';return'var(--green)';}
+function statusLabel(due){const d=daysUntil(due);if(d<0)return'Expired';if(d<7)return'Closing Soon';return'Active';}
+
+function generateSeed(){
+const now=Date.now();
+const futureDate=(lo,hi)=>new Date(now+rng(lo,hi)*day).toISOString().slice(0,10);
+const pastDate=(lo,hi)=>new Date(now-rng(lo,hi)*day).toISOString().slice(0,10);
+const entries=[
+{agency:'Broward County Aviation',project:'Runway 18/36 Rehabilitation - BCT',type:'RFQ',category:'Airport',location:'FL',value:320000},
+{agency:'Broward County Aviation',project:'Taxiway A Reconstruction - PMP',type:'RFQ',category:'Airport',location:'FL',value:475000},
+{agency:'Collier County Airport Authority',project:'Apron Expansion - Naples Municipal (APF)',type:'RFP',category:'Airport',location:'FL',value:890000},
+{agency:'Okeechobee County',project:'AWOS Installation - OBE',type:'RFQ',category:'Airport',location:'FL',value:125000},
+{agency:'Broward County Aviation',project:'Terminal Expansion Phase II - FLL',type:'RFP',category:'Airport',location:'FL',value:4200000},
+{agency:'Miami-Dade Aviation',project:'Runway 10L/28R Overlay - MIA',type:'RFQ',category:'Airport',location:'FL',value:3800000},
+{agency:'Greater Orlando Aviation Authority',project:'Ground Transportation Center - MCO',type:'RFP',category:'Airport',location:'FL',value:5000000},
+{agency:'Lee County Port Authority',project:'Parallel Taxiway Extension - RSW',type:'RFQ',category:'Airport',location:'FL',value:1650000},
+{agency:'Palm Beach County DOA',project:'ARFF Station Replacement - PBI',type:'RFP',category:'Airport',location:'FL',value:2100000},
+{agency:'FAA Southern Region',project:'NAVAID Upgrade Program - SE GA Airports',type:'RFQ',category:'Airport',location:'GA',value:780000},
+{agency:'Hillsborough County Aviation',project:'Concourse F Expansion - TPA',type:'RFP',category:'Airport',location:'FL',value:4500000},
+{agency:'FAA Southern Region',project:'Wildlife Hazard Assessment - MLB',type:'RFQ',category:'Airport',location:'FL',value:95000},
+{agency:'FDOT District 4',project:'SR-826 Palmetto Expressway Widening',type:'RFP',category:'Highway',location:'FL',value:18500000},
+{agency:'FDOT District 6',project:'US-1 Resurfacing - Monroe County',type:'RFQ',category:'Highway',location:'FL',value:6200000},
+{agency:'FDOT District 4',project:'I-95 Bridge Deck Replacement - Segment 7B',type:'RFP',category:'Bridge',location:'FL',value:12800000},
+{agency:'Palm Beach County Engineering',project:'Southern Blvd Bridge Rehabilitation',type:'RFQ',category:'Bridge',location:'FL',value:3400000},
+{agency:'Miami-Dade WASD',project:'North District WWTP Expansion',type:'RFP',category:'Water',location:'FL',value:22000000},
+{agency:'Broward County Water Resources',project:'Stormwater Master Plan Update',type:'RFQ',category:'Water',location:'FL',value:480000},
+{agency:'City of Fort Lauderdale',project:'Central Beach Drainage Improvements',type:'RFQ',category:'Water',location:'FL',value:1250000},
+{agency:'GDOT',project:'I-16/I-75 Interchange Reconstruction - Macon',type:'RFP',category:'Highway',location:'GA',value:35000000},
+{agency:'Jacksonville Aviation Authority',project:'Taxiway C Rehabilitation - Cecil Airport (VQQ)',type:'RFQ',category:'Airport',location:'FL',value:550000},
+{agency:'Gainesville Regional Airport',project:'Terminal HVAC Replacement - GNV',type:'IFB',category:'Airport',location:'FL',value:310000},
+{agency:'City of Miami Public Works',project:'Brickell Avenue Streetscape & Utility Relocation',type:'RFP',category:'General',location:'FL',value:7600000},
+];
+return entries.map((e,i)=>({id:uid(),agency:e.agency,project:e.project,type:e.type,category:e.category,location:e.location,value:e.value,
+postedDate:pastDate(5,30),dueDate:i<3?futureDate(-3,4):i<8?futureDate(5,13):futureDate(14,55),
+bookmarked:false,notes:'',pursuit:''}));
+}
+
+let data={};
+let tab='all';
+let search='';
+let filters={category:'',location:'',type:'',status:''};
+let sortCol='dueDate';
+let sortAsc=true;
+let expandedId=null;
+let showAddModal=false;
+let form={agency:'',project:'',type:'RFQ',category:'Airport',location:'FL',dueDate:'',value:'',postedDate:''};
+
+function loadData(){
+try{const r=localStorage.getItem(LS_KEY);if(r){const d=JSON.parse(r);if(d.items&&d.items.length)return d;}}catch(e){}
+return{items:generateSeed(),lastUpdated:new Date().toISOString()};
+}
+function saveData(){localStorage.setItem(LS_KEY,JSON.stringify(data));}
+
+function getFiltered(){
+let r=data.items.slice();
+if(search){const s=search.toLowerCase();r=r.filter(i=>(i.project+i.agency).toLowerCase().includes(s));}
+if(filters.category)r=r.filter(i=>i.category===filters.category);
+if(filters.location)r=r.filter(i=>i.location===filters.location);
+if(filters.type)r=r.filter(i=>i.type===filters.type);
+if(filters.status)r=r.filter(i=>statusLabel(i.dueDate)===filters.status);
+return r;
+}
+
+function getSorted(){
+const r=getFiltered();
+r.sort((a,b)=>{let va=a[sortCol],vb=b[sortCol];if(sortCol==='value'){va=+va;vb=+vb;}
+if(va<vb)return sortAsc?-1:1;if(va>vb)return sortAsc?1:-1;return 0;});
+return r;
+}
+
+function getAnalytics(){
+const items=data.items||[];
+const active=items.filter(i=>daysUntil(i.dueDate)>=0);
+const thisWeek=active.filter(i=>daysUntil(i.dueDate)<=7);
+const avgVal=active.length?active.reduce((s,i)=>s+i.value,0)/active.length:0;
+const byCat={};active.forEach(i=>{byCat[i.category]=(byCat[i.category]||0)+1;});
+const bookmarked=items.filter(i=>i.bookmarked);
+const pursued=bookmarked.filter(i=>i.pursuit);
+const won=pursued.filter(i=>i.pursuit==='Won').length;
+const lost=pursued.filter(i=>i.pursuit==='Lost').length;
+const decided=won+lost;
+const winRate=decided?Math.round(won/decided*100)+'%':'--';
+const totalValue=active.reduce((s,i)=>s+i.value,0);
+return{active:active.length,thisWeek:thisWeek.length,avgVal,byCat,winRate,won,lost,totalPursued:pursued.length,totalValue,bookmarked:bookmarked.length};
+}
+
+function init(){data=loadData();render();}
+
+function render(){
+const a=getAnalytics();
+const app=document.getElementById('app');
+app.innerHTML=`
+<div class="header">
+  <h1>RFQ TRACKER <span>// Bid Management</span></h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-accent" onclick="openAddModal()">+ New RFQ</button>
+    <button class="btn" onclick="exportCSV()">Export CSV</button>
+    <button class="btn" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+<div class="stat-grid">
+  <div class="stat"><div class="label">Active RFQs</div><div class="value">${a.active}</div></div>
+  <div class="stat"><div class="label">Due This Week</div><div class="value" style="color:${a.thisWeek?'var(--red)':'var(--green)'}">${a.thisWeek}</div></div>
+  <div class="stat"><div class="label">Total Pipeline</div><div class="value" style="font-size:14px">${fmtDollar(a.totalValue)}</div></div>
+  <div class="stat"><div class="label">Avg Value</div><div class="value" style="font-size:14px">${fmtDollar(a.avgVal)}</div></div>
+  <div class="stat"><div class="label">Bookmarked</div><div class="value">${a.bookmarked}</div></div>
+  <div class="stat"><div class="label">Win Rate</div><div class="value">${a.winRate}</div></div>
+</div>
+<div class="tabs">
+  ${['all','bookmarked','analytics','add'].map(t=>`<button class="tab ${tab===t?'active':''}" onclick="setTab('${t}')">${t==='all'?'All RFQs ('+data.items.length+')':t==='bookmarked'?'Bookmarked':t==='analytics'?'Analytics':'Add New'}</button>`).join('')}
+</div>
+<div id="content">${tab==='all'?renderAll():tab==='bookmarked'?renderBookmarked():tab==='analytics'?renderAnalytics():renderAddForm()}</div>
+${showAddModal?renderModal():''}`;
+}
+
+function renderAll(){
+const sorted=getSorted();
+const cats=[...new Set(data.items.map(i=>i.category))].sort();
+const locs=[...new Set(data.items.map(i=>i.location))].sort();
+const types=[...new Set(data.items.map(i=>i.type))].sort();
+return `<div class="panel">
+<div class="filter-bar">
+  <input class="input" style="width:200px" placeholder="Search projects..." value="${search}" oninput="search=this.value;render()">
+  <select class="input" onchange="filters.category=this.value;render()"><option value="">All Categories</option>${cats.map(c=>`<option ${filters.category===c?'selected':''}>${c}</option>`).join('')}</select>
+  <select class="input" onchange="filters.location=this.value;render()"><option value="">All States</option>${locs.map(l=>`<option ${filters.location===l?'selected':''}>${l}</option>`).join('')}</select>
+  <select class="input" onchange="filters.type=this.value;render()"><option value="">All Types</option>${types.map(t=>`<option ${filters.type===t?'selected':''}>${t}</option>`).join('')}</select>
+  <select class="input" onchange="filters.status=this.value;render()"><option value="">All Status</option><option>Active</option><option>Closing Soon</option><option>Expired</option></select>
+  <button class="btn" style="font-size:10px" onclick="search='';filters={category:'',location:'',type:'',status:''};render()">Clear</button>
+</div>
+<div style="font-size:10px;color:var(--textDim);margin-bottom:8px">${sorted.length} results</div>
+<div style="overflow-x:auto">
+<table>
+<thead><tr>
+  <th style="width:30px"></th>
+  <th onclick="doSort('project')">Project ${sortCol==='project'?(sortAsc?'&#9650;':'&#9660;'):''}</th>
+  <th onclick="doSort('agency')">Agency ${sortCol==='agency'?(sortAsc?'&#9650;':'&#9660;'):''}</th>
+  <th onclick="doSort('type')">Type</th>
+  <th onclick="doSort('category')">Category</th>
+  <th onclick="doSort('value')">Value ${sortCol==='value'?(sortAsc?'&#9650;':'&#9660;'):''}</th>
+  <th onclick="doSort('dueDate')">Due ${sortCol==='dueDate'?(sortAsc?'&#9650;':'&#9660;'):''}</th>
+  <th>Status</th>
+  <th style="width:60px"></th>
+</tr></thead>
+<tbody>
+${sorted.map(i=>{
+const d=daysUntil(i.dueDate);
+const uc=urgencyColor(i.dueDate);
+const sl=statusLabel(i.dueDate);
+const expanded=expandedId===i.id;
+return `<tr class="rfq-row ${expanded?'expanded':''}" onclick="toggleExpand('${i.id}')">
+  <td><span class="bookmark-star" onclick="event.stopPropagation();toggleBookmark('${i.id}')">${i.bookmarked?'&#9733;':'&#9734;'}</span></td>
+  <td style="font-weight:500;max-width:300px"><span class="urgency-dot" style="background:${uc}"></span>${i.project}</td>
+  <td style="color:var(--textDim);font-size:10px">${i.agency}</td>
+  <td><span class="badge" style="background:var(--accentDim);color:var(--accent);border:1px solid rgba(0,212,255,0.3)">${i.type}</span></td>
+  <td style="font-size:10px">${i.category}</td>
+  <td style="font-weight:500;color:var(--accent)">${fmtDollar(i.value)}</td>
+  <td style="white-space:nowrap"><div style="font-size:11px">${fmtDate(i.dueDate)}</div><div style="font-size:9px;color:${uc}">${d<0?Math.abs(d)+'d ago':d===0?'Today':d+'d left'}</div></td>
+  <td><span class="badge" style="background:${sl==='Expired'?'rgba(107,114,128,0.2);color:#6b7280;border:1px solid rgba(107,114,128,0.3)':sl==='Closing Soon'?'rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)':'rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)'}">${sl}</span></td>
+  <td><button class="btn" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();deleteItem('${i.id}')">DEL</button></td>
+</tr>
+${expanded?`<tr><td colspan="9" class="detail-panel">
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:11px">
+  <div><span style="color:var(--textDim)">Posted:</span> ${fmtDate(i.postedDate)}</div>
+  <div><span style="color:var(--textDim)">Location:</span> ${i.location}</div>
+  <div><span style="color:var(--textDim)">Value:</span> $${i.value.toLocaleString()}</div>
+</div>
+<div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <div class="form-group"><label>Pursuit Status</label>
+    <select class="input" onclick="event.stopPropagation()" onchange="updateItem('${i.id}','pursuit',this.value)">
+      <option value="" ${!i.pursuit?'selected':''}>-- None --</option>
+      <option ${i.pursuit==='Pursuing'?'selected':''}>Pursuing</option>
+      <option ${i.pursuit==='Submitted'?'selected':''}>Submitted</option>
+      <option ${i.pursuit==='Won'?'selected':''}>Won</option>
+      <option ${i.pursuit==='Lost'?'selected':''}>Lost</option>
+      <option ${i.pursuit==='No Bid'?'selected':''}>No Bid</option>
+    </select>
+  </div>
+  <div class="form-group"><label>Notes</label>
+    <input class="input" value="${i.notes||''}" onclick="event.stopPropagation()" onchange="updateItem('${i.id}','notes',this.value)" placeholder="Add notes...">
+  </div>
+</div>
+</td></tr>`:''}`;}).join('')}
+</tbody></table></div></div>`;
+}
+
+function renderBookmarked(){
+const bm=data.items.filter(i=>i.bookmarked);
+if(!bm.length)return '<div class="panel" style="text-align:center;padding:30px;color:var(--textDim)">No bookmarked RFQs. Click the star icon to bookmark items.</div>';
+return `<div class="panel"><h2>Bookmarked RFQs (${bm.length})</h2>
+${bm.map(i=>{const d=daysUntil(i.dueDate);const uc=urgencyColor(i.dueDate);
+return `<div style="padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);margin:6px 0">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+  <div style="flex:1">
+    <div style="font-weight:600;font-size:12px"><span class="urgency-dot" style="background:${uc}"></span>${i.project}</div>
+    <div style="font-size:10px;color:var(--textDim)">${i.agency} | ${i.type} | ${i.category}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-weight:600;color:var(--accent)">${fmtDollar(i.value)}</div>
+    <div style="font-size:9px;color:${uc}">${d<0?'Expired '+Math.abs(d)+'d ago':'Due: '+fmtDate(i.dueDate)}</div>
+  </div>
+</div>
+<div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+  <select class="input" style="width:auto" onchange="updateItem('${i.id}','pursuit',this.value)">
+    <option value="" ${!i.pursuit?'selected':''}>-- Status --</option>
+    <option ${i.pursuit==='Pursuing'?'selected':''}>Pursuing</option>
+    <option ${i.pursuit==='Submitted'?'selected':''}>Submitted</option>
+    <option ${i.pursuit==='Won'?'selected':''}>Won</option>
+    <option ${i.pursuit==='Lost'?'selected':''}>Lost</option>
+    <option ${i.pursuit==='No Bid'?'selected':''}>No Bid</option>
+  </select>
+  ${i.pursuit?`<span class="badge" style="background:${i.pursuit==='Won'?'rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)':i.pursuit==='Lost'?'rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)':'var(--accentDim);color:var(--accent);border:1px solid rgba(0,212,255,0.3)'}">${i.pursuit}</span>`:''}
+  <span class="bookmark-star" onclick="toggleBookmark('${i.id}')" style="margin-left:auto">&#9733;</span>
+</div></div>`;}).join('')}</div>`;
+}
+
+function renderAnalytics(){
+const a=getAnalytics();
+const items=data.items||[];
+const active=items.filter(i=>daysUntil(i.dueDate)>=0);
+const byCat={};active.forEach(i=>{byCat[i.category]=(byCat[i.category]||0)+1;});
+const byType={};active.forEach(i=>{byType[i.type]=(byType[i.type]||0)+1;});
+const maxCat=Math.max(...Object.values(byCat),1);
+const maxType=Math.max(...Object.values(byType),1);
+const catColors={'Airport':'var(--accent)','Highway':'var(--yellow)','Bridge':'var(--red)','Water':'#06b6d4','General':'#8b5cf6'};
+
+return `<div class="panel"><h2>Pipeline Analytics</h2>
+<div class="stat-grid">
+  <div class="stat"><div class="label">Total Pipeline</div><div class="value" style="font-size:14px">${fmtDollar(a.totalValue)}</div></div>
+  <div class="stat"><div class="label">Active</div><div class="value">${a.active}</div></div>
+  <div class="stat"><div class="label">Due This Week</div><div class="value" style="color:var(--red)">${a.thisWeek}</div></div>
+  <div class="stat"><div class="label">Win Rate</div><div class="value">${a.winRate}</div></div>
+  <div class="stat"><div class="label">Won</div><div class="value" style="color:var(--green)">${a.won}</div></div>
+  <div class="stat"><div class="label">Lost</div><div class="value" style="color:var(--red)">${a.lost}</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+<div>
+<h3 style="font-size:12px;color:var(--accent);margin-bottom:8px">By Category</h3>
+${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+  <span style="width:70px;font-size:10px">${k}</span>
+  <div style="flex:1;height:14px;background:var(--bg);border-radius:3px;overflow:hidden">
+    <div style="height:100%;width:${v/maxCat*100}%;background:${catColors[k]||'var(--accent)'};border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:8px;font-weight:700">${v}</div>
+  </div>
+</div>`).join('')}
+</div>
+<div>
+<h3 style="font-size:12px;color:var(--accent);margin-bottom:8px">By Type</h3>
+${Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+  <span style="width:50px;font-size:10px">${k}</span>
+  <div style="flex:1;height:14px;background:var(--bg);border-radius:3px;overflow:hidden">
+    <div style="height:100%;width:${v/maxType*100}%;background:var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:8px;font-weight:700">${v}</div>
+  </div>
+</div>`).join('')}
+</div></div></div>`;
+}
+
+function renderAddForm(){
+return `<div class="panel"><h2>Add New RFQ</h2>
+<div class="form-grid">
+  <div class="form-group"><label>Agency</label><input class="input" value="${form.agency}" oninput="form.agency=this.value"></div>
+  <div class="form-group"><label>Project</label><input class="input" value="${form.project}" oninput="form.project=this.value"></div>
+  <div class="form-group"><label>Type</label><select class="input" onchange="form.type=this.value"><option>RFQ</option><option>RFP</option><option>IFB</option></select></div>
+  <div class="form-group"><label>Category</label><select class="input" onchange="form.category=this.value"><option>Airport</option><option>Highway</option><option>Bridge</option><option>Water</option><option>General</option></select></div>
+  <div class="form-group"><label>Location</label><input class="input" value="${form.location}" oninput="form.location=this.value" maxlength="2" placeholder="FL"></div>
+  <div class="form-group"><label>Estimated Value ($)</label><input class="input" type="number" value="${form.value}" oninput="form.value=this.value"></div>
+  <div class="form-group"><label>Due Date</label><input class="input" type="date" value="${form.dueDate}" oninput="form.dueDate=this.value"></div>
+  <div class="form-group"><label>Posted Date</label><input class="input" type="date" value="${form.postedDate}" oninput="form.postedDate=this.value"></div>
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+  <button class="btn" onclick="form={agency:'',project:'',type:'RFQ',category:'Airport',location:'FL',dueDate:'',value:'',postedDate:''};render()">Clear</button>
+  <button class="btn btn-accent" onclick="addItem()">Add RFQ</button>
+</div></div>`;
+}
+
+function renderModal(){return '';}
+
+window.setTab=function(t){tab=t;render();};
+window.doSort=function(col){if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true;}render();};
+window.toggleExpand=function(id){expandedId=expandedId===id?null:id;render();};
+window.toggleBookmark=function(id){data.items=data.items.map(i=>i.id===id?{...i,bookmarked:!i.bookmarked}:i);saveData();render();};
+window.updateItem=function(id,key,val){data.items=data.items.map(i=>i.id===id?{...i,[key]:val}:i);saveData();render();};
+window.deleteItem=function(id){if(!confirm('Delete this RFQ?'))return;data.items=data.items.filter(i=>i.id!==id);saveData();render();};
+window.addItem=function(){
+if(!form.project||!form.agency||!form.dueDate){alert('Project, agency, and due date are required.');return;}
+data.items.push({id:uid(),agency:form.agency,project:form.project,type:form.type,category:form.category,location:form.location,
+value:+form.value||0,postedDate:form.postedDate||new Date().toISOString().slice(0,10),dueDate:form.dueDate,bookmarked:false,notes:'',pursuit:''});
+saveData();form={agency:'',project:'',type:'RFQ',category:'Airport',location:'FL',dueDate:'',value:'',postedDate:''};tab='all';render();
+};
+window.openAddModal=function(){tab='add';render();};
+window.exportCSV=function(){
+const headers=['Project','Agency','Type','Category','Location','Value','Posted','Due','Pursuit','Notes'];
+const rows=data.items.map(i=>[i.project,i.agency,i.type,i.category,i.location,i.value,i.postedDate,i.dueDate,i.pursuit||'',i.notes||''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+const csv=[headers.join(','),...rows].join('\n');
+const blob=new Blob([csv],{type:'text/csv'});
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='rfq-tracker.csv';a.click();
+};
+window.resetAll=function(){if(confirm('Reset all data? This will regenerate seed data.')){localStorage.removeItem(LS_KEY);data={items:generateSeed(),lastUpdated:new Date().toISOString()};saveData();render();}};
+
+init();
+})();
+</script>
+</body>
+</html>
