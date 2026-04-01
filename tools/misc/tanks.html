@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TANKS — Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050a0f;color:#c0c0c0;font-family:'JetBrains Mono',monospace;overflow:hidden;height:100vh;width:100vw;display:flex;flex-direction:column;align-items:center}
+#header{width:100%;text-align:center;padding:8px 0 4px;z-index:10;position:relative}
+#header h1{font-size:28px;font-weight:700;color:#00d4ff;letter-spacing:8px;text-shadow:0 0 20px rgba(0,212,255,0.5)}
+#wind-indicator{position:absolute;top:8px;right:120px;font-size:13px;color:#ff6600}
+#turn-indicator{position:absolute;top:8px;left:20px;font-size:14px;font-weight:600}
+#korb-label{position:fixed;bottom:8px;right:12px;font-size:11px;color:#00d4ff;opacity:0.6;z-index:100;letter-spacing:1px}
+#game-canvas{border:1px solid rgba(0,212,255,0.15);display:block;cursor:crosshair;image-rendering:pixelated}
+#controls{display:flex;gap:12px;padding:6px 12px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:1000px}
+.ctrl-group{display:flex;align-items:center;gap:6px;font-size:12px}
+.ctrl-group label{color:#00d4ff;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.ctrl-group input[type=range]{width:100px;accent-color:#00d4ff}
+.ctrl-group .val{color:#ff6600;min-width:36px;text-align:right;font-size:13px;font-weight:600}
+#weapon-bar{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;padding:4px 8px}
+.weapon-btn{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.25);color:#c0c0c0;font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;cursor:pointer;border-radius:3px;transition:all .15s;white-space:nowrap}
+.weapon-btn:hover{background:rgba(0,212,255,0.2);border-color:#00d4ff}
+.weapon-btn.active{background:rgba(0,212,255,0.25);border-color:#00d4ff;color:#00d4ff;box-shadow:0 0 8px rgba(0,212,255,0.3)}
+.weapon-btn.empty{opacity:0.3;pointer-events:none}
+.weapon-btn .count{color:#ff6600;font-weight:600;margin-left:3px}
+#fire-btn{background:linear-gradient(135deg,#ff6600,#ff4400);color:#fff;border:none;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;padding:8px 24px;cursor:pointer;border-radius:4px;letter-spacing:2px;text-transform:uppercase;transition:all .15s}
+#fire-btn:hover{transform:scale(1.05);box-shadow:0 0 15px rgba(255,102,0,0.5)}
+#fire-btn:disabled{opacity:0.3;transform:none;cursor:default}
+#setup-screen{position:fixed;inset:0;background:rgba(5,10,15,0.95);display:flex;align-items:center;justify-content:center;z-index:50}
+#setup-box{background:#0a1018;border:1px solid rgba(0,212,255,0.3);padding:40px;border-radius:8px;text-align:center;min-width:340px}
+#setup-box h2{color:#00d4ff;font-size:24px;letter-spacing:6px;margin-bottom:24px}
+.setup-row{margin:12px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.setup-row label{font-size:13px;color:#c0c0c0}
+.setup-row select,.setup-row input{background:#050a0f;border:1px solid rgba(0,212,255,0.3);color:#00d4ff;font-family:'JetBrains Mono',monospace;font-size:13px;padding:6px 10px;border-radius:3px}
+#start-btn{margin-top:24px;background:linear-gradient(135deg,#00d4ff,#0099cc);color:#050a0f;border:none;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;padding:12px 36px;cursor:pointer;border-radius:4px;letter-spacing:3px;transition:all .15s}
+#start-btn:hover{transform:scale(1.05);box-shadow:0 0 20px rgba(0,212,255,0.4)}
+#overlay{position:fixed;inset:0;background:rgba(5,10,15,0.85);display:none;align-items:center;justify-content:center;z-index:40;flex-direction:column}
+#overlay h2{color:#00d4ff;font-size:28px;letter-spacing:4px;margin-bottom:12px}
+#overlay p{color:#ff6600;font-size:18px;margin-bottom:20px}
+#overlay button{background:linear-gradient(135deg,#00d4ff,#0099cc);color:#050a0f;border:none;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;padding:10px 28px;cursor:pointer;border-radius:4px;letter-spacing:2px;margin:4px}
+#overlay button:hover{transform:scale(1.05)}
+#score-display{color:#c0c0c0;font-size:14px;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div id="setup-screen">
+<div id="setup-box">
+<h2>TANKS</h2>
+<div class="setup-row">
+<label>Mode</label>
+<select id="mode-select">
+<option value="2p">2 Player</option>
+<option value="ai" selected>vs AI</option>
+</select>
+</div>
+<div class="setup-row" id="diff-row">
+<label>AI Difficulty</label>
+<select id="diff-select">
+<option value="easy">Easy</option>
+<option value="medium" selected>Medium</option>
+<option value="hard">Hard</option>
+</select>
+</div>
+<div class="setup-row">
+<label>Rounds</label>
+<select id="rounds-select">
+<option value="1">1</option>
+<option value="3" selected>3</option>
+<option value="5">5</option>
+</select>
+</div>
+<button id="start-btn">START GAME</button>
+</div>
+</div>
+
+<div id="overlay">
+<h2 id="overlay-title"></h2>
+<p id="overlay-sub"></p>
+<div id="score-display"></div>
+<div>
+<button id="next-round-btn">Next Round</button>
+<button id="new-game-btn">New Game</button>
+</div>
+</div>
+
+<div id="header">
+<h1>TANKS</h1>
+<div id="turn-indicator"></div>
+<div id="wind-indicator"></div>
+</div>
+
+<canvas id="game-canvas"></canvas>
+
+<div id="weapon-bar"></div>
+<div id="controls">
+<div class="ctrl-group">
+<label>Angle</label>
+<input type="range" id="angle-slider" min="0" max="180" value="45">
+<span class="val" id="angle-val">45°</span>
+</div>
+<div class="ctrl-group">
+<label>Power</label>
+<input type="range" id="power-slider" min="1" max="100" value="50">
+<span class="val" id="power-val">50%</span>
+</div>
+<button id="fire-btn">FIRE</button>
+</div>
+
+<div id="korb-label">Korb Engineering</div>
+
+<script>
+// ==================== AUDIO ENGINE ====================
+const AudioEngine = {
+  ctx: null,
+  init() {
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  },
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  play(type, opts = {}) {
+    this.init(); this.resume();
+    const c = this.ctx, t = c.currentTime;
+    const g = c.createGain();
+    g.connect(c.destination);
+    if (type === 'fire') {
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(40, t + 0.3);
+      g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      o.connect(g); o.start(t); o.stop(t + 0.4);
+      const n = c.createBufferSource();
+      const buf = c.createBuffer(1, c.sampleRate * 0.15, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      n.buffer = buf; const g2 = c.createGain(); g2.gain.setValueAtTime(0.2, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      n.connect(g2); g2.connect(c.destination); n.start(t); n.stop(t + 0.15);
+    } else if (type === 'whistle') {
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(800 + Math.random() * 200, t);
+      o.frequency.linearRampToValueAtTime(400, t + 1.5);
+      g.gain.setValueAtTime(0.06, t); g.gain.linearRampToValueAtTime(0.02, t + 1.5);
+      o.connect(g); o.start(t); o.stop(t + 1.5);
+      return { stop: () => { try { o.stop(); } catch(e){} } };
+    } else if (type === 'explode') {
+      const sz = opts.size || 1;
+      const dur = 0.3 + sz * 0.3;
+      const n = c.createBufferSource();
+      const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+      n.buffer = buf; g.gain.setValueAtTime(0.4 * sz, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2000, t); lp.frequency.exponentialRampToValueAtTime(100, t + dur);
+      n.connect(lp); lp.connect(g); n.start(t); n.stop(t + dur);
+    } else if (type === 'damage') {
+      const o = c.createOscillator(); o.type = 'square';
+      o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(80, t + 0.2);
+      g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      o.connect(g); o.start(t); o.stop(t + 0.25);
+    } else if (type === 'turn') {
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(600, t); o.frequency.setValueAtTime(800, t + 0.08);
+      g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.connect(g); o.start(t); o.stop(t + 0.2);
+    } else if (type === 'victory') {
+      [523, 659, 784, 1047].forEach((f, i) => {
+        const o = c.createOscillator(); o.type = 'square';
+        const g2 = c.createGain(); g2.gain.setValueAtTime(0.1, t + i * 0.15);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.3);
+        o.frequency.setValueAtTime(f, t + i * 0.15);
+        o.connect(g2); g2.connect(c.destination);
+        o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.3);
+      });
+    } else if (type === 'bounce') {
+      const o = c.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(500, t); o.frequency.exponentialRampToValueAtTime(300, t + 0.1);
+      g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      o.connect(g); o.start(t); o.stop(t + 0.12);
+    } else if (type === 'laser') {
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(2000, t); o.frequency.exponentialRampToValueAtTime(200, t + 0.3);
+      g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      o.connect(g); o.start(t); o.stop(t + 0.35);
+    }
+  }
+};
+
+// ==================== WEAPON DEFINITIONS ====================
+const WEAPONS = {
+  standard:  { name: 'Standard',    icon: '●', radius: 28, damage: 20, speed: 1,   color: '#ffaa00' },
+  bigbertha: { name: 'Big Bertha',  icon: '◉', radius: 55, damage: 40, speed: 0.7, color: '#ff4444' },
+  scatter:   { name: 'Scatter',     icon: '⁂', radius: 18, damage: 12, speed: 1,   color: '#ffcc00', scatter: true },
+  napalm:    { name: 'Napalm',      icon: '🔥', radius: 22, damage: 15, speed: 0.9, color: '#ff6600', napalm: true },
+  dirt:      { name: 'Dirt Bomb',   icon: '▓', radius: 35, damage: 0,  speed: 0.9, color: '#8B6914', dirt: true },
+  tunneler:  { name: 'Tunneler',    icon: '→', radius: 12, damage: 25, speed: 1.2, color: '#00ff88', tunnel: true },
+  bouncer:   { name: 'Bouncer',     icon: '◎', radius: 22, damage: 18, speed: 1,   color: '#ff00ff', bounces: 3 },
+  nuke:      { name: 'Nuke',        icon: '☢', radius: 100,damage: 60, speed: 0.6, color: '#ff0000' },
+  laser:     { name: 'Laser',       icon: '⚡', radius: 15, damage: 15, speed: 99,  color: '#00ffff', laser: true },
+  rain:      { name: 'Rain',        icon: '☂', radius: 20, damage: 14, speed: 1,   color: '#6666ff', rain: true }
+};
+
+const DEFAULT_AMMO = {
+  standard: 99, bigbertha: 3, scatter: 2, napalm: 2, dirt: 1,
+  tunneler: 2, bouncer: 2, nuke: 1, laser: 2, rain: 1
+};
+
+// ==================== GAME STATE ====================
+let canvas, ctx, W, H;
+let terrain = [];
+let particles = [];
+let projectiles = [];
+let fires = [];
+let trailDots = [];
+let shakeAmount = 0;
+let shakeDecay = 0.9;
+
+let gameMode = 'ai';
+let aiDifficulty = 'medium';
+let totalRounds = 3;
+let currentRound = 1;
+let scores = [0, 0];
+
+let players = [];
+let currentPlayer = 0;
+let gameState = 'setup'; // setup, playing, firing, animating, roundEnd, matchEnd
+let wind = 0;
+let selectedWeapon = 'standard';
+let cameraX = 0;
+let cameraTargetX = 0;
+
+const GRAVITY = 0.15;
+const TANK_W = 30;
+const TANK_H = 16;
+
+// ==================== INITIALIZATION ====================
+function initCanvas() {
+  canvas = document.getElementById('game-canvas');
+  ctx = canvas.getContext('2d');
+  resize();
+  window.addEventListener('resize', resize);
+}
+
+function resize() {
+  const maxW = Math.min(window.innerWidth - 20, 1200);
+  const maxH = Math.min(window.innerHeight - 200, 600);
+  W = Math.max(maxW, 600);
+  H = Math.max(maxH, 350);
+  canvas.width = W;
+  canvas.height = H;
+}
+
+function generateTerrain() {
+  terrain = new Array(W).fill(0);
+  // Midpoint displacement
+  const minH = H * 0.3;
+  const maxTH = H * 0.7;
+  terrain[0] = minH + Math.random() * (maxTH - minH);
+  terrain[W - 1] = minH + Math.random() * (maxTH - minH);
+  displace(0, W - 1, H * 0.35);
+  // Smooth
+  for (let s = 0; s < 3; s++) {
+    const tmp = [...terrain];
+    for (let i = 2; i < W - 2; i++) {
+      tmp[i] = (terrain[i-2] + terrain[i-1] + terrain[i] + terrain[i+1] + terrain[i+2]) / 5;
+    }
+    terrain = tmp;
+  }
+  // Clamp
+  for (let i = 0; i < W; i++) {
+    terrain[i] = Math.max(H * 0.2, Math.min(H * 0.82, terrain[i]));
+  }
+}
+
+function displace(l, r, range) {
+  if (r - l < 2) return;
+  const mid = Math.floor((l + r) / 2);
+  terrain[mid] = (terrain[l] + terrain[r]) / 2 + (Math.random() - 0.5) * range;
+  displace(l, mid, range * 0.55);
+  displace(mid, r, range * 0.55);
+}
+
+function createPlayer(id, x) {
+  return {
+    id, x,
+    y: 0, // set from terrain
+    hp: 100,
+    ammo: { ...DEFAULT_AMMO },
+    color: id === 0 ? '#00d4ff' : '#ff6600',
+    name: id === 0 ? 'Player 1' : (gameMode === 'ai' ? 'AI' : 'Player 2'),
+    angle: id === 0 ? 45 : 135,
+    power: 50
+  };
+}
+
+function placeTanks() {
+  const margin = Math.floor(W * 0.12);
+  players[0].x = margin + Math.floor(Math.random() * (W * 0.2));
+  players[1].x = W - margin - Math.floor(Math.random() * (W * 0.2));
+  updateTankY(0);
+  updateTankY(1);
+}
+
+function updateTankY(i) {
+  const p = players[i];
+  const tx = Math.floor(Math.max(0, Math.min(W - 1, p.x)));
+  p.y = terrain[tx] - TANK_H / 2;
+}
+
+// ==================== DRAWING ====================
+function draw() {
+  ctx.save();
+  // Screen shake
+  if (shakeAmount > 0.5) {
+    ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+    shakeAmount *= shakeDecay;
+  } else {
+    shakeAmount = 0;
+  }
+
+  drawSky();
+  drawTerrain();
+  drawFires();
+  drawTanks();
+  drawProjectiles();
+  drawTrail();
+  drawParticles();
+  drawHUD();
+  ctx.restore();
+}
+
+function drawSky() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#050a0f');
+  grad.addColorStop(0.4, '#0a1525');
+  grad.addColorStop(0.7, '#0f1f35');
+  grad.addColorStop(1, '#1a2a40');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  // Stars
+  if (!draw.stars) {
+    draw.stars = [];
+    for (let i = 0; i < 60; i++) {
+      draw.stars.push({ x: Math.random() * 1200, y: Math.random() * H * 0.5, s: Math.random() * 1.5 + 0.5, b: Math.random() });
+    }
+  }
+  draw.stars.forEach(s => {
+    const flicker = 0.5 + 0.5 * Math.sin(Date.now() * 0.001 * s.b + s.x);
+    ctx.fillStyle = `rgba(200,220,255,${0.3 + 0.4 * flicker})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.s, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawTerrain() {
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  for (let x = 0; x < W; x++) {
+    ctx.lineTo(x, terrain[x]);
+  }
+  ctx.lineTo(W, H);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(0, H * 0.3, 0, H);
+  grad.addColorStop(0, '#1a3a1a');
+  grad.addColorStop(0.3, '#143014');
+  grad.addColorStop(0.7, '#3b2a1a');
+  grad.addColorStop(1, '#2a1a0a');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Surface line
+  ctx.beginPath();
+  for (let x = 0; x < W; x++) {
+    if (x === 0) ctx.moveTo(x, terrain[x]);
+    else ctx.lineTo(x, terrain[x]);
+  }
+  ctx.strokeStyle = '#2a5a2a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawTanks() {
+  players.forEach((p, i) => {
+    if (p.hp <= 0) {
+      // Wreck
+      ctx.fillStyle = '#333';
+      ctx.fillRect(p.x - TANK_W / 2, p.y - TANK_H / 2, TANK_W, TANK_H);
+      return;
+    }
+    // Body
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 1;
+
+    // Tracks
+    const bx = p.x - TANK_W / 2, by = p.y - 2;
+    ctx.fillStyle = i === currentPlayer ? p.color : (p.color + '99');
+    roundRect(ctx, bx, by, TANK_W, TANK_H, 4);
+    ctx.fill();
+
+    // Dome
+    ctx.beginPath();
+    ctx.arc(p.x, by, 8, Math.PI, 0);
+    ctx.fill();
+
+    // Turret barrel
+    const ang = (p.angle * Math.PI) / 180;
+    const bLen = 22;
+    const ex = p.x + Math.cos(ang) * bLen * (i === 0 ? 1 : -1) * (i === 0 ? 1 : 1);
+    // Angle: 0=right, 180=left for consistency
+    const radAngle = (Math.PI - ang);
+    const tipX = p.x + Math.cos(radAngle) * bLen;
+    const tipY = by - Math.sin(radAngle) * bLen;
+    ctx.beginPath();
+    ctx.moveTo(p.x, by);
+    ctx.lineTo(tipX, tipY);
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Health bar
+    const barW = 36, barH = 5;
+    const barX = p.x - barW / 2, barY = p.y - TANK_H - 18;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(barX, barY, barW, barH);
+    const hpFrac = Math.max(0, p.hp / 100);
+    ctx.fillStyle = hpFrac > 0.5 ? '#00ff66' : hpFrac > 0.25 ? '#ffaa00' : '#ff3333';
+    ctx.fillRect(barX, barY, barW * hpFrac, barH);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+
+    // HP text
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.hp + ' HP', p.x, barY - 3);
+
+    // Name
+    ctx.fillStyle = p.color;
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText(p.name, p.x, barY - 14);
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawProjectiles() {
+  projectiles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r || 3, 0, Math.PI * 2);
+    ctx.fillStyle = p.color || '#ffaa00';
+    ctx.fill();
+    // Glow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (p.r || 3) + 4, 0, Math.PI * 2);
+    ctx.fillStyle = (p.color || '#ffaa00') + '33';
+    ctx.fill();
+  });
+}
+
+function drawTrail() {
+  trailDots.forEach((d, i) => {
+    const alpha = d.a || (0.3 * (1 - i / trailDots.length));
+    ctx.fillStyle = `rgba(255,200,100,${Math.max(0, alpha)})`;
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawFires() {
+  fires.forEach(f => {
+    const flicker = Math.random() * 0.3;
+    ctx.fillStyle = `rgba(255,${80 + Math.random() * 80},0,${0.5 + flicker})`;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y - Math.random() * 6, 3 + Math.random() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color || '#ffaa00';
+    if (p.type === 'chunk') {
+      ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size || 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawHUD() {
+  // Wind arrow on canvas
+  const arrLen = Math.min(80, Math.abs(wind) * 60);
+  const arrY = 20;
+  const cx = W / 2;
+  ctx.strokeStyle = '#ff6600';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - arrLen, arrY);
+  ctx.lineTo(cx + arrLen, arrY);
+  ctx.stroke();
+  if (Math.abs(wind) > 0.05) {
+    const tip = cx + arrLen * Math.sign(wind);
+    ctx.beginPath();
+    ctx.moveTo(tip, arrY);
+    ctx.lineTo(tip - 7 * Math.sign(wind), arrY - 5);
+    ctx.lineTo(tip - 7 * Math.sign(wind), arrY + 5);
+    ctx.closePath();
+    ctx.fillStyle = '#ff6600';
+    ctx.fill();
+  }
+}
+
+// ==================== TERRAIN MODIFICATION ====================
+function destroyTerrain(cx, cy, radius) {
+  for (let x = Math.max(0, Math.floor(cx - radius)); x < Math.min(W, Math.ceil(cx + radius)); x++) {
+    const dx = x - cx;
+    const maxDy = Math.sqrt(Math.max(0, radius * radius - dx * dx));
+    const top = cy - maxDy;
+    const bot = cy + maxDy;
+    if (terrain[x] < bot && terrain[x] > top) {
+      // Terrain surface is within explosion circle — lower it
+      terrain[x] = Math.min(H + 10, bot);
+    } else if (terrain[x] >= bot) {
+      // Terrain is below explosion — create a cave (just lower if close)
+    }
+  }
+  spawnTerrainChunks(cx, cy, radius);
+}
+
+function addTerrain(cx, cy, radius) {
+  for (let x = Math.max(0, Math.floor(cx - radius)); x < Math.min(W, Math.ceil(cx + radius)); x++) {
+    const dx = x - cx;
+    const maxDy = Math.sqrt(Math.max(0, radius * radius - dx * dx));
+    const raise = maxDy;
+    terrain[x] = Math.max(H * 0.1, terrain[x] - raise);
+  }
+}
+
+function spawnTerrainChunks(cx, cy, radius) {
+  const count = Math.floor(radius * 0.8);
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 1 + Math.random() * 3;
+    particles.push({
+      x: cx + (Math.random() - 0.5) * radius,
+      y: cy + (Math.random() - 0.5) * radius * 0.5,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 2,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.01,
+      color: Math.random() > 0.5 ? '#5a3a1a' : '#3a5a2a',
+      type: 'chunk',
+      gravity: 0.08
+    });
+  }
+}
+
+// ==================== EXPLOSIONS ====================
+function explode(x, y, weapon) {
+  const w = WEAPONS[weapon];
+  const radius = w.radius;
+
+  if (w.dirt) {
+    addTerrain(x, y, radius);
+    spawnExplosionParticles(x, y, radius * 0.5, '#8B6914');
+    AudioEngine.play('explode', { size: 0.5 });
+  } else if (w.napalm) {
+    destroyTerrain(x, y, radius * 0.6);
+    spawnNapalm(x, y, radius);
+    AudioEngine.play('explode', { size: 0.8 });
+  } else {
+    destroyTerrain(x, y, radius);
+    spawnExplosionParticles(x, y, radius, w.color);
+    const sz = radius / 30;
+    AudioEngine.play('explode', { size: sz });
+    if (weapon === 'nuke') {
+      shakeAmount = 25;
+      // Extra flash
+      spawnExplosionParticles(x, y, radius * 0.6, '#ffffff');
+    } else {
+      shakeAmount = Math.min(15, radius * 0.3);
+    }
+  }
+
+  // Damage tanks
+  players.forEach((p, i) => {
+    const dist = Math.hypot(p.x - x, p.y - y);
+    if (dist < radius + TANK_W / 2) {
+      const dmgMult = Math.max(0, 1 - dist / (radius + TANK_W / 2));
+      const dmg = Math.floor(w.damage * dmgMult);
+      if (dmg > 0) {
+        p.hp = Math.max(0, p.hp - dmg);
+        AudioEngine.play('damage');
+        spawnExplosionParticles(p.x, p.y - 5, 8, '#ff0000');
+      }
+    }
+  });
+
+  // Update tank positions
+  settleTanks();
+}
+
+function spawnExplosionParticles(cx, cy, radius, color) {
+  const count = Math.floor(radius * 1.5) + 10;
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 0.5 + Math.random() * (radius * 0.08);
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 1,
+      life: 1,
+      decay: 0.01 + Math.random() * 0.02,
+      color: color,
+      size: 1 + Math.random() * 3,
+      gravity: 0.03
+    });
+  }
+}
+
+function spawnNapalm(cx, cy, radius) {
+  for (let i = 0; i < 15; i++) {
+    const fx = cx + (Math.random() - 0.5) * radius * 2;
+    const tx = Math.floor(Math.max(0, Math.min(W - 1, fx)));
+    fires.push({
+      x: fx, y: terrain[tx],
+      life: 120 + Math.random() * 80,
+      spread: 0.3
+    });
+  }
+}
+
+function settleTanks() {
+  players.forEach((p, i) => {
+    if (p.hp <= 0) return;
+    const oldY = p.y;
+    updateTankY(i);
+    const drop = p.y - oldY;
+    if (drop > 30) {
+      const fallDmg = Math.floor((drop - 30) * 0.3);
+      if (fallDmg > 0) {
+        p.hp = Math.max(0, p.hp - fallDmg);
+        AudioEngine.play('damage');
+      }
+    }
+  });
+}
+
+// ==================== FIRING ====================
+function fire() {
+  if (gameState !== 'playing') return;
+  const p = players[currentPlayer];
+  const w = WEAPONS[selectedWeapon];
+
+  if (p.ammo[selectedWeapon] <= 0) return;
+  if (selectedWeapon !== 'standard') p.ammo[selectedWeapon]--;
+
+  gameState = 'firing';
+  document.getElementById('fire-btn').disabled = true;
+  trailDots = [];
+  AudioEngine.play('fire');
+
+  const radAngle = (Math.PI - (p.angle * Math.PI) / 180);
+  const baseSpeed = 8 * (p.power / 100) * w.speed;
+  const vx = Math.cos(radAngle) * baseSpeed;
+  const vy = -Math.sin(radAngle) * baseSpeed;
+
+  if (w.laser) {
+    fireLaser(p, radAngle);
+    return;
+  }
+
+  if (w.rain) {
+    fireRain(p, vx, vy);
+    return;
+  }
+
+  const proj = {
+    x: p.x, y: p.y - TANK_H,
+    vx, vy,
+    weapon: selectedWeapon,
+    color: w.color,
+    r: selectedWeapon === 'nuke' ? 5 : selectedWeapon === 'bigbertha' ? 4 : 3,
+    owner: currentPlayer,
+    bounces: w.bounces || 0,
+    tunnel: w.tunnel || false,
+    scatter: w.scatter || false,
+    isChild: false,
+    age: 0
+  };
+
+  projectiles.push(proj);
+  const whistle = AudioEngine.play('whistle');
+  proj._whistle = whistle;
+}
+
+function fireLaser(p, angle) {
+  AudioEngine.play('laser');
+  const w = WEAPONS.laser;
+  const step = 2;
+  let lx = p.x, ly = p.y - TANK_H;
+  const dx = Math.cos(angle) * step;
+  const dy = -Math.sin(angle) * step;
+  const laserTrail = [];
+
+  for (let i = 0; i < 800; i++) {
+    lx += dx;
+    ly += dy;
+    if (lx < 0 || lx >= W || ly > H + 20) break;
+    laserTrail.push({ x: lx, y: ly });
+    const tx = Math.floor(Math.max(0, Math.min(W - 1, lx)));
+    if (ly >= terrain[tx] && ly > 0) {
+      // Hit terrain
+      explode(lx, ly, 'laser');
+      break;
+    }
+    // Check tank hit
+    for (let pi = 0; pi < players.length; pi++) {
+      if (pi === currentPlayer) continue;
+      const tp = players[pi];
+      if (tp.hp <= 0) continue;
+      if (Math.abs(lx - tp.x) < TANK_W / 2 && Math.abs(ly - tp.y) < TANK_H) {
+        explode(lx, ly, 'laser');
+        break;
+      }
+    }
+  }
+
+  // Visual: draw laser line for a moment
+  const laserAnim = { trail: laserTrail, life: 30 };
+  projectiles.push({ x: -999, y: -999, vx: 0, vy: 0, weapon: '_laser_anim', _laserAnim: laserAnim, age: 0 });
+
+  setTimeout(() => {
+    projectiles = projectiles.filter(p => p.weapon !== '_laser_anim');
+    endTurn();
+  }, 500);
+}
+
+function fireRain(p, baseVx, baseVy) {
+  const w = WEAPONS.rain;
+  for (let i = 0; i < 5; i++) {
+    const spread = (Math.random() - 0.5) * 3;
+    const proj = {
+      x: p.x, y: p.y - TANK_H - 20 * i,
+      vx: baseVx + spread,
+      vy: baseVy - Math.random() * 2 - i * 0.5,
+      weapon: 'rain',
+      color: w.color,
+      r: 2,
+      owner: currentPlayer,
+      bounces: 0,
+      isChild: true,
+      age: 0,
+      delay: i * 5
+    };
+    projectiles.push(proj);
+  }
+  AudioEngine.play('whistle');
+}
+
+// ==================== PHYSICS UPDATE ====================
+function updateProjectiles() {
+  const toRemove = [];
+
+  projectiles.forEach((p, idx) => {
+    if (p.weapon === '_laser_anim') {
+      // Draw the laser
+      if (p._laserAnim) {
+        ctx.strokeStyle = `rgba(0,255,255,${p._laserAnim.life / 30})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        p._laserAnim.trail.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+        p._laserAnim.life--;
+      }
+      return;
+    }
+
+    if (p.delay && p.delay > 0) { p.delay--; return; }
+
+    p.age++;
+    p.vx += wind * 0.01;
+    p.vy += GRAVITY;
+    p.x += p.vx;
+    p.y += p.vy;
+
+    if (p.age % 3 === 0) {
+      trailDots.push({ x: p.x, y: p.y, a: 0.4 });
+      if (trailDots.length > 200) trailDots.shift();
+    }
+
+    // Out of bounds
+    if (p.x < -50 || p.x > W + 50 || p.y > H + 50) {
+      toRemove.push(idx);
+      return;
+    }
+
+    if (p.y < -200) return; // Still going up
+
+    const tx = Math.floor(Math.max(0, Math.min(W - 1, p.x)));
+
+    // Tunneler special: goes through terrain
+    if (p.tunnel && p.y >= terrain[tx] && p.y < H) {
+      // Carve a small path
+      for (let dx = -6; dx <= 6; dx++) {
+        const xx = tx + dx;
+        if (xx >= 0 && xx < W && terrain[xx] < p.y + 6) {
+          terrain[xx] = Math.min(H + 10, terrain[xx] + 12);
+        }
+      }
+      // Check if we've gone deep enough or exited
+      if (p.age > 150) {
+        explode(p.x, p.y, p.weapon);
+        toRemove.push(idx);
+      }
+      return;
+    }
+
+    // Terrain collision
+    if (p.y >= terrain[tx]) {
+      if (p.bounces > 0) {
+        p.bounces--;
+        p.vy = -Math.abs(p.vy) * 0.65;
+        p.y = terrain[tx] - 2;
+        AudioEngine.play('bounce');
+        return;
+      }
+
+      if (p.scatter && !p.isChild) {
+        // Scatter into 5 sub-projectiles
+        for (let i = 0; i < 5; i++) {
+          const ang = Math.PI * 0.2 + Math.random() * Math.PI * 0.6;
+          const spd = 2 + Math.random() * 3;
+          projectiles.push({
+            x: p.x, y: p.y - 5,
+            vx: Math.cos(ang) * spd * (Math.random() > 0.5 ? 1 : -1),
+            vy: -Math.sin(ang) * spd,
+            weapon: 'scatter',
+            color: WEAPONS.scatter.color,
+            r: 2, owner: p.owner,
+            bounces: 0, isChild: true, age: 0
+          });
+        }
+        toRemove.push(idx);
+        return;
+      }
+
+      explode(p.x, p.y, p.weapon);
+      toRemove.push(idx);
+      if (p._whistle) p._whistle.stop();
+      return;
+    }
+
+    // Tank collision (enemy only)
+    for (let pi = 0; pi < players.length; pi++) {
+      if (pi === p.owner && !p.isChild) continue;
+      const tp = players[pi];
+      if (tp.hp <= 0) continue;
+      if (Math.abs(p.x - tp.x) < TANK_W / 2 + 3 && Math.abs(p.y - tp.y) < TANK_H + 3) {
+        if (p.scatter && !p.isChild) {
+          for (let i = 0; i < 5; i++) {
+            const ang = Math.PI * 0.2 + Math.random() * Math.PI * 0.6;
+            const spd = 2 + Math.random() * 3;
+            projectiles.push({
+              x: p.x, y: p.y - 5,
+              vx: Math.cos(ang) * spd * (Math.random() > 0.5 ? 1 : -1),
+              vy: -Math.sin(ang) * spd,
+              weapon: 'scatter', color: WEAPONS.scatter.color,
+              r: 2, owner: p.owner, bounces: 0, isChild: true, age: 0
+            });
+          }
+        } else {
+          explode(p.x, p.y, p.weapon);
+        }
+        toRemove.push(idx);
+        if (p._whistle) p._whistle.stop();
+        return;
+      }
+    }
+  });
+
+  // Remove in reverse order
+  toRemove.sort((a, b) => b - a).forEach(i => projectiles.splice(i, 1));
+
+  // Check if all projectiles done
+  if (gameState === 'firing' && projectiles.length === 0) {
+    endTurn();
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => {
+    p.x += p.vx || 0;
+    p.y += p.vy || 0;
+    if (p.gravity) p.vy += p.gravity;
+    p.life -= p.decay || 0.02;
+    return p.life > 0;
+  });
+}
+
+function updateFires() {
+  fires = fires.filter(f => {
+    f.life--;
+    if (f.life % 10 === 0) {
+      // Damage nearby tanks
+      players.forEach(p => {
+        if (p.hp <= 0) return;
+        if (Math.abs(p.x - f.x) < 20 && Math.abs(p.y - f.y) < 20) {
+          p.hp = Math.max(0, p.hp - 1);
+        }
+      });
+      // Burn terrain slightly
+      const tx = Math.floor(Math.max(0, Math.min(W - 1, f.x)));
+      if (terrain[tx] < f.y + 3) terrain[tx] = Math.min(H, terrain[tx] + 0.5);
+    }
+    // Spread
+    if (f.life % 20 === 0 && Math.random() < f.spread) {
+      const nx = f.x + (Math.random() > 0.5 ? 1 : -1) * (3 + Math.random() * 5);
+      const ntx = Math.floor(Math.max(0, Math.min(W - 1, nx)));
+      fires.push({ x: nx, y: terrain[ntx], life: f.life * 0.6, spread: f.spread * 0.7 });
+    }
+    f.y = terrain[Math.floor(Math.max(0, Math.min(W - 1, f.x)))];
+    return f.life > 0;
+  });
+}
+
+// ==================== TURN MANAGEMENT ====================
+function endTurn() {
+  gameState = 'animating';
+  trailDots = [];
+
+  // Check for round end
+  setTimeout(() => {
+    settleTanks();
+    if (players[0].hp <= 0 || players[1].hp <= 0) {
+      endRound();
+      return;
+    }
+
+    currentPlayer = 1 - currentPlayer;
+    wind = (Math.random() - 0.5) * 2.5;
+    gameState = 'playing';
+
+    const p = players[currentPlayer];
+    document.getElementById('angle-slider').value = p.angle;
+    document.getElementById('angle-val').textContent = p.angle + '°';
+    document.getElementById('power-slider').value = p.power;
+    document.getElementById('power-val').textContent = p.power + '%';
+    selectedWeapon = 'standard';
+
+    updateUI();
+    AudioEngine.play('turn');
+    document.getElementById('fire-btn').disabled = false;
+
+    // AI turn
+    if (gameMode === 'ai' && currentPlayer === 1) {
+      setTimeout(aiTurn, 600);
+    }
+  }, 400);
+}
+
+function endRound() {
+  const winner = players[0].hp > 0 ? 0 : 1;
+  scores[winner]++;
+  gameState = 'roundEnd';
+
+  AudioEngine.play('victory');
+
+  const overlay = document.getElementById('overlay');
+  document.getElementById('overlay-title').textContent = players[winner].name + ' WINS!';
+  document.getElementById('overlay-sub').textContent = `Round ${currentRound} of ${totalRounds}`;
+  document.getElementById('score-display').textContent = `Score: ${players[0].name} ${scores[0]} — ${scores[1]} ${players[1].name}`;
+
+  const nextBtn = document.getElementById('next-round-btn');
+  if (currentRound >= totalRounds) {
+    nextBtn.style.display = 'none';
+    const matchWinner = scores[0] > scores[1] ? players[0].name : scores[1] > scores[0] ? players[1].name : 'TIE';
+    document.getElementById('overlay-title').textContent = matchWinner === 'TIE' ? 'TIE GAME!' : matchWinner + ' WINS THE MATCH!';
+    document.getElementById('overlay-sub').textContent = `Final Score: ${scores[0]} — ${scores[1]}`;
+    gameState = 'matchEnd';
+    saveRecord(matchWinner);
+  } else {
+    nextBtn.style.display = '';
+  }
+
+  overlay.style.display = 'flex';
+}
+
+function saveRecord(winner) {
+  try {
+    const rec = JSON.parse(localStorage.getItem('tanks_records') || '{"games":0,"p1wins":0,"p2wins":0,"aiWins":0}');
+    rec.games++;
+    if (winner === 'Player 1') rec.p1wins++;
+    else if (winner === 'AI') rec.aiWins++;
+    else rec.p2wins++;
+    localStorage.setItem('tanks_records', JSON.stringify(rec));
+  } catch (e) {}
+}
+
+function nextRound() {
+  currentRound++;
+  document.getElementById('overlay').style.display = 'none';
+  startRound();
+}
+
+function startRound() {
+  particles = [];
+  projectiles = [];
+  fires = [];
+  trailDots = [];
+  shakeAmount = 0;
+  draw.stars = null;
+
+  generateTerrain();
+
+  players = [createPlayer(0, 0), createPlayer(1, 0)];
+  placeTanks();
+
+  currentPlayer = 0;
+  wind = (Math.random() - 0.5) * 2;
+  selectedWeapon = 'standard';
+  gameState = 'playing';
+
+  document.getElementById('angle-slider').value = 45;
+  document.getElementById('angle-val').textContent = '45°';
+  document.getElementById('power-slider').value = 50;
+  document.getElementById('power-val').textContent = '50%';
+  document.getElementById('fire-btn').disabled = false;
+
+  updateUI();
+}
+
+function updateUI() {
+  const p = players[currentPlayer];
+  const turnEl = document.getElementById('turn-indicator');
+  turnEl.textContent = `▶ ${p.name}'s Turn`;
+  turnEl.style.color = p.color;
+
+  const windEl = document.getElementById('wind-indicator');
+  const windDir = wind > 0 ? '→' : wind < 0 ? '←' : '—';
+  windEl.textContent = `Wind: ${windDir} ${Math.abs(wind).toFixed(1)}`;
+
+  updateWeaponBar();
+}
+
+function updateWeaponBar() {
+  const bar = document.getElementById('weapon-bar');
+  const p = players[currentPlayer];
+  bar.innerHTML = '';
+  Object.keys(WEAPONS).forEach(key => {
+    const w = WEAPONS[key];
+    const count = p.ammo[key];
+    const btn = document.createElement('button');
+    btn.className = 'weapon-btn' + (key === selectedWeapon ? ' active' : '') + (count <= 0 ? ' empty' : '');
+    btn.innerHTML = `${w.icon} ${w.name}<span class="count">${count === 99 ? '∞' : count}</span>`;
+    btn.onclick = () => {
+      if (count > 0 && gameState === 'playing') {
+        selectedWeapon = key;
+        updateWeaponBar();
+      }
+    };
+    bar.appendChild(btn);
+  });
+}
+
+// ==================== AI ====================
+function aiTurn() {
+  if (gameState !== 'playing' || currentPlayer !== 1) return;
+  const ai = players[1];
+  const target = players[0];
+
+  // Choose weapon
+  let weapon = 'standard';
+  if (aiDifficulty === 'hard') {
+    // Strategic choice
+    const dist = Math.abs(ai.x - target.x);
+    if (ai.ammo.nuke > 0 && target.hp > 40) weapon = 'nuke';
+    else if (ai.ammo.bigbertha > 0 && target.hp > 30) weapon = 'bigbertha';
+    else if (ai.ammo.napalm > 0 && Math.random() < 0.3) weapon = 'napalm';
+    else if (ai.ammo.scatter > 0 && Math.random() < 0.3) weapon = 'scatter';
+    else if (ai.ammo.laser > 0 && Math.abs(wind) > 1.5) weapon = 'laser';
+    else if (ai.ammo.bouncer > 0 && Math.random() < 0.2) weapon = 'bouncer';
+  } else if (aiDifficulty === 'medium') {
+    const choices = Object.keys(WEAPONS).filter(k => ai.ammo[k] > 0 && k !== 'dirt');
+    if (Math.random() < 0.4) weapon = choices[Math.floor(Math.random() * choices.length)] || 'standard';
+  } else {
+    if (Math.random() < 0.2 && ai.ammo.bigbertha > 0) weapon = 'bigbertha';
+  }
+
+  selectedWeapon = weapon;
+
+  // Calculate angle and power
+  const dx = target.x - ai.x;
+  const dy = target.y - ai.y;
+  const dist = Math.abs(dx);
+
+  let bestAngle, bestPower;
+
+  if (aiDifficulty === 'hard') {
+    // Simulate trajectories to find best
+    let bestErr = Infinity;
+    bestAngle = 90; bestPower = 50;
+    for (let a = 20; a <= 160; a += 2) {
+      for (let pw = 20; pw <= 100; pw += 3) {
+        const err = simulateShot(ai, a, pw, target, weapon);
+        if (err < bestErr) { bestErr = err; bestAngle = a; bestPower = pw; }
+      }
+    }
+    // Small random error
+    bestAngle += (Math.random() - 0.5) * 4;
+    bestPower += (Math.random() - 0.5) * 4;
+  } else if (aiDifficulty === 'medium') {
+    let bestErr = Infinity;
+    bestAngle = 90; bestPower = 50;
+    for (let a = 15; a <= 165; a += 5) {
+      for (let pw = 15; pw <= 100; pw += 5) {
+        const err = simulateShot(ai, a, pw, target, weapon);
+        if (err < bestErr) { bestErr = err; bestAngle = a; bestPower = pw; }
+      }
+    }
+    bestAngle += (Math.random() - 0.5) * 15;
+    bestPower += (Math.random() - 0.5) * 12;
+  } else {
+    // Easy: rough aim
+    const aimAngle = Math.atan2(-dy, dx < 0 ? -Math.abs(dx) : Math.abs(dx));
+    bestAngle = 180 - (aimAngle * 180 / Math.PI);
+    bestAngle = Math.max(20, Math.min(160, bestAngle + (Math.random() - 0.5) * 40));
+    bestPower = Math.min(100, Math.max(20, dist / 8 + (Math.random() - 0.5) * 30));
+  }
+
+  ai.angle = Math.max(0, Math.min(180, Math.round(bestAngle)));
+  ai.power = Math.max(10, Math.min(100, Math.round(bestPower)));
+
+  document.getElementById('angle-slider').value = ai.angle;
+  document.getElementById('angle-val').textContent = ai.angle + '°';
+  document.getElementById('power-slider').value = ai.power;
+  document.getElementById('power-val').textContent = ai.power + '%';
+  updateWeaponBar();
+
+  setTimeout(() => {
+    players[currentPlayer].angle = ai.angle;
+    players[currentPlayer].power = ai.power;
+    fire();
+  }, 400);
+}
+
+function simulateShot(shooter, angle, power, target, weapon) {
+  const w = WEAPONS[weapon];
+  const rad = (Math.PI - (angle * Math.PI) / 180);
+  const speed = 8 * (power / 100) * w.speed;
+  let vx = Math.cos(rad) * speed;
+  let vy = -Math.sin(rad) * speed;
+  let x = shooter.x, y = shooter.y - TANK_H;
+
+  for (let i = 0; i < 500; i++) {
+    vx += wind * 0.01;
+    vy += GRAVITY;
+    x += vx;
+    y += vy;
+    if (x < 0 || x >= W || y > H + 20) return 9999;
+    const tx = Math.floor(Math.max(0, Math.min(W - 1, x)));
+    if (y >= terrain[tx]) {
+      return Math.hypot(x - target.x, y - target.y);
+    }
+  }
+  return 9999;
+}
+
+// ==================== INPUT ====================
+function setupInput() {
+  const angleSlider = document.getElementById('angle-slider');
+  const powerSlider = document.getElementById('power-slider');
+
+  angleSlider.addEventListener('input', () => {
+    const v = parseInt(angleSlider.value);
+    document.getElementById('angle-val').textContent = v + '°';
+    if (gameState === 'playing') players[currentPlayer].angle = v;
+  });
+
+  powerSlider.addEventListener('input', () => {
+    const v = parseInt(powerSlider.value);
+    document.getElementById('power-val').textContent = v + '%';
+    if (gameState === 'playing') players[currentPlayer].power = v;
+  });
+
+  document.getElementById('fire-btn').addEventListener('click', () => {
+    AudioEngine.init();
+    fire();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (gameState !== 'playing') return;
+    if (gameMode === 'ai' && currentPlayer === 1) return;
+
+    if (e.key === 'ArrowLeft') {
+      angleSlider.value = Math.max(0, parseInt(angleSlider.value) - 1);
+      angleSlider.dispatchEvent(new Event('input'));
+    } else if (e.key === 'ArrowRight') {
+      angleSlider.value = Math.min(180, parseInt(angleSlider.value) + 1);
+      angleSlider.dispatchEvent(new Event('input'));
+    } else if (e.key === 'ArrowUp') {
+      powerSlider.value = Math.min(100, parseInt(powerSlider.value) + 1);
+      powerSlider.dispatchEvent(new Event('input'));
+    } else if (e.key === 'ArrowDown') {
+      powerSlider.value = Math.max(1, parseInt(powerSlider.value) - 1);
+      powerSlider.dispatchEvent(new Event('input'));
+    } else if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      AudioEngine.init();
+      fire();
+    } else if (e.key >= '1' && e.key <= '9') {
+      const keys = Object.keys(WEAPONS);
+      const idx = parseInt(e.key) - 1;
+      if (idx < keys.length && players[currentPlayer].ammo[keys[idx]] > 0) {
+        selectedWeapon = keys[idx];
+        updateWeaponBar();
+      }
+    } else if (e.key === '0') {
+      const keys = Object.keys(WEAPONS);
+      if (keys[9] && players[currentPlayer].ammo[keys[9]] > 0) {
+        selectedWeapon = keys[9];
+        updateWeaponBar();
+      }
+    }
+  });
+}
+
+// ==================== SETUP / MENU ====================
+function setupMenu() {
+  const modeSelect = document.getElementById('mode-select');
+  const diffRow = document.getElementById('diff-row');
+
+  modeSelect.addEventListener('change', () => {
+    diffRow.style.display = modeSelect.value === 'ai' ? 'flex' : 'none';
+  });
+
+  document.getElementById('start-btn').addEventListener('click', () => {
+    AudioEngine.init();
+    gameMode = modeSelect.value;
+    aiDifficulty = document.getElementById('diff-select').value;
+    totalRounds = parseInt(document.getElementById('rounds-select').value);
+    currentRound = 1;
+    scores = [0, 0];
+    document.getElementById('setup-screen').style.display = 'none';
+    startRound();
+  });
+
+  document.getElementById('next-round-btn').addEventListener('click', nextRound);
+  document.getElementById('new-game-btn').addEventListener('click', () => {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('setup-screen').style.display = 'flex';
+    gameState = 'setup';
+  });
+}
+
+// ==================== MAIN LOOP ====================
+function gameLoop() {
+  if (gameState !== 'setup') {
+    updateProjectiles();
+    updateParticles();
+    updateFires();
+    draw();
+
+    // Fade old trail dots
+    trailDots.forEach(d => { d.a = (d.a || 0.4) - 0.003; });
+    trailDots = trailDots.filter(d => (d.a || 0) > 0);
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== BOOT ====================
+initCanvas();
+setupMenu();
+setupInput();
+gameLoop();
+</script>
+</body>
+</html>

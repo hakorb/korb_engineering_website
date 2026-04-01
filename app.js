@@ -139,7 +139,8 @@ const SECTIONS = {
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
       { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
-      { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' }
+      { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
+      { name: 'Tanks', file: './tools/misc/tanks.html' }
     ]
   }
 };
