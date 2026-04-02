@@ -59,7 +59,7 @@ const SECTIONS = {
       { name: 'EPANet Water', file: './tools/civil/epanet-water.html' },
       { name: 'Earned Value Mgmt', file: './tools/civil/earned-value-mgmt.html' },
       { name: 'Erosion Control', file: './tools/civil/erosion-control.html' },
-      { name: 'ETAM Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
+      { name: 'Facility Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
       { name: 'File Share', file: './tools/civil/file-share-tool.html' },
       { name: 'Front End Documents', file: './tools/civil/front-end-documents.html' },
       { name: 'Gantt Project', file: './tools/civil/gantt-project.html' },
