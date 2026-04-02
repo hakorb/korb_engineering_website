@@ -118,6 +118,7 @@ const SECTIONS = {
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
+      { name: 'ASL Learning Tool', file: './tools/misc/asl-learning-tool.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
