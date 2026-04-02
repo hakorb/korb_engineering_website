@@ -366,6 +366,18 @@
 
   <div class="options-row" style="margin-top:16px;">
     <div class="option-group">
+      <label>Timezone</label>
+      <select id="timezone">
+        <option value="EST">Eastern (EST/EDT)</option>
+        <option value="CST" selected>Central (CST/CDT)</option>
+        <option value="MST">Mountain (MST/MDT)</option>
+        <option value="PST">Pacific (PST/PDT)</option>
+        <option value="AKST">Alaska (AKST/AKDT)</option>
+        <option value="HST">Hawaii (HST)</option>
+        <option value="UTC">UTC</option>
+      </select>
+    </div>
+    <div class="option-group">
       <label>Output Format</label>
       <select id="outputFormat">
         <option value="image/jpeg">JPEG (smaller file)</option>
@@ -438,6 +450,7 @@ const timestampMode  = document.getElementById('timestampMode');
 const customDateGrp  = document.getElementById('customDateGroup');
 const customDateInp  = document.getElementById('customDate');
 const fontSizeSel    = document.getElementById('fontSize');
+const timezoneSel    = document.getElementById('timezone');
 const outputFormat   = document.getElementById('outputFormat');
 const jpegQuality    = document.getElementById('jpegQuality');
 
@@ -553,30 +566,46 @@ function parseExifDate(str) {
   return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
 }
 
-// ── Timestamp Formatter (CST/CDT) ──────────────────────────────────────────
-// CST = UTC-6, CDT = UTC-5
-// US CDT runs from 2nd Sunday March → 1st Sunday November
-function isCDT(date) {
-  const y = date.getFullYear();
-  // 2nd Sunday in March
-  const marchStart = nthSundayOf(y, 2, 2); // month=2 (March, 0-indexed)
-  // 1st Sunday in November
-  const novEnd = nthSundayOf(y, 10, 1);    // month=10 (November, 0-indexed)
-  return date >= marchStart && date < novEnd;
-}
+// ── Timezone Definitions ───────────────────────────────────────────────────
+// stdOffset = UTC offset in hours during standard time (negative = west of UTC)
+// dstOffset = UTC offset during daylight saving time (null if no DST)
+// stdAbbr / dstAbbr = abbreviation strings for the timestamp
+const TIMEZONE_DATA = {
+  EST:  { stdOffset: -5, dstOffset: -4, stdAbbr: 'EST', dstAbbr: 'EDT', hasDST: true },
+  CST:  { stdOffset: -6, dstOffset: -5, stdAbbr: 'CST', dstAbbr: 'CDT', hasDST: true },
+  MST:  { stdOffset: -7, dstOffset: -6, stdAbbr: 'MST', dstAbbr: 'MDT', hasDST: true },
+  PST:  { stdOffset: -8, dstOffset: -7, stdAbbr: 'PST', dstAbbr: 'PDT', hasDST: true },
+  AKST: { stdOffset: -9, dstOffset: -8, stdAbbr: 'AKST', dstAbbr: 'AKDT', hasDST: true },
+  HST:  { stdOffset: -10, dstOffset: null, stdAbbr: 'HST', dstAbbr: null, hasDST: false },
+  UTC:  { stdOffset: 0, dstOffset: null, stdAbbr: 'UTC', dstAbbr: null, hasDST: false },
+};
 
+// US DST runs from 2nd Sunday in March at 2:00 AM to 1st Sunday in November at 2:00 AM (local std time)
 function nthSundayOf(year, month, n) {
-  // n = 1 for 1st, 2 for 2nd, etc.
-  let d = new Date(year, month, 1);
-  while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
-  d.setDate(d.getDate() + (n - 1) * 7);
+  let d = new Date(Date.UTC(year, month, 1));
+  while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCDate(d.getUTCDate() + (n - 1) * 7);
   return d;
 }
 
+function isDST(utcDate, tz) {
+  if (!tz.hasDST) return false;
+  const y = utcDate.getUTCFullYear();
+  // 2nd Sunday in March at 2:00 AM local standard time → convert to UTC
+  const marchSun = nthSundayOf(y, 2, 2);
+  const dstStart = new Date(marchSun.getTime() + (2 - tz.stdOffset) * 3600000);
+  // 1st Sunday in November at 2:00 AM local daylight time → convert to UTC
+  const novSun = nthSundayOf(y, 10, 1);
+  const dstEnd = new Date(novSun.getTime() + (2 - tz.dstOffset) * 3600000);
+  return utcDate >= dstStart && utcDate < dstEnd;
+}
+
 function formatTimestamp(date) {
-  // Convert to CST/CDT
-  const cdt = isCDT(date);
-  const offsetMs = cdt ? -5 * 3600000 : -6 * 3600000;
+  const tzKey = timezoneSel.value;
+  const tz = TIMEZONE_DATA[tzKey];
+  const dst = isDST(date, tz);
+  const offsetHrs = dst ? tz.dstOffset : tz.stdOffset;
+  const offsetMs = offsetHrs * 3600000;
   const localMs = date.getTime() + (date.getTimezoneOffset() * 60000) + offsetMs;
   const d = new Date(localMs);
 
@@ -594,9 +623,9 @@ function formatTimestamp(date) {
   const secs = String(d.getSeconds()).padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12 || 12;
-  const tz = cdt ? 'CDT' : 'CST';
+  const abbr = dst ? tz.dstAbbr : tz.stdAbbr;
 
-  return `${dayName}, ${month} ${day}, ${year}  ${hours}:${mins}:${secs} ${ampm} ${tz}`;
+  return `${dayName}, ${month} ${day}, ${year}  ${hours}:${mins}:${secs} ${ampm} ${abbr}`;
 }
 
 // ── Canvas Stamping ────────────────────────────────────────────────────────

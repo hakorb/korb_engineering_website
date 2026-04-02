@@ -426,6 +426,7 @@
     <div class="header-brand">Korb Engineering</div>
     <h1>KORB FILE SHARE</h1>
     <p class="subheader">Files auto-delete after <span>60 minutes</span></p>
+    <p class="subheader" style="margin-top:6px; font-size:11px; color:var(--amber); letter-spacing:1px;">Files are stored locally on this device only</p>
   </header>
 
   <div class="dropzone" id="dropzone">
@@ -597,31 +598,30 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  function copyShareLink(record) {
-    // For files under 512KB, use base64 data URL; otherwise blob URL with a note
-    const SIZE_THRESHOLD = 512 * 1024;
-    if (record.size <= SIZE_THRESHOLD) {
-      const uint8 = new Uint8Array(record.data);
-      let binary = '';
-      for (let i = 0; i < uint8.length; i++) {
-        binary += String.fromCharCode(uint8[i]);
+  async function shareOrCopyLink(record) {
+    const blob = new Blob([record.data], { type: record.type });
+    const file = new File([blob], record.name, { type: record.type });
+
+    // For small files, try the Web Share API (real sharing on mobile: AirDrop, Messages, email, etc.)
+    const SHARE_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
+    if (record.size <= SHARE_SIZE_LIMIT && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: record.name });
+        showToast('File shared successfully', 'success');
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // user cancelled
+        // Fall through to clipboard copy
       }
-      const b64 = btoa(binary);
-      const dataUrl = 'data:' + record.type + ';base64,' + b64;
-      navigator.clipboard.writeText(dataUrl).then(() => {
-        showToast('Data URL copied to clipboard', 'success');
-      }).catch(() => {
-        showToast('Failed to copy link', 'error');
-      });
-    } else {
-      const blob = new Blob([record.data], { type: record.type });
-      const url = URL.createObjectURL(blob);
-      navigator.clipboard.writeText(url).then(() => {
-        showToast('Blob URL copied (valid this session only)', 'warning');
-      }).catch(() => {
-        showToast('Failed to copy link', 'error');
-      });
     }
+
+    // Fallback: copy a blob URL to clipboard (local session only)
+    const url = URL.createObjectURL(blob);
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Local link copied (valid this browser session only)', 'warning');
+    }).catch(() => {
+      showToast('Failed to copy link', 'error');
+    });
   }
 
   // ---- Render ----
@@ -670,7 +670,7 @@
               </div>
             </div>
             <div class="file-actions">
-              <button class="btn btn-small btn-green" onclick="app.share('${f.id}')" title="Copy share link">SHARE</button>
+              <button class="btn btn-small btn-green" onclick="app.share('${f.id}')" title="Share file or copy local link">COPY LINK</button>
               <button class="btn btn-small" onclick="app.download('${f.id}')" title="Download file">DOWNLOAD</button>
               <button class="btn btn-small btn-red" onclick="app.remove('${f.id}')" title="Delete file">DELETE</button>
             </div>
@@ -743,8 +743,8 @@
       if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
     });
 
-    // Refresh UI every second for countdown timers
-    setInterval(renderFileList, 1000);
+    // Refresh countdown timers every 15 seconds (files re-render on upload/delete already)
+    setInterval(renderFileList, 15000);
 
     // Cleanup every 30 seconds
     setInterval(cleanup, CLEANUP_INTERVAL);
@@ -761,7 +761,7 @@
     },
     share: async function(id) {
       const record = await dbGet(id);
-      if (record) copyShareLink(record);
+      if (record) shareOrCopyLink(record);
       else showToast('File not found', 'error');
     },
     remove: async function(id) {

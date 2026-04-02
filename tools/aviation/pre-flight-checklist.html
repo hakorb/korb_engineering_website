@@ -17,7 +17,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .header h1{font-size:18px;font-weight:600;color:var(--accent);letter-spacing:1px}
 .header h1 span{color:var(--textDim);font-weight:300}
 
-.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tab{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--textDim);font-family:var(--font);font-size:11px;cursor:pointer;border-radius:4px;transition:all .2s;white-space:nowrap}
 .tab:hover{border-color:var(--accent);color:var(--text)}
 .tab.active{background:var(--accentDim);border-color:var(--accent);color:var(--accent)}
@@ -57,7 +57,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 select.input{cursor:pointer}
 
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-@media(max-width:600px){.form-grid{grid-template-columns:1fr}.tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}.tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}}
+
+.new-session-form{border:1px solid var(--accent);border-radius:6px;background:var(--bg1);padding:20px;margin-bottom:16px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.new-session-form h2{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:14px}
+.new-session-form .form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .form-group{display:flex;flex-direction:column;gap:3px}
 .form-group label{font-size:10px;color:var(--textDim);text-transform:uppercase}
 
@@ -178,7 +183,8 @@ app.innerHTML=`
     <button class="btn" onclick="setMainTab('history')">History (${data.sessions.length})</button>
   </div>
 </div>
-${currentSession?renderSession():activeTab==='history'?renderHistory():renderWelcome()}`;
+${showNewSessionForm?renderNewSessionForm():''}
+${currentSession?renderSession():activeTab==='history'?renderHistory():(showNewSessionForm?'':renderWelcome())}`;
 }
 
 function renderWelcome(){
@@ -272,23 +278,75 @@ return `<div class="checklist-item ${st}">
 </div>`;
 }
 
+let showNewSessionForm=false;
+
 window.newSession=function(){
-const aircraft=prompt('Select aircraft type:\n'+AIRCRAFT.map((a,i)=>(i+1)+'. '+a).join('\n')+'\n\nEnter number or type name:');
-if(!aircraft)return;
-let ac=aircraft;
-const num=parseInt(aircraft);
-if(num>=1&&num<=AIRCRAFT.length)ac=AIRCRAFT[num-1];
-const tail=prompt('Tail number (e.g. N12345):');
-const pilot=prompt('Pilot name:');
-const session={id:uid(),aircraft:ac,tailNumber:tail||'',pilot:pilot||'',date:new Date().toISOString(),statuses:{}};
-PHASES.forEach(p=>{session.statuses[p.id]={};});
+showNewSessionForm=true;
+currentSession=null;
+activeTab='checklist';
+render();
+setTimeout(function(){var el=document.getElementById('ns-aircraft');if(el)el.focus();},50);
+};
+
+window.cancelNewSession=function(){
+showNewSessionForm=false;
+render();
+};
+
+window.submitNewSession=function(){
+var acSelect=document.getElementById('ns-aircraft');
+var acCustom=document.getElementById('ns-aircraft-custom');
+var ac=acSelect.value==='custom'?acCustom.value.trim():acSelect.value;
+if(!ac){acSelect.focus();return;}
+var tail=document.getElementById('ns-tail').value.trim();
+var pilot=document.getElementById('ns-pilot').value.trim();
+var session={id:uid(),aircraft:ac,tailNumber:tail,pilot:pilot,date:new Date().toISOString(),statuses:{}};
+PHASES.forEach(function(p){session.statuses[p.id]={};});
 data.sessions.push(session);
 save();
+showNewSessionForm=false;
 currentSession=session;
 currentPhase=0;
 activeTab='checklist';
 render();
 };
+
+window.onAircraftSelectChange=function(){
+var el=document.getElementById('ns-aircraft-custom-group');
+if(el)el.style.display=document.getElementById('ns-aircraft').value==='custom'?'flex':'none';
+};
+
+function renderNewSessionForm(){
+return `<div class="new-session-form">
+<h2>New Session</h2>
+<div class="form-grid">
+  <div class="form-group">
+    <label for="ns-aircraft">Aircraft Type</label>
+    <select class="input" id="ns-aircraft" onchange="onAircraftSelectChange()">
+      <option value="" disabled selected>Select aircraft...</option>
+      ${AIRCRAFT.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('')}
+      <option value="custom">Other (type below)</option>
+    </select>
+  </div>
+  <div class="form-group" id="ns-aircraft-custom-group" style="display:none">
+    <label for="ns-aircraft-custom">Custom Aircraft</label>
+    <input class="input" id="ns-aircraft-custom" type="text" placeholder="e.g. Piper Saratoga">
+  </div>
+  <div class="form-group">
+    <label for="ns-tail">Tail Number</label>
+    <input class="input" id="ns-tail" type="text" placeholder="e.g. N12345" autocapitalize="characters">
+  </div>
+  <div class="form-group">
+    <label for="ns-pilot">Pilot Name</label>
+    <input class="input" id="ns-pilot" type="text" placeholder="e.g. John Smith">
+  </div>
+</div>
+<div class="form-actions">
+  <button class="btn" onclick="cancelNewSession()">Cancel</button>
+  <button class="btn btn-accent" onclick="submitNewSession()">Start Checklist</button>
+</div>
+</div>`;
+}
 
 window.loadSession=function(id){
 currentSession=data.sessions.find(s=>s.id===id);
