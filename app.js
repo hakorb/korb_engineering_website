@@ -30,7 +30,6 @@ const SECTIONS = {
       <ellipse cx="24" cy="14" rx="1.5" ry="2.5" stroke-width="0.7" opacity="0.5"/>
     </svg>`,
     tools: [
-      { name: 'AI Meeting Notes', file: './tools/aviation/ai-meeting-note-taker.html' },
       { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
       { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
