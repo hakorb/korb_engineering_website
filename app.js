@@ -51,7 +51,7 @@ const SECTIONS = {
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
       { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
-      { name: 'Capital Planning', file: './tools/civil/capital-planning.html' },
+      { name: 'Capital Improvement Planner (CIP)', file: './tools/civil/capital-planning.html' },
       { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
       { name: 'Daily Field Report', file: './tools/civil/DailyFieldReport.html' },
       { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
@@ -208,6 +208,9 @@ function renderHome() {
       <div class="category-grid">${cards}</div>
       <div class="landing-about">
         <a href="#about" class="about-btn">About</a>
+      </div>
+      <div style="text-align:center;padding:32px 0 8px;opacity:0.35">
+        <a href="mailto:harrison@korb.engineering" style="color:var(--vfd-cyan-dim);font-size:11px;letter-spacing:0.08em;text-decoration:none;font-family:var(--font-mono)">harrison@korb.engineering</a>
       </div>
     </section>
   `;
