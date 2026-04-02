@@ -33,6 +33,7 @@ const SECTIONS = {
       { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
       { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
+      { name: 'Hangar Door Selector', file: './tools/aviation/hangar-door-selector.html' },
       { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
       { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
