@@ -456,15 +456,23 @@ function renderToolEmbed(key, sec, tool) {
 
 
 // --- About Page ---
+let aboutAudioEl = null;
+
+function stopAboutAudio() {
+  if (aboutAudioEl) {
+    aboutAudioEl.pause();
+    aboutAudioEl.currentTime = 0;
+    aboutAudioEl = null;
+  }
+}
+
 function renderAboutPage() {
-  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);opacity:0;transition:opacity 2s ease;margin-top:10px;text-align:center;text-shadow:0 0 8px rgba(0,212,255,0.25);';
+  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);margin-top:10px;text-align:center;text-shadow:0 0 8px rgba(0,212,255,0.25);';
 
   const companyEntryStyle = 'margin-bottom:28px;';
   const companyNameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-base);letter-spacing:0.08em;color:var(--vfd-cyan);margin:0;text-shadow:0 0 8px rgba(0,212,255,0.25);';
   const companyDatesStyle = 'color:#ff6600;font-size:var(--text-sm);margin-left:6px;text-shadow:0 0 6px rgba(255,102,0,0.3);';
   const companyDetailStyle = 'color:rgba(0,212,255,0.45);font-size:var(--text-xs);letter-spacing:0.04em;margin:4px 0 0;line-height:1.6;';
-  const principalStyle = 'color:rgba(0,212,255,0.55);font-size:var(--text-xs);margin:4px 0 0;line-height:1.6;';
-  const principalNameStyle = 'color:var(--vfd-cyan);text-shadow:0 0 6px rgba(0,212,255,0.2);';
 
   main.innerHTML = `
     <section class="section-page">
@@ -477,113 +485,89 @@ function renderAboutPage() {
         <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton, 1675</p>
 
         <div style="text-align:center;">
-          <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte Walter Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte Walter Korb" class="about-photo">
           <p id="about-name-1" style="${nameStyle};display:none;">Monte Walter Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="object-fit:contain;background:transparent;">
           <p id="about-name-2" style="${nameStyle};display:none;">Andrew Douglas Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Monte Alan Korb" class="about-photo" style="opacity:0;transition:opacity 2s ease;">
+          <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Monte Alan Korb" class="about-photo">
           <p id="about-name-3" style="${nameStyle};display:none;">Monte Alan Korb</p>
         </div>
 
-        <div id="company-history" style="opacity:0;transition:opacity 2.5s ease;max-width:640px;margin:48px auto 0;text-align:left;">
+        <div id="company-history" style="max-width:640px;margin:48px auto 0;text-align:left;">
           <h2 style="font-family:Cinzel,serif;font-size:var(--text-lg);letter-spacing:0.25em;color:var(--vfd-cyan);text-align:center;margin-bottom:32px;text-shadow:0 0 12px rgba(0,212,255,0.3);">KORB ENGINEERING</h2>
 
           <div style="${companyEntryStyle}">
-            <p style="${companyNameStyle}">Korb Engineering Company <span style="${companyDatesStyle}">1972 – 2014</span></p>
-            <p style="${companyDetailStyle}">GA PE License #5734 | Professional Engineering Firm Cert #1506</p>
-            <p style="${companyDetailStyle}">Founded by Monte Walter Korb, Georgia Tech Class of 1950</p>
-            <p style="${companyDetailStyle}">Civil, Mechanical, Structural &amp; Environmental Engineering</p>
-            <p style="${principalStyle}">Key Principals: <span style="${principalNameStyle}">Monte Walter Korb, P.E.</span> | <span style="${principalNameStyle}">Andrew Douglas Korb, P.E.</span> | <span style="${principalNameStyle}">Monte Alan Korb, P.E.</span></p>
+            <p style="${companyNameStyle}">Korb Engineering Company <span style="${companyDatesStyle}">1972 - 2014</span></p>
+            <p style="${companyDetailStyle}">Established in 1972</p>
+            <p style="${companyDetailStyle}">Closed in 2014</p>
+            <p style="${companyDetailStyle}">Key Principal: Monte Walter Korb</p>
+            <p style="${companyDetailStyle};margin-top:10px;line-height:1.8;">Monte attended Georgia Institute of Technology under the GI bill and received his Bachelors of Mechanical Engineering in 1950. Monte worked with Werner Von Braun at Redstone Arsenal in Huntsville, Alabama. He was a visionary and received a patent for a nozzle attachment for the control of the range and thrust of solid propellant rocket motors in 1965. He was licensed as a Professional Engineer in the state of Georgia in 1968. Monte formed Korb Engineering Company on St. Simons Island, Georgia in 1972. He practiced engineering for forty-plus years before retiring in 2014.</p>
           </div>
 
           <div style="${companyEntryStyle}">
-            <p style="${companyNameStyle}">Korb Engineering of Florida <span style="${companyDatesStyle}">1986 –</span></p>
-            <p style="${companyDetailStyle}">FL PE License #41382</p>
-            <p style="${companyDetailStyle}">Extension of the original Korb Engineering practice into the Southeast Florida market</p>
-            <p style="${principalStyle}">Key Principals: <span style="${principalNameStyle}">Monte Walter Korb, P.E.</span> | <span style="${principalNameStyle}">Monte Alan Korb, P.E.</span></p>
+            <p style="${companyNameStyle}">Korb Engineering of Florida <span style="${companyDatesStyle}">1986 - ?</span></p>
+            <p style="${companyDetailStyle}">Florida Profit Corporation</p>
+            <p style="${companyDetailStyle}">Engineering Business Registry License no. 4550</p>
+            <p style="${companyDetailStyle}">Established in 1986</p>
+            <p style="${companyDetailStyle}">Closed in ?</p>
+            <p style="${companyDetailStyle}">Key Principal: Monte Alan Korb</p>
           </div>
 
           <div style="${companyEntryStyle}">
-            <p style="${companyNameStyle}">Korb Engineering of Florida, Inc. <span style="${companyDatesStyle}">1996 – 2025</span></p>
-            <p style="${companyDetailStyle}">FL Certificate of Authorization #8262 | FL PE License #54488</p>
-            <p style="${companyDetailStyle}">Incorporated Florida practice providing full-service civil and structural engineering</p>
-            <p style="${principalStyle}">Key Principals: <span style="${principalNameStyle}">Monte Alan Korb, P.E.</span> | <span style="${principalNameStyle}">Andrew Douglas Korb, P.E.</span></p>
+            <p style="${companyNameStyle}">Korb Engineering of Florida, Inc. <span style="${companyDatesStyle}">1996 - 2025</span></p>
+            <p style="${companyDetailStyle}">Florida Profit Corporation</p>
+            <p style="${companyDetailStyle}">Engineering Business Registry License no. 26329</p>
+            <p style="${companyDetailStyle}">Established in 1996 (using the same name dissolved earlier)</p>
+            <p style="${companyDetailStyle}">Closed in 2025</p>
+            <p style="${companyDetailStyle}">Key Principal: Andrew Douglas Korb</p>
           </div>
 
           <div style="${companyEntryStyle}">
-            <p style="${companyNameStyle}">McAllister-Gates, Inc. <span style="${companyDatesStyle}">1998 – 1999</span></p>
-            <p style="${companyDetailStyle}">Acquired and operated by Andrew Douglas Korb, P.E. as a mechanical engineering subsidiary</p>
-            <p style="${principalStyle}">Key Principals: <span style="${principalNameStyle}">Andrew Douglas Korb, P.E.</span></p>
+            <p style="${companyNameStyle}">McAllister-Gates, Inc. <span style="${companyDatesStyle}">1998 - 1999</span></p>
+            <p style="${companyDetailStyle}">Florida Profit Corporation</p>
+            <p style="${companyDetailStyle}">Established in 1998</p>
+            <p style="${companyDetailStyle}">Closed in 1999</p>
+            <p style="${companyDetailStyle}">Key Principal: Monte Alan Korb</p>
           </div>
 
           <div style="${companyEntryStyle}">
-            <p style="${companyNameStyle}">Korb Engineered Systems, Inc. <span style="${companyDatesStyle}">2004 – 2012</span></p>
-            <p style="${companyDetailStyle}">National mechanical engineering and commissioning practice specializing in complex HVAC/MEP systems</p>
-            <p style="${principalStyle}">Key Principals: <span style="${principalNameStyle}">Andrew Douglas Korb, P.E.</span></p>
+            <p style="${companyNameStyle}">Korb Engineered Systems, Inc. <span style="${companyDatesStyle}">2004 - 2012</span></p>
+            <p style="${companyDetailStyle}">Florida Profit Corporation</p>
+            <p style="${companyDetailStyle}">Established in 2004</p>
+            <p style="${companyDetailStyle}">Closed in 2012</p>
+            <p style="${companyDetailStyle}">Key Principal: Monte Alan Korb</p>
           </div>
         </div>
       </div>
-      <audio id="about-audio" autoplay loop style="display:none;"></audio>
     </section>
   `;
   initReveal();
 
-  // Invisible audio player — finds any .mp3 in images folder
-  const audioEl = document.getElementById('about-audio');
-  const mp3Candidates = ['background.mp3', 'music.mp3', 'audio.mp3', 'song.mp3', 'korb.mp3', 'about.mp3'];
-  (async function tryAudio() {
-    // Try known filenames, then fall back to a glob-like probe
-    for (const name of mp3Candidates) {
-      try {
-        const resp = await fetch('./tools/misc/images/' + name, { method: 'HEAD' });
-        if (resp.ok) {
-          audioEl.src = './tools/misc/images/' + name;
-          audioEl.volume = 0.3;
-          audioEl.play().catch(() => {});
-          return;
-        }
-      } catch(e) {}
-    }
-  })();
+  // Background audio — plays silently on loop, stops when leaving about page
+  stopAboutAudio();
+  aboutAudioEl = new Audio('./tools/misc/images/about-bg.mp3');
+  aboutAudioEl.loop = true;
+  aboutAudioEl.volume = 0.25;
+  aboutAudioEl.play().catch(() => {});
 
-  // Staggered photo + name reveal — names stay hidden until photo is visible
+  // Names stay hidden until photo is visible
   function revealName(nameId) {
     const n = document.getElementById(nameId);
-    if (n) { n.style.display = 'block'; requestAnimationFrame(() => { n.style.opacity = '0.85'; }); }
+    if (n) { n.style.display = 'block'; }
   }
 
-  // Photo 1: reveal at 5s, name only after photo is showing
-  setTimeout(() => {
-    const p1 = document.getElementById('about-photo-1');
-    if (p1) p1.style.opacity = '0.9';
-    setTimeout(() => revealName('about-name-1'), 1000);
-  }, 5000);
-
-  // Photo 2: reveal at 10s
-  setTimeout(() => {
-    const p2 = document.getElementById('about-photo-2');
-    if (p2) p2.style.opacity = '0.9';
-    setTimeout(() => revealName('about-name-2'), 1000);
-  }, 10000);
-
-  // Photo 3: reveal at 15s
-  setTimeout(() => {
-    const p3 = document.getElementById('about-photo-3');
-    if (p3) p3.style.opacity = '0.9';
-    setTimeout(() => revealName('about-name-3'), 1000);
-  }, 15000);
-
-  // Company history fades in after all photos revealed
-  setTimeout(() => {
-    const history = document.getElementById('company-history');
-    if (history) history.style.opacity = '1';
-  }, 18000);
+  // Photo 1: name after 5s
+  setTimeout(() => revealName('about-name-1'), 5000);
+  // Photo 2: name after 10s
+  setTimeout(() => revealName('about-name-2'), 10000);
+  // Photo 3: name after 15s
+  setTimeout(() => revealName('about-name-3'), 15000);
 }
 
 
@@ -656,6 +640,7 @@ function initReveal() {
 
 // --- Route Handler ---
 function handleRoute() {
+  stopAboutAudio();
   const route = getRoute();
   window.scrollTo(0, 0);
 
