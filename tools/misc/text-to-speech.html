@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text to Speech | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--border:#1a2535;--cyan:#00d4ff;--green:#10b981;--gold:#f0a500;--red:#ef4444;--text:#e2e8f0;--dim:rgba(226,232,240,0.4);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;padding-bottom:60px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes waveform{0%{height:4px}50%{height:var(--h)}100%{height:4px}}
+
+.header{background:var(--bg1);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.header-title{color:var(--cyan);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.header-sub{color:var(--green);font-size:20px;font-weight:700}
+
+.content{max-width:800px;margin:0 auto;padding:24px 16px}
+
+/* Voice selector */
+.voice-panel{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.panel-label{font-size:11px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.voice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.voice-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:12px;transition:all 0.2s;text-align:left}
+.voice-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.voice-btn.active{border-color:var(--green);color:var(--green);background:rgba(16,185,129,0.1)}
+.voice-btn .voice-name{font-weight:600;display:block;margin-bottom:2px}
+.voice-btn .voice-lang{font-size:10px;color:var(--dim)}
+
+/* Controls row */
+.controls{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.control-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
+.control-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px}
+.slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:var(--bg2);outline:none;border:1px solid var(--border)}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+.slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg)}
+.control-val{font-size:11px;color:var(--cyan);text-align:right;min-width:36px}
+
+/* Text area */
+.text-panel{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.text-area{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:14px;border-radius:8px;font-family:var(--font);font-size:14px;line-height:1.7;resize:vertical;outline:none;transition:border-color 0.2s}
+.text-area:focus{border-color:var(--cyan)}
+.text-area::placeholder{color:var(--dim)}
+.char-count{font-size:10px;color:var(--dim);text-align:right;margin-top:6px}
+
+/* Speak button */
+.speak-row{display:flex;gap:12px;margin-bottom:20px}
+.btn-speak{flex:1;background:var(--green);color:#000;border:none;padding:14px 24px;font-size:15px;font-weight:700;border-radius:8px;letter-spacing:1px;cursor:pointer;font-family:var(--font);transition:all 0.2s}
+.btn-speak:hover{opacity:0.9}
+.btn-speak:disabled{background:var(--bg2);color:var(--dim);cursor:not-allowed}
+.btn-speak.speaking{background:var(--red)}
+.btn-stop{background:transparent;border:1px solid var(--red);color:var(--red);padding:14px 20px;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:14px;font-weight:600;transition:all 0.2s}
+.btn-stop:hover{background:rgba(239,68,68,0.1)}
+
+/* Waveform visualizer */
+.wave-container{height:48px;display:flex;align-items:center;justify-content:center;gap:3px;margin-bottom:20px;opacity:0;transition:opacity 0.3s}
+.wave-container.active{opacity:1}
+.wave-bar{width:4px;background:var(--cyan);border-radius:2px;animation:waveform 0.6s ease-in-out infinite}
+
+/* Status */
+.status-bar{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:12px}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-dot.idle{background:var(--dim)}
+.status-dot.ready{background:var(--green)}
+.status-dot.speaking{background:var(--cyan);animation:pulse 1s infinite}
+.status-dot.error{background:var(--red)}
+.status-text{color:var(--dim)}
+
+/* Quick replies */
+.quick-panel{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;animation:fadeIn 0.4s ease}
+.quick-label{font-size:11px;font-weight:700;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.quick-grid{display:flex;flex-wrap:wrap;gap:8px}
+.quick-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:20px;cursor:pointer;font-family:var(--font);font-size:12px;transition:all 0.2s}
+.quick-btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(240,165,0,0.08)}
+
+/* History */
+.history-panel{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:20px}
+.history-item{padding:10px 14px;border-radius:8px;background:var(--bg2);margin-bottom:8px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:12px}
+.history-item:hover{border-color:var(--cyan);background:rgba(0,212,255,0.05);outline:1px solid var(--cyan)}
+.history-text{flex:1;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-time{font-size:10px;color:var(--dim);flex-shrink:0}
+.history-play{color:var(--cyan);font-size:14px;flex-shrink:0;cursor:pointer}
+.history-empty{text-align:center;color:var(--dim);font-size:12px;padding:20px;font-style:italic}
+
+/* Presets */
+.preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.preset-btn{background:var(--bg1);border:1px solid var(--border);color:var(--dim);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--font);transition:all 0.2s}
+.preset-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+@media(max-width:600px){
+  .header{padding:12px 16px}
+  .content{padding:16px 12px}
+  .voice-grid{grid-template-columns:1fr 1fr}
+  .controls{flex-direction:column}
+  .speak-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Korb Engineering</div>
+    <div class="header-sub">Text to Speech</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot idle" id="statusDot"></div>
+    <span class="status-text" id="statusText">Loading voices...</span>
+  </div>
+
+  <!-- Voice Selector -->
+  <div class="voice-panel">
+    <div class="panel-label">Voice</div>
+    <div class="voice-grid" id="voiceGrid"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="voice-panel">
+    <div class="panel-label">Parameters</div>
+    <div class="controls">
+      <div class="control-group">
+        <div style="display:flex;justify-content:space-between">
+          <span class="control-label">Rate</span>
+          <span class="control-val" id="rateVal">1.0x</span>
+        </div>
+        <input type="range" class="slider" id="rateSlider" min="0.3" max="2.0" step="0.1" value="1.0">
+      </div>
+      <div class="control-group">
+        <div style="display:flex;justify-content:space-between">
+          <span class="control-label">Pitch</span>
+          <span class="control-val" id="pitchVal">1.0</span>
+        </div>
+        <input type="range" class="slider" id="pitchSlider" min="0.1" max="2.0" step="0.1" value="1.0">
+      </div>
+      <div class="control-group">
+        <div style="display:flex;justify-content:space-between">
+          <span class="control-label">Volume</span>
+          <span class="control-val" id="volVal">100%</span>
+        </div>
+        <input type="range" class="slider" id="volSlider" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+    <!-- Presets -->
+    <div style="margin-top:14px">
+      <div class="control-label" style="margin-bottom:8px">Presets</div>
+      <div class="preset-row">
+        <button class="preset-btn" onclick="applyPreset('natural')">Natural</button>
+        <button class="preset-btn" onclick="applyPreset('slow')">Slow & Clear</button>
+        <button class="preset-btn" onclick="applyPreset('fast')">Fast Read</button>
+        <button class="preset-btn" onclick="applyPreset('deep')">Deep</button>
+        <button class="preset-btn" onclick="applyPreset('bright')">Bright</button>
+        <button class="preset-btn" onclick="applyPreset('whisper')">Whisper</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text input -->
+  <div class="text-panel">
+    <div class="panel-label">Message</div>
+    <textarea class="text-area" id="textInput" placeholder="Type or paste something to speak..." maxlength="5000"></textarea>
+    <div class="char-count"><span id="charCount">0</span> / 5,000</div>
+  </div>
+
+  <!-- Speak / Stop -->
+  <div class="speak-row">
+    <button class="btn-speak" id="speakBtn" onclick="handleSpeak()">SPEAK</button>
+    <button class="btn-stop" id="stopBtn" onclick="handleStop()" style="display:none">STOP</button>
+  </div>
+
+  <!-- Waveform -->
+  <div class="wave-container" id="waveform"></div>
+
+  <!-- Quick Replies (generated contextually) -->
+  <div class="quick-panel" id="quickPanel" style="display:none">
+    <div class="quick-label">Quick Replies</div>
+    <div class="quick-grid" id="quickGrid"></div>
+  </div>
+
+  <!-- History -->
+  <div class="history-panel">
+    <div class="panel-label">History</div>
+    <div id="historyList"><div class="history-empty">No messages yet</div></div>
+  </div>
+
+</div>
+
+<script>
+// --- State ---
+let voices = [];
+let selectedVoice = null;
+let isSpeaking = false;
+let history = JSON.parse(localStorage.getItem('tts_history') || '[]');
+
+const synth = window.speechSynthesis;
+const textInput = document.getElementById('textInput');
+const charCount = document.getElementById('charCount');
+const speakBtn = document.getElementById('speakBtn');
+const stopBtn = document.getElementById('stopBtn');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const voiceGrid = document.getElementById('voiceGrid');
+const waveform = document.getElementById('waveform');
+const quickPanel = document.getElementById('quickPanel');
+const quickGrid = document.getElementById('quickGrid');
+const historyList = document.getElementById('historyList');
+
+const rateSlider = document.getElementById('rateSlider');
+const pitchSlider = document.getElementById('pitchSlider');
+const volSlider = document.getElementById('volSlider');
+const rateVal = document.getElementById('rateVal');
+const pitchVal = document.getElementById('pitchVal');
+const volVal = document.getElementById('volVal');
+
+// --- Waveform bars ---
+(function buildWave() {
+  for (let i = 0; i < 32; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'wave-bar';
+    const h = 6 + Math.random() * 30;
+    bar.style.setProperty('--h', h + 'px');
+    bar.style.animationDelay = (Math.random() * 0.8) + 's';
+    bar.style.animationDuration = (0.3 + Math.random() * 0.5) + 's';
+    waveform.appendChild(bar);
+  }
+})();
+
+// --- Slider listeners ---
+rateSlider.oninput = () => rateVal.textContent = parseFloat(rateSlider.value).toFixed(1) + 'x';
+pitchSlider.oninput = () => pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(1);
+volSlider.oninput = () => volVal.textContent = Math.round(volSlider.value * 100) + '%';
+
+// --- Char count ---
+textInput.addEventListener('input', () => {
+  charCount.textContent = textInput.value.length;
+});
+
+// --- Load voices ---
+function loadVoices() {
+  voices = synth.getVoices();
+  if (!voices.length) return;
+
+  // Prefer English voices, sort quality ones first
+  const preferred = ['Samantha', 'Daniel', 'Karen', 'Moira', 'Tessa', 'Alex', 'Victoria',
+    'Fiona', 'Google', 'Microsoft', 'Zira', 'David', 'Mark', 'Ava', 'Allison', 'Susan',
+    'Tom', 'Rishi', 'Veena', 'Serena', 'Kate', 'Oliver', 'Emily', 'Arthur', 'Martha',
+    'Aaron', 'Nicky', 'Reed', 'Evan', 'Grandma', 'Grandpa', 'Sandy', 'Shelley', 'Ralph'];
+
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+
+  // Sort: preferred names first, then alphabetical
+  enVoices.sort((a, b) => {
+    const aIdx = preferred.findIndex(p => a.name.includes(p));
+    const bIdx = preferred.findIndex(p => b.name.includes(p));
+    const aScore = aIdx >= 0 ? aIdx : 999;
+    const bScore = bIdx >= 0 ? bIdx : 999;
+    if (aScore !== bScore) return aScore - bScore;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Add a handful of interesting non-EN voices
+  const otherVoices = voices.filter(v => !v.lang.startsWith('en')).slice(0, 6);
+
+  const displayVoices = [...enVoices.slice(0, 20), ...otherVoices];
+
+  voiceGrid.innerHTML = '';
+  displayVoices.forEach(v => {
+    const btn = document.createElement('button');
+    btn.className = 'voice-btn';
+    btn.innerHTML = `<span class="voice-name">${v.name.replace(/^(Microsoft |Google |Apple )/, '')}</span><span class="voice-lang">${v.lang}</span>`;
+    btn.onclick = () => selectVoice(v, btn);
+    voiceGrid.appendChild(btn);
+  });
+
+  // Auto-select first good voice
+  if (enVoices.length) {
+    const firstBtn = voiceGrid.querySelector('.voice-btn');
+    selectVoice(enVoices[0], firstBtn);
+  }
+
+  setStatus('ready', `${displayVoices.length} voices loaded`);
+}
+
+function selectVoice(voice, btn) {
+  selectedVoice = voice;
+  voiceGrid.querySelectorAll('.voice-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// --- Status ---
+function setStatus(state, msg) {
+  statusDot.className = 'status-dot ' + state;
+  statusText.textContent = msg;
+}
+
+// --- Presets ---
+function applyPreset(name) {
+  const presets = {
+    natural: { rate: 1.0, pitch: 1.0, vol: 1.0 },
+    slow: { rate: 0.7, pitch: 0.9, vol: 1.0 },
+    fast: { rate: 1.6, pitch: 1.0, vol: 1.0 },
+    deep: { rate: 0.9, pitch: 0.5, vol: 1.0 },
+    bright: { rate: 1.1, pitch: 1.5, vol: 0.9 },
+    whisper: { rate: 0.8, pitch: 0.8, vol: 0.35 }
+  };
+  const p = presets[name];
+  if (!p) return;
+  rateSlider.value = p.rate; rateSlider.oninput();
+  pitchSlider.value = p.pitch; pitchSlider.oninput();
+  volSlider.value = p.vol; volSlider.oninput();
+}
+
+// --- Speak ---
+function handleSpeak() {
+  const text = textInput.value.trim();
+  if (!text) return;
+  if (isSpeaking) { handleStop(); return; }
+
+  synth.cancel(); // clear queue
+
+  const utter = new SpeechSynthesisUtterance(text);
+  if (selectedVoice) utter.voice = selectedVoice;
+  utter.rate = parseFloat(rateSlider.value);
+  utter.pitch = parseFloat(pitchSlider.value);
+  utter.volume = parseFloat(volSlider.value);
+
+  utter.onstart = () => {
+    isSpeaking = true;
+    speakBtn.textContent = 'SPEAKING...';
+    speakBtn.classList.add('speaking');
+    stopBtn.style.display = '';
+    waveform.classList.add('active');
+    setStatus('speaking', 'Speaking...');
+  };
+
+  utter.onend = () => {
+    finishSpeaking(text);
+  };
+
+  utter.onerror = (e) => {
+    if (e.error === 'canceled') return;
+    setStatus('error', 'Error: ' + e.error);
+    resetSpeakState();
+  };
+
+  synth.speak(utter);
+}
+
+function handleStop() {
+  synth.cancel();
+  resetSpeakState();
+  setStatus('ready', 'Stopped');
+}
+
+function resetSpeakState() {
+  isSpeaking = false;
+  speakBtn.textContent = 'SPEAK';
+  speakBtn.classList.remove('speaking');
+  stopBtn.style.display = 'none';
+  waveform.classList.remove('active');
+}
+
+function finishSpeaking(text) {
+  resetSpeakState();
+  setStatus('ready', 'Done');
+
+  // Save to history
+  addToHistory(text);
+
+  // Generate quick replies
+  generateQuickReplies(text);
+}
+
+// --- Quick Reply Generation ---
+function generateQuickReplies(text) {
+  const lower = text.toLowerCase().trim();
+  const replies = [];
+
+  // Greetings
+  if (/\b(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b/.test(lower)) {
+    replies.push('Hello there!', 'Hey, how are you?', 'Good to hear from you!', 'Hi! What can I do for you?');
+  }
+  // Questions
+  else if (/\?$/.test(lower.trim()) || /\b(what|where|when|who|why|how|can you|could you|do you|is there|are there)\b/.test(lower)) {
+    replies.push("That's a great question.", "Let me think about that.", "I'm not sure, but I'll find out.", "Yes, absolutely.", "No, I don't think so.", "Could you clarify?");
+  }
+  // Thanks / gratitude
+  else if (/\b(thank|thanks|appreciate|grateful)\b/.test(lower)) {
+    replies.push("You're welcome!", "Happy to help!", "Anytime!", "No problem at all.", "My pleasure.");
+  }
+  // Agreement
+  else if (/\b(agree|right|correct|exactly|absolutely|definitely)\b/.test(lower)) {
+    replies.push("Glad we're on the same page.", "Absolutely.", "Couldn't agree more.", "That's what I was thinking.");
+  }
+  // Farewells
+  else if (/\b(bye|goodbye|see you|later|take care|goodnight)\b/.test(lower)) {
+    replies.push("Goodbye!", "See you later!", "Take care!", "Until next time.", "Have a great day!");
+  }
+  // Requests / commands
+  else if (/\b(please|could you|would you|can you|need|want|help)\b/.test(lower)) {
+    replies.push("Sure, I can help with that.", "On it.", "Consider it done.", "Absolutely, right away.", "Let me take care of that.");
+  }
+  // Feelings / emotions
+  else if (/\b(happy|sad|angry|excited|tired|bored|great|terrible|amazing|awful)\b/.test(lower)) {
+    replies.push("I hear you.", "That's totally understandable.", "Tell me more about that.", "I appreciate you sharing.", "How can I help?");
+  }
+  // Lists / items
+  else if (/\b(first|second|third|finally|also|next|then|step)\b/.test(lower) || lower.includes(',')) {
+    replies.push("Got it, anything else?", "That's a solid list.", "Should I add anything?", "Noted. What's next?", "All recorded.");
+  }
+  // Technical / engineering
+  else if (/\b(design|build|test|engineer|code|system|data|project|report|spec|plan)\b/.test(lower)) {
+    replies.push("Understood. I'll review the specs.", "Ready for the next phase.", "Let me document that.", "Good plan, proceeding.", "Roger that.");
+  }
+  // Default contextual
+  else {
+    const wordCount = text.split(/\s+/).length;
+    if (wordCount <= 5) {
+      replies.push("Tell me more.", "Interesting.", "Go on.", "I see.", "Noted.");
+    } else if (wordCount <= 20) {
+      replies.push("That makes sense.", "Understood.", "Good point.", "I'll keep that in mind.", "Acknowledged.");
+    } else {
+      replies.push("Thanks for the detail.", "I've noted everything.", "Clear and thorough.", "Let me summarize back.", "Excellent breakdown.");
+    }
+  }
+
+  // Show panel
+  quickPanel.style.display = '';
+  quickGrid.innerHTML = '';
+  replies.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-btn';
+    btn.textContent = r;
+    btn.onclick = () => {
+      textInput.value = r;
+      charCount.textContent = r.length;
+      handleSpeak();
+    };
+    quickGrid.appendChild(btn);
+  });
+}
+
+// --- History ---
+function addToHistory(text) {
+  const entry = { text, time: Date.now() };
+  history.unshift(entry);
+  if (history.length > 30) history = history.slice(0, 30);
+  localStorage.setItem('tts_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!history.length) {
+    historyList.innerHTML = '<div class="history-empty">No messages yet</div>';
+    return;
+  }
+  historyList.innerHTML = '';
+  history.slice(0, 15).forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    const ago = timeAgo(entry.time);
+    div.innerHTML = `
+      <span class="history-play" title="Replay">&#9654;</span>
+      <span class="history-text">${escHtml(entry.text)}</span>
+      <span class="history-time">${ago}</span>
+    `;
+    div.onclick = () => {
+      textInput.value = entry.text;
+      charCount.textContent = entry.text.length;
+      handleSpeak();
+    };
+    historyList.appendChild(div);
+  });
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+  return Math.floor(diff / 86400000) + 'd ago';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// --- Auto-refresh voices on change ---
+if (synth.onvoiceschanged !== undefined) {
+  synth.onvoiceschanged = loadVoices;
+}
+
+// --- Init ---
+loadVoices();
+renderHistory();
+
+// Poll for voices (some browsers need this)
+if (!voices.length) {
+  const poll = setInterval(() => {
+    loadVoices();
+    if (voices.length) clearInterval(poll);
+  }, 100);
+  setTimeout(() => clearInterval(poll), 5000);
+}
+
+// --- Keyboard shortcut ---
+textInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    handleSpeak();
+  }
+});
+</script>
+</body>
+</html>

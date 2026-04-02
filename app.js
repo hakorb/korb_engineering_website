@@ -139,6 +139,7 @@ const SECTIONS = {
       { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
       { name: 'Tanks', file: './tools/misc/tanks.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
+      { name: 'Text to Speech', file: './tools/misc/text-to-speech.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
       { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
     ]
