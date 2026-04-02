@@ -553,12 +553,8 @@ function renderAboutPage() {
   `;
   initReveal();
 
-  // Background audio — plays silently on loop, stops when leaving about page
+  // Audio removed — was auto-playing on iPhone and triggering reader mode
   stopAboutAudio();
-  aboutAudioEl = new Audio('./tools/misc/images/about-bg.mp3');
-  aboutAudioEl.loop = true;
-  aboutAudioEl.volume = 0.25;
-  aboutAudioEl.play().catch(() => {});
 
   // Names stay hidden until photo is visible
   function revealName(nameId) {
