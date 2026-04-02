@@ -421,7 +421,7 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
       <div class="tool-topbar">
         <button type="button" class="back-link tool-back-btn" aria-label="Back to folder">${BACK_SVG}</button>
       </div>
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
     </section>
   `;
 
@@ -441,7 +441,7 @@ function renderToolEmbed(key, sec, tool) {
       <div class="tool-topbar">
         <button type="button" class="back-link tool-back-btn" aria-label="Back to section">${BACK_SVG}</button>
       </div>
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
     </section>
   `;
 
