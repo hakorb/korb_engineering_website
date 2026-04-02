@@ -133,6 +133,7 @@ const SECTIONS = {
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
       { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
+      { name: 'Scandinavian Interior Design', file: './tools/misc/scandinavian-interior-design.html' },
       { name: 'Simon', file: './tools/misc/simon.html' },
       { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
       { name: 'Soundboard', file: './tools/misc/soundboard.html' },
