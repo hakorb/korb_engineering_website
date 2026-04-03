@@ -347,8 +347,8 @@ function renderHome() {
       <div class="landing-about">
         <a href="#about" class="about-btn">About</a>
       </div>
-      <div style="text-align:center;padding:32px 0 8px;opacity:0.35">
-        <a href="mailto:harrison@korb.engineering" style="color:var(--vfd-cyan-dim);font-size:11px;letter-spacing:0.08em;text-decoration:none;font-family:var(--font-mono)">harrison@korb.engineering</a>
+      <div style="text-align:center;padding:32px 0 8px">
+        <a href="mailto:harrison@korb.engineering" class="site-email-link">harrison@korb.engineering</a>
       </div>
     </section>
   `;
