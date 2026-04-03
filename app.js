@@ -253,6 +253,57 @@ const main = document.getElementById('mainContent');
 const BACK_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>`;
 const ARROW_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
 
+// --- Search Helpers ---
+const SEARCH_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+const CLEAR_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+// Build flat search index of all tools (excluding locked section internals)
+function buildSearchIndex() {
+  const index = [];
+  const sectionLabels = { aviation: 'Aviation', civil: 'Civil', misc: 'Misc', hk: 'HK' };
+  for (const [key, sec] of Object.entries(SECTIONS)) {
+    if (sec.locked) continue; // skip locked sections entirely
+    for (const tool of sec.tools) {
+      if (tool.type === 'folder') continue; // skip folders
+      index.push({
+        name: tool.name,
+        section: key,
+        sectionLabel: sectionLabels[key] || key,
+        slug: getToolSlug(tool),
+        file: tool.file
+      });
+    }
+  }
+  return index;
+}
+
+function fuzzyMatch(query, text) {
+  const q = query.toLowerCase();
+  const t = text.toLowerCase();
+  // Exact substring match scores highest
+  if (t.includes(q)) return 2;
+  // Fuzzy: all query chars appear in order
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length ? 1 : 0;
+}
+
+function searchTools(query) {
+  if (!query.trim()) return [];
+  const index = buildSearchIndex();
+  const results = [];
+  for (const item of index) {
+    const score = fuzzyMatch(query, item.name);
+    if (score > 0) results.push({ ...item, score });
+  }
+  // Sort: exact substring first, then fuzzy, then alphabetical
+  results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return results;
+}
+
+
 function renderHome() {
   const lockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
 
@@ -272,7 +323,15 @@ function renderHome() {
 
   main.innerHTML = `
     <section class="landing">
-      <div class="category-grid">${cards}</div>
+      <div class="search-bar-wrap">
+        <div class="search-bar">
+          <span class="search-icon">${SEARCH_SVG}</span>
+          <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false">
+          <button class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <div class="category-grid" id="categoryGrid">${cards}</div>
       <div class="landing-about">
         <a href="#about" class="about-btn">About</a>
       </div>
@@ -281,6 +340,92 @@ function renderHome() {
       </div>
     </section>
   `;
+
+  // Search functionality
+  const searchInput = document.getElementById('toolSearch');
+  const searchResults = document.getElementById('searchResults');
+  const searchClear = document.getElementById('searchClear');
+  const categoryGrid = document.getElementById('categoryGrid');
+  let activeIdx = -1;
+
+  function renderResults(query) {
+    const results = searchTools(query);
+    activeIdx = -1;
+
+    if (!query.trim()) {
+      searchResults.innerHTML = '';
+      searchResults.style.display = 'none';
+      categoryGrid.style.display = '';
+      searchClear.style.display = 'none';
+      return;
+    }
+
+    searchClear.style.display = 'flex';
+
+    if (results.length === 0) {
+      searchResults.innerHTML = `<div class="search-empty">No tools found</div>`;
+      searchResults.style.display = 'block';
+      categoryGrid.style.display = 'none';
+      return;
+    }
+
+    searchResults.innerHTML = results.map((r, i) => `
+      <a href="#${r.section}/${r.slug}" class="search-result-item" data-index="${i}">
+        <span class="search-result-name">${highlightMatch(r.name, query)}</span>
+        <span class="search-result-section">${r.sectionLabel}</span>
+      </a>
+    `).join('');
+    searchResults.style.display = 'block';
+    categoryGrid.style.display = 'none';
+  }
+
+  function highlightMatch(name, query) {
+    const lName = name.toLowerCase();
+    const lQuery = query.toLowerCase();
+    const idx = lName.indexOf(lQuery);
+    if (idx >= 0) {
+      return name.substring(0, idx) +
+        `<mark class="search-hl">${name.substring(idx, idx + query.length)}</mark>` +
+        name.substring(idx + query.length);
+    }
+    return name;
+  }
+
+  function setActive(idx) {
+    const items = searchResults.querySelectorAll('.search-result-item');
+    items.forEach(el => el.classList.remove('active'));
+    if (idx >= 0 && idx < items.length) {
+      items[idx].classList.add('active');
+      items[idx].scrollIntoView({ block: 'nearest' });
+    }
+    activeIdx = idx;
+  }
+
+  searchInput.addEventListener('input', () => renderResults(searchInput.value));
+
+  searchInput.addEventListener('keydown', (e) => {
+    const items = searchResults.querySelectorAll('.search-result-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive(Math.min(activeIdx + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive(Math.max(activeIdx - 1, 0));
+    } else if (e.key === 'Enter' && activeIdx >= 0 && items[activeIdx]) {
+      e.preventDefault();
+      items[activeIdx].click();
+    } else if (e.key === 'Escape') {
+      searchInput.value = '';
+      renderResults('');
+      searchInput.blur();
+    }
+  });
+
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    renderResults('');
+    searchInput.focus();
+  });
 
   // Stagger card fade-in
   main.querySelectorAll('.category-card').forEach((el, i) => {

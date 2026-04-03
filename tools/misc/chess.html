@@ -89,9 +89,10 @@ header .sub{font-size:.65rem;color:#4a6a8a;letter-spacing:2px;margin-top:2px}
 <option value="900">15 min</option>
 </select>
 <select id="depthSelect" onchange="aiDepth=parseInt(this.value)">
-<option value="2">AI Easy</option>
-<option value="3" selected>AI Medium</option>
-<option value="4">AI Hard</option>
+<option value="3">AI Easy</option>
+<option value="4">AI Medium</option>
+<option value="5" selected>AI Hard</option>
+<option value="6">AI Extreme</option>
 </select>
 </div>
 
@@ -175,7 +176,7 @@ let selectedSquare=-1;
 let legalMovesForSelected=[];
 let lastMoveFrom=-1,lastMoveTo=-1;
 let gameMode='ai-white';
-let aiDepth=3;
+let aiDepth=5;
 let gameOver=false;
 let timerSeconds=0;
 let whiteTime=0,blackTime=0;
@@ -606,29 +607,146 @@ function undoMove(){
 }
 
 // ==================== AI ====================
+// Endgame king PST (king should be centralized in endgame)
+const PST_KING_EG=[-50,-40,-30,-20,-20,-30,-40,-50,-30,-20,-10,0,0,-10,-20,-30,-30,-10,20,30,30,20,-10,-30,-30,-10,30,40,40,30,-10,-30,-30,-10,30,40,40,30,-10,-30,-30,-10,20,30,30,20,-10,-30,-30,-30,0,0,0,0,-30,-30,-50,-30,-30,-30,-30,-30,-30,-50];
+const PST_KING_EG_B=PST_KING_EG.slice().reverse();
+
 function evaluate(bd){
     let score=0;
+    let wMat=0,bMat=0;
+    let wBishops=0,bBishops=0;
+    let wPawns=[],bPawns=[];
+    // Material + PST
     for(let i=0;i<64;i++){
         const p=bd[i];
         if(!p)continue;
         const val=PIECE_VALUES[p]||0;
         const pst=PST[p]?PST[p][i]:0;
-        if(isWhite(p))score+=val+pst;
-        else score-=val+pst;
+        if(isWhite(p)){
+            score+=val+pst;
+            if(p!==WK)wMat+=val;
+            if(p===WB)wBishops++;
+            if(p===WP)wPawns.push(i);
+        }else{
+            score-=val+pst;
+            if(p!==BK)bMat+=val;
+            if(p===BB)bBishops++;
+            if(p===BP)bPawns.push(i);
+        }
     }
+    // Endgame detection: if total non-pawn material < 2600 (roughly 2 rooks worth)
+    const isEndgame=(wMat+bMat)<2600;
+    // Endgame king PST adjustment
+    if(isEndgame){
+        for(let i=0;i<64;i++){
+            if(bd[i]===WK)score+=PST_KING_EG[i]-PST[WK][i];
+            else if(bd[i]===BK)score-=PST_KING_EG_B[i]-PST[BK][i];
+        }
+    }
+    // Bishop pair bonus
+    if(wBishops>=2)score+=35;
+    if(bBishops>=2)score-=35;
+    // Doubled pawns penalty
+    for(let f=0;f<8;f++){
+        let wc=0,bc=0;
+        for(const pi of wPawns)if(pi%8===f)wc++;
+        for(const pi of bPawns)if(pi%8===f)bc++;
+        if(wc>1)score-=15*(wc-1);
+        if(bc>1)score+=15*(bc-1);
+    }
+    // Isolated pawns penalty
+    for(const pi of wPawns){
+        const f=pi%8;
+        const hasNeighbor=wPawns.some(p2=>{const f2=p2%8;return Math.abs(f2-f)===1;});
+        if(!hasNeighbor)score-=12;
+    }
+    for(const pi of bPawns){
+        const f=pi%8;
+        const hasNeighbor=bPawns.some(p2=>{const f2=p2%8;return Math.abs(f2-f)===1;});
+        if(!hasNeighbor)score+=12;
+    }
+    // Rook on open/semi-open file bonus
+    for(let i=0;i<64;i++){
+        const p=bd[i];
+        if(p===WR||p===BR){
+            const f=i%8;
+            const hasFriendlyPawn=p===WR?wPawns.some(pi=>pi%8===f):bPawns.some(pi=>pi%8===f);
+            const hasEnemyPawn=p===WR?bPawns.some(pi=>pi%8===f):wPawns.some(pi=>pi%8===f);
+            if(!hasFriendlyPawn&&!hasEnemyPawn){
+                if(isWhite(p))score+=20;else score-=20; // open file
+            }else if(!hasFriendlyPawn){
+                if(isWhite(p))score+=10;else score-=10; // semi-open
+            }
+        }
+    }
+    // Mobility bonus (lightweight: count pseudo-legal moves difference)
+    // Only at leaf nodes since this is expensive — handled by depth 0 eval
     return score;
 }
 
-function orderMoves(bd,moves){
+// History heuristic table for move ordering
+const historyTable=new Array(64*64).fill(0);
+function historyIdx(from,to){return from*64+to}
+
+function orderMoves(bd,moves,killers){
     return moves.map(m=>{
         let score=0;
         const victim=bd[m.to];
-        if(victim)score+=10*PIECE_VALUES[victim]-(PIECE_VALUES[m.piece]||0);
-        if(m.flag==='promo')score+=800;
-        if(m.flag==='ep')score+=50;
+        // MVV-LVA for captures
+        if(victim)score+=10*(PIECE_VALUES[victim]||0)-(PIECE_VALUES[m.piece]||0)+10000;
+        if(m.flag==='promo')score+=9000;
+        if(m.flag==='ep')score+=10050;
+        // Killer move bonus
+        if(killers&&killers.some(k=>k&&k.from===m.from&&k.to===m.to))score+=5000;
+        // History heuristic
+        if(!victim)score+=historyTable[historyIdx(m.from,m.to)];
+        // Castling is usually good
+        if(m.flag==='castle-k'||m.flag==='castle-q')score+=3000;
         return{m,score};
     }).sort((a,b)=>b.score-a.score).map(x=>x.m);
 }
+
+// Quiescence search: evaluate captures at depth 0 to avoid horizon effect
+function quiesce(bd,alpha,beta,maximizing,ep,castle,qDepth){
+    const standPat=evaluate(bd);
+    if(qDepth<=0)return standPat;
+    if(maximizing){
+        if(standPat>=beta)return beta;
+        if(standPat>alpha)alpha=standPat;
+    }else{
+        if(standPat<=alpha)return alpha;
+        if(standPat<beta)beta=standPat;
+    }
+    const clr=maximizing?'w':'b';
+    const moves=legalMoves(bd,clr,ep,castle);
+    // Only search captures and promotions
+    const captures=moves.filter(m=>bd[m.to]||m.flag==='ep'||m.flag==='promo');
+    const ordered=orderMoves(bd,captures);
+    for(const m of ordered){
+        const copy=bd.slice();
+        const nc={...castle};
+        applyMoveRaw(copy,m);
+        if(m.from===60||m.to===60){nc.wk=false;nc.wq=false}
+        if(m.from===4||m.to===4){nc.bk=false;nc.bq=false}
+        if(m.from===63||m.to===63)nc.wk=false;
+        if(m.from===56||m.to===56)nc.wq=false;
+        if(m.from===7||m.to===7)nc.bk=false;
+        if(m.from===0||m.to===0)nc.bq=false;
+        const nep=m.flag==='double'?((m.from+m.to)>>1):-1;
+        const val=quiesce(copy,alpha,beta,!maximizing,nep,nc,qDepth-1);
+        if(maximizing){
+            if(val>alpha)alpha=val;
+            if(alpha>=beta)return beta;
+        }else{
+            if(val<beta)beta=val;
+            if(alpha>=beta)return alpha;
+        }
+    }
+    return maximizing?alpha:beta;
+}
+
+// Killer moves: 2 per depth level
+const killerMoves=Array.from({length:20},()=>[null,null]);
 
 function minimax(bd,depth,alpha,beta,maximizing,ep,castle){
     const clr=maximizing?'w':'b';
@@ -637,9 +755,9 @@ function minimax(bd,depth,alpha,beta,maximizing,ep,castle){
         if(inCheck(bd,clr))return maximizing?-99999+depth:99999-depth;
         return 0;
     }
-    if(depth===0)return evaluate(bd);
+    if(depth===0)return quiesce(bd,alpha,beta,maximizing,ep,castle,6);
 
-    const ordered=orderMoves(bd,moves);
+    const ordered=orderMoves(bd,moves,killerMoves[depth]);
 
     if(maximizing){
         let best=-Infinity;
@@ -647,7 +765,6 @@ function minimax(bd,depth,alpha,beta,maximizing,ep,castle){
             const copy=bd.slice();
             const nc={...castle};
             applyMoveRaw(copy,m);
-            // Update castle in copy context
             if(m.from===60||m.to===60){nc.wk=false;nc.wq=false}
             if(m.from===4||m.to===4){nc.bk=false;nc.bq=false}
             if(m.from===63||m.to===63)nc.wk=false;
@@ -656,9 +773,18 @@ function minimax(bd,depth,alpha,beta,maximizing,ep,castle){
             if(m.from===0||m.to===0)nc.bq=false;
             const nep=m.flag==='double'?((m.from+m.to)>>1):-1;
             const val=minimax(copy,depth-1,alpha,beta,false,nep,nc);
-            best=Math.max(best,val);
-            alpha=Math.max(alpha,val);
-            if(alpha>=beta)break;
+            if(val>best){best=val;}
+            if(val>alpha)alpha=val;
+            if(alpha>=beta){
+                // Store killer move (quiet moves that cause cutoffs)
+                if(!bd[m.to]&&depth<20){
+                    killerMoves[depth][1]=killerMoves[depth][0];
+                    killerMoves[depth][0]={from:m.from,to:m.to};
+                }
+                // Update history heuristic
+                historyTable[historyIdx(m.from,m.to)]+=depth*depth;
+                break;
+            }
         }
         return best;
     }else{
@@ -675,9 +801,16 @@ function minimax(bd,depth,alpha,beta,maximizing,ep,castle){
             if(m.from===0||m.to===0)nc.bq=false;
             const nep=m.flag==='double'?((m.from+m.to)>>1):-1;
             const val=minimax(copy,depth-1,alpha,beta,true,nep,nc);
-            best=Math.min(best,val);
-            beta=Math.min(beta,val);
-            if(alpha>=beta)break;
+            if(val<best){best=val;}
+            if(val<beta)beta=val;
+            if(alpha>=beta){
+                if(!bd[m.to]&&depth<20){
+                    killerMoves[depth][1]=killerMoves[depth][0];
+                    killerMoves[depth][0]={from:m.from,to:m.to};
+                }
+                historyTable[historyIdx(m.from,m.to)]+=depth*depth;
+                break;
+            }
         }
         return best;
     }
@@ -688,22 +821,29 @@ function aiBestMove(){
     const maximizing=aiColor==='w';
     const moves=legalMoves(board,aiColor,epSquare,castleRights);
     if(moves.length===0)return null;
-    const ordered=orderMoves(board,moves);
-    let bestMove=ordered[0];
-    let bestVal=maximizing?-Infinity:Infinity;
-    for(const m of ordered){
-        const copy=board.slice();
-        const nc={...castleRights};
-        applyMoveRaw(copy,m);
-        if(m.from===60||m.to===60){nc.wk=false;nc.wq=false}
-        if(m.from===4||m.to===4){nc.bk=false;nc.bq=false}
-        if(m.from===63||m.to===63)nc.wk=false;
-        if(m.from===56||m.to===56)nc.wq=false;
-        if(m.from===7||m.to===7)nc.bk=false;
-        if(m.from===0||m.to===0)nc.bq=false;
-        const nep=m.flag==='double'?((m.from+m.to)>>1):-1;
-        const val=minimax(copy,aiDepth-1,-Infinity,Infinity,!maximizing,nep,nc);
-        if(maximizing?val>bestVal:val<bestVal){bestVal=val;bestMove=m}
+    // Clear killer moves for fresh search
+    killerMoves.forEach(k=>{k[0]=null;k[1]=null;});
+    // Iterative deepening for better move ordering
+    let bestMove=moves[0];
+    const ordered=orderMoves(board,moves,null);
+    for(let d=1;d<=aiDepth;d++){
+        let bestVal=maximizing?-Infinity:Infinity;
+        let localBest=ordered[0];
+        for(const m of ordered){
+            const copy=board.slice();
+            const nc={...castleRights};
+            applyMoveRaw(copy,m);
+            if(m.from===60||m.to===60){nc.wk=false;nc.wq=false}
+            if(m.from===4||m.to===4){nc.bk=false;nc.bq=false}
+            if(m.from===63||m.to===63)nc.wk=false;
+            if(m.from===56||m.to===56)nc.wq=false;
+            if(m.from===7||m.to===7)nc.bk=false;
+            if(m.from===0||m.to===0)nc.bq=false;
+            const nep=m.flag==='double'?((m.from+m.to)>>1):-1;
+            const val=minimax(copy,d-1,-Infinity,Infinity,!maximizing,nep,nc);
+            if(maximizing?val>bestVal:val<bestVal){bestVal=val;localBest=m}
+        }
+        bestMove=localBest;
     }
     return bestMove;
 }
