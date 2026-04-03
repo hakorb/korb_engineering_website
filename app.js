@@ -145,6 +145,7 @@ const SECTIONS = {
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
     tools: [
+      { name: '2048', file: './tools/misc/2048.html' },
       { name: '3D Print Library', file: './tools/misc/3d-print-library.html' },
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
@@ -153,8 +154,11 @@ const SECTIONS = {
       { name: 'ASL Learning Tool', file: './tools/misc/asl-learning-tool.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
+      { name: 'Chess', file: './tools/misc/chess.html' },
+      { name: 'Dev Toolkit', file: './tools/misc/dev-toolkit.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
+      { name: 'Dungeon Quest', file: './tools/misc/dungeon-quest.html' },
       { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
       { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'Frisco Weather', file: './tools/misc/frisco-weather.html' },
@@ -165,7 +169,9 @@ const SECTIONS = {
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
+      { name: 'Password Forge', file: './tools/misc/password-forge.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
+      { name: 'Pomodoro Timer', file: './tools/misc/pomodoro-timer.html' },
       { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
       { name: 'Scandinavian Interior Design', file: './tools/misc/scandinavian-interior-design.html' },
       { name: 'Simon', file: './tools/misc/simon.html' },
@@ -192,6 +198,31 @@ function getRoute() {
 
 function navigate(route) {
   location.hash = route === 'home' ? '' : route;
+}
+
+// --- Tool Slug Helpers ---
+// Derive a URL-friendly slug from a tool's file path
+// e.g. './tools/misc/soundboard.html' → 'soundboard'
+// e.g. './tools/misc/3d-print-library.html' → '3d-print-library'
+function getToolSlug(tool) {
+  const filename = tool.file.split('/').pop();
+  return filename.replace(/\.html$/i, '');
+}
+
+// Find a tool by slug within a section (including subfolders)
+function findToolBySlug(sec, slug) {
+  for (const tool of sec.tools) {
+    if (tool.type === 'folder') {
+      for (const subTool of tool.tools) {
+        if (getToolSlug(subTool) === slug) {
+          return { tool: subTool, folder: tool };
+        }
+      }
+    } else if (getToolSlug(tool) === slug) {
+      return { tool, folder: null };
+    }
+  }
+  return null;
 }
 
 
@@ -351,7 +382,9 @@ function renderToolGrid(key, sec) {
         return;
       }
 
-      renderToolEmbed(sKey, s, tool);
+      // Set hash to section/tool-slug for shareable URLs
+      const slug = getToolSlug(tool);
+      location.hash = `${sKey}/${slug}`;
     });
   });
 
@@ -439,7 +472,9 @@ function renderSubfolderGrid(sectionKey, sec, folder) {
       e.preventDefault();
       const tIdx = parseInt(card.dataset.folderToolIndex);
       const tool = folder.tools[tIdx];
-      renderSubfolderToolEmbed(sectionKey, sec, folder, tool);
+      // Set hash to section/tool-slug for shareable URLs
+      const slug = getToolSlug(tool);
+      location.hash = `${sectionKey}/${slug}`;
     });
   });
 
@@ -463,7 +498,8 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
     e.stopPropagation();
     const iframe = main.querySelector('.tool-iframe');
     if (iframe) iframe.remove();
-    renderSubfolderGrid(sectionKey, sec, folder);
+    // Navigate back to section grid
+    location.hash = sectionKey;
   });
 }
 
@@ -485,12 +521,8 @@ function renderToolEmbed(key, sec, tool) {
     // Remove iframe first to stop any running content
     const iframe = main.querySelector('.tool-iframe');
     if (iframe) iframe.remove();
-    // If hash is already the section key, hashchange won't fire, so render directly
-    if (location.hash === '#' + key) {
-      renderSection(key);
-    } else {
-      location.hash = key;
-    }
+    // Navigate back to section grid
+    location.hash = key;
   });
 }
 
@@ -684,6 +716,39 @@ function handleRoute() {
     renderHome();
   } else if (route === 'about') {
     renderAboutPage();
+  } else if (route.includes('/')) {
+    // Tool-level route: section/tool-slug
+    const slashIdx = route.indexOf('/');
+    const sectionKey = route.substring(0, slashIdx);
+    const toolSlug = route.substring(slashIdx + 1);
+    const sec = SECTIONS[sectionKey];
+
+    if (sec) {
+      // For locked sections, check if unlocked
+      if (sec.locked && !sec._unlocked) {
+        renderPasswordGate(sectionKey, sec);
+        return;
+      }
+
+      const result = findToolBySlug(sec, toolSlug);
+      if (result) {
+        if (result.folder) {
+          // Subfolder tool — check folder lock
+          if (result.folder.locked && !result.folder._unlocked) {
+            renderFolderPasswordGate(sectionKey, sec, result.folder);
+          } else {
+            renderSubfolderToolEmbed(sectionKey, sec, result.folder, result.tool);
+          }
+        } else {
+          renderToolEmbed(sectionKey, sec, result.tool);
+        }
+      } else {
+        // Tool slug not found, show section
+        renderSection(sectionKey);
+      }
+    } else {
+      renderHome();
+    }
   } else if (SECTIONS[route]) {
     renderSection(route);
   } else {

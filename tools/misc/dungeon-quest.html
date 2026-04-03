@@ -1,0 +1,2527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dungeon Quest - Korb Engineering</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Cinzel:wght@400;700;900&family=Cinzel+Decorative:wght@400;700;900&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#050a0f;--bg2:#0a1118;--bg3:#0f1922;--bg4:#142230;
+--cyan:#00d4ff;--cyan2:#00a8cc;--cyan-dim:rgba(0,212,255,.15);
+--fire:#ff6600;--fire2:#ff4400;--heal:#10b981;--heal2:#059669;
+--gold:#ffd700;--purple:#a855f7;--red:#ef4444;--white:#e8f0f8;
+--text:#b0c4d8;--text-dim:#607080;
+--font-ui:'JetBrains Mono',monospace;--font-title:'Cinzel Decorative',serif;--font-heading:'Cinzel',serif;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:14px}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--cyan2)}
+button{font-family:var(--font-ui);cursor:pointer;border:1px solid var(--cyan2);background:var(--bg3);color:var(--cyan);padding:8px 16px;border-radius:4px;transition:all .2s;font-size:13px}
+button:hover{background:var(--cyan-dim);box-shadow:0 0 10px rgba(0,212,255,.2)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:rgba(0,212,255,.15);border-color:var(--cyan)}
+button.danger{border-color:var(--red);color:var(--red)}button.danger:hover{background:rgba(239,68,68,.15)}
+input,select{font-family:var(--font-ui);background:var(--bg2);border:1px solid var(--bg4);color:var(--white);padding:8px 12px;border-radius:4px;font-size:13px;outline:none}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,.2)}
+select option{background:var(--bg2);color:var(--white)}
+
+.screen{display:none;position:absolute;inset:0;overflow:hidden}
+.screen.active{display:flex}
+
+/* TITLE SCREEN */
+#title-screen{flex-direction:column;align-items:center;justify-content:center;gap:30px;background:radial-gradient(ellipse at 50% 30%,rgba(0,212,255,.06) 0%,var(--bg) 70%)}
+#title-screen h1{font-family:var(--font-title);font-size:clamp(2rem,5vw,4rem);color:var(--cyan);text-shadow:0 0 30px rgba(0,212,255,.5),0 0 60px rgba(0,212,255,.2);animation:titleGlow 3s ease-in-out infinite alternate;letter-spacing:4px}
+@keyframes titleGlow{0%{text-shadow:0 0 20px rgba(0,212,255,.4),0 0 40px rgba(0,212,255,.15)}100%{text-shadow:0 0 40px rgba(0,212,255,.7),0 0 80px rgba(0,212,255,.3),0 0 120px rgba(0,212,255,.1)}}
+#title-screen .subtitle{font-family:var(--font-heading);color:var(--text-dim);font-size:14px;letter-spacing:6px;text-transform:uppercase}
+.title-menu{display:flex;flex-direction:column;gap:12px;width:300px}
+.title-menu button{padding:14px 20px;font-size:15px;font-family:var(--font-heading);letter-spacing:2px}
+.title-branding{position:absolute;bottom:20px;color:var(--text-dim);font-size:11px;letter-spacing:2px;opacity:.5}
+
+/* CHARACTER CREATION */
+#char-screen{flex-direction:column;align-items:center;padding:40px 20px;overflow-y:auto}
+.char-form{max-width:700px;width:100%;display:flex;flex-direction:column;gap:20px}
+.char-form h2{font-family:var(--font-heading);color:var(--cyan);text-align:center;font-size:24px;margin-bottom:10px}
+.form-row{display:flex;gap:16px;flex-wrap:wrap}
+.form-group{flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px}
+.form-group label{color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:1px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat-box{background:var(--bg2);border:1px solid var(--bg4);border-radius:6px;padding:12px;text-align:center}
+.stat-box .stat-name{font-size:11px;color:var(--text-dim);letter-spacing:1px}
+.stat-box .stat-val{font-size:28px;font-weight:700;color:var(--cyan);font-family:var(--font-heading)}
+.stat-box .stat-mod{font-size:12px;color:var(--gold)}
+.portrait-canvas{width:120px;height:120px;border:2px solid var(--bg4);border-radius:8px;background:var(--bg);margin:0 auto;display:block;image-rendering:pixelated}
+.equipment-preview{background:var(--bg2);border:1px solid var(--bg4);border-radius:6px;padding:16px}
+.equipment-preview h4{color:var(--gold);margin-bottom:8px;font-family:var(--font-heading);font-size:13px}
+.equipment-preview li{color:var(--text);font-size:12px;padding:2px 0;list-style:none}
+.equipment-preview li::before{content:"- ";color:var(--text-dim)}
+
+/* ADVENTURE SELECT */
+#adventure-screen{flex-direction:column;align-items:center;padding:40px 20px;overflow-y:auto;gap:20px}
+#adventure-screen h2{font-family:var(--font-heading);color:var(--cyan);font-size:24px}
+.adventure-cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:900px}
+.adventure-card{background:var(--bg2);border:1px solid var(--bg4);border-radius:8px;padding:24px;width:270px;cursor:pointer;transition:all .3s}
+.adventure-card:hover{border-color:var(--cyan);transform:translateY(-4px);box-shadow:0 8px 30px rgba(0,212,255,.1)}
+.adventure-card h3{font-family:var(--font-heading);color:var(--gold);font-size:16px;margin-bottom:8px}
+.adventure-card p{font-size:12px;color:var(--text-dim);line-height:1.6;margin-bottom:12px}
+.adventure-card .meta{display:flex;justify-content:space-between;font-size:11px}
+.adventure-card .meta span{color:var(--text-dim)}
+.difficulty-easy{color:var(--heal) !important}.difficulty-medium{color:var(--gold) !important}.difficulty-hard{color:var(--fire) !important}
+
+/* GAME SCREEN */
+#game-screen{flex-direction:row}
+.game-sidebar{width:260px;background:var(--bg2);border-right:1px solid var(--bg4);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sidebar-section{border-bottom:1px solid var(--bg4);padding:12px}
+.sidebar-section h3{font-family:var(--font-heading);color:var(--cyan);font-size:12px;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase}
+.player-entry{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
+.player-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.player-hp-bar{height:4px;background:var(--bg4);border-radius:2px;flex:1;overflow:hidden}
+.player-hp-fill{height:100%;border-radius:2px;transition:width .3s}
+.char-summary{padding:12px}
+.char-summary .char-name{font-family:var(--font-heading);color:var(--gold);font-size:14px}
+.char-summary .char-desc{color:var(--text-dim);font-size:11px}
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}
+.mini-stat{background:var(--bg);padding:4px;border-radius:3px;text-align:center;font-size:10px}
+.mini-stat .label{color:var(--text-dim)}
+.mini-stat .val{color:var(--cyan);font-weight:700}
+.hp-display{margin-top:8px;display:flex;align-items:center;gap:8px}
+.hp-bar-big{height:16px;background:var(--bg);border-radius:8px;flex:1;overflow:hidden;border:1px solid var(--bg4)}
+.hp-fill-big{height:100%;border-radius:8px;transition:width .5s}
+.hp-text{font-size:11px;color:var(--white);min-width:60px;text-align:right}
+.xp-bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:4px;border:1px solid var(--bg4)}
+.xp-fill{height:100%;background:var(--purple);border-radius:3px;transition:width .5s}
+.inventory-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.inv-slot{width:100%;aspect-ratio:1;background:var(--bg);border:1px solid var(--bg4);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;position:relative}
+.inv-slot:hover{border-color:var(--cyan)}
+.inv-slot .inv-tooltip{display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--cyan2);padding:6px 10px;border-radius:4px;font-size:11px;white-space:nowrap;z-index:100;color:var(--white)}
+.inv-slot:hover .inv-tooltip{display:block}
+
+.game-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.game-header{padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--bg4);display:flex;justify-content:space-between;align-items:center}
+.game-header .location{font-family:var(--font-heading);color:var(--gold);font-size:14px}
+.game-header .room-code{font-size:12px;color:var(--cyan);cursor:pointer}
+.game-header .room-code:hover{text-decoration:underline}
+
+.narrative-area{flex:1;overflow-y:auto;padding:24px 32px}
+.narrative-text{font-size:15px;line-height:1.8;color:var(--text);max-width:700px}
+.narrative-text p{margin-bottom:16px}
+.narrative-text .highlight{color:var(--cyan)}
+.narrative-text .damage{color:var(--fire)}
+.narrative-text .heal-text{color:var(--heal)}
+.narrative-text .gold-text{color:var(--gold)}
+.narrative-text .roll-result{display:inline-block;background:var(--bg2);border:1px solid var(--bg4);padding:2px 8px;border-radius:4px;color:var(--cyan);font-weight:700;margin:0 4px}
+
+.choices-area{padding:16px 32px;border-top:1px solid var(--bg4);background:var(--bg2)}
+.choices-area h4{color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.choices-list{display:flex;flex-direction:column;gap:8px}
+.choice-btn{text-align:left;padding:12px 16px;font-size:13px;line-height:1.4;position:relative}
+.choice-btn .req{color:var(--gold);font-size:11px;margin-top:4px;display:block}
+.choice-btn .votes{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text-dim)}
+
+/* COMBAT */
+.combat-area{padding:20px;display:flex;flex-direction:column;gap:12px}
+.combat-header{text-align:center;font-family:var(--font-heading);color:var(--fire);font-size:18px;letter-spacing:2px}
+.combatants{display:flex;justify-content:space-around;align-items:center;padding:16px 0}
+.combatant{text-align:center;padding:16px;background:var(--bg2);border:1px solid var(--bg4);border-radius:8px;min-width:150px}
+.combatant.active{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,212,255,.2)}
+.combatant .c-name{font-family:var(--font-heading);color:var(--white);font-size:14px;margin-bottom:4px}
+.combatant .c-hp{font-size:12px;color:var(--text-dim);margin-bottom:4px}
+.combatant .c-hp-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+.combatant .c-hp-fill{height:100%;border-radius:4px;transition:width .3s}
+.vs-text{font-family:var(--font-heading);color:var(--fire);font-size:24px;text-shadow:0 0 10px rgba(255,102,0,.5)}
+.combat-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.combat-actions button{min-width:120px}
+.combat-log{max-height:150px;overflow-y:auto;background:var(--bg);border:1px solid var(--bg4);border-radius:6px;padding:10px;font-size:12px}
+.combat-log p{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.log-damage{color:var(--fire)}.log-heal{color:var(--heal)}.log-info{color:var(--cyan)}.log-miss{color:var(--text-dim)}.log-crit{color:var(--gold);font-weight:700}
+
+/* DICE */
+.dice-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:16px}
+.dice-overlay.show{display:flex}
+.dice-d20{width:100px;height:100px;background:var(--bg3);border:3px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:var(--cyan);font-family:var(--font-heading);clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);transition:transform .1s}
+.dice-d20.rolling{animation:diceRoll .1s infinite}
+.dice-d20.crit{color:var(--gold);border-color:var(--gold);text-shadow:0 0 20px rgba(255,215,0,.8)}
+.dice-d20.fail{color:var(--red);border-color:var(--red)}
+.dice-label{font-family:var(--font-heading);color:var(--white);font-size:16px}
+@keyframes diceRoll{0%{transform:rotate(0deg) scale(1)}25%{transform:rotate(90deg) scale(1.1)}50%{transform:rotate(180deg) scale(1)}75%{transform:rotate(270deg) scale(1.1)}100%{transform:rotate(360deg) scale(1)}}
+
+/* MINIMAP */
+.minimap{padding:12px}
+.minimap-canvas{width:100%;height:100px;background:var(--bg);border:1px solid var(--bg4);border-radius:4px}
+
+/* CHAT */
+.chat-panel{border-top:1px solid var(--bg4);display:flex;flex-direction:column;height:180px}
+.chat-messages{flex:1;overflow-y:auto;padding:8px;font-size:12px}
+.chat-messages p{padding:2px 0}
+.chat-messages .chat-name{font-weight:700}
+.chat-input-row{display:flex;border-top:1px solid var(--bg4)}
+.chat-input-row input{flex:1;border:none;border-radius:0;padding:8px}
+.chat-input-row button{border:none;border-radius:0;border-left:1px solid var(--bg4);padding:8px 16px}
+
+.game-right{width:240px;background:var(--bg2);border-left:1px solid var(--bg4);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+
+/* SCREEN SHAKE */
+@keyframes shake{0%,100%{transform:translate(0)}10%{transform:translate(-4px,-2px)}20%{transform:translate(4px,2px)}30%{transform:translate(-3px,3px)}40%{transform:translate(3px,-3px)}50%{transform:translate(-2px,2px)}60%{transform:translate(2px,-2px)}70%{transform:translate(-1px,1px)}80%{transform:translate(1px,-1px)}90%{transform:translate(0)}}
+.shake{animation:shake .4s ease-in-out}
+
+/* SAVE/LOAD MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:999}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--bg4);border-radius:8px;padding:24px;min-width:400px;max-width:500px}
+.modal h3{font-family:var(--font-heading);color:var(--cyan);margin-bottom:16px}
+.modal .save-slot{background:var(--bg);border:1px solid var(--bg4);padding:12px;border-radius:6px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.modal .save-slot:hover{border-color:var(--cyan)}
+.modal .save-slot .slot-info{font-size:12px;color:var(--text-dim)}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+
+/* LEVEL UP */
+.level-up-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:1001;flex-direction:column;gap:16px}
+.level-up-overlay.show{display:flex}
+.level-up-text{font-family:var(--font-title);font-size:36px;color:var(--gold);text-shadow:0 0 30px rgba(255,215,0,.5);animation:levelPulse 1s ease-in-out infinite alternate}
+@keyframes levelPulse{0%{transform:scale(1)}100%{transform:scale(1.1)}}
+
+/* JOIN SCREEN */
+#join-screen{flex-direction:column;align-items:center;justify-content:center;gap:20px}
+#join-screen h2{font-family:var(--font-heading);color:var(--cyan);font-size:24px}
+.join-form{display:flex;flex-direction:column;gap:12px;width:300px}
+
+/* RESPONSIVE */
+@media(max-width:900px){.game-sidebar,.game-right{display:none}.game-main{width:100%}}
+
+.typewriter{overflow:hidden}
+.fade-in{animation:fadeIn .5s ease-in}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- DICE OVERLAY -->
+<div class="dice-overlay" id="dice-overlay">
+<div class="dice-label" id="dice-label">Rolling...</div>
+<div class="dice-d20" id="dice-d20">20</div>
+<div class="dice-result-text" id="dice-result-text" style="color:var(--white);font-family:var(--font-heading);font-size:14px"></div>
+</div>
+
+<!-- LEVEL UP OVERLAY -->
+<div class="level-up-overlay" id="levelup-overlay">
+<div class="level-up-text">LEVEL UP!</div>
+<div style="color:var(--white);font-family:var(--font-heading);font-size:18px" id="levelup-info"></div>
+<button class="primary" onclick="closeLevelUp()">Continue</button>
+</div>
+
+<!-- SAVE/LOAD MODAL -->
+<div class="modal-overlay" id="save-modal">
+<div class="modal">
+<h3 id="modal-title">Save Game</h3>
+<div id="save-slots"></div>
+<div class="modal-actions">
+<button onclick="exportSave()">Export JSON</button>
+<button onclick="document.getElementById('import-input').click()">Import JSON</button>
+<input type="file" id="import-input" accept=".json" style="display:none" onchange="importSave(event)">
+<button class="danger" onclick="closeSaveModal()">Close</button>
+</div>
+</div>
+</div>
+
+<!-- TITLE SCREEN -->
+<div class="screen active" id="title-screen">
+<h1>Dungeon Quest</h1>
+<div class="subtitle">A Multiplayer Text Adventure</div>
+<div class="title-menu">
+<button class="primary" onclick="startNewGame()">New Adventure</button>
+<button onclick="continueGame()">Continue</button>
+<button onclick="showJoinScreen()">Join Game</button>
+<button onclick="startMultiplayer()">Create Multiplayer Game</button>
+</div>
+<div class="title-branding">KORB ENGINEERING</div>
+</div>
+
+<!-- JOIN SCREEN -->
+<div class="screen" id="join-screen">
+<h2>Join Game</h2>
+<div class="join-form">
+<div class="form-group">
+<label>Room Code</label>
+<input type="text" id="join-code" placeholder="KORB-XXXXXX" maxlength="11" style="text-transform:uppercase;font-size:18px;text-align:center;letter-spacing:3px">
+</div>
+<div class="form-group">
+<label>Join As</label>
+<select id="join-mode">
+<option value="player">Player</option>
+<option value="spectator">Spectator</option>
+</select>
+</div>
+<button class="primary" onclick="joinGame()">Join</button>
+<button onclick="showScreen('title-screen')">Back</button>
+</div>
+</div>
+
+<!-- CHARACTER CREATION -->
+<div class="screen" id="char-screen">
+<div class="char-form">
+<h2>Forge Your Hero</h2>
+<canvas class="portrait-canvas" id="portrait-canvas" width="120" height="120"></canvas>
+<div class="form-row">
+<div class="form-group">
+<label>Name</label>
+<input type="text" id="char-name" placeholder="Enter your name..." maxlength="20">
+</div>
+</div>
+<div class="form-row">
+<div class="form-group">
+<label>Race</label>
+<select id="char-race" onchange="updateCharPreview()">
+<option value="human">Human</option><option value="elf">Elf</option><option value="dwarf">Dwarf</option>
+<option value="halfling">Halfling</option><option value="orc">Orc</option><option value="tiefling">Tiefling</option>
+</select>
+</div>
+<div class="form-group">
+<label>Class</label>
+<select id="char-class" onchange="updateCharPreview()">
+<option value="warrior">Warrior</option><option value="mage">Mage</option><option value="rogue">Rogue</option>
+<option value="cleric">Cleric</option><option value="ranger">Ranger</option><option value="bard">Bard</option>
+</select>
+</div>
+</div>
+<div class="stats-grid" id="stats-grid"></div>
+<div style="text-align:center"><button onclick="rollAllStats()">Re-Roll Stats</button></div>
+<div class="equipment-preview" id="equip-preview"></div>
+<div style="display:flex;gap:12px;justify-content:center;margin-top:10px">
+<button class="primary" onclick="confirmCharacter()" style="padding:14px 40px;font-size:15px">Begin Adventure</button>
+<button onclick="showScreen('title-screen')">Back</button>
+</div>
+</div>
+</div>
+
+<!-- ADVENTURE SELECT -->
+<div class="screen" id="adventure-screen">
+<h2>Choose Your Adventure</h2>
+<div class="adventure-cards" id="adventure-cards"></div>
+<button onclick="showScreen('char-screen')" style="margin-top:10px">Back</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div class="screen" id="game-screen">
+<div class="game-sidebar">
+<div class="char-summary" id="char-panel"></div>
+<div class="sidebar-section" id="players-panel" style="display:none">
+<h3>Party</h3>
+<div id="players-list"></div>
+</div>
+<div class="sidebar-section">
+<h3>Inventory</h3>
+<div class="inventory-grid" id="inventory-grid"></div>
+</div>
+<div class="sidebar-section">
+<h3>Gold: <span id="gold-display">0</span></h3>
+</div>
+<div class="minimap">
+<h3 style="font-family:var(--font-heading);color:var(--cyan);font-size:12px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Map</h3>
+<canvas class="minimap-canvas" id="minimap-canvas" width="230" height="100"></canvas>
+</div>
+</div>
+
+<div class="game-main">
+<div class="game-header">
+<div class="location" id="location-name">Unknown</div>
+<div style="display:flex;gap:12px;align-items:center">
+<span class="room-code" id="room-code-display" style="display:none" onclick="copyRoomCode()" title="Click to copy"></span>
+<button onclick="openSaveModal('save')" style="font-size:11px;padding:4px 10px">Save</button>
+<button onclick="openSaveModal('load')" style="font-size:11px;padding:4px 10px">Load</button>
+<button onclick="toggleSound()" id="sound-btn" style="font-size:11px;padding:4px 10px">Sound: ON</button>
+</div>
+</div>
+<div class="narrative-area" id="narrative-area">
+<div class="narrative-text" id="narrative-text"></div>
+</div>
+<div class="choices-area" id="choices-area" style="display:none">
+<h4>What do you do?</h4>
+<div class="choices-list" id="choices-list"></div>
+</div>
+<div class="combat-area" id="combat-area" style="display:none"></div>
+</div>
+
+<div class="game-right">
+<div class="sidebar-section" id="spectators-panel" style="display:none">
+<h3>Spectators</h3>
+<div id="spectators-list"></div>
+</div>
+<div class="chat-panel" id="chat-panel">
+<div class="chat-messages" id="chat-messages"></div>
+<div class="chat-input-row">
+<input type="text" id="chat-input" placeholder="Chat..." onkeydown="if(event.key==='Enter')sendChat()">
+<button onclick="sendChat()">Send</button>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+// ==================== AUDIO ENGINE ====================
+const AudioEngine = {
+  ctx: null,
+  enabled: true,
+  init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  },
+  play(type) {
+    if (!this.enabled || !this.ctx) return;
+    try { this[type](); } catch(e) {}
+  },
+  note(freq, dur, type='square', vol=0.1, delay=0) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, c.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + delay + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(c.currentTime + delay); o.stop(c.currentTime + delay + dur);
+  },
+  noise(dur, vol=0.05) {
+    const c = this.ctx, buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * vol;
+    const src = c.createBufferSource(), g = c.createGain();
+    src.buffer = buf; g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    src.connect(g); g.connect(c.destination); src.start();
+  },
+  diceRoll() { for(let i=0;i<8;i++) this.noise(0.03+Math.random()*0.02, 0.08); this.note(800+Math.random()*400,0.05,'square',0.05,0.15); },
+  swordSwing() { this.noise(0.15,0.1); this.note(200,0.1,'sawtooth',0.08); },
+  magicCast() { for(let i=0;i<5;i++) this.note(400+i*100,0.3,'sine',0.06,i*0.05); },
+  arrowLoose() { this.noise(0.1,0.06); this.note(600,0.15,'sine',0.04,0.05); },
+  monsterGrowl() { this.note(80,0.5,'sawtooth',0.1); this.note(60,0.3,'sawtooth',0.08,0.1); },
+  deathSound() { for(let i=0;i<4;i++) this.note(300-i*50,0.3,'sawtooth',0.06,i*0.15); },
+  levelUp() { [523,659,784,1047].forEach((f,i) => this.note(f,0.3,'square',0.08,i*0.15)); },
+  victory() { [523,659,784,1047,784,1047].forEach((f,i) => this.note(f,0.25,'square',0.07,i*0.12)); },
+  defeat() { [400,350,300,250].forEach((f,i) => this.note(f,0.4,'sawtooth',0.08,i*0.3)); },
+  doorOpen() { this.note(200,0.2,'square',0.05); this.note(300,0.2,'square',0.05,0.1); },
+  chestOpen() { this.note(500,0.1,'square',0.06); this.note(700,0.1,'square',0.06,0.08); this.note(900,0.15,'square',0.06,0.16); },
+  coinPickup() { this.note(1200,0.1,'square',0.05); this.note(1600,0.15,'square',0.05,0.08); },
+  hit() { this.noise(0.08,0.12); this.note(150,0.1,'sawtooth',0.1); },
+  heal() { this.note(523,0.2,'sine',0.06); this.note(659,0.2,'sine',0.06,0.1); this.note(784,0.3,'sine',0.06,0.2); },
+  critHit() { this.noise(0.1,0.15); this.note(100,0.15,'sawtooth',0.12); this.note(800,0.2,'square',0.08,0.1); },
+  miss() { this.noise(0.05,0.03); },
+};
+
+// ==================== GAME DATA ====================
+const RACES = {
+  human: { name:'Human', bonus:{}, color:'#deb887' },
+  elf: { name:'Elf', bonus:{ DEX:2, INT:1 }, color:'#98fb98' },
+  dwarf: { name:'Dwarf', bonus:{ CON:2, STR:1 }, color:'#cd853f' },
+  halfling: { name:'Halfling', bonus:{ DEX:2, CHA:1 }, color:'#f4a460' },
+  orc: { name:'Orc', bonus:{ STR:2, CON:1 }, color:'#6b8e23' },
+  tiefling: { name:'Tiefling', bonus:{ CHA:2, INT:1 }, color:'#dc143c' },
+};
+
+const CLASSES = {
+  warrior: { name:'Warrior', hpBonus:12, abilities:['Power Strike','Shield Bash','Battle Cry','Cleave'], primaryStat:'STR', equipment:['Longsword','Chain Mail','Wooden Shield','Health Potion x2'], weaponDie:8, desc:'A mighty fighter' },
+  mage: { name:'Mage', hpBonus:6, abilities:['Fireball','Ice Shield','Lightning Bolt','Arcane Missile'], primaryStat:'INT', equipment:['Quarterstaff','Robes of Warding','Spellbook','Mana Potion x2'], weaponDie:6, desc:'A wielder of arcane power' },
+  rogue: { name:'Rogue', hpBonus:8, abilities:['Backstab','Dodge','Poison Blade','Shadow Step'], primaryStat:'DEX', equipment:['Twin Daggers','Leather Armor','Lockpicks','Smoke Bomb x2'], weaponDie:6, desc:'A cunning shadow' },
+  cleric: { name:'Cleric', hpBonus:10, abilities:['Heal','Smite','Bless','Divine Shield'], primaryStat:'WIS', equipment:['Warhammer','Scale Mail','Holy Symbol','Health Potion x3'], weaponDie:8, desc:'A divine healer' },
+  ranger: { name:'Ranger', hpBonus:10, abilities:['Arrow Rain','Track','Animal Companion','Natures Wrath'], primaryStat:'DEX', equipment:['Longbow','Studded Leather','Quiver (20 arrows)','Healing Herb x2'], weaponDie:8, desc:'A wilderness scout' },
+  bard: { name:'Bard', hpBonus:8, abilities:['Inspire','Charm','Sonic Blast','Song of Rest'], primaryStat:'CHA', equipment:['Rapier','Padded Armor','Lute','Health Potion x1','Scroll of Identify'], weaponDie:6, desc:'A musical trickster' },
+};
+
+const ABILITY_INFO = {
+  'Power Strike': { cost:0, dmgMod:4, type:'melee', desc:'A devastating blow', sound:'swordSwing' },
+  'Shield Bash': { cost:0, dmgMod:2, type:'melee', desc:'Stun the enemy', stun:true, sound:'hit' },
+  'Battle Cry': { cost:0, dmgMod:0, type:'buff', desc:'+3 ATK for 2 turns', buff:{atk:3,dur:2}, sound:'swordSwing' },
+  'Cleave': { cost:0, dmgMod:6, type:'melee', desc:'Massive sweeping strike', sound:'swordSwing' },
+  'Fireball': { cost:0, dmgMod:8, type:'magic', desc:'Explosive fire damage', sound:'magicCast' },
+  'Ice Shield': { cost:0, dmgMod:0, type:'buff', desc:'+4 AC for 2 turns', buff:{ac:4,dur:2}, sound:'magicCast' },
+  'Lightning Bolt': { cost:0, dmgMod:6, type:'magic', desc:'Electric strike', sound:'magicCast' },
+  'Arcane Missile': { cost:0, dmgMod:4, type:'magic', desc:'Unerring magic bolts', autoHit:true, sound:'magicCast' },
+  'Backstab': { cost:0, dmgMod:8, type:'melee', desc:'Strike from shadows', sound:'swordSwing' },
+  'Dodge': { cost:0, dmgMod:0, type:'buff', desc:'+5 AC for 1 turn', buff:{ac:5,dur:1}, sound:'miss' },
+  'Poison Blade': { cost:0, dmgMod:3, type:'melee', desc:'Poison for 3 turns', poison:{dmg:3,dur:3}, sound:'swordSwing' },
+  'Shadow Step': { cost:0, dmgMod:0, type:'buff', desc:'Guaranteed crit next turn', buff:{crit:true,dur:1}, sound:'miss' },
+  'Heal': { cost:0, dmgMod:-10, type:'heal', desc:'Restore 2d6+WIS HP', sound:'heal' },
+  'Smite': { cost:0, dmgMod:6, type:'magic', desc:'Holy radiant damage', sound:'magicCast' },
+  'Bless': { cost:0, dmgMod:0, type:'buff', desc:'+2 all rolls for 3 turns', buff:{atk:2,ac:2,dur:3}, sound:'heal' },
+  'Divine Shield': { cost:0, dmgMod:0, type:'buff', desc:'Absorb next 10 dmg', buff:{shield:10,dur:99}, sound:'heal' },
+  'Arrow Rain': { cost:0, dmgMod:5, type:'ranged', desc:'Volley of arrows', sound:'arrowLoose' },
+  'Track': { cost:0, dmgMod:0, type:'buff', desc:'+4 ATK for 2 turns', buff:{atk:4,dur:2}, sound:'miss' },
+  'Animal Companion': { cost:0, dmgMod:4, type:'melee', desc:'Wolf attacks for you', sound:'monsterGrowl' },
+  'Natures Wrath': { cost:0, dmgMod:7, type:'magic', desc:'Entangling vines + damage', sound:'magicCast' },
+  'Inspire': { cost:0, dmgMod:0, type:'buff', desc:'+3 ATK and AC for 2 turns', buff:{atk:3,ac:3,dur:2}, sound:'heal' },
+  'Charm': { cost:0, dmgMod:0, type:'debuff', desc:'Enemy skips turn', stun:true, sound:'magicCast' },
+  'Sonic Blast': { cost:0, dmgMod:5, type:'magic', desc:'Thunderous sound wave', sound:'magicCast' },
+  'Song of Rest': { cost:0, dmgMod:-8, type:'heal', desc:'Heal 1d8+CHA HP', sound:'heal' },
+};
+
+const MONSTERS = {
+  skeleton: { name:'Skeleton', hp:12, ac:11, atk:3, dmg:'1d6', xp:25, loot:['Bone Shard','Gold:5-15'], behavior:'aggressive', emoji:'💀' },
+  zombie: { name:'Zombie', hp:18, ac:8, atk:2, dmg:'1d8', xp:30, loot:['Rotten Cloth','Gold:3-10'], behavior:'aggressive', emoji:'🧟' },
+  goblin: { name:'Goblin', hp:10, ac:13, atk:4, dmg:'1d6', xp:20, loot:['Rusty Dagger','Gold:5-20'], behavior:'defensive', emoji:'👺' },
+  orc_warrior: { name:'Orc Warrior', hp:25, ac:13, atk:5, dmg:'1d10', xp:50, loot:['Orc Blade','Gold:10-30'], behavior:'aggressive', emoji:'👹' },
+  giant_spider: { name:'Giant Spider', hp:16, ac:12, atk:4, dmg:'1d8', xp:35, loot:['Spider Silk','Gold:5-15'], behavior:'aggressive', special:'poison', emoji:'🕷' },
+  mimic: { name:'Mimic', hp:30, ac:14, atk:6, dmg:'1d10', xp:60, loot:['Gold:30-60','Health Potion'], behavior:'aggressive', emoji:'📦' },
+  bandit: { name:'Bandit', hp:14, ac:12, atk:3, dmg:'1d6+1', xp:25, loot:['Gold:10-25','Lockpicks'], behavior:'defensive', emoji:'🗡' },
+  wolf: { name:'Dire Wolf', hp:16, ac:12, atk:4, dmg:'1d8', xp:30, loot:['Wolf Pelt','Gold:2-8'], behavior:'aggressive', emoji:'🐺' },
+  troll: { name:'Troll', hp:40, ac:12, atk:6, dmg:'2d6', xp:80, loot:['Troll Blood','Gold:15-40'], behavior:'aggressive', special:'regen', emoji:'🧌' },
+  wraith: { name:'Wraith', hp:22, ac:15, atk:5, dmg:'1d8+2', xp:55, loot:['Spectral Essence','Gold:10-30'], behavior:'spellcaster', emoji:'👻' },
+  dragon_wyrmling: { name:'Dragon Wyrmling', hp:35, ac:16, atk:7, dmg:'2d6+2', xp:100, loot:['Dragon Scale','Gold:40-80'], behavior:'spellcaster', special:'breath', emoji:'🐉' },
+  necromancer: { name:'Necromancer', hp:20, ac:11, atk:4, dmg:'1d8+3', xp:65, loot:['Dark Tome','Gold:20-50'], behavior:'spellcaster', emoji:'🧙' },
+  ogre: { name:'Ogre', hp:35, ac:10, atk:5, dmg:'2d8', xp:70, loot:['Giant Club','Gold:15-35'], behavior:'aggressive', emoji:'👊' },
+  basilisk: { name:'Basilisk', hp:28, ac:14, atk:5, dmg:'1d10+2', xp:75, loot:['Basilisk Eye','Gold:20-50'], behavior:'defensive', special:'petrify', emoji:'🐍' },
+  lich: { name:'Ancient Lich', hp:60, ac:17, atk:8, dmg:'2d10+4', xp:200, loot:['Lich Phylactery','Gold:80-150','Legendary Staff'], behavior:'spellcaster', special:'drain', emoji:'☠' },
+};
+
+const ITEMS = {
+  'Health Potion': { type:'consumable', effect:'heal', value:15, emoji:'🧪', desc:'Restore 15 HP' },
+  'Mana Potion': { type:'consumable', effect:'heal', value:10, emoji:'💧', desc:'Restore 10 HP' },
+  'Smoke Bomb': { type:'consumable', effect:'flee', emoji:'💨', desc:'Guaranteed escape' },
+  'Scroll of Identify': { type:'consumable', effect:'identify', emoji:'📜', desc:'Reveal enemy stats' },
+  'Healing Herb': { type:'consumable', effect:'heal', value:8, emoji:'🌿', desc:'Restore 8 HP' },
+  'Bone Shard': { type:'junk', value:2, emoji:'🦴', desc:'Worth 2 gold' },
+  'Rotten Cloth': { type:'junk', value:1, emoji:'🧶', desc:'Worth 1 gold' },
+  'Spider Silk': { type:'material', value:5, emoji:'🕸', desc:'Valuable crafting material' },
+  'Wolf Pelt': { type:'material', value:4, emoji:'🐾', desc:'Warm wolf pelt' },
+  'Troll Blood': { type:'material', value:8, emoji:'🩸', desc:'Regenerative substance' },
+  'Spectral Essence': { type:'material', value:10, emoji:'✨', desc:'Ghostly energy' },
+  'Dragon Scale': { type:'material', value:25, emoji:'🔶', desc:'Incredibly tough scale' },
+  'Dark Tome': { type:'material', value:15, emoji:'📕', desc:'Book of dark secrets' },
+  'Giant Club': { type:'weapon', atk:3, emoji:'🏏', desc:'+3 attack damage' },
+  'Basilisk Eye': { type:'material', value:20, emoji:'👁', desc:'Petrifying gaze trapped within' },
+  'Lich Phylactery': { type:'quest', value:50, emoji:'💎', desc:'Contains a lich\'s soul' },
+  'Legendary Staff': { type:'weapon', atk:5, emoji:'🔮', desc:'+5 attack damage' },
+  'Rusty Dagger': { type:'weapon', atk:1, emoji:'🗡', desc:'+1 attack damage' },
+  'Orc Blade': { type:'weapon', atk:2, emoji:'⚔', desc:'+2 attack damage' },
+  'Lockpicks': { type:'tool', emoji:'🔑', desc:'Open locked doors and chests' },
+  'Crypt Key': { type:'key', emoji:'🗝', desc:'Opens the crypt door' },
+  'Dragon Map': { type:'quest', emoji:'🗺', desc:'Map to the dragon\'s lair' },
+  'Merchant Seal': { type:'quest', emoji:'📛', desc:'Proof of merchant guild membership' },
+};
+
+// ==================== ADVENTURES ====================
+const ADVENTURES = [
+  {
+    id:'catacombs', title:'The Cursed Catacombs', difficulty:'medium', time:'45-60 min',
+    desc:'Ancient catacombs beneath the city have stirred with undead energy. A necromancer has claimed the depths as his domain. Descend into darkness and put the dead to rest.',
+    nodes: {
+      start: {
+        location:'Catacomb Entrance',
+        text:'<p>The iron gate groans as you push it open, releasing a gust of air that smells of dust and decay. Stone steps descend into absolute darkness below the old cathedral. Torchlight from the street behind you barely penetrates the first few steps.</p><p>Strange symbols are carved into the archway above -- wards against evil, long since faded. From somewhere deep below, you hear a rhythmic <span class="highlight">chanting</span>.</p>',
+        choices: [
+          { text:'Descend carefully, hugging the wall', next:'first_hall', check:null },
+          { text:'Light a torch and charge down boldly', next:'first_hall_loud', check:null },
+          { text:'Examine the ward symbols first', next:'study_wards', check:{ stat:'INT', dc:12 } },
+        ]
+      },
+      study_wards: {
+        location:'Catacomb Entrance',
+        text:'<p>You trace the ancient symbols with your fingers. {result}</p>',
+        success:'The wards are protective glyphs of the old priesthood. You memorize a fragment -- it may grant you <span class="highlight">+2 to saves against undead</span> magic deeper within.',
+        failure:'The symbols are too worn and ancient for you to decipher. They crumble further at your touch.',
+        successEffect: { buff: 'undead_ward' },
+        choices: [
+          { text:'Now descend into the catacombs', next:'first_hall' },
+        ]
+      },
+      first_hall: {
+        location:'Hall of the Forgotten',
+        text:'<p>The stairs open into a long hall lined with burial alcoves. Most are sealed, but several have been broken open -- from the inside. Bones litter the floor, and you notice scratch marks on the stone walls.</p><p>Two passages branch from this hall. To the <span class="highlight">left</span>, a wider corridor with faint light. To the <span class="highlight">right</span>, a narrow tunnel from which cold air flows.</p>',
+        choices: [
+          { text:'Take the left corridor toward the light', next:'chapel' },
+          { text:'Enter the narrow right tunnel', next:'cold_tunnel' },
+          { text:'Search the broken alcoves for anything useful', next:'search_alcoves' },
+        ]
+      },
+      first_hall_loud: {
+        location:'Hall of the Forgotten',
+        text:'<p>You charge down with your torch held high, boots echoing through the hall. The noise awakens something. Bones rattle and reassemble -- two <span class="damage">skeletons</span> rise from the debris, rusted swords in hand!</p>',
+        combat: { enemies:['skeleton','skeleton'] },
+        afterCombat:'first_hall'
+      },
+      search_alcoves: {
+        location:'Hall of the Forgotten',
+        text:'<p>You carefully search the broken burial alcoves. Most contain only dust and bone fragments. {result}</p>',
+        success:'In one alcove, hidden beneath a collapsed slab, you find a <span class="gold-text">Health Potion</span> and a small pouch of <span class="gold-text">12 gold</span> coins.',
+        failure:'You find nothing of value, but a skeletal hand suddenly grabs your ankle! You kick it free, but the noise echoes...',
+        check: { stat:'DEX', dc:10 },
+        successEffect: { items:['Health Potion'], gold:12 },
+        failureEffect: { combat: { enemies:['skeleton'] } },
+        choices: [
+          { text:'Take the left corridor', next:'chapel' },
+          { text:'Enter the right tunnel', next:'cold_tunnel' },
+        ]
+      },
+      chapel: {
+        location:'Desecrated Chapel',
+        text:'<p>This was once a small underground chapel. The altar has been overturned and covered in dark sigils that pulse with a faint purple light. The benches are smashed. Standing before the altar is a <span class="damage">zombie</span>, swaying mindlessly.</p><p>On the altar, you notice a <span class="gold-text">silver amulet</span> glinting beneath the grime.</p>',
+        choices: [
+          { text:'Attack the zombie head-on', next:'chapel_fight' },
+          { text:'Try to sneak past and grab the amulet', next:'chapel_sneak', check:{ stat:'DEX', dc:13 } },
+          { text:'Attempt to turn the undead with a prayer', next:'chapel_turn', check:{ stat:'WIS', dc:14 } },
+        ]
+      },
+      chapel_fight: {
+        location:'Desecrated Chapel',
+        text:'<p>You draw your weapon and engage the shambling corpse!</p>',
+        combat: { enemies:['zombie'] },
+        afterCombat:'chapel_after'
+      },
+      chapel_sneak: {
+        location:'Desecrated Chapel',
+        text:'<p>{result}</p>',
+        success:'Moving like a shadow, you slip past the zombie and snatch the <span class="gold-text">Silver Amulet</span> from the altar. The zombie never notices. The amulet hums with protective energy -- <span class="highlight">+1 AC</span>.',
+        failure:'A loose stone betrays you. The zombie turns with a gurgling moan and lurches toward you!',
+        successEffect: { items:['Silver Amulet'] },
+        failureEffect: { combat:{ enemies:['zombie'] } },
+        choices:[{ text:'Continue deeper', next:'crossroads' }]
+      },
+      chapel_turn: {
+        location:'Desecrated Chapel',
+        text:'<p>{result}</p>',
+        success:'You raise your hand and speak words of power. Holy light erupts from your palm and the zombie <span class="highlight">disintegrates</span> into dust. You collect <span class="gold-text">30 XP</span> and the silver amulet.',
+        failure:'Your prayer falters in this desecrated place. The zombie turns toward you, enraged by the attempt!',
+        successEffect: { xp:30, items:['Silver Amulet'] },
+        failureEffect: { combat:{ enemies:['zombie'] } },
+        choices:[{ text:'Continue deeper', next:'crossroads' }]
+      },
+      chapel_after: {
+        location:'Desecrated Chapel',
+        text:'<p>The zombie collapses. You find the <span class="gold-text">Silver Amulet</span> on the altar and <span class="gold-text">8 gold</span> scattered on the floor.</p>',
+        effect: { items:['Silver Amulet'], gold:8 },
+        choices:[{ text:'Continue deeper', next:'crossroads' }]
+      },
+      cold_tunnel: {
+        location:'Frozen Passage',
+        text:'<p>The tunnel narrows until you must crouch. The air is unnaturally cold -- your breath comes in visible puffs. Ice crystals coat the walls. Something about this cold feels <span class="highlight">wrong</span>, supernatural.</p><p>You emerge into a small chamber where a <span class="damage">wraith</span> hovers above an ancient coffin, its spectral form flickering like a guttering candle.</p>',
+        choices: [
+          { text:'Stand and fight the wraith', next:'wraith_fight' },
+          { text:'Try to communicate with it', next:'wraith_talk', check:{ stat:'CHA', dc:15 } },
+          { text:'Retreat to the main hall', next:'first_hall' },
+        ]
+      },
+      wraith_fight: {
+        location:'Frozen Passage',
+        text:'<p>The wraith shrieks and flies toward you, spectral claws extended!</p>',
+        combat:{ enemies:['wraith'] },
+        afterCombat:'wraith_after'
+      },
+      wraith_talk: {
+        location:'Frozen Passage',
+        text:'<p>{result}</p>',
+        success:'The wraith pauses. In a voice like wind through dead trees, it speaks: <span class="highlight">"The necromancer... disturbed my rest. Destroy him, and I shall grant you passage to his sanctum."</span> It gives you the <span class="gold-text">Crypt Key</span>.',
+        failure:'The wraith screams in fury at your words and attacks!',
+        successEffect:{ items:['Crypt Key'], xp:40 },
+        failureEffect:{ combat:{ enemies:['wraith'] } },
+        choices:[{ text:'Thank the spirit and continue', next:'crossroads' }]
+      },
+      wraith_after: {
+        location:'Frozen Passage',
+        text:'<p>The wraith dissipates with a mournful wail. In the coffin beneath, you find a <span class="gold-text">Crypt Key</span> and <span class="gold-text">20 gold</span>.</p>',
+        effect:{ items:['Crypt Key'], gold:20 },
+        choices:[{ text:'Continue on', next:'crossroads' }]
+      },
+      crossroads: {
+        location:'The Crossroads',
+        text:'<p>Three corridors meet at a junction marked by a crumbling statue of a robed figure. Its outstretched hand points down the central corridor, where the chanting grows louder.</p><p>The left passage is blocked by a heavy iron door. The right passage slopes downward into water-logged darkness.</p>',
+        choices: [
+          { text:'Follow the central corridor toward the chanting', next:'antechamber' },
+          { text:'Try the iron door (requires Crypt Key)', next:'treasure_room', requires:'Crypt Key' },
+          { text:'Explore the waterlogged passage', next:'flooded_hall' },
+        ]
+      },
+      treasure_room: {
+        location:'Hidden Treasury',
+        text:'<p>The Crypt Key turns smoothly in the ancient lock. The door swings open to reveal a small vault. Dusty chests line the walls, and gold coins are scattered across the floor!</p><p>But as you step inside, a chest in the corner <span class="damage">snaps open</span>, revealing rows of teeth -- a <span class="damage">Mimic</span>!</p>',
+        combat:{ enemies:['mimic'] },
+        afterCombat:'treasure_after'
+      },
+      treasure_after: {
+        location:'Hidden Treasury',
+        text:'<p>The mimic defeated, you plunder the treasury. You find <span class="gold-text">50 gold</span>, a <span class="gold-text">Health Potion</span>, and an enchanted ring that grants <span class="highlight">+1 to all ability checks</span>.</p>',
+        effect:{ gold:50, items:['Health Potion'] },
+        choices:[{ text:'Return to the crossroads', next:'crossroads' }]
+      },
+      flooded_hall: {
+        location:'Flooded Catacombs',
+        text:'<p>Ankle-deep water sloshes as you wade through this flooded section. The water is murky and cold. Bones float on the surface. Suddenly, shapes move beneath the water -- <span class="damage">undead</span> rising from the depths!</p>',
+        combat:{ enemies:['zombie','skeleton'] },
+        afterCombat:'flooded_after'
+      },
+      flooded_after: {
+        location:'Flooded Catacombs',
+        text:'<p>The waters calm after the battle. Searching the flooded chambers, you find a waterproof chest containing <span class="gold-text">15 gold</span> and a <span class="gold-text">Health Potion</span>.</p>',
+        effect:{ gold:15, items:['Health Potion'] },
+        choices:[{ text:'Return to the crossroads', next:'crossroads' }]
+      },
+      antechamber: {
+        location:'Necromancer\'s Antechamber',
+        text:'<p>The corridor opens into a vast chamber. Dark candles burn with green flame, casting sickly light over ritual circles drawn in what appears to be blood. Two <span class="damage">orc warriors</span> guard the far door, clearly enthralled by dark magic.</p>',
+        choices: [
+          { text:'Fight the orc guards', next:'guard_fight' },
+          { text:'Try to break their enchantment', next:'break_enchant', check:{ stat:'INT', dc:14 } },
+          { text:'Create a distraction and sneak past', next:'sneak_past', check:{ stat:'DEX', dc:15 } },
+        ]
+      },
+      guard_fight: {
+        location:'Necromancer\'s Antechamber',
+        text:'<p>The orcs raise their weapons with dead eyes and charge!</p>',
+        combat:{ enemies:['orc_warrior','orc_warrior'] },
+        afterCombat:'boss_entrance'
+      },
+      break_enchant: {
+        location:'Necromancer\'s Antechamber',
+        text:'<p>{result}</p>',
+        success:'You identify the binding sigil and disrupt it with a counter-pattern. The orcs\' eyes clear -- they look around in confusion, then flee in terror. <span class="highlight">+40 XP</span> for your cleverness.',
+        failure:'The enchantment is too strong. Your attempt alerts the orcs!',
+        successEffect:{ xp:40 },
+        failureEffect:{ combat:{ enemies:['orc_warrior','orc_warrior'] } },
+        choices:[{ text:'Enter the sanctum', next:'boss_entrance' }]
+      },
+      sneak_past: {
+        location:'Necromancer\'s Antechamber',
+        text:'<p>{result}</p>',
+        success:'You move through the shadows along the wall, timing your steps with the flickering candles. The orcs never notice you slip through the far door.',
+        failure:'A candle flickers as you pass and the orcs spot your shadow. They attack!',
+        failureEffect:{ combat:{ enemies:['orc_warrior','orc_warrior'] } },
+        choices:[{ text:'Enter the sanctum', next:'boss_entrance' }]
+      },
+      boss_entrance: {
+        location:'The Necromancer\'s Sanctum',
+        text:'<p>The final chamber is immense, its ceiling lost in darkness. In the center, a <span class="damage">necromancer</span> stands within a circle of power, surrounded by floating bones and pulsing dark energy. Skeletal servants attend him.</p><p><span class="highlight">"Ah, a living visitor,"</span> he rasps. <span class="highlight">"How delightful. You shall join my collection."</span></p><p>He raises his staff, and the bones begin to assemble into warriors.</p>',
+        choices: [
+          { text:'Rush him before he can summon more undead!', next:'boss_fight_rush' },
+          { text:'Attempt to disrupt his ritual circle first', next:'boss_fight_disrupt', check:{ stat:'INT', dc:13 } },
+          { text:'Challenge him to single combat (appeal to his pride)', next:'boss_fight_parley', check:{ stat:'CHA', dc:16 } },
+        ]
+      },
+      boss_fight_rush: {
+        location:'The Necromancer\'s Sanctum',
+        text:'<p>You charge across the chamber! The necromancer snarls and raises his staff. Dark energy crackles as battle is joined!</p>',
+        combat:{ enemies:['necromancer','skeleton','skeleton'], boss:true },
+        afterCombat:'boss_victory'
+      },
+      boss_fight_disrupt: {
+        location:'The Necromancer\'s Sanctum',
+        text:'<p>{result}</p>',
+        success:'You spot the anchor rune and hurl a loose stone at it, cracking the circle. The necromancer\'s power wavers -- his skeletal servants collapse! Now he faces you alone.',
+        failure:'You cannot identify the weak point in time. He completes his summoning!',
+        successEffect:{ combat:{ enemies:['necromancer'], boss:true } },
+        failureEffect:{ combat:{ enemies:['necromancer','skeleton','skeleton'], boss:true } },
+        afterCombat:'boss_victory',
+        choices:[]
+      },
+      boss_fight_parley: {
+        location:'The Necromancer\'s Sanctum',
+        text:'<p>{result}</p>',
+        success:'The necromancer\'s eyes narrow with amusement. <span class="highlight">"Very well. No minions. Just you and I."</span> He dismisses his skeletons with a wave. His overconfidence will be his undoing.',
+        failure:'He laughs. <span class="damage">"Pride? I have no use for pride. Only POWER."</span> He sends everything at you.',
+        successEffect:{ combat:{ enemies:['necromancer'], boss:true } },
+        failureEffect:{ combat:{ enemies:['necromancer','skeleton','zombie'], boss:true } },
+        afterCombat:'boss_victory',
+        choices:[]
+      },
+      boss_victory: {
+        location:'The Necromancer\'s Sanctum',
+        text:'<p>The necromancer crumbles to dust, his dark magic unraveling. The green flames extinguish one by one, replaced by warm golden light seeping through cracks in the ceiling. The curse is broken.</p><p>In the remains, you find his <span class="gold-text">Dark Tome</span>, <span class="gold-text">75 gold</span>, and a sense of profound accomplishment. The dead may rest in peace once more.</p><p style="color:var(--gold);font-family:var(--font-heading);font-size:18px;text-align:center;margin-top:20px">VICTORY - The Cursed Catacombs Complete!</p><p style="text-align:center;color:var(--cyan)">You emerge into daylight, a hero of the city.</p>',
+        effect:{ gold:75, xp:100, items:['Dark Tome'] },
+        ending:true,
+        choices:[{ text:'Return to Title Screen', next:'_title' }]
+      }
+    }
+  },
+  {
+    id:'dragon', title:"Dragon's Peak", difficulty:'hard', time:'60-90 min',
+    desc:'A fearsome dragon has claimed the mountain pass, cutting off trade routes and terrorizing villages. Ascend Dragon\'s Peak and end its reign of terror -- if you can survive the climb.',
+    nodes: {
+      start: {
+        location:'Village of Ashford',
+        text:'<p>The village of Ashford sits in the shadow of Dragon\'s Peak, a jagged mountain wreathed in smoke. Buildings bear scorch marks. The villagers speak in hushed tones of the <span class="damage">great red dragon</span> that has claimed the summit.</p><p>The village elder approaches you. <span class="highlight">"Adventurer, we offer all we have -- 50 gold and our eternal gratitude -- if you can slay the beast."</span></p>',
+        effect:{ gold:50 },
+        choices: [
+          { text:'Accept and head straight for the mountain', next:'mountain_base' },
+          { text:'Ask for more information about the dragon', next:'village_info' },
+          { text:'Visit the local blacksmith first', next:'blacksmith' },
+        ]
+      },
+      village_info: {
+        location:'Village of Ashford',
+        text:'<p>The elder tells you the dragon arrived three weeks ago. <span class="highlight">"It nests in the old dwarven fortress at the summit. The path is treacherous -- trolls and wolves prowl the slopes."</span> She gives you a rough <span class="gold-text">Dragon Map</span>.</p><p>A hunter adds: <span class="highlight">"There\'s an old tunnel through the mountain -- a back way in. But it\'s crawling with spiders."</span></p>',
+        effect:{ items:['Dragon Map'] },
+        choices: [
+          { text:'Head for the mountain', next:'mountain_base' },
+          { text:'Visit the blacksmith', next:'blacksmith' },
+        ]
+      },
+      blacksmith: {
+        location:'Ashford Smithy',
+        text:'<p>The blacksmith, a scarred dwarf named Torgen, looks you over. <span class="highlight">"Fighting a dragon, eh? You\'ll need fire resistance."</span> He offers to reinforce your armor with dragon-glass for <span class="gold-text">30 gold</span>.</p>',
+        choices: [
+          { text:'Pay 30 gold for fire resistance', next:'blacksmith_buy', requires_gold:30 },
+          { text:'Decline and head to the mountain', next:'mountain_base' },
+          { text:'Try to haggle', next:'blacksmith_haggle', check:{ stat:'CHA', dc:13 } },
+        ]
+      },
+      blacksmith_buy: {
+        location:'Ashford Smithy',
+        text:'<p>Torgen works through the night. By morning, your armor gleams with a dark, heat-resistant coating. <span class="highlight">Fire damage reduced by half!</span></p>',
+        effect:{ gold:-30, buff:'fire_resist' },
+        choices:[{ text:'Head to the mountain', next:'mountain_base' }]
+      },
+      blacksmith_haggle: {
+        location:'Ashford Smithy',
+        text:'<p>{result}</p>',
+        success:'Torgen grumbles but agrees to do it for <span class="gold-text">15 gold</span>. <span class="highlight">"Fine, fine. But tell everyone Torgen armed the dragonslayer!"</span> Fire damage reduced by half!',
+        failure:'Torgen crosses his arms. <span class="highlight">"Price is firm. Take it or leave it."</span>',
+        successEffect:{ gold:-15, buff:'fire_resist' },
+        choices: [
+          { text:'Pay 30 gold (if you didn\'t haggle)', next:'blacksmith_buy', requires_gold:30 },
+          { text:'Head to the mountain', next:'mountain_base' },
+        ]
+      },
+      mountain_base: {
+        location:'Base of Dragon\'s Peak',
+        text:'<p>The mountain looms above you, its peak hidden in dark clouds that occasionally flash with dragonfire. Two paths are visible: the <span class="highlight">main trail</span> winds up the mountainside in switchbacks, and a <span class="highlight">cave entrance</span> leads into the mountain itself.</p><p>Fresh wolf tracks cross both paths.</p>',
+        choices: [
+          { text:'Take the main mountain trail', next:'mountain_trail' },
+          { text:'Enter the cave system', next:'spider_caves' },
+        ]
+      },
+      mountain_trail: {
+        location:'Mountain Trail',
+        text:'<p>The trail is steep and treacherous. Loose rocks slide beneath your feet. After an hour of climbing, you hear a low growling ahead. Three <span class="damage">dire wolves</span> block the path, their eyes glowing in the mountain mist.</p>',
+        combat:{ enemies:['wolf','wolf','wolf'] },
+        afterCombat:'mountain_mid'
+      },
+      spider_caves: {
+        location:'Spider Caves',
+        text:'<p>The cave is thick with webs. Your light reveals enormous cocoons hanging from the ceiling -- some still moving. The tunnel leads upward through the heart of the mountain.</p><p>A massive <span class="damage">giant spider</span> drops from the ceiling ahead!</p>',
+        combat:{ enemies:['giant_spider','giant_spider'] },
+        afterCombat:'cave_passage'
+      },
+      cave_passage: {
+        location:'Deep Mountain Passage',
+        text:'<p>Past the spiders, the cave narrows then opens into an old dwarven corridor -- carved stone, geometric patterns, ancient craftsmanship. You find a dwarven chest with <span class="gold-text">25 gold</span> and a <span class="gold-text">Health Potion</span>.</p><p>The passage exits onto a ledge high on the mountain, near the summit.</p>',
+        effect:{ gold:25, items:['Health Potion'] },
+        choices:[{ text:'Continue to the summit', next:'summit_approach' }]
+      },
+      mountain_mid: {
+        location:'Mountain Ridge',
+        text:'<p>Higher up the mountain, the air thins and the temperature drops. You find a sheltered alcove with the remains of a previous adventurer. Poor soul. Their journal mentions a <span class="highlight">weakness in the dragon\'s left wing</span>.</p><p>You also find a <span class="gold-text">Health Potion</span> and <span class="gold-text">15 gold</span> in their pack.</p>',
+        effect:{ items:['Health Potion'], gold:15 },
+        choices: [
+          { text:'Press on to the summit', next:'troll_bridge' },
+          { text:'Rest here to recover', next:'mountain_rest' },
+        ]
+      },
+      mountain_rest: {
+        location:'Mountain Ridge',
+        text:'<p>You rest in the alcove, recovering your strength. The cold mountain air is invigorating. <span class="heal-text">You recover half your missing HP.</span></p>',
+        effect:{ healHalf:true },
+        choices:[{ text:'Continue to the summit', next:'troll_bridge' }]
+      },
+      troll_bridge: {
+        location:'Stone Bridge',
+        text:'<p>A narrow stone bridge spans a chasm. In the middle stands an enormous <span class="damage">troll</span>, picking its teeth with a femur bone. It sees you and grins.</p><p><span class="highlight">"PAY TROLL OR TROLL SMASH."</span></p>',
+        choices: [
+          { text:'Pay the troll 20 gold', next:'troll_pay', requires_gold:20 },
+          { text:'Fight the troll', next:'troll_fight' },
+          { text:'Try to reason with it', next:'troll_reason', check:{ stat:'CHA', dc:16 } },
+          { text:'Look for another way across', next:'troll_climb', check:{ stat:'DEX', dc:14 } },
+        ]
+      },
+      troll_pay: {
+        location:'Stone Bridge',
+        text:'<p>The troll snatches your gold and steps aside, counting coins with surprising care. <span class="highlight">"SMART LITTLE THING. GO."</span></p>',
+        effect:{ gold:-20 },
+        choices:[{ text:'Cross and continue', next:'summit_approach' }]
+      },
+      troll_fight: {
+        location:'Stone Bridge',
+        text:'<p>The troll roars and swings its massive fists!</p>',
+        combat:{ enemies:['troll'] },
+        afterCombat:'summit_approach'
+      },
+      troll_reason: {
+        location:'Stone Bridge',
+        text:'<p>{result}</p>',
+        success:'<span class="highlight">"TROLL LISTEN. If you let me pass, I\'ll slay the dragon that scares away all the travelers. More travelers means more toll money for you."</span> The troll scratches its head, then grins. <span class="highlight">"SMART! GO KILL LIZARD."</span>',
+        failure:'The troll isn\'t interested in reason. It charges!',
+        failureEffect:{ combat:{ enemies:['troll'] } },
+        choices:[{ text:'Continue to the summit', next:'summit_approach' }]
+      },
+      troll_climb: {
+        location:'Stone Bridge',
+        text:'<p>{result}</p>',
+        success:'You find handholds in the cliff face and carefully traverse around the bridge. The troll never notices you.',
+        failure:'A handhold breaks and you tumble back to the bridge. The troll notices you and attacks!',
+        failureEffect:{ combat:{ enemies:['troll'] }, damage:5 },
+        choices:[{ text:'Continue to the summit', next:'summit_approach' }]
+      },
+      summit_approach: {
+        location:'Dragon\'s Peak Summit',
+        text:'<p>The dwarven fortress crowns the summit -- half collapsed, scorched black by dragonfire. Through a massive breach in the wall, you see the interior: a vast hall filled with <span class="gold-text">treasure</span>. Coins, gems, and artifacts form a massive hoard.</p><p>Atop the hoard sleeps the <span class="damage">dragon</span> -- a massive red wyrm, scales like burning embers, each breath sending out wisps of flame. Its wing -- the left one -- bears an old wound.</p>',
+        choices: [
+          { text:'Charge in and attack while it sleeps!', next:'dragon_fight_surprise' },
+          { text:'Try to sneak in and steal from the hoard', next:'dragon_steal', check:{ stat:'DEX', dc:17 } },
+          { text:'Announce yourself and challenge it honorably', next:'dragon_challenge' },
+        ]
+      },
+      dragon_fight_surprise: {
+        location:'Dragon\'s Lair',
+        text:'<p>You rush in, weapon raised! The dragon\'s eye snaps open -- but you get the first strike! <span class="highlight">Advantage on your first attack!</span></p>',
+        combat:{ enemies:['dragon_wyrmling'], boss:true },
+        afterCombat:'dragon_victory'
+      },
+      dragon_steal: {
+        location:'Dragon\'s Lair',
+        text:'<p>{result}</p>',
+        success:'With incredible stealth, you fill your pockets with <span class="gold-text">100 gold</span> worth of treasure. But as you turn to leave, a coin shifts under your foot...',
+        failure:'You step on a pile of coins that cascades loudly. The dragon\'s eyes snap open!',
+        successEffect:{ gold:100 },
+        choices:[{ text:'The dragon awakens! Prepare for battle!', next:'dragon_fight' }]
+      },
+      dragon_challenge: {
+        location:'Dragon\'s Lair',
+        text:'<p><span class="highlight">"DRAGON! I am here to end your terror!"</span> you shout.</p><p>The dragon opens one enormous eye, then slowly rises. <span class="damage">"A mortal dares challenge ME? How... amusing."</span> It stretches its wings, the left one moving stiffly. <span class="damage">"Very well. Let us see what you are made of."</span></p>',
+        choices:[{ text:'Fight!', next:'dragon_fight' }]
+      },
+      dragon_fight: {
+        location:'Dragon\'s Lair',
+        text:'<p>The dragon rears up and unleashes a torrent of flame!</p>',
+        combat:{ enemies:['dragon_wyrmling'], boss:true },
+        afterCombat:'dragon_victory'
+      },
+      dragon_victory: {
+        location:'Dragon\'s Lair',
+        text:'<p>With a final, earth-shaking roar, the dragon collapses. Its fires dim, its eyes glaze. The mountain trembles as its ancient magic fades.</p><p>You stand victorious atop its hoard: <span class="gold-text">200 gold</span>, a <span class="gold-text">Dragon Scale</span> shield, and the eternal gratitude of Ashford.</p><p style="color:var(--gold);font-family:var(--font-heading);font-size:18px;text-align:center;margin-top:20px">VICTORY - Dragon\'s Peak Complete!</p><p style="text-align:center;color:var(--cyan)">Songs of your triumph will echo through the ages.</p>',
+        effect:{ gold:200, xp:200, items:['Dragon Scale'] },
+        ending:true,
+        choices:[{ text:'Return to Title Screen', next:'_title' }]
+      }
+    }
+  },
+  {
+    id:'merchant', title:"The Merchant's Gambit", difficulty:'easy', time:'30-45 min',
+    desc:'Intrigue and deception in the port city of Silvermere. A merchant guild war threatens to plunge the city into chaos. Navigate politics, uncover a conspiracy, and choose your allegiance.',
+    nodes: {
+      start: {
+        location:'Silvermere Docks',
+        text:'<p>The port city of Silvermere gleams under the afternoon sun. Ships crowd the harbor, merchants hawk their wares, and the smell of salt and spice fills the air. You\'ve arrived seeking fortune -- and you\'ve found trouble.</p><p>A well-dressed woman approaches, looking nervous. <span class="highlight">"You look capable. I\'m Elara, of the Merchant\'s Guild. I need someone I can trust for a delicate task. Fifty gold now, fifty on completion."</span></p>',
+        choices: [
+          { text:'"I\'m listening. What\'s the job?"', next:'accept_job' },
+          { text:'"Fifty up front? Make it a hundred."', next:'negotiate', check:{ stat:'CHA', dc:12 } },
+          { text:'"I don\'t trust strangers. Good day."', next:'wander_docks' },
+        ]
+      },
+      negotiate: {
+        location:'Silvermere Docks',
+        text:'<p>{result}</p>',
+        success:'Elara sighs. <span class="highlight">"Fine. Seventy-five now, seventy-five after. You drive a hard bargain."</span> She presses a heavy purse into your hand.',
+        failure:'Elara frowns. <span class="highlight">"Fifty is generous. Take it or leave it."</span>',
+        successEffect:{ gold:75 },
+        failureEffect:{ gold:50 },
+        choices:[{ text:'Hear her out', next:'accept_job' }]
+      },
+      accept_job: {
+        location:'Silvermere Docks',
+        text:'<p>Elara glances around nervously. <span class="highlight">"My rival, Lord Vance, is smuggling something into the city. Something dangerous. I need you to find proof -- search his warehouse on Silk Street, or talk to his contacts at the Rusty Anchor tavern."</span></p><p>She hands you a <span class="gold-text">Merchant Seal</span>. <span class="highlight">"This will get you into guild-restricted areas."</span></p>',
+        effect:{ gold:50, items:['Merchant Seal'] },
+        choices: [
+          { text:'Head to Vance\'s warehouse', next:'warehouse' },
+          { text:'Visit the Rusty Anchor tavern', next:'tavern' },
+          { text:'Do some reconnaissance around the market first', next:'market' },
+        ]
+      },
+      wander_docks: {
+        location:'Silvermere Docks',
+        text:'<p>You walk along the docks, but trouble finds you anyway. A pair of <span class="damage">bandits</span> corner you in an alley!</p>',
+        combat:{ enemies:['bandit','bandit'] },
+        afterCombat:'wander_after'
+      },
+      wander_after: {
+        location:'Silvermere Docks',
+        text:'<p>After the scuffle, you find a note on one of the bandits: <span class="highlight">"Watch for adventurers. Lord Vance doesn\'t want anyone poking around the warehouse."</span> Curious. Perhaps Elara\'s job is worth taking after all. You find <span class="gold-text">15 gold</span> on the bandits.</p>',
+        effect:{ gold:15 },
+        choices:[{ text:'Find Elara and accept the job', next:'accept_job' }]
+      },
+      market: {
+        location:'Silvermere Market',
+        text:'<p>The market is a riot of color and noise. Street performers compete with merchants crying their wares. You overhear gossip about Lord Vance -- he\'s been receiving late-night shipments at his warehouse.</p><p>A street urchin tugs your sleeve. <span class="highlight">"I know stuff about the warehouse. Costs you 5 gold."</span></p>',
+        choices: [
+          { text:'Pay the urchin 5 gold', next:'urchin_info', requires_gold:5 },
+          { text:'Intimidate the urchin', next:'urchin_scare', check:{ stat:'STR', dc:10 } },
+          { text:'Head to the warehouse', next:'warehouse' },
+          { text:'Go to the tavern instead', next:'tavern' },
+        ]
+      },
+      urchin_info: {
+        location:'Silvermere Market',
+        text:'<p>The urchin grins. <span class="highlight">"There\'s a back door, never locked. And the guard changes at midnight -- five minute gap. Also, there\'s a cellar nobody knows about."</span> Useful information. <span class="highlight">+2 bonus to checks at the warehouse!</span></p>',
+        effect:{ gold:-5, buff:'warehouse_info' },
+        choices:[{ text:'Head to the warehouse', next:'warehouse' },{ text:'Go to the tavern', next:'tavern' }]
+      },
+      urchin_scare: {
+        location:'Silvermere Market',
+        text:'<p>{result}</p>',
+        success:'The urchin squeaks and talks fast: <span class="highlight">"Back door\'s unlocked! Guard gap at midnight! There\'s a secret cellar!"</span> Then runs.',
+        failure:'The urchin sticks out their tongue and vanishes into the crowd.',
+        successEffect:{ buff:'warehouse_info' },
+        choices:[{ text:'Head to the warehouse', next:'warehouse' },{ text:'Go to the tavern', next:'tavern' }]
+      },
+      warehouse: {
+        location:'Vance\'s Warehouse',
+        text:'<p>The warehouse looms on Silk Street, a heavy padlock on the front door. A guard patrols the perimeter. Crates are stacked outside bearing the Vance Trading Company seal.</p>',
+        choices: [
+          { text:'Pick the front lock', next:'warehouse_lock', check:{ stat:'DEX', dc:14 } },
+          { text:'Distract the guard and slip in', next:'warehouse_distract', check:{ stat:'CHA', dc:13 } },
+          { text:'Find the back door', next:'warehouse_back', requires:'warehouse_info' },
+          { text:'Come back later, visit the tavern', next:'tavern' },
+        ]
+      },
+      warehouse_lock: {
+        location:'Vance\'s Warehouse',
+        text:'<p>{result}</p>',
+        success:'The lock clicks open. You slip inside as the guard rounds the far corner.',
+        failure:'The lock holds firm. The guard spots you! <span class="damage">"Hey! Stop right there!"</span>',
+        failureEffect:{ combat:{ enemies:['bandit'] } },
+        choices:[{ text:'Search the warehouse', next:'warehouse_inside' }]
+      },
+      warehouse_distract: {
+        location:'Vance\'s Warehouse',
+        text:'<p>{result}</p>',
+        success:'You toss a coin down the alley. The guard goes to investigate, and you slip through a window.',
+        failure:'The guard isn\'t fooled. <span class="damage">"Nice try. Lord Vance warned me about types like you."</span>',
+        failureEffect:{ combat:{ enemies:['bandit'] } },
+        choices:[{ text:'Search the warehouse', next:'warehouse_inside' }]
+      },
+      warehouse_back: {
+        location:'Vance\'s Warehouse',
+        text:'<p>Just as the urchin said, the back door is unlocked. You slip inside undetected. <span class="highlight">The urchin\'s information was solid.</span></p>',
+        choices:[{ text:'Search the warehouse', next:'warehouse_inside' }]
+      },
+      warehouse_inside: {
+        location:'Inside the Warehouse',
+        text:'<p>Crates of legitimate goods fill most of the space. But in the back, behind a false wall, you find something alarming: crates of <span class="damage">weapons</span> -- enough to arm a small army. And documents revealing Vance\'s plan to <span class="damage">overthrow the merchant council</span> and seize control of Silvermere\'s trade routes.</p><p>You take the documents as proof. <span class="gold-text">Evidence acquired!</span></p><p>But footsteps approach -- a <span class="damage">bandit</span> lieutenant!</p>',
+        combat:{ enemies:['bandit','bandit'] },
+        afterCombat:'evidence_choice'
+      },
+      tavern: {
+        location:'The Rusty Anchor',
+        text:'<p>The tavern is dim and smoky. Sailors and merchants mingle. At the bar, a grizzled man with a scar drinks alone -- one of Vance\'s known associates.</p>',
+        choices: [
+          { text:'Buy him a drink and chat', next:'tavern_drink' },
+          { text:'Confront him directly', next:'tavern_confront', check:{ stat:'STR', dc:12 } },
+          { text:'Eavesdrop from a nearby table', next:'tavern_listen', check:{ stat:'WIS', dc:12 } },
+        ]
+      },
+      tavern_drink: {
+        location:'The Rusty Anchor',
+        text:'<p>Three rounds of ale later, the man\'s tongue loosens. <span class="highlight">"Vance has big plans. Weapons in the warehouse. Coup on the merchant council. But he needs the harbor master\'s support -- meeting him tomorrow night at the lighthouse."</span></p><p>Valuable intelligence! <span class="gold-text">+30 XP</span></p>',
+        effect:{ xp:30, gold:-5 },
+        choices:[{ text:'Head to the warehouse with this info', next:'warehouse' },{ text:'Go straight to Elara with this', next:'evidence_choice' }]
+      },
+      tavern_confront: {
+        location:'The Rusty Anchor',
+        text:'<p>{result}</p>',
+        success:'The man pales. <span class="highlight">"Alright, alright! Vance is planning a coup. Weapons in the warehouse. He meets the harbor master at the lighthouse tomorrow."</span> He flees the tavern.',
+        failure:'The man throws his drink in your face and draws a knife!',
+        successEffect:{ xp:30 },
+        failureEffect:{ combat:{ enemies:['bandit'] } },
+        choices:[{ text:'Head to the warehouse', next:'warehouse' },{ text:'Report to Elara', next:'evidence_choice' }]
+      },
+      tavern_listen: {
+        location:'The Rusty Anchor',
+        text:'<p>{result}</p>',
+        success:'You catch fragments of conversation: <span class="highlight">"...weapons ready... coup at the next council meeting... lighthouse rendezvous..."</span> Enough to piece together Vance\'s plan.',
+        failure:'The tavern is too noisy. You can\'t make out anything useful.',
+        successEffect:{ xp:20 },
+        choices:[{ text:'Head to the warehouse', next:'warehouse' },{ text:'Try buying him a drink', next:'tavern_drink' }]
+      },
+      evidence_choice: {
+        location:'Silvermere Streets',
+        text:'<p>You have enough to act. The question is: what do you do with this information?</p><p>Elara wants the evidence to protect the current merchant council. But Lord Vance\'s men are also looking for you now. And there\'s a third option -- the city guard could handle this, but they\'re notoriously corrupt.</p>',
+        choices: [
+          { text:'Bring the evidence to Elara (protect the council)', next:'ending_elara' },
+          { text:'Confront Lord Vance directly', next:'ending_vance' },
+          { text:'Sell the information to the highest bidder', next:'ending_sell', check:{ stat:'CHA', dc:14 } },
+        ]
+      },
+      ending_elara: {
+        location:'Elara\'s Estate',
+        text:'<p>Elara receives the evidence with visible relief. <span class="highlight">"You\'ve saved Silvermere from tyranny. The council will hear of this, and Vance will be arrested."</span></p><p>She pays you the promised <span class="gold-text">75 gold</span> and introduces you to the council as a hero. Your reputation in Silvermere is established.</p><p style="color:var(--gold);font-family:var(--font-heading);font-size:18px;text-align:center;margin-top:20px">GOOD ENDING - The Merchant\'s Gambit Complete!</p><p style="text-align:center;color:var(--heal)">Justice prevails in Silvermere.</p>',
+        effect:{ gold:75, xp:150 },
+        ending:true,
+        choices:[{ text:'Return to Title Screen', next:'_title' }]
+      },
+      ending_vance: {
+        location:'Vance\'s Manor',
+        text:'<p>You storm Vance\'s manor. His guards try to stop you, but you fight through to his study. The lord himself draws a sword -- he\'s more dangerous than he appears.</p>',
+        combat:{ enemies:['bandit','bandit','orc_warrior'], boss:true },
+        afterCombat:'ending_vance_after'
+      },
+      ending_vance_after: {
+        location:'Vance\'s Manor',
+        text:'<p>Vance surrenders, bloodied and beaten. The city guard (conveniently arriving after the fighting) take him into custody. You claim <span class="gold-text">100 gold</span> from his desk and the satisfaction of a job done personally.</p><p>Elara is impressed, if slightly unnerved by your methods.</p><p style="color:var(--gold);font-family:var(--font-heading);font-size:18px;text-align:center;margin-top:20px">NEUTRAL ENDING - The Merchant\'s Gambit Complete!</p><p style="text-align:center;color:var(--gold)">Direct action has its own rewards.</p>',
+        effect:{ gold:100, xp:120 },
+        ending:true,
+        choices:[{ text:'Return to Title Screen', next:'_title' }]
+      },
+      ending_sell: {
+        location:'Silvermere Black Market',
+        text:'<p>{result}</p>',
+        success:'<p>You play both sides against each other, selling copies of the evidence to Elara AND Vance\'s rivals. In the chaos of accusations and counter-accusations, you slip away with <span class="gold-text">200 gold</span> and a new reputation -- as someone not to be trusted, but definitely effective.</p><p style="color:var(--gold);font-family:var(--font-heading);font-size:18px;text-align:center;margin-top:20px">BAD ENDING - The Merchant\'s Gambit Complete!</p><p style="text-align:center;color:var(--fire)">Profit over principle. The city burns, but your purse is full.</p>',
+        failure:'Your attempt to play both sides backfires. Vance\'s men catch you in the act!',
+        successEffect:{ gold:200, xp:80 },
+        failureEffect:{ combat:{ enemies:['bandit','bandit','bandit'] } },
+        afterCombat:'ending_sell_fail',
+        ending:true,
+        choices:[{ text:'Return to Title Screen', next:'_title' }]
+      },
+      ending_sell_fail: {
+        location:'Silvermere Streets',
+        text:'<p>You barely escape with your life. You still have the evidence, and Elara still needs it.</p>',
+        choices:[{ text:'Bring evidence to Elara', next:'ending_elara' }]
+      }
+    }
+  }
+];
+
+const RANDOM_ENCOUNTERS = [
+  { text:'A group of goblins ambushes you on the path!', enemies:['goblin','goblin'] },
+  { text:'A giant spider drops from the ceiling above!', enemies:['giant_spider'] },
+  { text:'Bandits demand your gold! "Your money or your life!"', enemies:['bandit','bandit'] },
+  { text:'An ogre blocks your way, club raised!', enemies:['ogre'] },
+  { text:'Skeletons rise from the ground around you!', enemies:['skeleton','skeleton','skeleton'] },
+];
+
+// ==================== GAME STATE ====================
+let G = {
+  player: null,
+  adventure: null,
+  currentNode: null,
+  combatState: null,
+  visitedNodes: [],
+  isMultiplayer: false,
+  isHost: false,
+  roomCode: null,
+  peers: [],
+  playerId: null,
+  votes: {},
+  soundEnabled: true,
+};
+
+// ==================== MULTIPLAYER ====================
+let peer = null;
+let connections = {};
+let broadcastChannel = null;
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'KORB-';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function initMultiplayer(isHost) {
+  G.isMultiplayer = true;
+  G.isHost = isHost;
+  if (isHost) {
+    G.roomCode = generateRoomCode();
+    G.playerId = 'host';
+  }
+  const peerId = G.roomCode.replace('-','') + (isHost ? 'HOST' : G.playerId);
+  try {
+    peer = new Peer(peerId);
+    peer.on('open', id => {
+      console.log('Peer connected:', id);
+      if (isHost) {
+        peer.on('connection', conn => handleNewConnection(conn));
+      }
+    });
+    peer.on('error', err => {
+      console.warn('PeerJS error:', err);
+      addChatMessage('System', 'Connection error: ' + err.type, '#ff6600');
+    });
+  } catch(e) {
+    console.warn('PeerJS unavailable, using BroadcastChannel only');
+  }
+  broadcastChannel = new BroadcastChannel('dungeon-quest-' + G.roomCode);
+  broadcastChannel.onmessage = e => handleMessage(e.data);
+}
+
+function handleNewConnection(conn) {
+  conn.on('open', () => {
+    connections[conn.peer] = conn;
+    conn.on('data', data => handleMessage(data));
+    conn.on('close', () => {
+      delete connections[conn.peer];
+      G.peers = G.peers.filter(p => p.peerId !== conn.peer);
+      updatePlayersPanel();
+    });
+    conn.send({ type:'state_sync', state: getShareableState() });
+  });
+}
+
+function joinGame() {
+  const code = document.getElementById('join-code').value.toUpperCase().trim();
+  const mode = document.getElementById('join-mode').value;
+  if (!code || code.length < 10) { alert('Enter a valid room code'); return; }
+  G.roomCode = code;
+  G.playerId = 'P' + Math.random().toString(36).substr(2, 5);
+  G.isMultiplayer = true;
+  G.isHost = false;
+
+  broadcastChannel = new BroadcastChannel('dungeon-quest-' + G.roomCode);
+  broadcastChannel.onmessage = e => handleMessage(e.data);
+
+  const hostPeerId = code.replace('-','') + 'HOST';
+  try {
+    peer = new Peer(code.replace('-','') + G.playerId);
+    peer.on('open', () => {
+      const conn = peer.connect(hostPeerId);
+      conn.on('open', () => {
+        connections['host'] = conn;
+        conn.on('data', data => handleMessage(data));
+        conn.send({ type:'player_join', player: { id:G.playerId, mode, name:'Adventurer' }});
+      });
+    });
+  } catch(e) {
+    broadcastChannel.postMessage({ type:'player_join', player:{ id:G.playerId, mode, name:'Adventurer' }});
+  }
+
+  if (mode === 'spectator') {
+    showScreen('game-screen');
+    addChatMessage('System', 'Joined as spectator. Waiting for host...', 'var(--cyan)');
+  } else {
+    showScreen('char-screen');
+  }
+}
+
+function broadcast(msg) {
+  if (broadcastChannel) broadcastChannel.postMessage(msg);
+  Object.values(connections).forEach(c => { try { c.send(msg); } catch(e) {} });
+}
+
+function handleMessage(data) {
+  if (!data || !data.type) return;
+  switch(data.type) {
+    case 'state_sync':
+      if (!G.isHost && data.state) {
+        if (data.state.currentNode) G.currentNode = data.state.currentNode;
+        if (data.state.narrativeHTML) document.getElementById('narrative-text').innerHTML = data.state.narrativeHTML;
+      }
+      break;
+    case 'player_join':
+      if (G.isHost) {
+        G.peers.push(data.player);
+        updatePlayersPanel();
+        addChatMessage('System', data.player.name + ' joined the game', 'var(--cyan)');
+        broadcast({ type:'players_update', players:G.peers });
+      }
+      break;
+    case 'players_update':
+      if (!G.isHost) { G.peers = data.players; updatePlayersPanel(); }
+      break;
+    case 'chat':
+      addChatMessage(data.name, data.text, data.color);
+      break;
+    case 'vote':
+      if (G.isHost) {
+        G.votes[data.playerId] = data.choice;
+        checkVotes();
+      }
+      break;
+    case 'narrative_update':
+      if (!G.isHost) {
+        document.getElementById('narrative-text').innerHTML = data.html;
+        document.getElementById('location-name').textContent = data.location || '';
+      }
+      break;
+    case 'combat_update':
+      if (!G.isHost && data.html) {
+        document.getElementById('combat-area').innerHTML = data.html;
+        document.getElementById('combat-area').style.display = data.show ? '' : 'none';
+      }
+      break;
+  }
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const name = G.player ? G.player.name : 'Anonymous';
+  const color = G.player ? getClassColor(G.player.class) : 'var(--text)';
+  addChatMessage(name, text, color);
+  broadcast({ type:'chat', name, text, color });
+}
+
+function addChatMessage(name, text, color='var(--text)') {
+  const div = document.getElementById('chat-messages');
+  const p = document.createElement('p');
+  p.innerHTML = `<span class="chat-name" style="color:${color}">${name}:</span> ${text}`;
+  div.appendChild(p);
+  div.scrollTop = div.scrollHeight;
+}
+
+function getClassColor(cls) {
+  const colors = { warrior:'#ff6600', mage:'#a855f7', rogue:'#10b981', cleric:'#ffd700', ranger:'#22c55e', bard:'#ec4899' };
+  return colors[cls] || 'var(--cyan)';
+}
+
+function getShareableState() {
+  return { currentNode:G.currentNode, narrativeHTML: document.getElementById('narrative-text').innerHTML };
+}
+
+function checkVotes() {
+  // Simple majority voting
+  const counts = {};
+  Object.values(G.votes).forEach(v => { counts[v] = (counts[v]||0) + 1; });
+  // Need majority of connected players
+  const needed = Math.ceil((G.peers.length + 1) / 2);
+  for (const [choice, count] of Object.entries(counts)) {
+    if (count >= needed) {
+      G.votes = {};
+      // Execute the majority choice
+      const idx = parseInt(choice);
+      if (!isNaN(idx)) executeChoice(idx);
+      return;
+    }
+  }
+}
+
+function updatePlayersPanel() {
+  const panel = document.getElementById('players-panel');
+  const list = document.getElementById('players-list');
+  const specPanel = document.getElementById('spectators-panel');
+  const specList = document.getElementById('spectators-list');
+  if (!G.isMultiplayer) { panel.style.display = 'none'; specPanel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const players = G.peers.filter(p => p.mode !== 'spectator');
+  const specs = G.peers.filter(p => p.mode === 'spectator');
+  list.innerHTML = players.map(p => `
+    <div class="player-entry">
+      <div class="player-dot" style="background:${getClassColor(p.class||'warrior')}"></div>
+      <span style="color:var(--white)">${p.name||'Unknown'}</span>
+      <span style="color:var(--text-dim);font-size:10px">Lv${p.level||1}</span>
+    </div>
+  `).join('');
+  if (specs.length > 0) {
+    specPanel.style.display = '';
+    specList.innerHTML = specs.map(s => `<div class="player-entry"><div class="player-dot" style="background:var(--text-dim)"></div><span>${s.name}</span></div>`).join('');
+  }
+}
+
+// ==================== UTILITY ====================
+function roll(sides) { return Math.floor(Math.random() * sides) + 1; }
+function rollDice(str) {
+  // parse "2d6+2" format
+  const m = str.match(/(\d+)d(\d+)(?:\+(\d+))?/);
+  if (!m) return parseInt(str)||0;
+  let total = 0;
+  for (let i = 0; i < parseInt(m[1]); i++) total += roll(parseInt(m[2]));
+  if (m[3]) total += parseInt(m[3]);
+  return total;
+}
+function mod(stat) { return Math.floor((stat - 10) / 2); }
+function statMod(statName) { return G.player ? mod(G.player.stats[statName]) : 0; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ==================== CHARACTER CREATION ====================
+let charStats = {};
+
+function rollStat() { const rolls = [roll(6),roll(6),roll(6),roll(6)].sort((a,b)=>b-a); return rolls[0]+rolls[1]+rolls[2]; }
+
+function rollAllStats() {
+  AudioEngine.init(); AudioEngine.play('diceRoll');
+  const stats = ['STR','DEX','CON','INT','WIS','CHA'];
+  const race = document.getElementById('char-race').value;
+  const bonus = RACES[race].bonus;
+  charStats = {};
+  stats.forEach(s => {
+    charStats[s] = rollStat() + (bonus[s]||0);
+  });
+  renderStats();
+  updateCharPreview();
+}
+
+function renderStats() {
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = '';
+  ['STR','DEX','CON','INT','WIS','CHA'].forEach(s => {
+    const v = charStats[s] || 10;
+    const m = mod(v);
+    const div = document.createElement('div');
+    div.className = 'stat-box';
+    div.innerHTML = `<div class="stat-name">${s}</div><div class="stat-val">${v}</div><div class="stat-mod">${m>=0?'+':''}${m}</div>`;
+    grid.appendChild(div);
+  });
+}
+
+function updateCharPreview() {
+  const cls = document.getElementById('char-class').value;
+  const race = document.getElementById('char-race').value;
+  const classData = CLASSES[cls];
+  const ep = document.getElementById('equip-preview');
+  ep.innerHTML = `<h4>${classData.name} - ${classData.desc}</h4><ul>${classData.equipment.map(e=>`<li>${e}</li>`).join('')}</ul><p style="margin-top:8px;font-size:11px;color:var(--text-dim)">Abilities: ${classData.abilities.join(', ')}</p>`;
+  drawPortrait(race, cls);
+}
+
+function drawPortrait(race, cls) {
+  const c = document.getElementById('portrait-canvas');
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const W = 120, H = 120;
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0,0,W,H);
+
+  const skin = RACES[race].color;
+  const classColors = { warrior:'#cc4444', mage:'#6644cc', rogue:'#44aa44', cleric:'#cccc44', ranger:'#44cc44', bard:'#cc44aa' };
+  const clothColor = classColors[cls] || '#666';
+
+  // Body
+  ctx.fillStyle = clothColor;
+  ctx.fillRect(40,65,40,35);
+
+  // Head
+  ctx.fillStyle = skin;
+  const headW = race === 'orc' ? 36 : race === 'halfling' ? 24 : 30;
+  const headH = race === 'dwarf' ? 26 : race === 'elf' ? 32 : 28;
+  ctx.fillRect(60-headW/2, 30, headW, headH);
+
+  // Eyes
+  ctx.fillStyle = race === 'tiefling' ? '#ff4444' : '#fff';
+  ctx.fillRect(50,40,6,4);
+  ctx.fillRect(64,40,6,4);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(52,41,3,2);
+  ctx.fillRect(66,41,3,2);
+
+  // Race features
+  if (race === 'elf') {
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.moveTo(44,36); ctx.lineTo(38,30); ctx.lineTo(44,40); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(76,36); ctx.lineTo(82,30); ctx.lineTo(76,40); ctx.fill();
+  } else if (race === 'dwarf') {
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(46,48,28,12); // beard
+  } else if (race === 'tiefling') {
+    ctx.fillStyle = '#880000';
+    ctx.beginPath(); ctx.moveTo(50,30); ctx.lineTo(46,18); ctx.lineTo(54,28); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(70,30); ctx.lineTo(74,18); ctx.lineTo(66,28); ctx.fill();
+  } else if (race === 'orc') {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(52,50,4,4); ctx.fillRect(64,50,4,4); // tusks
+  }
+
+  // Class features
+  if (cls === 'warrior') {
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(82,55,6,40); // sword
+    ctx.fillRect(78,52,14,6); // hilt
+  } else if (cls === 'mage') {
+    ctx.fillStyle = '#8844ff';
+    ctx.fillRect(84,40,4,50); // staff
+    ctx.fillStyle = '#ff88ff';
+    ctx.beginPath(); ctx.arc(86,38,6,0,Math.PI*2); ctx.fill(); // orb
+  } else if (cls === 'rogue') {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(80,60,3,20); ctx.fillRect(84,60,3,20); // daggers
+  } else if (cls === 'cleric') {
+    ctx.fillStyle = '#ffdd44';
+    ctx.fillRect(84,45,4,20); ctx.fillRect(80,50,12,4); // cross
+  } else if (cls === 'ranger') {
+    ctx.fillStyle = '#8B4513';
+    ctx.beginPath(); ctx.moveTo(86,40); ctx.lineTo(82,70); ctx.lineTo(86,55); ctx.lineTo(90,70); ctx.closePath(); ctx.fill(); // bow
+  } else if (cls === 'bard') {
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(82,50,8,15); // lute body
+    ctx.fillRect(85,35,2,15); // lute neck
+  }
+
+  // Frame
+  ctx.strokeStyle = '#00d4ff33';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1,1,W-2,H-2);
+}
+
+function confirmCharacter() {
+  const name = document.getElementById('char-name').value.trim() || 'Adventurer';
+  const race = document.getElementById('char-race').value;
+  const cls = document.getElementById('char-class').value;
+  if (!charStats.STR) rollAllStats();
+
+  const classData = CLASSES[cls];
+  const hp = charStats.CON + classData.hpBonus;
+
+  G.player = {
+    name, race, class: cls,
+    stats: {...charStats},
+    hp, maxHp: hp,
+    level: 1, xp: 0, xpNext: 100,
+    gold: 0,
+    inventory: [],
+    equipment: [...classData.equipment],
+    abilities: [...classData.abilities],
+    abilityCooldowns: {},
+    buffs: [],
+    weaponDie: classData.weaponDie,
+    ac: 10 + mod(charStats.DEX) + (cls==='warrior'?4:cls==='cleric'?3:cls==='ranger'?2:cls==='rogue'?1:0),
+    primaryStat: classData.primaryStat,
+  };
+
+  // Parse starting equipment into inventory
+  classData.equipment.forEach(e => {
+    const match = e.match(/(.+) x(\d+)/);
+    if (match) { for(let i=0;i<parseInt(match[2]);i++) G.player.inventory.push(match[1]); }
+    else G.player.inventory.push(e);
+  });
+
+  // Notify multiplayer
+  if (G.isMultiplayer) {
+    broadcast({ type:'player_info', player:{ id:G.playerId, name, race, class:cls, level:1, hp, maxHp:hp }});
+  }
+
+  showScreen('adventure-screen');
+  renderAdventureCards();
+}
+
+function renderAdventureCards() {
+  const container = document.getElementById('adventure-cards');
+  container.innerHTML = ADVENTURES.map(a => `
+    <div class="adventure-card" onclick="selectAdventure('${a.id}')">
+      <h3>${a.title}</h3>
+      <p>${a.desc.substring(0,120)}...</p>
+      <div class="meta">
+        <span class="difficulty-${a.difficulty}">${a.difficulty.toUpperCase()}</span>
+        <span>${a.time}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== ADVENTURE ENGINE ====================
+function selectAdventure(id) {
+  G.adventure = ADVENTURES.find(a => a.id === id);
+  G.currentNode = 'start';
+  G.visitedNodes = [];
+  showScreen('game-screen');
+  updateCharPanel();
+  updateInventoryGrid();
+  if (G.isMultiplayer && G.roomCode) {
+    const rc = document.getElementById('room-code-display');
+    rc.style.display = '';
+    rc.textContent = 'Room: ' + G.roomCode;
+  }
+  processNode('start');
+}
+
+function processNode(nodeId) {
+  if (nodeId === '_title') { showScreen('title-screen'); return; }
+  const node = G.adventure.nodes[nodeId];
+  if (!node) { console.error('Node not found:', nodeId); return; }
+
+  G.currentNode = nodeId;
+  if (!G.visitedNodes.includes(nodeId)) G.visitedNodes.push(nodeId);
+
+  document.getElementById('location-name').textContent = node.location || 'Unknown';
+  document.getElementById('combat-area').style.display = 'none';
+  document.getElementById('choices-area').style.display = 'none';
+
+  // Apply immediate effects
+  if (node.effect) applyEffect(node.effect);
+
+  // Handle skill checks
+  if (node.check && node.success) {
+    performSkillCheck(node);
+    return;
+  }
+
+  // Handle combat nodes
+  if (node.combat) {
+    typewriteText(node.text, () => {
+      setTimeout(() => startCombat(node.combat.enemies, node.combat.boss, node.afterCombat), 1500);
+    });
+    return;
+  }
+
+  // Regular narrative node
+  typewriteText(node.text, () => {
+    if (node.choices && node.choices.length > 0 && !node.ending) {
+      showChoices(node.choices);
+    }
+    // Random encounter chance (15%)
+    if (!node.ending && !node.combat && Math.random() < 0.15 && G.visitedNodes.length > 2) {
+      triggerRandomEncounter();
+    }
+  });
+
+  updateMinimap();
+  if (G.isMultiplayer && G.isHost) {
+    broadcast({ type:'narrative_update', html:node.text, location:node.location });
+  }
+}
+
+function performSkillCheck(node) {
+  const stat = node.check.stat;
+  const dc = node.check.dc;
+  const bonus = statMod(stat);
+  const rollVal = roll(20);
+  const total = rollVal + bonus;
+  const success = total >= dc;
+
+  showDiceRoll(rollVal, `${stat} Check (DC ${dc}): ${rollVal} + ${bonus} = ${total}`, success, () => {
+    let text = node.text;
+    const resultText = success ? node.success : (node.failure || 'You fail.');
+    text = text.replace('{result}', resultText);
+
+    if (success && node.successEffect) applyEffect(node.successEffect);
+    if (!success && node.failureEffect) {
+      applyEffect(node.failureEffect);
+      if (node.failureEffect.combat) {
+        typewriteText(text, () => {
+          setTimeout(() => startCombat(node.failureEffect.combat.enemies, node.failureEffect.combat.boss, node.afterCombat), 1000);
+        });
+        return;
+      }
+    }
+    if (success && node.successEffect && node.successEffect.combat) {
+      typewriteText(text, () => {
+        setTimeout(() => startCombat(node.successEffect.combat.enemies, node.successEffect.combat.boss, node.afterCombat), 1000);
+      });
+      return;
+    }
+
+    typewriteText(text, () => {
+      if (node.choices && node.choices.length > 0) showChoices(node.choices);
+    });
+  });
+}
+
+function applyEffect(effect) {
+  if (!effect || !G.player) return;
+  if (effect.gold) { G.player.gold += effect.gold; document.getElementById('gold-display').textContent = G.player.gold; }
+  if (effect.xp) gainXP(effect.xp);
+  if (effect.items) effect.items.forEach(item => { if(G.player.inventory.length<12) G.player.inventory.push(item); });
+  if (effect.healHalf) { const missing = G.player.maxHp - G.player.hp; G.player.hp += Math.floor(missing/2); }
+  if (effect.damage) G.player.hp = Math.max(1, G.player.hp - effect.damage);
+  if (effect.buff) G.player.buffs.push(effect.buff);
+  updateCharPanel();
+  updateInventoryGrid();
+}
+
+function typewriteText(html, callback) {
+  const el = document.getElementById('narrative-text');
+  el.innerHTML = '';
+  // Parse and display instantly for simplicity, with fade
+  const div = document.createElement('div');
+  div.className = 'fade-in';
+  div.innerHTML = html;
+  el.appendChild(div);
+  const area = document.getElementById('narrative-area');
+  area.scrollTop = area.scrollHeight;
+  if (callback) setTimeout(callback, 600);
+}
+
+function showChoices(choices) {
+  const area = document.getElementById('choices-area');
+  const list = document.getElementById('choices-list');
+  area.style.display = '';
+  list.innerHTML = '';
+
+  choices.forEach((choice, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    let canChoose = true;
+    let reqText = '';
+
+    if (choice.requires && !G.player.inventory.includes(choice.requires) && !G.player.buffs.includes(choice.requires)) {
+      canChoose = false;
+      reqText = `Requires: ${choice.requires}`;
+    }
+    if (choice.requires_gold && G.player.gold < choice.requires_gold) {
+      canChoose = false;
+      reqText = `Requires: ${choice.requires_gold} gold`;
+    }
+    if (choice.check) {
+      reqText = `[${choice.check.stat} DC ${choice.check.dc}]`;
+    }
+
+    btn.innerHTML = `${choice.text}${reqText ? `<span class="req">${reqText}</span>` : ''}`;
+    btn.disabled = !canChoose;
+
+    if (canChoose) {
+      btn.onclick = () => {
+        if (G.isMultiplayer && !G.isHost) {
+          broadcast({ type:'vote', playerId:G.playerId, choice:idx });
+          btn.style.borderColor = 'var(--gold)';
+          btn.innerHTML += '<span class="votes">Voted!</span>';
+          return;
+        }
+        executeChoice(idx);
+      };
+    }
+    list.appendChild(btn);
+  });
+}
+
+function executeChoice(idx) {
+  const node = G.adventure.nodes[G.currentNode];
+  if (!node || !node.choices || !node.choices[idx]) return;
+  const choice = node.choices[idx];
+  document.getElementById('choices-area').style.display = 'none';
+
+  if (choice.requires_gold) {
+    G.player.gold -= choice.requires_gold;
+    document.getElementById('gold-display').textContent = G.player.gold;
+  }
+
+  const nextNode = G.adventure.nodes[choice.next];
+  if (nextNode && nextNode.check && !choice.check) {
+    processNode(choice.next);
+  } else if (choice.check) {
+    // Skill check on the choice itself
+    const stat = choice.check.stat;
+    const dc = choice.check.dc;
+    const bonus = statMod(stat);
+    const rollVal = roll(20);
+    const total = rollVal + bonus;
+    const success = total >= dc;
+    showDiceRoll(rollVal, `${stat} Check (DC ${dc}): ${rollVal} + ${bonus} = ${total}`, success, () => {
+      processNode(choice.next);
+    });
+  } else {
+    processNode(choice.next);
+  }
+}
+
+function triggerRandomEncounter() {
+  if (G.combatState) return;
+  if (Math.random() > 0.5) return; // 50% of the 15% = ~7.5% actual chance
+  const enc = RANDOM_ENCOUNTERS[Math.floor(Math.random() * RANDOM_ENCOUNTERS.length)];
+  const currentNode = G.currentNode;
+  appendNarrative(`<p class="damage" style="margin-top:16px;font-weight:700">${enc.text}</p>`);
+  setTimeout(() => startCombat(enc.enemies, false, currentNode), 1500);
+}
+
+function appendNarrative(html) {
+  const el = document.getElementById('narrative-text');
+  const div = document.createElement('div');
+  div.className = 'fade-in';
+  div.innerHTML = html;
+  el.appendChild(div);
+  document.getElementById('narrative-area').scrollTop = document.getElementById('narrative-area').scrollHeight;
+}
+
+// ==================== COMBAT SYSTEM ====================
+function startCombat(enemyIds, isBoss, afterNode) {
+  AudioEngine.init();
+  AudioEngine.play('monsterGrowl');
+
+  const enemies = enemyIds.map((id, idx) => {
+    const template = MONSTERS[id];
+    if (!template) return null;
+    const levelScale = 1 + (G.player.level - 1) * 0.15;
+    return {
+      id: id + '_' + idx,
+      ...template,
+      hp: Math.floor(template.hp * levelScale),
+      maxHp: Math.floor(template.hp * levelScale),
+      currentHp: Math.floor(template.hp * levelScale),
+      atk: Math.floor(template.atk * levelScale),
+      buffs: [],
+      poisonTurns: 0,
+      stunned: false,
+    };
+  }).filter(Boolean);
+
+  // Initiative
+  const playerInit = roll(20) + mod(G.player.stats.DEX);
+  const enemyInit = roll(20) + (enemies[0]?.atk || 0);
+
+  G.combatState = {
+    enemies,
+    playerTurn: playerInit >= enemyInit,
+    turn: 1,
+    log: [],
+    afterNode: afterNode,
+    isBoss: isBoss,
+    playerBuffs: [],
+    fled: false,
+  };
+
+  document.getElementById('choices-area').style.display = 'none';
+  document.getElementById('combat-area').style.display = '';
+  renderCombat();
+
+  addCombatLog(`Combat begins! ${playerInit >= enemyInit ? 'You act first!' : 'Enemies act first!'}`, 'log-info');
+
+  if (!G.combatState.playerTurn) {
+    setTimeout(enemyTurn, 1000);
+  }
+}
+
+function renderCombat() {
+  const cs = G.combatState;
+  if (!cs) return;
+  const area = document.getElementById('combat-area');
+  const p = G.player;
+  const alive = cs.enemies.filter(e => e.currentHp > 0);
+
+  let html = `<div class="combat-header">COMBAT - Turn ${cs.turn}</div>`;
+  html += '<div class="combatants">';
+  html += `<div class="combatant ${cs.playerTurn?'active':''}">
+    <div class="c-name" style="color:${getClassColor(p.class)}">${p.name}</div>
+    <div class="c-hp">HP: ${p.hp}/${p.maxHp}</div>
+    <div class="c-hp-bar"><div class="c-hp-fill" style="width:${(p.hp/p.maxHp)*100}%;background:${hpColor(p.hp/p.maxHp)}"></div></div>
+  </div>`;
+  html += '<div class="vs-text">VS</div>';
+  alive.forEach(e => {
+    html += `<div class="combatant ${!cs.playerTurn?'active':''}">
+      <div class="c-name">${e.emoji} ${e.name}</div>
+      <div class="c-hp">HP: ${e.currentHp}/${e.maxHp}</div>
+      <div class="c-hp-bar"><div class="c-hp-fill" style="width:${(e.currentHp/e.maxHp)*100}%;background:${hpColor(e.currentHp/e.maxHp)}"></div></div>
+      ${e.stunned ? '<div style="color:var(--gold);font-size:10px">STUNNED</div>' : ''}
+    </div>`;
+  });
+  html += '</div>';
+
+  if (cs.playerTurn) {
+    html += '<div class="combat-actions">';
+    html += '<button onclick="combatAttack()">Attack</button>';
+    html += '<button onclick="combatDefend()">Defend</button>';
+    p.abilities.forEach(a => {
+      const cd = p.abilityCooldowns[a] || 0;
+      html += `<button onclick="combatAbility('${a}')" ${cd>0?'disabled':''}>${a}${cd>0?' ('+cd+')':''}</button>`;
+    });
+    html += '<button onclick="combatUseItem()">Use Item</button>';
+    html += '<button onclick="combatFlee()">Flee</button>';
+    html += '</div>';
+  } else {
+    html += '<div style="text-align:center;color:var(--text-dim);padding:8px">Enemy turn...</div>';
+  }
+
+  html += '<div class="combat-log" id="combat-log">';
+  cs.log.slice(-10).forEach(l => { html += `<p class="${l.cls}">${l.text}</p>`; });
+  html += '</div>';
+
+  area.innerHTML = html;
+}
+
+function addCombatLog(text, cls='') {
+  if (!G.combatState) return;
+  G.combatState.log.push({ text, cls });
+  renderCombat();
+}
+
+function hpColor(pct) {
+  if (pct > 0.6) return 'var(--heal)';
+  if (pct > 0.3) return 'var(--gold)';
+  return 'var(--red)';
+}
+
+function getTarget() {
+  const alive = G.combatState.enemies.filter(e => e.currentHp > 0);
+  return alive.length > 0 ? alive[0] : null;
+}
+
+function combatAttack() {
+  if (!G.combatState || !G.combatState.playerTurn) return;
+  const target = getTarget();
+  if (!target) return;
+
+  const atkRoll = roll(20);
+  const primaryMod = statMod(G.player.primaryStat);
+  const total = atkRoll + primaryMod;
+  const isCrit = atkRoll === 20;
+  const isMiss = atkRoll === 1;
+
+  showDiceRoll(atkRoll, `Attack Roll: ${atkRoll} + ${primaryMod}`, total >= target.ac || isCrit, () => {
+    if (isMiss) {
+      AudioEngine.play('miss');
+      addCombatLog(`Critical miss! You fumble your attack!`, 'log-miss');
+    } else if (isCrit || total >= target.ac) {
+      let dmg = rollDice('1d' + G.player.weaponDie) + primaryMod;
+      if (isCrit) { dmg *= 2; AudioEngine.play('critHit'); shakeScreen(); }
+      else AudioEngine.play('swordSwing');
+      // Check for guaranteed crit buff
+      const critBuff = G.combatState.playerBuffs.find(b => b.crit);
+      if (critBuff) { dmg *= 2; G.combatState.playerBuffs = G.combatState.playerBuffs.filter(b => !b.crit); }
+      dmg = Math.max(1, dmg);
+      target.currentHp -= dmg;
+      AudioEngine.play('hit');
+      addCombatLog(`${isCrit?'CRITICAL HIT! ':''}You deal ${dmg} damage to ${target.name}!`, isCrit?'log-crit':'log-damage');
+    } else {
+      AudioEngine.play('miss');
+      addCombatLog(`Miss! (${total} vs AC ${target.ac})`, 'log-miss');
+    }
+    endPlayerTurn();
+  });
+}
+
+function combatDefend() {
+  if (!G.combatState || !G.combatState.playerTurn) return;
+  G.combatState.playerBuffs.push({ ac:4, dur:1 });
+  addCombatLog('You take a defensive stance. (+4 AC this turn)', 'log-info');
+  AudioEngine.play('miss');
+  endPlayerTurn();
+}
+
+function combatAbility(name) {
+  if (!G.combatState || !G.combatState.playerTurn) return;
+  const info = ABILITY_INFO[name];
+  if (!info) return;
+  const target = getTarget();
+
+  // Set cooldown
+  G.player.abilityCooldowns[name] = 3;
+
+  AudioEngine.play(info.sound || 'magicCast');
+
+  if (info.type === 'buff' || info.type === 'debuff') {
+    if (info.buff) G.combatState.playerBuffs.push({...info.buff});
+    if (info.stun && target) {
+      target.stunned = true;
+      addCombatLog(`${name}! ${target.name} is stunned!`, 'log-info');
+    } else {
+      addCombatLog(`${name}! ${info.desc}`, 'log-info');
+    }
+    endPlayerTurn();
+    return;
+  }
+
+  if (info.type === 'heal') {
+    const healAmt = rollDice('2d6') + Math.abs(statMod(G.player.primaryStat));
+    G.player.hp = Math.min(G.player.maxHp, G.player.hp + healAmt);
+    AudioEngine.play('heal');
+    addCombatLog(`${name}! You heal for ${healAmt} HP!`, 'log-heal');
+    updateCharPanel();
+    endPlayerTurn();
+    return;
+  }
+
+  if (!target) { endPlayerTurn(); return; }
+
+  if (info.autoHit) {
+    const dmg = rollDice('1d' + G.player.weaponDie) + info.dmgMod;
+    target.currentHp -= Math.max(1, dmg);
+    addCombatLog(`${name}! Auto-hit for ${dmg} damage!`, 'log-damage');
+    if (info.poison) target.poisonTurns = info.poison.dur;
+    endPlayerTurn();
+    return;
+  }
+
+  const atkRoll = roll(20);
+  const primaryMod = statMod(G.player.primaryStat);
+  const total = atkRoll + primaryMod + 2; // ability bonus
+  const isCrit = atkRoll === 20;
+
+  showDiceRoll(atkRoll, `${name}: ${atkRoll} + ${primaryMod+2}`, total >= target.ac || isCrit, () => {
+    if (atkRoll === 1) {
+      addCombatLog(`${name} fizzles! Critical fail!`, 'log-miss');
+    } else if (isCrit || total >= target.ac) {
+      let dmg = rollDice('1d' + G.player.weaponDie) + info.dmgMod + primaryMod;
+      if (isCrit) { dmg *= 2; shakeScreen(); }
+      target.currentHp -= Math.max(1, dmg);
+      addCombatLog(`${isCrit?'CRITICAL! ':''}${name} deals ${dmg} damage!`, isCrit?'log-crit':'log-damage');
+      if (info.stun) { target.stunned = true; addCombatLog(`${target.name} is stunned!`, 'log-info'); }
+      if (info.poison) { target.poisonTurns = info.poison.dur; addCombatLog(`${target.name} is poisoned!`, 'log-damage'); }
+    } else {
+      addCombatLog(`${name} misses! (${total} vs AC ${target.ac})`, 'log-miss');
+    }
+    endPlayerTurn();
+  });
+}
+
+function combatUseItem() {
+  if (!G.combatState || !G.combatState.playerTurn) return;
+  const potionIdx = G.player.inventory.findIndex(i => i === 'Health Potion' || i === 'Mana Potion' || i === 'Healing Herb');
+  if (potionIdx === -1) { addCombatLog('No usable items!', 'log-miss'); return; }
+
+  const item = G.player.inventory[potionIdx];
+  const itemData = ITEMS[item];
+  G.player.inventory.splice(potionIdx, 1);
+
+  if (itemData && itemData.effect === 'heal') {
+    G.player.hp = Math.min(G.player.maxHp, G.player.hp + (itemData.value || 10));
+    AudioEngine.play('heal');
+    addCombatLog(`Used ${item}! Restored ${itemData.value} HP!`, 'log-heal');
+  }
+  updateCharPanel();
+  updateInventoryGrid();
+  endPlayerTurn();
+}
+
+function combatFlee() {
+  if (!G.combatState || !G.combatState.playerTurn) return;
+  const smokeIdx = G.player.inventory.findIndex(i => i === 'Smoke Bomb');
+  const fleeRoll = roll(20) + mod(G.player.stats.DEX);
+
+  if (smokeIdx !== -1) {
+    G.player.inventory.splice(smokeIdx, 1);
+    updateInventoryGrid();
+    addCombatLog('Used Smoke Bomb! Escaped successfully!', 'log-info');
+    endCombat(false, true);
+    return;
+  }
+
+  if (fleeRoll >= 12) {
+    addCombatLog(`Fled successfully! (rolled ${fleeRoll})`, 'log-info');
+    endCombat(false, true);
+  } else {
+    addCombatLog(`Failed to flee! (rolled ${fleeRoll}, needed 12)`, 'log-miss');
+    endPlayerTurn();
+  }
+}
+
+function endPlayerTurn() {
+  if (!G.combatState) return;
+
+  // Check enemy deaths
+  G.combatState.enemies.forEach(e => {
+    if (e.currentHp <= 0 && !e.dead) {
+      e.dead = true;
+      AudioEngine.play('deathSound');
+      addCombatLog(`${e.name} has been slain!`, 'log-info');
+      // Loot
+      if (e.loot) {
+        e.loot.forEach(l => {
+          if (l.startsWith('Gold:')) {
+            const range = l.replace('Gold:','').split('-');
+            const gold = Math.floor(Math.random()*(parseInt(range[1])-parseInt(range[0])+1))+parseInt(range[0]);
+            G.player.gold += gold;
+            addCombatLog(`Found ${gold} gold!`, 'log-info');
+          } else if (G.player.inventory.length < 12 && Math.random() < 0.4) {
+            G.player.inventory.push(l);
+            addCombatLog(`Found ${l}!`, 'log-info');
+            AudioEngine.play('chestOpen');
+          }
+        });
+      }
+      gainXP(e.xp);
+    }
+  });
+
+  // Reduce cooldowns
+  Object.keys(G.player.abilityCooldowns).forEach(k => {
+    if (G.player.abilityCooldowns[k] > 0) G.player.abilityCooldowns[k]--;
+  });
+
+  // Reduce player buff durations
+  G.combatState.playerBuffs = G.combatState.playerBuffs.filter(b => {
+    if (b.dur !== undefined) { b.dur--; return b.dur > 0; }
+    return true;
+  });
+
+  // Check win
+  if (G.combatState.enemies.every(e => e.currentHp <= 0)) {
+    endCombat(true);
+    return;
+  }
+
+  G.combatState.playerTurn = false;
+  G.combatState.turn++;
+  renderCombat();
+  setTimeout(enemyTurn, 1000);
+}
+
+function enemyTurn() {
+  if (!G.combatState) return;
+  const alive = G.combatState.enemies.filter(e => e.currentHp > 0);
+  if (alive.length === 0) { endCombat(true); return; }
+
+  alive.forEach(enemy => {
+    if (enemy.stunned) {
+      addCombatLog(`${enemy.name} is stunned and can't act!`, 'log-info');
+      enemy.stunned = false;
+      return;
+    }
+
+    // Poison tick
+    if (enemy.poisonTurns > 0) {
+      enemy.currentHp -= 3;
+      enemy.poisonTurns--;
+      addCombatLog(`${enemy.name} takes 3 poison damage!`, 'log-damage');
+    }
+
+    // Enemy special abilities
+    if (enemy.special === 'regen' && enemy.currentHp > 0) {
+      const regen = Math.min(5, enemy.maxHp - enemy.currentHp);
+      enemy.currentHp += regen;
+      if (regen > 0) addCombatLog(`${enemy.name} regenerates ${regen} HP!`, 'log-heal');
+    }
+
+    if (enemy.currentHp <= 0) return;
+
+    // AI behavior
+    const atkRoll = roll(20);
+    const playerAC = G.player.ac + G.combatState.playerBuffs.reduce((sum,b) => sum + (b.ac||0), 0);
+    const total = atkRoll + enemy.atk;
+    const isCrit = atkRoll === 20;
+
+    if (atkRoll === 1) {
+      addCombatLog(`${enemy.name} fumbles its attack!`, 'log-miss');
+    } else if (isCrit || total >= playerAC) {
+      let dmg = rollDice(enemy.dmg || '1d6');
+      if (isCrit) { dmg *= 2; shakeScreen(); }
+
+      // Check divine shield
+      const shieldBuff = G.combatState.playerBuffs.find(b => b.shield);
+      if (shieldBuff) {
+        const absorbed = Math.min(shieldBuff.shield, dmg);
+        shieldBuff.shield -= absorbed;
+        dmg -= absorbed;
+        if (shieldBuff.shield <= 0) G.combatState.playerBuffs = G.combatState.playerBuffs.filter(b => !b.shield);
+        if (absorbed > 0) addCombatLog(`Divine Shield absorbs ${absorbed} damage!`, 'log-info');
+      }
+
+      // Check fire resistance
+      if (enemy.special === 'breath' && G.player.buffs.includes('fire_resist')) {
+        dmg = Math.floor(dmg / 2);
+        addCombatLog('Fire resistance halves the damage!', 'log-info');
+      }
+
+      dmg = Math.max(0, dmg);
+      G.player.hp -= dmg;
+      AudioEngine.play('hit');
+      addCombatLog(`${isCrit?'CRITICAL! ':''}${enemy.name} deals ${dmg} damage to you!`, isCrit?'log-crit':'log-damage');
+    } else {
+      AudioEngine.play('miss');
+      addCombatLog(`${enemy.name} misses! (${total} vs AC ${playerAC})`, 'log-miss');
+    }
+  });
+
+  // Check player death
+  if (G.player.hp <= 0) {
+    G.player.hp = 0;
+    updateCharPanel();
+    addCombatLog('You have fallen!', 'log-damage');
+    AudioEngine.play('defeat');
+    endCombat(false, false);
+    return;
+  }
+
+  updateCharPanel();
+  G.combatState.playerTurn = true;
+  renderCombat();
+}
+
+function endCombat(victory, fled=false) {
+  if (!G.combatState) return;
+  const afterNode = G.combatState.afterNode;
+
+  setTimeout(() => {
+    document.getElementById('combat-area').style.display = 'none';
+    G.combatState = null;
+
+    if (victory) {
+      AudioEngine.play('victory');
+      appendNarrative('<p class="heal-text" style="font-weight:700">Victory! All enemies defeated.</p>');
+      updateCharPanel();
+      updateInventoryGrid();
+      if (afterNode) setTimeout(() => processNode(afterNode), 1500);
+    } else if (fled) {
+      appendNarrative('<p style="color:var(--text-dim)">You flee from combat!</p>');
+      if (afterNode) {
+        // Go back to same node for choices
+        const node = G.adventure.nodes[afterNode];
+        if (node && node.choices) setTimeout(() => showChoices(node.choices), 500);
+      }
+    } else {
+      // Death
+      appendNarrative('<p class="damage" style="font-size:18px;font-family:var(--font-heading);text-align:center">YOU HAVE DIED</p><p style="text-align:center;color:var(--text-dim)">Your adventure ends here...</p>');
+      setTimeout(() => {
+        const area = document.getElementById('choices-area');
+        const list = document.getElementById('choices-list');
+        area.style.display = '';
+        list.innerHTML = '<button class="primary" onclick="respawnPlayer()">Respawn (lose half gold)</button><button onclick="showScreen(\'title-screen\')">Return to Title</button>';
+      }, 2000);
+    }
+  }, 1000);
+}
+
+function respawnPlayer() {
+  G.player.hp = Math.floor(G.player.maxHp / 2);
+  G.player.gold = Math.floor(G.player.gold / 2);
+  updateCharPanel();
+  document.getElementById('choices-area').style.display = 'none';
+  // Go back to last safe node
+  const safeNode = G.visitedNodes.filter(n => !G.adventure.nodes[n]?.combat).pop() || 'start';
+  processNode(safeNode);
+}
+
+// ==================== XP & LEVELING ====================
+function gainXP(amount) {
+  if (!G.player) return;
+  G.player.xp += amount;
+  addChatMessage('System', `+${amount} XP`, 'var(--purple)');
+
+  while (G.player.xp >= G.player.xpNext && G.player.level < 10) {
+    G.player.xp -= G.player.xpNext;
+    G.player.level++;
+    G.player.xpNext = Math.floor(G.player.xpNext * 1.5);
+
+    // Level up bonuses
+    const hpGain = roll(CLASSES[G.player.class].hpBonus) + mod(G.player.stats.CON);
+    G.player.maxHp += hpGain;
+    G.player.hp = G.player.maxHp;
+
+    // Stat boost
+    const primary = CLASSES[G.player.class].primaryStat;
+    G.player.stats[primary] += 1;
+
+    AudioEngine.play('levelUp');
+    showLevelUp(hpGain);
+  }
+  updateCharPanel();
+}
+
+function showLevelUp(hpGain) {
+  const overlay = document.getElementById('levelup-overlay');
+  document.getElementById('levelup-info').textContent = `Level ${G.player.level}! +${hpGain} HP!`;
+  overlay.classList.add('show');
+}
+
+function closeLevelUp() {
+  document.getElementById('levelup-overlay').classList.remove('show');
+}
+
+// ==================== DICE ANIMATION ====================
+function showDiceRoll(result, label, success, callback) {
+  AudioEngine.init();
+  AudioEngine.play('diceRoll');
+  const overlay = document.getElementById('dice-overlay');
+  const die = document.getElementById('dice-d20');
+  const lbl = document.getElementById('dice-label');
+  const res = document.getElementById('dice-result-text');
+
+  overlay.classList.add('show');
+  die.classList.add('rolling');
+  die.classList.remove('crit','fail');
+  lbl.textContent = 'Rolling...';
+  res.textContent = '';
+
+  let ticks = 0;
+  const interval = setInterval(() => {
+    die.textContent = roll(20);
+    ticks++;
+    if (ticks > 15) {
+      clearInterval(interval);
+      die.classList.remove('rolling');
+      die.textContent = result;
+      if (result === 20) die.classList.add('crit');
+      else if (result === 1) die.classList.add('fail');
+      lbl.textContent = label;
+      res.textContent = success ? 'SUCCESS!' : 'FAILURE!';
+      res.style.color = success ? 'var(--heal)' : 'var(--red)';
+
+      setTimeout(() => {
+        overlay.classList.remove('show');
+        if (callback) callback();
+      }, 1200);
+    }
+  }, 60);
+}
+
+function shakeScreen() {
+  document.getElementById('game-screen').classList.add('shake');
+  setTimeout(() => document.getElementById('game-screen').classList.remove('shake'), 400);
+}
+
+// ==================== UI UPDATES ====================
+function updateCharPanel() {
+  if (!G.player) return;
+  const p = G.player;
+  const panel = document.getElementById('char-panel');
+  panel.innerHTML = `
+    <div class="char-name">${p.name}</div>
+    <div class="char-desc">Lv${p.level} ${RACES[p.race].name} ${CLASSES[p.class].name}</div>
+    <div class="mini-stats">
+      ${['STR','DEX','CON','INT','WIS','CHA'].map(s => `<div class="mini-stat"><div class="label">${s}</div><div class="val">${p.stats[s]}</div></div>`).join('')}
+    </div>
+    <div class="hp-display">
+      <span style="font-size:11px;color:var(--red)">HP</span>
+      <div class="hp-bar-big"><div class="hp-fill-big" style="width:${(p.hp/p.maxHp)*100}%;background:${hpColor(p.hp/p.maxHp)}"></div></div>
+      <span class="hp-text">${p.hp}/${p.maxHp}</span>
+    </div>
+    <div class="xp-bar"><div class="xp-fill" style="width:${(p.xp/p.xpNext)*100}%"></div></div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:2px">XP: ${p.xp}/${p.xpNext}</div>
+  `;
+  document.getElementById('gold-display').textContent = p.gold;
+}
+
+function updateInventoryGrid() {
+  if (!G.player) return;
+  const grid = document.getElementById('inventory-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'inv-slot';
+    if (G.player.inventory[i]) {
+      const itemName = G.player.inventory[i];
+      const itemData = ITEMS[itemName];
+      slot.textContent = itemData ? itemData.emoji : '?';
+      slot.innerHTML += `<div class="inv-tooltip">${itemName}${itemData?' - '+itemData.desc:''}</div>`;
+      slot.onclick = () => useInventoryItem(i);
+    }
+    grid.appendChild(slot);
+  }
+}
+
+function useInventoryItem(idx) {
+  if (!G.player || !G.player.inventory[idx]) return;
+  const item = G.player.inventory[idx];
+  const data = ITEMS[item];
+  if (!data) return;
+
+  if (data.type === 'consumable' && !G.combatState) {
+    if (data.effect === 'heal') {
+      G.player.hp = Math.min(G.player.maxHp, G.player.hp + (data.value||10));
+      AudioEngine.play('heal');
+      addChatMessage('System', `Used ${item}. Restored ${data.value} HP!`, 'var(--heal)');
+    }
+    G.player.inventory.splice(idx, 1);
+    updateCharPanel();
+    updateInventoryGrid();
+  } else if (data.type === 'junk' || data.type === 'material') {
+    G.player.gold += (data.value || 0);
+    addChatMessage('System', `Sold ${item} for ${data.value} gold.`, 'var(--gold)');
+    AudioEngine.play('coinPickup');
+    G.player.inventory.splice(idx, 1);
+    updateCharPanel();
+    updateInventoryGrid();
+  }
+}
+
+function updateMinimap() {
+  const canvas = document.getElementById('minimap-canvas');
+  if (!canvas || !G.adventure) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a1118';
+  ctx.fillRect(0,0,W,H);
+
+  const nodes = Object.keys(G.adventure.nodes);
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  const rows = Math.ceil(nodes.length / cols);
+  const cellW = W / cols, cellH = H / rows;
+
+  nodes.forEach((key, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = col * cellW + cellW/2, y = row * cellH + cellH/2;
+    const visited = G.visitedNodes.includes(key);
+    const current = G.currentNode === key;
+
+    ctx.beginPath();
+    ctx.arc(x, y, current ? 6 : 4, 0, Math.PI*2);
+    ctx.fillStyle = current ? '#00d4ff' : visited ? '#10b981' : '#1f2937';
+    ctx.fill();
+    if (current) {
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Draw connections
+    const node = G.adventure.nodes[key];
+    if (node.choices) {
+      node.choices.forEach(c => {
+        const targetIdx = nodes.indexOf(c.next);
+        if (targetIdx >= 0) {
+          const tx = (targetIdx % cols) * cellW + cellW/2;
+          const ty = Math.floor(targetIdx / cols) * cellH + cellH/2;
+          ctx.beginPath();
+          ctx.moveTo(x,y);
+          ctx.lineTo(tx,ty);
+          ctx.strokeStyle = visited ? '#10b98133' : '#1f293722';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      });
+    }
+  });
+}
+
+// ==================== SAVE SYSTEM ====================
+function autoSave() {
+  if (!G.player || !G.adventure) return;
+  const save = {
+    player: G.player,
+    adventureId: G.adventure.id,
+    currentNode: G.currentNode,
+    visitedNodes: G.visitedNodes,
+    timestamp: Date.now(),
+  };
+  localStorage.setItem('dq_autosave', JSON.stringify(save));
+}
+
+function openSaveModal(mode) {
+  const modal = document.getElementById('save-modal');
+  const title = document.getElementById('modal-title');
+  const slots = document.getElementById('save-slots');
+  title.textContent = mode === 'save' ? 'Save Game' : 'Load Game';
+  modal.classList.add('show');
+
+  slots.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const data = localStorage.getItem('dq_save_' + i);
+    const info = data ? JSON.parse(data) : null;
+    const div = document.createElement('div');
+    div.className = 'save-slot';
+    div.innerHTML = `<div>
+      <strong>Slot ${i+1}</strong>
+      <div class="slot-info">${info ? `${info.player.name} - Lv${info.player.level} ${CLASSES[info.player.class]?.name||''} - ${new Date(info.timestamp).toLocaleString()}` : 'Empty'}</div>
+    </div>`;
+    div.onclick = () => {
+      if (mode === 'save') {
+        saveToSlot(i);
+        closeSaveModal();
+      } else if (info) {
+        loadFromSlot(i);
+        closeSaveModal();
+      }
+    };
+    slots.appendChild(div);
+  }
+
+  // Autosave slot
+  const auto = localStorage.getItem('dq_autosave');
+  if (auto && mode === 'load') {
+    const info = JSON.parse(auto);
+    const div = document.createElement('div');
+    div.className = 'save-slot';
+    div.innerHTML = `<div><strong>Autosave</strong><div class="slot-info">${info.player.name} - Lv${info.player.level} - ${new Date(info.timestamp).toLocaleString()}</div></div>`;
+    div.onclick = () => { loadSaveData(info); closeSaveModal(); };
+    slots.appendChild(div);
+  }
+}
+
+function closeSaveModal() { document.getElementById('save-modal').classList.remove('show'); }
+
+function saveToSlot(idx) {
+  if (!G.player) return;
+  const save = {
+    player: G.player,
+    adventureId: G.adventure?.id,
+    currentNode: G.currentNode,
+    visitedNodes: G.visitedNodes,
+    timestamp: Date.now(),
+  };
+  localStorage.setItem('dq_save_' + idx, JSON.stringify(save));
+  addChatMessage('System', `Game saved to slot ${idx+1}!`, 'var(--cyan)');
+}
+
+function loadFromSlot(idx) {
+  const data = localStorage.getItem('dq_save_' + idx);
+  if (!data) return;
+  loadSaveData(JSON.parse(data));
+}
+
+function loadSaveData(save) {
+  G.player = save.player;
+  G.adventure = ADVENTURES.find(a => a.id === save.adventureId);
+  G.currentNode = save.currentNode;
+  G.visitedNodes = save.visitedNodes || [];
+  if (!G.adventure) { alert('Adventure data not found'); return; }
+  showScreen('game-screen');
+  updateCharPanel();
+  updateInventoryGrid();
+  processNode(G.currentNode);
+}
+
+function exportSave() {
+  if (!G.player) return;
+  const save = {
+    player: G.player,
+    adventureId: G.adventure?.id,
+    currentNode: G.currentNode,
+    visitedNodes: G.visitedNodes,
+    timestamp: Date.now(),
+  };
+  const blob = new Blob([JSON.stringify(save, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `dungeon-quest-${G.player.name}-${Date.now()}.json`;
+  a.click();
+}
+
+function importSave(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const save = JSON.parse(e.target.result);
+      loadSaveData(save);
+      closeSaveModal();
+    } catch(err) { alert('Invalid save file'); }
+  };
+  reader.readAsText(file);
+}
+
+// ==================== MAIN FLOW ====================
+function startNewGame() {
+  AudioEngine.init();
+  AudioEngine.play('doorOpen');
+  showScreen('char-screen');
+  rollAllStats();
+  updateCharPreview();
+}
+
+function continueGame() {
+  const auto = localStorage.getItem('dq_autosave');
+  if (auto) {
+    loadSaveData(JSON.parse(auto));
+  } else {
+    openSaveModal('load');
+  }
+}
+
+function showJoinScreen() {
+  showScreen('join-screen');
+}
+
+function startMultiplayer() {
+  initMultiplayer(true);
+  startNewGame();
+}
+
+function copyRoomCode() {
+  if (G.roomCode) {
+    navigator.clipboard.writeText(G.roomCode).then(() => {
+      addChatMessage('System', 'Room code copied!', 'var(--cyan)');
+    });
+  }
+}
+
+function toggleSound() {
+  G.soundEnabled = !G.soundEnabled;
+  AudioEngine.enabled = G.soundEnabled;
+  document.getElementById('sound-btn').textContent = 'Sound: ' + (G.soundEnabled ? 'ON' : 'OFF');
+}
+
+// Auto-save every 30 seconds
+setInterval(autoSave, 30000);
+
+// Init
+rollAllStats();
+updateCharPreview();
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeSaveModal();
+    closeLevelUp();
+  }
+});
+</script>
+</body>
+</html>
