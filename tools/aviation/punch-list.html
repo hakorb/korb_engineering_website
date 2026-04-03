@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Punch List Tool — Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#000;--bg2:#050a0f;--bg3:#0a1018;--bg4:#101820;
+--cyan:#00d4ff;--orange:#ff6600;--red:#ff3333;--yellow:#ffcc00;--blue:#3399ff;--purple:#aa66ff;--green:#33ff88;
+--text:#e8e8e8;--text-dim:#8899aa;--border:#1a2a3a;
+--radius:6px;
+}
+html{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--text);background:var(--bg)}
+body{background:var(--bg);min-height:100vh;min-height:100dvh;overflow-x:hidden}
+input,select,textarea,button{font-family:inherit;font-size:inherit;color:inherit;touch-action:manipulation}
+button{cursor:pointer;border:none;background:none;-webkit-tap-highlight-color:transparent}
+input,select,textarea{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;color:var(--text);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300d4ff' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+textarea{resize:vertical;min-height:80px}
+
+/* Header */
+.header{background:linear-gradient(135deg,var(--bg2),var(--bg3));border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header .brand{display:flex;align-items:center;gap:10px}
+.header .brand .logo{width:28px;height:28px;border:2px solid var(--cyan);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--cyan)}
+.header .brand span{font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase}
+.header .title{font-size:13px;font-weight:600;color:var(--cyan);letter-spacing:.5px}
+.header .project-select{display:flex;align-items:center;gap:8px}
+.header .project-select select{width:auto;min-width:120px;font-size:12px;padding:6px 30px 6px 10px}
+
+/* Tabs */
+.tab-bar{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 16px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);border-bottom:2px solid transparent;white-space:nowrap;min-height:48px;display:flex;align-items:center;transition:color .2s,border-color .2s}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-btn:active{color:var(--orange)}
+.tab-panel{display:none;padding:16px;max-width:900px;margin:0 auto}
+.tab-panel.active{display:block}
+
+/* Form elements */
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.form-row{grid-template-columns:1fr}}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:12px 20px;border-radius:var(--radius);font-weight:600;font-size:13px;letter-spacing:.3px;transition:transform .1s,opacity .1s}
+.btn:active{transform:scale(.96);opacity:.85}
+.btn-primary{background:var(--cyan);color:#000}
+.btn-orange{background:var(--orange);color:#000}
+.btn-outline{border:1px solid var(--border);color:var(--text)}
+.btn-outline:active{border-color:var(--cyan)}
+.btn-sm{min-height:36px;padding:8px 14px;font-size:12px}
+.btn-danger{background:var(--red);color:#000}
+.btn-green{background:var(--green);color:#000}
+
+/* Cards */
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+
+/* Zones list */
+.zone-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.zone-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg4);border:1px solid var(--border);border-radius:20px;font-size:12px}
+.zone-tag .remove{color:var(--red);cursor:pointer;font-size:14px;min-width:24px;min-height:24px;display:flex;align-items:center;justify-content:center}
+.zone-tag .remove:active{opacity:.6}
+
+/* Summary bar */
+.summary-bar{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}
+.summary-bar .count{font-weight:700;color:var(--cyan)}
+.summary-bar .cls-count{padding:2px 8px;border-radius:10px;font-weight:600;font-size:11px;color:#000}
+
+/* Filter bar */
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.filter-bar select,.filter-bar input{width:auto;min-width:130px;font-size:12px;padding:8px 30px 8px 10px}
+.filter-bar input[type="text"]{padding:8px 12px;min-width:160px}
+
+/* Punch list table */
+.pl-table{width:100%;border-collapse:collapse;font-size:12px}
+.pl-table th{background:var(--bg4);padding:10px 8px;text-align:left;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);white-space:nowrap}
+.pl-table th:hover{color:var(--cyan)}
+.pl-table td{padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.pl-table tr:active{background:rgba(0,212,255,.05)}
+.pl-table .select-cell{width:30px;text-align:center}
+.pl-table input[type="checkbox"]{width:18px;height:18px;accent-color:var(--cyan)}
+
+/* Classification colors */
+.cls-a{border-left:3px solid var(--red)}
+.cls-b{border-left:3px solid var(--orange)}
+.cls-c{border-left:3px solid var(--yellow)}
+.cls-d{border-left:3px solid var(--blue)}
+.cls-e{border-left:3px solid var(--purple)}
+.cls-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-weight:700;font-size:11px;color:#000}
+.cls-badge.a{background:var(--red)}.cls-badge.b{background:var(--orange)}.cls-badge.c{background:var(--yellow)}.cls-badge.d{background:var(--blue)}.cls-badge.e{background:var(--purple)}
+
+/* Status badges */
+.status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.status-open{background:#331111;color:var(--red);border:1px solid #552222}
+.status-inprogress{background:#332200;color:var(--orange);border:1px solid #553300}
+.status-corrected{background:#112233;color:var(--blue);border:1px solid #223355}
+.status-closed{background:#113311;color:var(--green);border:1px solid #225522}
+.status-disputed{background:#221133;color:var(--purple);border:1px solid #332255}
+
+/* Priority */
+.pri-high{color:var(--red);font-weight:700}
+.pri-medium{color:var(--orange)}
+.pri-low{color:var(--text-dim)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;overflow-y:auto;padding:16px}
+.modal-overlay.active{display:flex;align-items:flex-start;justify-content:center}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:8px;width:100%;max-width:600px;margin:20px auto;padding:20px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-header h3{font-size:14px;color:var(--cyan)}
+.modal-close{font-size:24px;color:var(--text-dim);min-width:48px;min-height:48px;display:flex;align-items:center;justify-content:center}
+.modal-close:active{color:var(--red)}
+
+/* Charts */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.chart-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.chart-card h4{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.chart-card canvas{width:100%!important;height:auto!important}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.stat-card .stat-value{font-size:28px;font-weight:700;color:var(--cyan)}
+.stat-card .stat-label{font-size:11px;color:var(--text-dim);margin-top:4px}
+
+/* Inspection mode */
+.insp-zone-bar{display:flex;gap:8px;overflow-x:auto;padding:8px 0;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.insp-zone-btn{flex:0 0 auto;min-height:48px;padding:12px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;background:var(--bg4);border:1px solid var(--border);color:var(--text)}
+.insp-zone-btn.active{background:var(--cyan);color:#000;border-color:var(--cyan)}
+.insp-zone-btn:active{transform:scale(.96)}
+.insp-cls-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+.insp-cls-btn{min-height:56px;border-radius:var(--radius);font-weight:700;font-size:14px;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.insp-cls-btn span{font-size:10px;font-weight:400}
+.insp-cls-btn.sel{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.2)}
+.insp-cls-btn:active{transform:scale(.95)}
+.insp-cls-btn.a{background:var(--red);color:#000}
+.insp-cls-btn.b{background:var(--orange);color:#000}
+.insp-cls-btn.c{background:var(--yellow);color:#000}
+.insp-cls-btn.d{background:var(--blue);color:#000}
+.insp-cls-btn.e{background:var(--purple);color:#000}
+.insp-desc{width:100%;min-height:100px;font-size:16px;margin-bottom:12px}
+.insp-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.insp-save{min-height:60px;font-size:16px;font-weight:700}
+
+/* Templates */
+.tpl-cat{margin-bottom:16px}
+.tpl-cat h4{font-size:12px;color:var(--orange);margin-bottom:8px}
+.tpl-item{display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg4);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer;min-height:48px}
+.tpl-item:active{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+.tpl-item .check{width:20px;height:20px;border:2px solid var(--border);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.tpl-item.selected .check{background:var(--cyan);border-color:var(--cyan);color:#000}
+.tpl-item .text{font-size:12px;flex:1}
+.tpl-item .cls{font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;color:#000}
+
+/* Bulk bar */
+.bulk-bar{display:none;background:var(--bg4);border:1px solid var(--cyan);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap}
+.bulk-bar.active{display:flex}
+.bulk-bar .bulk-count{font-weight:700;color:var(--cyan);font-size:13px}
+
+/* Photo thumbnail */
+.photo-thumb{width:40px;height:40px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border)}
+
+/* Responsive table wrapper */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Print */
+@media print{
+  .header,.tab-bar,.filter-bar,.bulk-bar,.btn,.modal-overlay{display:none!important}
+  .tab-panel{display:block!important;padding:0}
+  body{background:#fff;color:#000}
+  .pl-table th{background:#eee;color:#333}
+  .pl-table td{border-color:#ccc}
+  .card,.chart-card,.stat-card{border-color:#ccc;background:#fff}
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="brand">
+    <div class="logo">K</div>
+    <span>Korb Engineering</span>
+  </div>
+  <div class="title">PUNCH LIST</div>
+  <div class="project-select">
+    <select id="projectSelector" onchange="loadProject(this.value)">
+      <option value="">New Project</option>
+    </select>
+    <button class="btn btn-sm btn-outline" onclick="deleteCurrentProject()" title="Delete project">&times;</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" data-tab="project" onclick="switchTab('project')">Project</button>
+  <button class="tab-btn" data-tab="punchlist" onclick="switchTab('punchlist')">Punch List</button>
+  <button class="tab-btn" data-tab="summary" onclick="switchTab('summary')">Summary</button>
+  <button class="tab-btn" data-tab="inspection" onclick="switchTab('inspection')">Inspection</button>
+  <button class="tab-btn" data-tab="export" onclick="switchTab('export')">Export</button>
+  <button class="tab-btn" data-tab="templates" onclick="switchTab('templates')">Templates</button>
+</div>
+
+<!-- PROJECT TAB -->
+<div class="tab-panel active" id="panel-project">
+  <div class="card">
+    <div class="card-title">Project Information</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Project Name</label>
+        <input type="text" id="projName" placeholder="Airport Rehabilitation" oninput="autoSave()">
+      </div>
+      <div class="form-group">
+        <label>Project Number</label>
+        <input type="text" id="projNumber" placeholder="KE-2026-042" oninput="autoSave()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Location</label>
+      <input type="text" id="projLocation" placeholder="Municipal Airport, City, ST" oninput="autoSave()">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Owner / Agency</label>
+        <input type="text" id="projOwner" placeholder="City of..." oninput="autoSave()">
+      </div>
+      <div class="form-group">
+        <label>Contractor</label>
+        <input type="text" id="projContractor" placeholder="ABC Contracting" oninput="autoSave()">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Engineer / Inspector</label>
+        <input type="text" id="projEngineer" placeholder="Name" oninput="autoSave()">
+      </div>
+      <div class="form-group">
+        <label>Contract Completion Date</label>
+        <input type="date" id="projCompDate" oninput="autoSave()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Inspection Date</label>
+      <input type="date" id="projInspDate" oninput="autoSave()">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Areas / Zones</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input type="text" id="zoneInput" placeholder="e.g., Runway 9-27" style="flex:1" onkeydown="if(event.key==='Enter')addZone()">
+      <button class="btn btn-sm btn-primary" onclick="addZone()">+ Add</button>
+    </div>
+    <div class="zone-list" id="zoneList"></div>
+    <div style="margin-top:12px">
+      <button class="btn btn-sm btn-outline" onclick="addCommonZones()">+ Common Airport Zones</button>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn btn-primary" onclick="saveProject()">Save Project</button>
+  </div>
+</div>
+
+<!-- PUNCH LIST TAB -->
+<div class="tab-panel" id="panel-punchlist">
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="Search..." oninput="renderPunchList()">
+    <select id="filterCls" onchange="renderPunchList()"><option value="">All Classes</option><option value="A">A - Life Safety</option><option value="B">B - Code/Spec</option><option value="C">C - Cosmetic</option><option value="D">D - Incomplete</option><option value="E">E - Warranty</option></select>
+    <select id="filterZone" onchange="renderPunchList()"><option value="">All Zones</option></select>
+    <select id="filterStatus" onchange="renderPunchList()"><option value="">All Status</option><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Corrected">Corrected</option><option value="Closed">Closed</option><option value="Disputed">Disputed</option></select>
+    <select id="filterParty" onchange="renderPunchList()"><option value="">All Parties</option><option value="Contractor">Contractor</option><option value="Subcontractor">Subcontractor</option><option value="Owner">Owner</option><option value="Engineer">Engineer</option></select>
+    <select id="filterPriority" onchange="renderPunchList()"><option value="">All Priority</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+    <select id="filterCSI" onchange="renderPunchList()"><option value="">All CSI Div</option></select>
+  </div>
+
+  <div class="bulk-bar" id="bulkBar">
+    <span class="bulk-count" id="bulkCount">0 selected</span>
+    <select id="bulkStatus" style="width:auto;min-width:140px;font-size:12px;padding:6px 30px 6px 10px">
+      <option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Corrected">Corrected</option><option value="Closed">Closed</option><option value="Disputed">Disputed</option>
+    </select>
+    <button class="btn btn-sm btn-orange" onclick="bulkUpdateStatus()">Update Status</button>
+    <button class="btn btn-sm btn-danger" onclick="bulkDelete()">Delete</button>
+    <button class="btn btn-sm btn-outline" onclick="clearSelection()">Cancel</button>
+  </div>
+
+  <div style="margin-bottom:12px;display:flex;gap:8px">
+    <button class="btn btn-primary" onclick="openItemModal()">+ Add Item</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="pl-table" id="plTable">
+      <thead>
+        <tr>
+          <th class="select-cell"><input type="checkbox" onchange="toggleSelectAll(this)"></th>
+          <th data-sort="number" onclick="sortTable('number')">Item #</th>
+          <th data-sort="zone" onclick="sortTable('zone')">Zone</th>
+          <th data-sort="description" onclick="sortTable('description')">Description</th>
+          <th data-sort="classification" onclick="sortTable('classification')">Class</th>
+          <th data-sort="csi" onclick="sortTable('csi')">CSI</th>
+          <th data-sort="party" onclick="sortTable('party')">Party</th>
+          <th data-sort="priority" onclick="sortTable('priority')">Pri</th>
+          <th data-sort="status" onclick="sortTable('status')">Status</th>
+          <th data-sort="dueDate" onclick="sortTable('dueDate')">Due</th>
+          <th>Photo</th>
+          <th>Edit</th>
+        </tr>
+      </thead>
+      <tbody id="plBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SUMMARY TAB -->
+<div class="tab-panel" id="panel-summary">
+  <div class="stats-row" id="statsRow"></div>
+  <div class="chart-grid" id="chartGrid"></div>
+  <div class="card" id="criticalPath" style="margin-top:16px"></div>
+</div>
+
+<!-- INSPECTION TAB -->
+<div class="tab-panel" id="panel-inspection">
+  <div class="card">
+    <div class="card-title">Walkthrough Mode</div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Optimized for field use. Select zone and classification, describe the issue, and save.</p>
+  </div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Zone</div>
+  <div class="insp-zone-bar" id="inspZoneBar"></div>
+
+  <div style="margin-bottom:8px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Classification</div>
+  <div class="insp-cls-bar" id="inspClsBar">
+    <button class="insp-cls-btn a" data-cls="A" onclick="setInspCls('A')">A<span>Safety</span></button>
+    <button class="insp-cls-btn b" data-cls="B" onclick="setInspCls('B')">B<span>Code</span></button>
+    <button class="insp-cls-btn c" data-cls="C" onclick="setInspCls('C')">C<span>Cosmetic</span></button>
+    <button class="insp-cls-btn d" data-cls="D" onclick="setInspCls('D')">D<span>Incomplete</span></button>
+    <button class="insp-cls-btn e" data-cls="E" onclick="setInspCls('E')">E<span>Warranty</span></button>
+  </div>
+
+  <div class="form-group">
+    <label>Description</label>
+    <div style="position:relative">
+      <textarea id="inspDesc" class="insp-desc" placeholder="Describe the issue..."></textarea>
+      <button class="btn btn-sm btn-outline" style="position:absolute;right:8px;top:8px;min-height:36px" onclick="startVoice()" id="voiceBtn" title="Voice input">&#127908;</button>
+    </div>
+  </div>
+
+  <div class="insp-actions">
+    <div class="form-group">
+      <label>Priority</label>
+      <select id="inspPriority">
+        <option value="High">High</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="Low">Low</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>CSI Division</label>
+      <select id="inspCSI"></select>
+    </div>
+  </div>
+
+  <div class="insp-actions">
+    <div class="form-group">
+      <label>Responsible Party</label>
+      <select id="inspParty">
+        <option>Contractor</option><option>Subcontractor</option><option>Owner</option><option>Engineer</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Photo</label>
+      <input type="file" id="inspPhoto" accept="image/*" capture="environment" style="padding:10px">
+    </div>
+  </div>
+
+  <div id="inspGPS" style="font-size:11px;color:var(--text-dim);margin-bottom:12px"></div>
+
+  <button class="btn btn-green insp-save" onclick="inspSave()" style="width:100%">Save &amp; Next</button>
+  <div id="inspFeedback" style="text-align:center;margin-top:10px;font-size:13px;color:var(--green);display:none"></div>
+</div>
+
+<!-- EXPORT TAB -->
+<div class="tab-panel" id="panel-export">
+  <div class="card">
+    <div class="card-title">Export Options</div>
+    <div style="display:grid;gap:10px">
+      <button class="btn btn-primary" onclick="exportPDF()" style="width:100%">Download PDF Report</button>
+      <button class="btn btn-orange" onclick="exportCSV()" style="width:100%">Export CSV</button>
+      <button class="btn btn-outline" onclick="copyFormatted()" style="width:100%">Copy as Formatted Text</button>
+      <button class="btn btn-outline" onclick="window.print()" style="width:100%">Print-Friendly View</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Data Management</div>
+    <div style="display:grid;gap:10px">
+      <button class="btn btn-outline" onclick="exportJSON()" style="width:100%">Export Project JSON</button>
+      <button class="btn btn-outline" onclick="document.getElementById('importJSON').click()" style="width:100%">Import Project JSON</button>
+      <input type="file" id="importJSON" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATES TAB -->
+<div class="tab-panel" id="panel-templates">
+  <div class="card">
+    <div class="card-title">Pre-Built Templates</div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Select items and add them to your punch list. Zone assignment uses your currently defined zones.</p>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <select id="tplZone" style="width:auto;min-width:160px"><option value="">Select zone...</option></select>
+      <button class="btn btn-sm btn-primary" onclick="addSelectedTemplates()">Add Selected to List</button>
+      <button class="btn btn-sm btn-outline" onclick="clearTemplateSelection()">Clear Selection</button>
+    </div>
+  </div>
+  <div id="templateList"></div>
+</div>
+
+<!-- ITEM MODAL -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Add Punch List Item</h3>
+      <button class="modal-close" onclick="closeItemModal()">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>Item #</label>
+      <input type="text" id="itemNumber" readonly>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Location / Zone</label>
+        <select id="itemZone"></select>
+      </div>
+      <div class="form-group">
+        <label>Classification</label>
+        <select id="itemCls">
+          <option value="A">A — Life Safety</option>
+          <option value="B">B — Code/Specification Deficiency</option>
+          <option value="C">C — Cosmetic/Minor</option>
+          <option value="D">D — Incomplete Work</option>
+          <option value="E">E — Warranty</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="itemDesc" placeholder="Describe the deficiency..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>CSI Division</label>
+        <select id="itemCSI"></select>
+      </div>
+      <div class="form-group">
+        <label>Responsible Party</label>
+        <select id="itemParty">
+          <option>Contractor</option><option>Subcontractor</option><option>Owner</option><option>Engineer</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="subNameGroup" style="display:none">
+      <label>Subcontractor Name</label>
+      <input type="text" id="itemSubName" placeholder="Subcontractor name">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="itemPriority">
+          <option value="High">High</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Due Date</label>
+        <input type="date" id="itemDue">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="itemStatus">
+        <option>Open</option><option>In Progress</option><option>Corrected</option><option>Closed</option><option>Disputed</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Photo</label>
+      <input type="file" id="itemPhoto" accept="image/*" capture="environment">
+    </div>
+    <div id="itemPhotoPreview" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeItemModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Photo preview modal -->
+<div class="modal-overlay" id="photoModal">
+  <div class="modal" style="max-width:90vw;text-align:center">
+    <div class="modal-header">
+      <h3>Photo</h3>
+      <button class="modal-close" onclick="document.getElementById('photoModal').classList.remove('active')">&times;</button>
+    </div>
+    <img id="photoModalImg" style="max-width:100%;max-height:70vh;border-radius:var(--radius)">
+  </div>
+</div>
+
+<script>
+// ─── CSI Divisions ───
+const CSI_DIVISIONS = [
+  '01-General Requirements','02-Existing Conditions','03-Concrete','04-Masonry','05-Metals',
+  '06-Wood/Plastics/Composites','07-Thermal & Moisture Protection','08-Openings','09-Finishes',
+  '10-Specialties','11-Equipment','12-Furnishings','13-Special Construction','14-Conveying Equipment',
+  '21-Fire Suppression','22-Plumbing','23-HVAC','25-Integrated Automation',
+  '26-Electrical','27-Communications','28-Electronic Safety & Security',
+  '31-Earthwork','32-Exterior Improvements','33-Utilities','34-Transportation','35-Waterway & Marine'
+];
+const COMMON_ZONES = ['Runway 9-27','Taxiway A','Taxiway B','Apron','Terminal','Fuel Farm','Hangars','Electrical Vault','NAVAIDS','Parking Lot','Access Road','Perimeter Fencing'];
+const CLS_COLORS = {A:'#ff3333',B:'#ff6600',C:'#ffcc00',D:'#3399ff',E:'#aa66ff'};
+const CLS_NAMES = {A:'Life Safety',B:'Code/Spec Deficiency',C:'Cosmetic/Minor',D:'Incomplete Work',E:'Warranty'};
+const STATUS_CLS = {'Open':'status-open','In Progress':'status-inprogress','Corrected':'status-corrected','Closed':'status-closed','Disputed':'status-disputed'};
+
+// ─── State ───
+let currentProject = null;
+let projects = {};
+let editingItemId = null;
+let selectedItems = new Set();
+let sortCol = 'number';
+let sortDir = 1;
+let inspZone = '';
+let inspCls = 'B';
+let db = null;
+
+// ─── IndexedDB ───
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('KorbPunchListPhotos', 1);
+    req.onupgradeneeded = e => { e.target.result.createObjectStore('photos', {keyPath:'id'}); };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror = e => reject(e);
+  });
+}
+async function savePhoto(id, dataUrl) {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('photos','readwrite');
+    tx.objectStore('photos').put({id, data: dataUrl});
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e);
+  });
+}
+async function getPhoto(id) {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('photos','readonly');
+    const req = tx.objectStore('photos').get(id);
+    req.onsuccess = () => resolve(req.result ? req.result.data : null);
+    req.onerror = e => reject(e);
+  });
+}
+async function deletePhoto(id) {
+  if (!db) await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('photos','readwrite');
+    tx.objectStore('photos').delete(id);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+// ─── Init ───
+async function init() {
+  await openDB();
+  loadProjectsList();
+  populateCSIDropdowns();
+  renderTemplates();
+  // Show sub name field when subcontractor selected
+  document.getElementById('itemParty').addEventListener('change', function() {
+    document.getElementById('subNameGroup').style.display = this.value === 'Subcontractor' ? 'block' : 'none';
+  });
+  // Try GPS
+  requestGPS();
+}
+
+function loadProjectsList() {
+  const stored = localStorage.getItem('korb_punchlist_projects');
+  if (stored) projects = JSON.parse(stored);
+  updateProjectSelector();
+  // Auto-load last project
+  const last = localStorage.getItem('korb_punchlist_last');
+  if (last && projects[last]) { loadProject(last); }
+}
+
+function updateProjectSelector() {
+  const sel = document.getElementById('projectSelector');
+  sel.innerHTML = '<option value="">+ New Project</option>';
+  Object.keys(projects).forEach(id => {
+    const p = projects[id];
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = p.name || p.number || id;
+    if (id === currentProject) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function saveProjectsStore() {
+  localStorage.setItem('korb_punchlist_projects', JSON.stringify(projects));
+}
+
+function getProject() {
+  if (!currentProject) {
+    currentProject = 'proj_' + Date.now();
+    projects[currentProject] = { name:'', number:'', location:'', owner:'', contractor:'', engineer:'', compDate:'', inspDate:'', zones:[], items:[], created: new Date().toISOString() };
+  }
+  return projects[currentProject];
+}
+
+function autoSave() {
+  const p = getProject();
+  p.name = document.getElementById('projName').value;
+  p.number = document.getElementById('projNumber').value;
+  p.location = document.getElementById('projLocation').value;
+  p.owner = document.getElementById('projOwner').value;
+  p.contractor = document.getElementById('projContractor').value;
+  p.engineer = document.getElementById('projEngineer').value;
+  p.compDate = document.getElementById('projCompDate').value;
+  p.inspDate = document.getElementById('projInspDate').value;
+  saveProjectsStore();
+  updateProjectSelector();
+}
+
+function saveProject() {
+  autoSave();
+  localStorage.setItem('korb_punchlist_last', currentProject);
+  alert('Project saved.');
+}
+
+function loadProject(id) {
+  if (!id) {
+    currentProject = null;
+    clearForm();
+    return;
+  }
+  currentProject = id;
+  localStorage.setItem('korb_punchlist_last', id);
+  const p = projects[id];
+  document.getElementById('projName').value = p.name || '';
+  document.getElementById('projNumber').value = p.number || '';
+  document.getElementById('projLocation').value = p.location || '';
+  document.getElementById('projOwner').value = p.owner || '';
+  document.getElementById('projContractor').value = p.contractor || '';
+  document.getElementById('projEngineer').value = p.engineer || '';
+  document.getElementById('projCompDate').value = p.compDate || '';
+  document.getElementById('projInspDate').value = p.inspDate || '';
+  renderZones();
+  renderPunchList();
+  updateProjectSelector();
+}
+
+function clearForm() {
+  ['projName','projNumber','projLocation','projOwner','projContractor','projEngineer','projCompDate','projInspDate'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('zoneList').innerHTML = '';
+}
+
+function deleteCurrentProject() {
+  if (!currentProject) return;
+  if (!confirm('Delete this project and all its data?')) return;
+  const p = projects[currentProject];
+  if (p && p.items) {
+    p.items.forEach(it => { if (it.photoId) deletePhoto(it.photoId); });
+  }
+  delete projects[currentProject];
+  currentProject = null;
+  saveProjectsStore();
+  localStorage.removeItem('korb_punchlist_last');
+  clearForm();
+  updateProjectSelector();
+}
+
+// ─── Zones ───
+function addZone() {
+  const input = document.getElementById('zoneInput');
+  const val = input.value.trim();
+  if (!val) return;
+  const p = getProject();
+  if (!p.zones.includes(val)) {
+    p.zones.push(val);
+    saveProjectsStore();
+    renderZones();
+  }
+  input.value = '';
+  input.focus();
+}
+
+function removeZone(z) {
+  const p = getProject();
+  p.zones = p.zones.filter(x => x !== z);
+  saveProjectsStore();
+  renderZones();
+}
+
+function addCommonZones() {
+  const p = getProject();
+  COMMON_ZONES.forEach(z => { if (!p.zones.includes(z)) p.zones.push(z); });
+  saveProjectsStore();
+  renderZones();
+}
+
+function renderZones() {
+  const p = getProject();
+  const list = document.getElementById('zoneList');
+  list.innerHTML = p.zones.map(z => `<div class="zone-tag"><span>${esc(z)}</span><span class="remove" onclick="removeZone('${esc(z)}')">&times;</span></div>`).join('');
+  // Update zone dropdowns
+  updateZoneDropdowns();
+}
+
+function updateZoneDropdowns() {
+  const p = getProject();
+  const zones = p.zones || [];
+  ['itemZone','filterZone','tplZone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = el.value;
+    const firstOpt = el.querySelector('option');
+    el.innerHTML = '';
+    if (id !== 'itemZone') {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = id === 'filterZone' ? 'All Zones' : 'Select zone...';
+      el.appendChild(o);
+    }
+    zones.forEach(z => {
+      const o = document.createElement('option');
+      o.value = z; o.textContent = z;
+      el.appendChild(o);
+    });
+    if (val) el.value = val;
+  });
+  // Inspection zone bar
+  renderInspZoneBar();
+}
+
+// ─── CSI Dropdowns ───
+function populateCSIDropdowns() {
+  ['itemCSI','inspCSI','filterCSI'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id === 'filterCSI') el.innerHTML = '<option value="">All CSI Div</option>';
+    else el.innerHTML = '';
+    CSI_DIVISIONS.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      el.appendChild(o);
+    });
+  });
+}
+
+// ─── Tabs ───
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
+  if (tab === 'punchlist') renderPunchList();
+  if (tab === 'summary') renderSummary();
+  if (tab === 'inspection') { renderInspZoneBar(); requestGPS(); }
+  if (tab === 'templates') renderTemplates();
+}
+
+// ─── Punch List Items ───
+function getNextItemNumber() {
+  const p = getProject();
+  const nums = p.items.map(i => parseInt(i.number.replace('PL-','')) || 0);
+  const max = nums.length ? Math.max(...nums) : 0;
+  return 'PL-' + String(max + 1).padStart(3, '0');
+}
+
+function openItemModal(itemId) {
+  editingItemId = itemId || null;
+  const p = getProject();
+  updateZoneDropdowns();
+  if (editingItemId) {
+    const item = p.items.find(i => i.id === itemId);
+    if (!item) return;
+    document.getElementById('modalTitle').textContent = 'Edit ' + item.number;
+    document.getElementById('itemNumber').value = item.number;
+    document.getElementById('itemZone').value = item.zone;
+    document.getElementById('itemCls').value = item.classification;
+    document.getElementById('itemDesc').value = item.description;
+    document.getElementById('itemCSI').value = item.csi;
+    document.getElementById('itemParty').value = item.party;
+    document.getElementById('itemSubName').value = item.subName || '';
+    document.getElementById('subNameGroup').style.display = item.party === 'Subcontractor' ? 'block' : 'none';
+    document.getElementById('itemPriority').value = item.priority;
+    document.getElementById('itemDue').value = item.dueDate || '';
+    document.getElementById('itemStatus').value = item.status;
+    document.getElementById('itemPhotoPreview').innerHTML = '';
+    if (item.photoId) {
+      getPhoto(item.photoId).then(data => {
+        if (data) document.getElementById('itemPhotoPreview').innerHTML = `<img src="${data}" style="max-width:200px;border-radius:4px">`;
+      });
+    }
+  } else {
+    document.getElementById('modalTitle').textContent = 'Add Punch List Item';
+    document.getElementById('itemNumber').value = getNextItemNumber();
+    document.getElementById('itemDesc').value = '';
+    document.getElementById('itemDue').value = '';
+    document.getElementById('itemStatus').value = 'Open';
+    document.getElementById('itemPriority').value = 'Medium';
+    document.getElementById('itemPhoto').value = '';
+    document.getElementById('itemPhotoPreview').innerHTML = '';
+    document.getElementById('subNameGroup').style.display = 'none';
+    document.getElementById('itemSubName').value = '';
+  }
+  document.getElementById('itemModal').classList.add('active');
+}
+
+function closeItemModal() {
+  document.getElementById('itemModal').classList.remove('active');
+  editingItemId = null;
+}
+
+async function saveItem() {
+  const p = getProject();
+  const number = document.getElementById('itemNumber').value;
+  const zone = document.getElementById('itemZone').value;
+  const cls = document.getElementById('itemCls').value;
+  const desc = document.getElementById('itemDesc').value.trim();
+  const csi = document.getElementById('itemCSI').value;
+  const party = document.getElementById('itemParty').value;
+  const subName = document.getElementById('itemSubName').value.trim();
+  const priority = document.getElementById('itemPriority').value;
+  const dueDate = document.getElementById('itemDue').value;
+  const status = document.getElementById('itemStatus').value;
+
+  if (!desc) { alert('Description required.'); return; }
+
+  let photoId = null;
+  const fileInput = document.getElementById('itemPhoto');
+  if (fileInput.files.length > 0) {
+    const dataUrl = await readFileAsDataURL(fileInput.files[0]);
+    photoId = 'photo_' + Date.now();
+    await savePhoto(photoId, dataUrl);
+  }
+
+  if (editingItemId) {
+    const item = p.items.find(i => i.id === editingItemId);
+    if (item) {
+      item.zone = zone; item.classification = cls; item.description = desc;
+      item.csi = csi; item.party = party; item.subName = subName;
+      item.priority = priority; item.dueDate = dueDate; item.status = status;
+      item.modified = new Date().toISOString();
+      if (photoId) {
+        if (item.photoId) await deletePhoto(item.photoId);
+        item.photoId = photoId;
+      }
+    }
+  } else {
+    const item = {
+      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+      number, zone, classification: cls, description: desc, csi, party, subName,
+      priority, dueDate, status, photoId,
+      created: new Date().toISOString(), modified: new Date().toISOString(),
+      gps: null
+    };
+    p.items.push(item);
+  }
+
+  saveProjectsStore();
+  closeItemModal();
+  renderPunchList();
+}
+
+function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  const p = getProject();
+  const item = p.items.find(i => i.id === id);
+  if (item && item.photoId) deletePhoto(item.photoId);
+  p.items = p.items.filter(i => i.id !== id);
+  saveProjectsStore();
+  renderPunchList();
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.readAsDataURL(file);
+  });
+}
+
+// ─── Render Punch List ───
+function renderPunchList() {
+  const p = getProject();
+  if (!p.items) p.items = [];
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const fCls = document.getElementById('filterCls').value;
+  const fZone = document.getElementById('filterZone').value;
+  const fStatus = document.getElementById('filterStatus').value;
+  const fParty = document.getElementById('filterParty').value;
+  const fPri = document.getElementById('filterPriority').value;
+  const fCSI = document.getElementById('filterCSI').value;
+
+  let items = p.items.filter(i => {
+    if (fCls && i.classification !== fCls) return false;
+    if (fZone && i.zone !== fZone) return false;
+    if (fStatus && i.status !== fStatus) return false;
+    if (fParty && i.party !== fParty) return false;
+    if (fPri && i.priority !== fPri) return false;
+    if (fCSI && i.csi !== fCSI) return false;
+    if (search && !i.description.toLowerCase().includes(search) && !i.number.toLowerCase().includes(search) && !(i.zone||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // Sort
+  items.sort((a, b) => {
+    let va = a[sortCol] || '', vb = b[sortCol] || '';
+    if (sortCol === 'number') {
+      va = parseInt(va.replace('PL-','')) || 0;
+      vb = parseInt(vb.replace('PL-','')) || 0;
+    }
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+    return va < vb ? -sortDir : va > vb ? sortDir : 0;
+  });
+
+  // Summary bar
+  const allItems = p.items;
+  const counts = {A:0,B:0,C:0,D:0,E:0};
+  allItems.forEach(i => { if (counts[i.classification] !== undefined) counts[i.classification]++; });
+  const summaryBar = document.getElementById('summaryBar');
+  summaryBar.innerHTML = `<span class="count">${allItems.length} items:</span>` +
+    Object.entries(counts).map(([k,v]) => `<span class="cls-count" style="background:${CLS_COLORS[k]}">${v}${k}</span>`).join('');
+
+  // Table
+  const body = document.getElementById('plBody');
+  body.innerHTML = items.map(i => {
+    const clsLower = i.classification.toLowerCase();
+    const priCls = i.priority === 'High' ? 'pri-high' : i.priority === 'Medium' ? 'pri-medium' : 'pri-low';
+    const statusCls = STATUS_CLS[i.status] || '';
+    const partyDisplay = i.party === 'Subcontractor' && i.subName ? `Sub: ${esc(i.subName)}` : esc(i.party);
+    const checked = selectedItems.has(i.id) ? 'checked' : '';
+    return `<tr class="cls-${clsLower}">
+      <td class="select-cell"><input type="checkbox" ${checked} onchange="toggleSelect('${i.id}',this.checked)"></td>
+      <td style="font-weight:600;white-space:nowrap">${esc(i.number)}</td>
+      <td>${esc(i.zone)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.description)}</td>
+      <td><span class="cls-badge ${clsLower}">${i.classification}</span></td>
+      <td style="font-size:11px">${esc((i.csi||'').split('-')[0])}</td>
+      <td style="font-size:11px">${partyDisplay}</td>
+      <td class="${priCls}">${i.priority ? i.priority[0] : ''}</td>
+      <td><span class="status-badge ${statusCls}">${esc(i.status)}</span></td>
+      <td style="font-size:11px;white-space:nowrap">${i.dueDate || ''}</td>
+      <td>${i.photoId ? '<img class="photo-thumb" onclick="showPhoto(\''+i.photoId+'\')" src="" data-photo="'+i.photoId+'">' : ''}</td>
+      <td>
+        <button class="btn btn-sm btn-outline" onclick="openItemModal('${i.id}')" style="min-height:32px;padding:4px 8px">&#9998;</button>
+        <button class="btn btn-sm btn-outline" onclick="deleteItem('${i.id}')" style="min-height:32px;padding:4px 8px;color:var(--red)">&times;</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Load photo thumbnails
+  body.querySelectorAll('[data-photo]').forEach(img => {
+    getPhoto(img.dataset.photo).then(data => { if (data) img.src = data; });
+  });
+
+  updateBulkBar();
+  updateZoneDropdowns();
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = 1; }
+  renderPunchList();
+}
+
+function toggleSelect(id, checked) {
+  if (checked) selectedItems.add(id); else selectedItems.delete(id);
+  updateBulkBar();
+}
+
+function toggleSelectAll(cb) {
+  const rows = document.querySelectorAll('#plBody input[type="checkbox"]');
+  rows.forEach(r => { r.checked = cb.checked; });
+  const p = getProject();
+  if (cb.checked) {
+    p.items.forEach(i => selectedItems.add(i.id));
+  } else {
+    selectedItems.clear();
+  }
+  updateBulkBar();
+}
+
+function clearSelection() {
+  selectedItems.clear();
+  renderPunchList();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  bar.classList.toggle('active', selectedItems.size > 0);
+  document.getElementById('bulkCount').textContent = selectedItems.size + ' selected';
+}
+
+function bulkUpdateStatus() {
+  const status = document.getElementById('bulkStatus').value;
+  const p = getProject();
+  p.items.forEach(i => {
+    if (selectedItems.has(i.id)) { i.status = status; i.modified = new Date().toISOString(); }
+  });
+  saveProjectsStore();
+  selectedItems.clear();
+  renderPunchList();
+}
+
+function bulkDelete() {
+  if (!confirm(`Delete ${selectedItems.size} items?`)) return;
+  const p = getProject();
+  p.items = p.items.filter(i => {
+    if (selectedItems.has(i.id)) {
+      if (i.photoId) deletePhoto(i.photoId);
+      return false;
+    }
+    return true;
+  });
+  saveProjectsStore();
+  selectedItems.clear();
+  renderPunchList();
+}
+
+async function showPhoto(photoId) {
+  const data = await getPhoto(photoId);
+  if (!data) return;
+  document.getElementById('photoModalImg').src = data;
+  document.getElementById('photoModal').classList.add('active');
+}
+
+// ─── Summary / Charts ───
+function renderSummary() {
+  const p = getProject();
+  const items = p.items || [];
+  const total = items.length;
+  const open = items.filter(i => i.status !== 'Closed').length;
+  const closed = items.filter(i => i.status === 'Closed').length;
+  const pct = total ? Math.round(closed / total * 100) : 0;
+  const classA = items.filter(i => i.classification === 'A' && i.status !== 'Closed');
+
+  // Estimate days to close
+  const closedItems = items.filter(i => i.status === 'Closed' && i.modified);
+  let estDays = '—';
+  if (closedItems.length > 0 && open > 0) {
+    const dates = closedItems.map(i => new Date(i.modified).getTime()).sort();
+    const first = items.map(i => new Date(i.created).getTime()).sort()[0];
+    const daysSoFar = Math.max(1, (Date.now() - first) / 86400000);
+    const rate = closedItems.length / daysSoFar;
+    if (rate > 0) estDays = Math.ceil(open / rate);
+  }
+
+  // Stats
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">Total Items</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--red)">${open}</div><div class="stat-label">Open</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--green)">${closed}</div><div class="stat-label">Closed</div></div>
+    <div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Complete</div></div>
+    <div class="stat-card"><div class="stat-value">${classA.length}</div><div class="stat-label">Class A Open</div></div>
+    <div class="stat-card"><div class="stat-value">${estDays}</div><div class="stat-label">Est. Days to Close</div></div>
+  `;
+
+  // Charts
+  const chartGrid = document.getElementById('chartGrid');
+  chartGrid.innerHTML = `
+    <div class="chart-card"><h4>By Classification</h4><canvas id="chartCls" width="300" height="300"></canvas></div>
+    <div class="chart-card"><h4>By Zone</h4><canvas id="chartZone" width="300" height="200"></canvas></div>
+    <div class="chart-card"><h4>By Status</h4><canvas id="chartStatus" width="300" height="200"></canvas></div>
+    <div class="chart-card"><h4>By Responsible Party</h4><canvas id="chartParty" width="300" height="200"></canvas></div>
+  `;
+
+  drawDonut('chartCls', items);
+  drawBarChart('chartZone', items, 'zone', null);
+  drawBarChart('chartStatus', items, 'status', {'Open':'#ff3333','In Progress':'#ff6600','Corrected':'#3399ff','Closed':'#33ff88','Disputed':'#aa66ff'});
+  drawBarChart('chartParty', items, 'party', null);
+
+  // Critical path
+  const cp = document.getElementById('criticalPath');
+  cp.innerHTML = `<div class="card-title">Critical Path — Class A Items (Block Occupancy)</div>`;
+  if (classA.length === 0) {
+    cp.innerHTML += '<p style="color:var(--green);font-size:13px">No open Class A items. Occupancy not blocked by punch list.</p>';
+  } else {
+    cp.innerHTML += classA.map(i => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <strong style="color:var(--red)">${esc(i.number)}</strong> — ${esc(i.zone)} — ${esc(i.description)}
+      <span class="status-badge ${STATUS_CLS[i.status]}" style="margin-left:8px">${esc(i.status)}</span>
+    </div>`).join('');
+  }
+}
+
+function drawDonut(canvasId, items) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 30, inner = r * 0.55;
+  ctx.clearRect(0,0,w,h);
+
+  const counts = {A:0,B:0,C:0,D:0,E:0};
+  items.forEach(i => { if (counts[i.classification] !== undefined) counts[i.classification]++; });
+  const total = items.length || 1;
+  let angle = -Math.PI/2;
+
+  Object.entries(counts).forEach(([k,v]) => {
+    if (v === 0) return;
+    const slice = (v/total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + slice);
+    ctx.closePath();
+    ctx.fillStyle = CLS_COLORS[k];
+    ctx.fill();
+    // Label
+    const mid = angle + slice/2;
+    const lx = cx + Math.cos(mid) * (r + inner) / 2;
+    const ly = cy + Math.sin(mid) * (r + inner) / 2;
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 13px JetBrains Mono';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k + ':' + v, lx, ly);
+    angle += slice;
+  });
+
+  // Inner circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a1018';
+  ctx.fill();
+  ctx.fillStyle = '#00d4ff';
+  ctx.font = 'bold 24px JetBrains Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(items.length, cx, cy - 8);
+  ctx.fillStyle = '#8899aa';
+  ctx.font = '11px JetBrains Mono';
+  ctx.fillText('ITEMS', cx, cy + 12);
+}
+
+function drawBarChart(canvasId, items, key, colorMap) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  const counts = {};
+  items.forEach(i => { const v = i[key] || 'N/A'; counts[v] = (counts[v]||0) + 1; });
+  const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  if (entries.length === 0) return;
+
+  const max = Math.max(...entries.map(e => e[1]));
+  const barH = Math.min(20, (h - 20) / entries.length - 4);
+  const left = 100;
+
+  entries.forEach(([label, count], idx) => {
+    const y = 10 + idx * (barH + 4);
+    const barW = ((w - left - 40) * count / max);
+    const color = colorMap ? (colorMap[label] || '#00d4ff') : '#00d4ff';
+    ctx.fillStyle = color;
+    ctx.fillRect(left, y, barW, barH);
+    ctx.fillStyle = '#8899aa';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const truncLabel = label.length > 14 ? label.substr(0,12) + '..' : label;
+    ctx.fillText(truncLabel, left - 6, y + barH/2);
+    ctx.fillStyle = '#e8e8e8';
+    ctx.textAlign = 'left';
+    ctx.fillText(count, left + barW + 4, y + barH/2);
+  });
+}
+
+// ─── Inspection Mode ───
+function renderInspZoneBar() {
+  const p = getProject();
+  const bar = document.getElementById('inspZoneBar');
+  bar.innerHTML = (p.zones || []).map(z =>
+    `<button class="insp-zone-btn ${z===inspZone?'active':''}" onclick="setInspZone('${esc(z)}')">${esc(z)}</button>`
+  ).join('');
+}
+
+function setInspZone(z) {
+  inspZone = z;
+  renderInspZoneBar();
+}
+
+function setInspCls(c) {
+  inspCls = c;
+  document.querySelectorAll('.insp-cls-btn').forEach(b => b.classList.toggle('sel', b.dataset.cls === c));
+}
+
+let currentGPS = null;
+function requestGPS() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      currentGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+      document.getElementById('inspGPS').textContent = `GPS: ${currentGPS.lat.toFixed(6)}, ${currentGPS.lng.toFixed(6)} (±${Math.round(currentGPS.acc)}m)`;
+    }, () => {
+      document.getElementById('inspGPS').textContent = 'GPS: unavailable';
+    }, { enableHighAccuracy: true });
+  }
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+  const recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+  const btn = document.getElementById('voiceBtn');
+  btn.style.background = 'var(--red)';
+  btn.textContent = '...';
+  recognition.onresult = e => {
+    const text = e.results[0][0].transcript;
+    document.getElementById('inspDesc').value += (document.getElementById('inspDesc').value ? ' ' : '') + text;
+    btn.style.background = ''; btn.textContent = '\u{1F3A4}';
+  };
+  recognition.onerror = () => { btn.style.background = ''; btn.textContent = '\u{1F3A4}'; };
+  recognition.onend = () => { btn.style.background = ''; btn.textContent = '\u{1F3A4}'; };
+  recognition.start();
+}
+
+async function inspSave() {
+  const desc = document.getElementById('inspDesc').value.trim();
+  if (!desc) { alert('Enter a description.'); return; }
+  if (!inspZone) { alert('Select a zone.'); return; }
+
+  const p = getProject();
+  let photoId = null;
+  const fileInput = document.getElementById('inspPhoto');
+  if (fileInput.files.length > 0) {
+    const dataUrl = await readFileAsDataURL(fileInput.files[0]);
+    photoId = 'photo_' + Date.now();
+    await savePhoto(photoId, dataUrl);
+  }
+
+  const item = {
+    id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+    number: getNextItemNumber(),
+    zone: inspZone,
+    classification: inspCls,
+    description: desc,
+    csi: document.getElementById('inspCSI').value,
+    party: document.getElementById('inspParty').value,
+    subName: '',
+    priority: document.getElementById('inspPriority').value,
+    dueDate: '',
+    status: 'Open',
+    photoId,
+    gps: currentGPS ? { ...currentGPS } : null,
+    created: new Date().toISOString(),
+    modified: new Date().toISOString()
+  };
+  p.items.push(item);
+  saveProjectsStore();
+
+  // Feedback
+  const fb = document.getElementById('inspFeedback');
+  fb.textContent = `Saved ${item.number} — ${inspCls} in ${inspZone}`;
+  fb.style.display = 'block';
+  setTimeout(() => fb.style.display = 'none', 2000);
+
+  // Reset
+  document.getElementById('inspDesc').value = '';
+  fileInput.value = '';
+  requestGPS();
+}
+
+// ─── Templates ───
+const TEMPLATES = {
+  'Airfield Pavement': [
+    {desc:'Surface irregularity exceeds tolerance (>1/4" in 12ft)',cls:'B',csi:'32-Exterior Improvements'},
+    {desc:'Joint sealant failure — cracking/missing',cls:'B',csi:'32-Exterior Improvements'},
+    {desc:'Pavement marking deficiency — color/reflectivity/alignment',cls:'B',csi:'32-Exterior Improvements'},
+    {desc:'Drainage issue — ponding water on pavement surface',cls:'B',csi:'33-Utilities'},
+    {desc:'Grading outside tolerance per FAA AC 150/5370',cls:'B',csi:'31-Earthwork'},
+    {desc:'Compaction test failure — below 95% standard proctor',cls:'B',csi:'31-Earthwork'},
+    {desc:'FOD hazard — loose aggregate/debris on surface',cls:'A',csi:'32-Exterior Improvements'},
+    {desc:'Crack sealant not applied per specification',cls:'C',csi:'32-Exterior Improvements'},
+    {desc:'Edge treatment incomplete',cls:'D',csi:'32-Exterior Improvements'},
+    {desc:'Shoulder grading not per plan',cls:'D',csi:'31-Earthwork'},
+  ],
+  'Airfield Electrical': [
+    {desc:'Fixture alignment out of tolerance per FAA AC 150/5340',cls:'B',csi:'26-Electrical'},
+    {desc:'Circuiting error — incorrect series circuit assignment',cls:'B',csi:'26-Electrical'},
+    {desc:'NAVAIDS calibration required — PAPI/VASI alignment',cls:'A',csi:'26-Electrical'},
+    {desc:'Vault equipment installation deficiency',cls:'B',csi:'26-Electrical'},
+    {desc:'Conduit issue — improper burial depth/routing',cls:'B',csi:'26-Electrical'},
+    {desc:'Grounding system — resistance exceeds specification',cls:'A',csi:'26-Electrical'},
+    {desc:'Sign panel faded/damaged — replace per AC 150/5340',cls:'C',csi:'26-Electrical'},
+    {desc:'L-824 connector installation non-conforming',cls:'B',csi:'26-Electrical'},
+    {desc:'Regulator output not within tolerance',cls:'B',csi:'26-Electrical'},
+    {desc:'Wind cone/segmented circle deficiency',cls:'D',csi:'26-Electrical'},
+  ],
+  'Terminal / Building': [
+    {desc:'Finish deficiency — paint/texture/color does not match spec',cls:'C',csi:'09-Finishes'},
+    {desc:'MEP system deficiency — not operating per design',cls:'B',csi:'23-HVAC'},
+    {desc:'ADA compliance issue — non-conforming element',cls:'A',csi:'10-Specialties'},
+    {desc:'Fire protection system — incomplete/non-conforming',cls:'A',csi:'21-Fire Suppression'},
+    {desc:'Door hardware — incorrect/non-functional',cls:'B',csi:'08-Openings'},
+    {desc:'Ceiling tile damaged/missing/misaligned',cls:'C',csi:'09-Finishes'},
+    {desc:'Flooring deficiency — seam/adhesion/levelness',cls:'C',csi:'09-Finishes'},
+    {desc:'Plumbing fixture not operating properly',cls:'B',csi:'22-Plumbing'},
+    {desc:'Electrical panel labeling incomplete',cls:'D',csi:'26-Electrical'},
+    {desc:'Restroom accessories not installed per plan',cls:'D',csi:'10-Specialties'},
+  ],
+  'Fuel System': [
+    {desc:'Piping installation deficiency — weld/fitting/support',cls:'A',csi:'33-Utilities'},
+    {desc:'Valve not operating properly or incorrect type',cls:'A',csi:'33-Utilities'},
+    {desc:'Spill containment — insufficient capacity or defects',cls:'A',csi:'33-Utilities'},
+    {desc:'Leak monitoring system — not calibrated/functional',cls:'A',csi:'28-Electronic Safety & Security'},
+    {desc:'Dispenser deficiency — meter/hose/nozzle',cls:'B',csi:'11-Equipment'},
+    {desc:'Cathodic protection — readings out of range',cls:'E',csi:'33-Utilities'},
+    {desc:'Emergency shutoff not accessible or labeled',cls:'A',csi:'33-Utilities'},
+    {desc:'Bonding/grounding connection missing',cls:'A',csi:'26-Electrical'},
+    {desc:'Tank coating/lining deficiency',cls:'E',csi:'13-Special Construction'},
+    {desc:'Fuel quality testing access not provided',cls:'D',csi:'33-Utilities'},
+  ],
+  'Site': [
+    {desc:'Perimeter fencing — gap/damage/non-conforming height',cls:'A',csi:'32-Exterior Improvements'},
+    {desc:'Signage missing or non-conforming',cls:'B',csi:'10-Specialties'},
+    {desc:'Landscaping not per plan — species/quantity/placement',cls:'C',csi:'32-Exterior Improvements'},
+    {desc:'Erosion control deficiency — SWPPP non-compliance',cls:'B',csi:'31-Earthwork'},
+    {desc:'Utility — incomplete/non-conforming installation',cls:'D',csi:'33-Utilities'},
+    {desc:'Parking lot striping — missing/misaligned',cls:'C',csi:'32-Exterior Improvements'},
+    {desc:'Gate operator — non-functional',cls:'A',csi:'32-Exterior Improvements'},
+    {desc:'Stormwater structure — debris/damage',cls:'D',csi:'33-Utilities'},
+    {desc:'Security camera/access control incomplete',cls:'D',csi:'28-Electronic Safety & Security'},
+    {desc:'Wildlife fence integration deficiency',cls:'B',csi:'32-Exterior Improvements'},
+  ]
+};
+
+let selectedTemplates = new Set();
+
+function renderTemplates() {
+  const container = document.getElementById('templateList');
+  container.innerHTML = Object.entries(TEMPLATES).map(([cat, items]) =>
+    `<div class="tpl-cat card"><h4>${cat}</h4>${items.map((t, idx) => {
+      const key = cat + '|' + idx;
+      const sel = selectedTemplates.has(key) ? 'selected' : '';
+      return `<div class="tpl-item ${sel}" onclick="toggleTemplate('${esc(key)}')">
+        <div class="check">${sel ? '&#10003;' : ''}</div>
+        <div class="text">${esc(t.desc)}</div>
+        <div class="cls" style="background:${CLS_COLORS[t.cls]}">${t.cls}</div>
+      </div>`;
+    }).join('')}</div>`
+  ).join('');
+  updateZoneDropdowns();
+}
+
+function toggleTemplate(key) {
+  if (selectedTemplates.has(key)) selectedTemplates.delete(key);
+  else selectedTemplates.add(key);
+  renderTemplates();
+}
+
+function clearTemplateSelection() {
+  selectedTemplates.clear();
+  renderTemplates();
+}
+
+function addSelectedTemplates() {
+  const zone = document.getElementById('tplZone').value;
+  if (!zone) { alert('Select a zone first.'); return; }
+  if (selectedTemplates.size === 0) { alert('Select template items to add.'); return; }
+
+  const p = getProject();
+  selectedTemplates.forEach(key => {
+    const [cat, idxStr] = key.split('|');
+    const t = TEMPLATES[cat][parseInt(idxStr)];
+    if (!t) return;
+    const item = {
+      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+      number: getNextItemNumber(),
+      zone,
+      classification: t.cls,
+      description: t.desc,
+      csi: t.csi,
+      party: 'Contractor',
+      subName: '',
+      priority: t.cls === 'A' ? 'High' : t.cls === 'B' ? 'Medium' : 'Low',
+      dueDate: '',
+      status: 'Open',
+      photoId: null,
+      gps: null,
+      created: new Date().toISOString(),
+      modified: new Date().toISOString()
+    };
+    p.items.push(item);
+  });
+
+  saveProjectsStore();
+  selectedTemplates.clear();
+  renderTemplates();
+  alert(`Added ${selectedTemplates.size || 'selected'} items to punch list in zone: ${zone}`);
+}
+
+// ─── Export: PDF ───
+async function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'letter');
+  const p = getProject();
+  const items = p.items || [];
+  const pw = 216, ph = 279, margin = 18;
+  let y = margin;
+
+  function checkPage(need) {
+    if (y + need > ph - 20) { addFooter(doc); doc.addPage(); y = margin; return true; }
+    return false;
+  }
+  function addFooter(d) {
+    const pg = d.internal.getNumberOfPages();
+    d.setFontSize(8); d.setTextColor(130);
+    d.text('Generated by Korb Engineering Punch List Tool', margin, ph - 10);
+    d.text('Page ' + pg, pw - margin, ph - 10, {align:'right'});
+  }
+
+  // Header
+  doc.setFillColor(0, 20, 35);
+  doc.rect(0, 0, pw, 40, 'F');
+  doc.setFontSize(18); doc.setTextColor(0, 212, 255);
+  doc.text('PUNCH LIST', margin, 16);
+  doc.setFontSize(10); doc.setTextColor(200);
+  doc.text('Korb Engineering', margin, 23);
+  doc.setFontSize(9); doc.setTextColor(170);
+  doc.text(`Project: ${p.name || 'N/A'}  |  No: ${p.number || 'N/A'}  |  Date: ${p.inspDate || 'N/A'}`, margin, 30);
+  doc.text(`Contractor: ${p.contractor || 'N/A'}  |  Engineer: ${p.engineer || 'N/A'}  |  Location: ${p.location || 'N/A'}`, margin, 36);
+  y = 48;
+
+  // Summary stats
+  const counts = {A:0,B:0,C:0,D:0,E:0};
+  const statusCounts = {};
+  items.forEach(i => {
+    if (counts[i.classification] !== undefined) counts[i.classification]++;
+    statusCounts[i.status] = (statusCounts[i.status]||0) + 1;
+  });
+  doc.setFontSize(11); doc.setTextColor(0, 212, 255);
+  doc.text('Summary', margin, y); y += 6;
+  doc.setFontSize(9); doc.setTextColor(80);
+  doc.text(`Total: ${items.length}  |  A:${counts.A}  B:${counts.B}  C:${counts.C}  D:${counts.D}  E:${counts.E}`, margin, y); y += 5;
+  const statusStr = Object.entries(statusCounts).map(([k,v]) => `${k}:${v}`).join('  |  ');
+  doc.text(statusStr, margin, y); y += 10;
+
+  // Items grouped by classification then zone
+  const clsOrder = ['A','B','C','D','E'];
+  const clsRGB = {A:[255,51,51],B:[255,102,0],C:[255,204,0],D:[51,153,255],E:[170,102,255]};
+
+  clsOrder.forEach(cls => {
+    const clsItems = items.filter(i => i.classification === cls);
+    if (clsItems.length === 0) return;
+
+    checkPage(14);
+    doc.setFontSize(11);
+    doc.setTextColor(...clsRGB[cls]);
+    doc.text(`Classification ${cls} — ${CLS_NAMES[cls]} (${clsItems.length})`, margin, y);
+    y += 7;
+
+    // Group by zone
+    const zones = {};
+    clsItems.forEach(i => { const z = i.zone || 'Unassigned'; if (!zones[z]) zones[z] = []; zones[z].push(i); });
+
+    Object.entries(zones).forEach(([zone, zItems]) => {
+      checkPage(10);
+      doc.setFontSize(9); doc.setTextColor(0, 180, 220);
+      doc.text(zone, margin + 2, y); y += 5;
+
+      zItems.forEach(item => {
+        checkPage(18);
+        doc.setFontSize(8); doc.setTextColor(60);
+        const line1 = `${item.number}  |  CSI: ${(item.csi||'').split('-')[0]}  |  ${item.party}${item.subName ? ' ('+item.subName+')' : ''}  |  Priority: ${item.priority}  |  Status: ${item.status}${item.dueDate ? '  |  Due: '+item.dueDate : ''}`;
+        doc.text(line1, margin + 4, y); y += 4;
+        doc.setTextColor(40);
+        const descLines = doc.splitTextToSize(item.description, pw - margin * 2 - 8);
+        descLines.forEach(l => {
+          checkPage(5);
+          doc.text(l, margin + 4, y); y += 4;
+        });
+        y += 2;
+      });
+      y += 2;
+    });
+    y += 3;
+  });
+
+  addFooter(doc);
+  doc.save(`PunchList_${(p.number||p.name||'export').replace(/\s+/g,'_')}.pdf`);
+}
+
+// ─── Export: CSV ───
+function exportCSV() {
+  const p = getProject();
+  const items = p.items || [];
+  const headers = ['Item #','Zone','Description','Classification','CSI Division','Responsible Party','Priority','Due Date','Status','Created','Modified'];
+  const rows = items.map(i => [
+    i.number, i.zone, '"'+i.description.replace(/"/g,'""')+'"', i.classification+' - '+CLS_NAMES[i.classification],
+    i.csi, i.party + (i.subName ? ' ('+i.subName+')' : ''), i.priority, i.dueDate, i.status, i.created, i.modified
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadText(csv, `PunchList_${(p.number||'export')}.csv`, 'text/csv');
+}
+
+// ─── Export: Formatted Text ───
+function copyFormatted() {
+  const p = getProject();
+  const items = p.items || [];
+  let text = `PUNCH LIST — ${p.name || 'Project'}\n`;
+  text += `Project No: ${p.number || 'N/A'}  |  Location: ${p.location || 'N/A'}\n`;
+  text += `Contractor: ${p.contractor || 'N/A'}  |  Engineer: ${p.engineer || 'N/A'}\n`;
+  text += `Inspection Date: ${p.inspDate || 'N/A'}\n`;
+  text += `${'─'.repeat(60)}\n`;
+  text += `Total Items: ${items.length}\n\n`;
+
+  ['A','B','C','D','E'].forEach(cls => {
+    const ci = items.filter(i => i.classification === cls);
+    if (!ci.length) return;
+    text += `── ${cls} — ${CLS_NAMES[cls]} (${ci.length}) ──\n`;
+    ci.forEach(i => {
+      text += `  ${i.number} | ${i.zone} | ${i.status} | ${i.priority}\n`;
+      text += `    ${i.description}\n`;
+      text += `    CSI: ${i.csi} | Party: ${i.party}${i.subName?' ('+i.subName+')':''}${i.dueDate?' | Due: '+i.dueDate:''}\n\n`;
+    });
+  });
+
+  text += `\nGenerated by Korb Engineering Punch List Tool`;
+  navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard.')).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); alert('Copied to clipboard.');
+  });
+}
+
+// ─── Export/Import JSON ───
+function exportJSON() {
+  const p = getProject();
+  const json = JSON.stringify(p, null, 2);
+  downloadText(json, `PunchList_${(p.number||'export')}.json`, 'application/json');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const id = 'proj_' + Date.now();
+      projects[id] = data;
+      currentProject = id;
+      saveProjectsStore();
+      localStorage.setItem('korb_punchlist_last', id);
+      loadProject(id);
+      alert('Project imported.');
+    } catch (err) {
+      alert('Invalid JSON file.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function downloadText(content, filename, mime) {
+  const blob = new Blob([content], {type: mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ─── Utility ───
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ─── Init on load ───
+init();
+</script>
+</body>
+</html>

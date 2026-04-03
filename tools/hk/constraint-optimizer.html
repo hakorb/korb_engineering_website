@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Korb Engineering — Constraint Optimizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #000000;
+      --bg2: #050a0f;
+      --surface: #0a1018;
+      --surface2: #101820;
+      --surface3: #182028;
+      --border: #1a2a38;
+      --cyan: #00d4ff;
+      --cyan-dim: #00a0c0;
+      --cyan-glow: rgba(0, 212, 255, 0.15);
+      --orange: #ff6600;
+      --orange-dim: #cc5200;
+      --orange-glow: rgba(255, 102, 0, 0.15);
+      --green: #00ff88;
+      --red: #ff3355;
+      --yellow: #ffcc00;
+      --text: #e8eef4;
+      --muted: #607080;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 6px;
+    }
+
+    html, body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      touch-action: manipulation;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--cyan);
+    }
+
+    .brand-name {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+    }
+
+    .brand-tool {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab {
+      flex: 1;
+      min-width: 80px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      touch-action: manipulation;
+      padding: 0 12px;
+      white-space: nowrap;
+    }
+
+    .tab:active { background: var(--surface); }
+    .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+    /* ── Panels ── */
+    .panel { display: none; padding: 20px; max-width: 900px; margin: 0 auto; }
+    .panel.active { display: block; }
+
+    /* ── Forms ── */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      margin: 24px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title:first-child { margin-top: 0; }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 12px;
+      min-height: 48px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 2px var(--cyan-glow);
+    }
+
+    select { cursor: pointer; }
+
+    .form-row {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+    .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .form-row.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+    .field { margin-bottom: 12px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 0 24px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s;
+      touch-action: manipulation;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--cyan);
+      color: #000;
+      border-color: var(--cyan);
+    }
+
+    .btn-primary:active { background: var(--cyan-dim); }
+
+    .btn-orange {
+      background: var(--orange);
+      color: #000;
+      border-color: var(--orange);
+    }
+
+    .btn-orange:active { background: var(--orange-dim); }
+
+    .btn-sm {
+      min-height: 36px;
+      padding: 0 14px;
+      font-size: 11px;
+    }
+
+    .btn-danger {
+      color: var(--red);
+      border-color: rgba(255, 51, 85, 0.3);
+    }
+
+    .btn-danger:active { background: rgba(255, 51, 85, 0.1); }
+
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .card .close-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 16px;
+      touch-action: manipulation;
+    }
+
+    .card .close-btn:active { background: rgba(255, 51, 85, 0.15); color: var(--red); }
+
+    /* ── Tags ── */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tag-cyan { background: var(--cyan-glow); color: var(--cyan); }
+    .tag-orange { background: var(--orange-glow); color: var(--orange); }
+    .tag-green { background: rgba(0, 255, 136, 0.12); color: var(--green); }
+    .tag-red { background: rgba(255, 51, 85, 0.12); color: var(--red); }
+    .tag-yellow { background: rgba(255, 204, 0, 0.12); color: var(--yellow); }
+
+    /* ── Progress bars ── */
+    .bar-track {
+      width: 100%;
+      height: 20px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .bar-label {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── Results table ── */
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+    }
+
+    .results-table th, .results-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .results-table th {
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 10px;
+    }
+
+    .results-table tr.included td { color: var(--green); }
+    .results-table tr.excluded td { color: var(--muted); }
+
+    /* ── Algo log ── */
+    .algo-log {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.8;
+      color: var(--muted);
+      margin: 12px 0;
+    }
+
+    .algo-log .step-ok { color: var(--green); }
+    .algo-log .step-fail { color: var(--red); }
+    .algo-log .step-info { color: var(--cyan); }
+    .algo-log .step-swap { color: var(--yellow); }
+
+    /* ── Scenario sliders ── */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 8px 0;
+    }
+
+    .slider-row label {
+      min-width: 120px;
+      margin: 0;
+      font-size: 12px;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1;
+      min-height: 32px;
+      padding: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    input[type="range"]::-webkit-slider-track {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: var(--cyan);
+      border-radius: 50%;
+      margin-top: -8px;
+      cursor: pointer;
+    }
+
+    .slider-val {
+      min-width: 60px;
+      text-align: right;
+      font-weight: 600;
+      color: var(--orange);
+    }
+
+    /* ── Comparison columns ── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+
+    .compare-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .compare-col h4 {
+      font-size: 12px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Heatmap ── */
+    .heatmap {
+      display: grid;
+      gap: 2px;
+      margin: 12px 0;
+    }
+
+    .heatmap-cell {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: #000;
+      min-width: 40px;
+      min-height: 40px;
+    }
+
+    /* ── History ── */
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .history-item:active { border-color: var(--cyan); }
+
+    .history-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Template cards ── */
+    .template-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .template-card:active {
+      border-color: var(--cyan);
+      background: var(--surface2);
+    }
+
+    .template-card h3 {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .template-card p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .template-tags { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* ── Canvas (Pareto) ── */
+    canvas {
+      width: 100%;
+      height: 250px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    /* ── Sensitivity ── */
+    .sensitivity-item {
+      background: var(--surface2);
+      border-left: 3px solid var(--orange);
+      padding: 10px 14px;
+      margin: 8px 0;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state .icon { font-size: 40px; margin-bottom: 16px; }
+    .empty-state p { font-size: 13px; margin-top: 8px; }
+
+    /* ── Priority dots ── */
+    .priority-dots {
+      display: flex;
+      gap: 3px;
+    }
+
+    .priority-dots .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .priority-dots .dot.filled { background: var(--orange); }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .form-row.cols-2, .form-row.cols-3, .form-row.cols-4 {
+        grid-template-columns: 1fr;
+      }
+      .compare-grid { grid-template-columns: 1fr; }
+      header { padding: 0 12px; }
+      .panel { padding: 14px; }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">K</div>
+    <div>
+      <div class="brand-name">Korb Engineering</div>
+      <div class="brand-tool">Constraint Optimizer</div>
+    </div>
+  </div>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab active" data-tab="define">Define</button>
+  <button class="tab" data-tab="results">Results</button>
+  <button class="tab" data-tab="scenarios">Scenarios</button>
+  <button class="tab" data-tab="templates">Templates</button>
+  <button class="tab" data-tab="history">History</button>
+</nav>
+
+<!-- ═══════════════ DEFINE ═══════════════ -->
+<div id="define" class="panel active">
+  <div class="section-title">Problem Definition</div>
+  <div class="field">
+    <label>Problem Name</label>
+    <input type="text" id="problemName" placeholder="e.g. Q3 Project Portfolio">
+  </div>
+  <div class="field">
+    <label>Objective</label>
+    <select id="objective">
+      <option value="min-cost">Minimize Cost</option>
+      <option value="max-output" selected>Maximize Output</option>
+      <option value="min-time">Minimize Time</option>
+      <option value="balance">Balance Resources</option>
+      <option value="custom">Custom</option>
+    </select>
+  </div>
+  <div class="field" id="customObjField" style="display:none;">
+    <label>Custom Objective Description</label>
+    <input type="text" id="customObj" placeholder="Describe your objective...">
+  </div>
+
+  <div class="section-title">Resources</div>
+  <div id="resourcesList"></div>
+  <div class="form-row cols-3">
+    <div>
+      <label>Resource Name</label>
+      <input type="text" id="resName" placeholder="e.g. Budget">
+    </div>
+    <div>
+      <label>Available</label>
+      <input type="number" id="resAvailable" placeholder="e.g. 100000" min="0">
+    </div>
+    <div>
+      <label>Unit</label>
+      <select id="resUnit">
+        <option value="dollars">Dollars</option>
+        <option value="hours">Hours</option>
+        <option value="units">Units</option>
+        <option value="people">People</option>
+        <option value="days">Days</option>
+        <option value="crews">Crews</option>
+      </select>
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-sm btn-primary" onclick="addResource()">+ Add Resource</button>
+  </div>
+
+  <div class="section-title">Tasks / Activities</div>
+  <div id="tasksList"></div>
+  <div class="form-row cols-2">
+    <div>
+      <label>Task Name</label>
+      <input type="text" id="taskName" placeholder="e.g. Runway Resurfacing">
+    </div>
+    <div>
+      <label>Value / Output</label>
+      <input type="number" id="taskValue" placeholder="e.g. 50" min="0">
+    </div>
+  </div>
+  <div class="form-row cols-2">
+    <div>
+      <label>Duration</label>
+      <input type="number" id="taskDuration" placeholder="e.g. 30" min="0">
+    </div>
+    <div>
+      <label>Priority (1-5)</label>
+      <select id="taskPriority">
+        <option value="1">1 - Low</option>
+        <option value="2">2</option>
+        <option value="3" selected>3 - Medium</option>
+        <option value="4">4</option>
+        <option value="5">5 - Critical</option>
+      </select>
+    </div>
+  </div>
+  <div id="taskResReqs"></div>
+  <div class="btn-group">
+    <button class="btn btn-sm btn-primary" onclick="addTask()">+ Add Task</button>
+  </div>
+
+  <div class="section-title">Constraints</div>
+  <div id="constraintsList"></div>
+  <div class="form-row cols-2">
+    <div>
+      <label>Constraint Type</label>
+      <select id="conType">
+        <option value="budget-cap">Budget Cap</option>
+        <option value="time-limit">Time Limit</option>
+        <option value="resource-limit">Resource Limit</option>
+        <option value="dependency">Dependency</option>
+        <option value="min-requirement">Minimum Requirement</option>
+      </select>
+    </div>
+    <div>
+      <label>Parameter / Value</label>
+      <input type="text" id="conParam" placeholder="e.g. 500000 or Task A before Task B">
+    </div>
+  </div>
+  <div class="field">
+    <label>Description</label>
+    <input type="text" id="conDesc" placeholder="e.g. Total budget cannot exceed $500K">
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-sm" onclick="addConstraint()">+ Add Constraint</button>
+  </div>
+
+  <div style="margin-top:24px;">
+    <button class="btn btn-orange" style="width:100%;" onclick="runOptimizer()">
+      &#9654; Optimize
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS ═══════════════ -->
+<div id="results" class="panel">
+  <div id="resultsContent">
+    <div class="empty-state">
+      <div class="icon">&#128202;</div>
+      <strong>No Results Yet</strong>
+      <p>Define a problem and click Optimize to see results.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SCENARIOS ═══════════════ -->
+<div id="scenarios" class="panel">
+  <div id="scenariosContent">
+    <div class="empty-state">
+      <div class="icon">&#128260;</div>
+      <strong>No Problem Defined</strong>
+      <p>Define resources and tasks first, then explore scenarios here.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TEMPLATES ═══════════════ -->
+<div id="templates" class="panel">
+  <div class="section-title">Pre-Built Optimization Problems</div>
+
+  <div class="template-card" onclick="loadTemplate('portfolio')">
+    <h3>Project Portfolio Selection</h3>
+    <p>Limited budget, choose the best combination of projects to maximize total value.</p>
+    <div class="template-tags">
+      <span class="tag tag-cyan">Budget</span>
+      <span class="tag tag-orange">5 Projects</span>
+      <span class="tag tag-green">Max Value</span>
+    </div>
+  </div>
+
+  <div class="template-card" onclick="loadTemplate('staff')">
+    <h3>Staff Allocation</h3>
+    <p>Limited people across multiple concurrent projects. Optimize coverage and output.</p>
+    <div class="template-tags">
+      <span class="tag tag-cyan">People</span>
+      <span class="tag tag-orange">4 Projects</span>
+      <span class="tag tag-green">Balance</span>
+    </div>
+  </div>
+
+  <div class="template-card" onclick="loadTemplate('construction')">
+    <h3>Construction Scheduling</h3>
+    <p>Limited crews and weather windows. Schedule phases to minimize total duration.</p>
+    <div class="template-tags">
+      <span class="tag tag-cyan">Crews</span>
+      <span class="tag tag-yellow">Weather</span>
+      <span class="tag tag-orange">6 Phases</span>
+    </div>
+  </div>
+
+  <div class="template-card" onclick="loadTemplate('equipment')">
+    <h3>Equipment Procurement</h3>
+    <p>Budget and timeline constraints on purchasing equipment for multiple job sites.</p>
+    <div class="template-tags">
+      <span class="tag tag-cyan">Budget</span>
+      <span class="tag tag-yellow">Timeline</span>
+      <span class="tag tag-orange">8 Items</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ HISTORY ═══════════════ -->
+<div id="history" class="panel">
+  <div class="section-title">Saved Problems</div>
+  <div id="historyList">
+    <div class="empty-state">
+      <div class="icon">&#128451;</div>
+      <strong>No Saved Problems</strong>
+      <p>Problems are saved automatically after optimization.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const state = {
+  resources: [],
+  tasks: [],
+  constraints: [],
+  lastResult: null,
+};
+
+// ═══════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('objective').addEventListener('change', e => {
+  document.getElementById('customObjField').style.display = e.target.value === 'custom' ? '' : 'none';
+});
+
+// ═══════════════════════════════════════════════════════
+// RESOURCES
+// ═══════════════════════════════════════════════════════
+function addResource() {
+  const name = document.getElementById('resName').value.trim();
+  const available = parseFloat(document.getElementById('resAvailable').value);
+  const unit = document.getElementById('resUnit').value;
+  if (!name || isNaN(available)) return alert('Provide resource name and available amount.');
+  state.resources.push({ id: Date.now(), name, available, unit });
+  document.getElementById('resName').value = '';
+  document.getElementById('resAvailable').value = '';
+  renderResources();
+  renderTaskResReqs();
+}
+
+function removeResource(id) {
+  state.resources = state.resources.filter(r => r.id !== id);
+  state.tasks.forEach(t => delete t.requirements[id]);
+  renderResources();
+  renderTaskResReqs();
+}
+
+function renderResources() {
+  const el = document.getElementById('resourcesList');
+  if (!state.resources.length) { el.innerHTML = ''; return; }
+  el.innerHTML = state.resources.map(r => `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${esc(r.name)}</span>
+        <button class="close-btn" onclick="removeResource(${r.id})">&times;</button>
+      </div>
+      <span class="tag tag-cyan">${r.available.toLocaleString()} ${esc(r.unit)}</span>
+    </div>
+  `).join('');
+}
+
+function renderTaskResReqs() {
+  const el = document.getElementById('taskResReqs');
+  if (!state.resources.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<label>Resource Requirements</label><div class="form-row cols-' +
+    Math.min(state.resources.length, 4) + '">' +
+    state.resources.map(r => `
+      <div>
+        <label style="font-size:10px;">${esc(r.name)} (${esc(r.unit)})</label>
+        <input type="number" id="taskReq_${r.id}" placeholder="0" min="0">
+      </div>
+    `).join('') + '</div>';
+}
+
+// ═══════════════════════════════════════════════════════
+// TASKS
+// ═══════════════════════════════════════════════════════
+function addTask() {
+  const name = document.getElementById('taskName').value.trim();
+  const value = parseFloat(document.getElementById('taskValue').value);
+  const duration = parseFloat(document.getElementById('taskDuration').value) || 0;
+  const priority = parseInt(document.getElementById('taskPriority').value);
+  if (!name || isNaN(value)) return alert('Provide task name and value.');
+  const requirements = {};
+  state.resources.forEach(r => {
+    const v = parseFloat(document.getElementById('taskReq_' + r.id)?.value) || 0;
+    if (v > 0) requirements[r.id] = v;
+  });
+  state.tasks.push({ id: Date.now(), name, value, duration, priority, requirements });
+  document.getElementById('taskName').value = '';
+  document.getElementById('taskValue').value = '';
+  document.getElementById('taskDuration').value = '';
+  state.resources.forEach(r => {
+    const inp = document.getElementById('taskReq_' + r.id);
+    if (inp) inp.value = '';
+  });
+  renderTasks();
+}
+
+function removeTask(id) {
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  renderTasks();
+}
+
+function renderTasks() {
+  const el = document.getElementById('tasksList');
+  if (!state.tasks.length) { el.innerHTML = ''; return; }
+  el.innerHTML = state.tasks.map(t => {
+    const dots = Array.from({length: 5}, (_, i) =>
+      `<div class="dot ${i < t.priority ? 'filled' : ''}"></div>`).join('');
+    const reqs = Object.entries(t.requirements).map(([rid, amt]) => {
+      const res = state.resources.find(r => r.id === parseInt(rid));
+      return res ? `<span class="tag tag-cyan">${amt} ${esc(res.unit)}</span>` : '';
+    }).join(' ');
+    return `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">${esc(t.name)}</span>
+          <button class="close-btn" onclick="removeTask(${t.id})">&times;</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+          <span class="tag tag-orange">Value: ${t.value}</span>
+          ${t.duration ? `<span class="tag tag-yellow">Dur: ${t.duration}</span>` : ''}
+          <div class="priority-dots">${dots}</div>
+          ${reqs}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// CONSTRAINTS
+// ═══════════════════════════════════════════════════════
+function addConstraint() {
+  const type = document.getElementById('conType').value;
+  const param = document.getElementById('conParam').value.trim();
+  const desc = document.getElementById('conDesc').value.trim();
+  if (!param) return alert('Provide a constraint parameter.');
+  state.constraints.push({ id: Date.now(), type, param, desc: desc || type + ': ' + param });
+  document.getElementById('conParam').value = '';
+  document.getElementById('conDesc').value = '';
+  renderConstraints();
+}
+
+function removeConstraint(id) {
+  state.constraints = state.constraints.filter(c => c.id !== id);
+  renderConstraints();
+}
+
+function renderConstraints() {
+  const el = document.getElementById('constraintsList');
+  if (!state.constraints.length) { el.innerHTML = ''; return; }
+  el.innerHTML = state.constraints.map(c => `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${esc(c.desc)}</span>
+        <button class="close-btn" onclick="removeConstraint(${c.id})">&times;</button>
+      </div>
+      <span class="tag tag-red">${esc(c.type)}: ${esc(c.param)}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// OPTIMIZER ENGINE
+// ═══════════════════════════════════════════════════════
+function optimize(resources, tasks, constraints, objective, log) {
+  if (!tasks.length) return { selected: [], excluded: [], totalValue: 0, utilization: {}, log: [] };
+
+  const resMap = {};
+  resources.forEach(r => resMap[r.id] = { ...r, used: 0 });
+  const logs = [];
+  const l = (cls, msg) => { logs.push({ cls, msg }); if (log) log(cls, msg); };
+
+  l('step-info', `Starting optimization: ${tasks.length} tasks, ${resources.length} resources, ${constraints.length} constraints`);
+  l('step-info', `Objective: ${objective}`);
+
+  // Score function based on objective
+  function score(t) {
+    const totalCost = Object.entries(t.requirements).reduce((s, [rid, amt]) => {
+      const res = resMap[rid];
+      return s + (res ? amt / res.available : 0);
+    }, 0) || 0.001;
+    switch (objective) {
+      case 'min-cost': return (1 / (totalCost + 0.001)) * t.priority;
+      case 'max-output': return (t.value / totalCost) * t.priority;
+      case 'min-time': return (t.value / (t.duration || 1)) * t.priority;
+      case 'balance': return t.value * t.priority * (1 / (1 + Math.abs(totalCost - 0.5)));
+      default: return t.value * t.priority;
+    }
+  }
+
+  // Parse constraint limits
+  const limits = {};
+  constraints.forEach(c => {
+    const val = parseFloat(c.param);
+    if (c.type === 'budget-cap' && !isNaN(val)) limits.budgetCap = val;
+    if (c.type === 'time-limit' && !isNaN(val)) limits.timeLimit = val;
+    if (c.type === 'resource-limit') {
+      const parts = c.param.split(/[,;:]/);
+      if (parts.length >= 2) {
+        const rName = parts[0].trim().toLowerCase();
+        const rVal = parseFloat(parts[1]);
+        const res = resources.find(r => r.name.toLowerCase() === rName);
+        if (res && !isNaN(rVal)) limits['res_' + res.id] = rVal;
+      }
+    }
+    if (c.type === 'min-requirement') {
+      if (!limits.minTasks) limits.minTasks = [];
+      limits.minTasks.push(c.param.trim().toLowerCase());
+    }
+    if (c.type === 'dependency') {
+      if (!limits.deps) limits.deps = [];
+      const parts = c.param.split(/before|->|then/i).map(s => s.trim().toLowerCase());
+      if (parts.length === 2) limits.deps.push({ before: parts[0], after: parts[1] });
+    }
+  });
+
+  // Sort by score descending
+  const sorted = [...tasks].sort((a, b) => score(b) - score(a));
+  l('step-info', 'Task ranking by value/cost ratio:');
+  sorted.forEach((t, i) => l('step-info', `  ${i + 1}. ${t.name} (score: ${score(t).toFixed(2)})`));
+
+  // Greedy allocation
+  const selected = [];
+  const excluded = [];
+  const resUsed = {};
+  resources.forEach(r => resUsed[r.id] = 0);
+  let totalTime = 0;
+  let totalBudget = 0;
+
+  function canAllocate(task) {
+    for (const [rid, amt] of Object.entries(task.requirements)) {
+      const res = resMap[rid];
+      if (!res) continue;
+      const cap = limits['res_' + rid] !== undefined ? Math.min(res.available, limits['res_' + rid]) : res.available;
+      if (resUsed[rid] + amt > cap) return { ok: false, reason: `Exceeds ${res.name} (need ${amt}, available ${(cap - resUsed[rid]).toFixed(1)})` };
+    }
+    // Budget constraint (sum of dollar resources)
+    if (limits.budgetCap !== undefined) {
+      const dollarRes = resources.filter(r => r.unit === 'dollars');
+      let budgetUse = 0;
+      dollarRes.forEach(r => { budgetUse += (resUsed[r.id] || 0) + (task.requirements[r.id] || 0); });
+      if (budgetUse > limits.budgetCap) return { ok: false, reason: `Exceeds budget cap of ${limits.budgetCap.toLocaleString()}` };
+    }
+    // Time constraint
+    if (limits.timeLimit !== undefined && totalTime + (task.duration || 0) > limits.timeLimit) {
+      return { ok: false, reason: `Exceeds time limit of ${limits.timeLimit}` };
+    }
+    // Dependency check
+    if (limits.deps) {
+      for (const dep of limits.deps) {
+        if (task.name.toLowerCase() === dep.after) {
+          const prereq = selected.find(s => s.name.toLowerCase() === dep.before);
+          if (!prereq) return { ok: false, reason: `Depends on "${dep.before}" which is not yet selected` };
+        }
+      }
+    }
+    return { ok: true };
+  }
+
+  // Phase 1: Greedy allocation
+  l('step-info', '--- Phase 1: Greedy Allocation ---');
+  for (const task of sorted) {
+    const check = canAllocate(task);
+    if (check.ok) {
+      selected.push(task);
+      for (const [rid, amt] of Object.entries(task.requirements)) {
+        resUsed[rid] = (resUsed[rid] || 0) + amt;
+      }
+      totalTime += task.duration || 0;
+      l('step-ok', `+ Allocated "${task.name}" (value: ${task.value})`);
+    } else {
+      excluded.push({ task, reason: check.reason });
+      l('step-fail', `- Excluded "${task.name}": ${check.reason}`);
+    }
+  }
+
+  // Phase 2: Swap improvement
+  l('step-info', '--- Phase 2: Swap Improvement ---');
+  let improved = true;
+  let swapRounds = 0;
+  while (improved && swapRounds < 10) {
+    improved = false;
+    swapRounds++;
+    for (let ei = 0; ei < excluded.length; ei++) {
+      const ex = excluded[ei].task;
+      for (let si = 0; si < selected.length; si++) {
+        const sel = selected[si];
+        if (ex.value * ex.priority <= sel.value * sel.priority) continue;
+        // Try swapping
+        const tmpUsed = { ...resUsed };
+        for (const [rid, amt] of Object.entries(sel.requirements)) tmpUsed[rid] -= amt;
+        let canFit = true;
+        for (const [rid, amt] of Object.entries(ex.requirements)) {
+          const res = resMap[rid];
+          if (!res) continue;
+          const cap = limits['res_' + rid] !== undefined ? Math.min(res.available, limits['res_' + rid]) : res.available;
+          if (tmpUsed[rid] + amt > cap) { canFit = false; break; }
+        }
+        if (canFit) {
+          l('step-swap', `Swap: "${sel.name}" (val ${sel.value}) -> "${ex.name}" (val ${ex.value})`);
+          for (const [rid, amt] of Object.entries(sel.requirements)) resUsed[rid] -= amt;
+          for (const [rid, amt] of Object.entries(ex.requirements)) resUsed[rid] = (resUsed[rid] || 0) + amt;
+          selected[si] = ex;
+          excluded[ei] = { task: sel, reason: 'Swapped for higher-value task' };
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  // Phase 3: Check minimum requirements
+  if (limits.minTasks) {
+    l('step-info', '--- Phase 3: Minimum Requirements ---');
+    for (const req of limits.minTasks) {
+      const inSelected = selected.find(s => s.name.toLowerCase().includes(req));
+      if (!inSelected) {
+        l('step-fail', `Minimum requirement not met: "${req}" not in selected tasks`);
+      } else {
+        l('step-ok', `Minimum requirement met: "${req}"`);
+      }
+    }
+  }
+
+  const totalValue = selected.reduce((s, t) => s + t.value, 0);
+  const utilization = {};
+  resources.forEach(r => {
+    utilization[r.id] = {
+      name: r.name,
+      unit: r.unit,
+      available: r.available,
+      used: resUsed[r.id] || 0,
+      pct: r.available > 0 ? ((resUsed[r.id] || 0) / r.available * 100) : 0
+    };
+  });
+
+  l('step-info', `--- Result: ${selected.length} tasks selected, total value: ${totalValue} ---`);
+
+  return { selected, excluded, totalValue, utilization, logs, resUsed };
+}
+
+// ═══════════════════════════════════════════════════════
+// RUN OPTIMIZER
+// ═══════════════════════════════════════════════════════
+function runOptimizer() {
+  if (!state.tasks.length) return alert('Add at least one task.');
+  const objective = document.getElementById('objective').value;
+  const result = optimize(state.resources, state.tasks, state.constraints, objective);
+  state.lastResult = result;
+  renderResults(result, objective);
+  renderScenarios();
+  saveProblem();
+  document.querySelector('[data-tab="results"]').click();
+}
+
+function renderResults(result, objective) {
+  const el = document.getElementById('resultsContent');
+  const probName = document.getElementById('problemName').value || 'Untitled Problem';
+
+  // Selected tasks table
+  let selectedRows = result.selected.map(t => {
+    const dots = Array.from({length: 5}, (_, i) =>
+      `<div class="dot ${i < t.priority ? 'filled' : ''}"></div>`).join('');
+    return `<tr class="included"><td>${esc(t.name)}</td><td>${t.value}</td><td>${t.duration || '-'}</td><td><div class="priority-dots">${dots}</div></td></tr>`;
+  }).join('');
+
+  let excludedRows = result.excluded.map(e => {
+    return `<tr class="excluded"><td>${esc(e.task.name)}</td><td>${e.task.value}</td><td>${e.task.duration || '-'}</td><td style="color:var(--red);font-size:11px;">${esc(e.reason)}</td></tr>`;
+  }).join('');
+
+  // Utilization bars
+  let utilBars = Object.values(result.utilization).map(u => {
+    const pct = u.pct.toFixed(1);
+    const color = u.pct > 90 ? 'var(--red)' : u.pct > 70 ? 'var(--orange)' : 'var(--cyan)';
+    return `
+      <div style="margin:8px 0;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="font-size:11px;font-weight:600;">${esc(u.name)}</span>
+          <span style="font-size:11px;color:var(--muted);">${u.used.toLocaleString()} / ${u.available.toLocaleString()} ${esc(u.unit)} (${pct}%)</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${pct}%;background:${color};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Algo log
+  let logHtml = result.logs.map(l => `<div class="${l.cls}">${esc(l.msg)}</div>`).join('');
+
+  // Sensitivity analysis
+  let sensitivityHtml = '';
+  if (result.excluded.length && state.resources.length) {
+    sensitivityHtml = '<div class="section-title">Sensitivity Analysis</div>';
+    for (const ex of result.excluded) {
+      for (const [rid, amt] of Object.entries(ex.task.requirements)) {
+        const u = result.utilization[rid];
+        if (u && u.used + amt > u.available) {
+          const needed = (u.used + amt) - u.available;
+          const pctMore = ((needed / u.available) * 100).toFixed(1);
+          sensitivityHtml += `
+            <div class="sensitivity-item">
+              If you had <strong style="color:var(--orange);">${needed.toLocaleString()} more ${esc(u.unit)}</strong>
+              of <strong>${esc(u.name)}</strong> (+${pctMore}%), you could also include
+              <strong style="color:var(--cyan);">"${esc(ex.task.name)}"</strong> (value: ${ex.task.value}).
+            </div>
+          `;
+        }
+      }
+    }
+  }
+
+  // Heatmap (tasks x resources)
+  let heatmapHtml = '';
+  if (state.resources.length && result.selected.length) {
+    const cols = state.resources.length;
+    heatmapHtml = `<div class="section-title">Resource Utilization Heatmap</div>
+      <div style="overflow-x:auto;">
+      <table class="results-table"><tr><th></th>${state.resources.map(r => `<th>${esc(r.name)}</th>`).join('')}</tr>`;
+    for (const t of result.selected) {
+      heatmapHtml += `<tr><td style="font-weight:600;">${esc(t.name)}</td>`;
+      for (const r of state.resources) {
+        const amt = t.requirements[r.id] || 0;
+        const pct = r.available > 0 ? amt / r.available : 0;
+        const intensity = Math.min(pct * 5, 1);
+        const bg = amt > 0 ? `rgba(0, 212, 255, ${(0.1 + intensity * 0.6).toFixed(2)})` : 'transparent';
+        heatmapHtml += `<td style="background:${bg};text-align:center;font-size:11px;">${amt || '-'}</td>`;
+      }
+      heatmapHtml += '</tr>';
+    }
+    heatmapHtml += '</table></div>';
+  }
+
+  el.innerHTML = `
+    <div class="section-title">${esc(probName)} — Results</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="card" style="flex:1;min-width:140px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--green);">${result.totalValue}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">TOTAL VALUE</div>
+      </div>
+      <div class="card" style="flex:1;min-width:140px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--cyan);">${result.selected.length}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">TASKS SELECTED</div>
+      </div>
+      <div class="card" style="flex:1;min-width:140px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--red);">${result.excluded.length}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">TASKS EXCLUDED</div>
+      </div>
+    </div>
+
+    <div class="section-title">Selected Tasks</div>
+    <table class="results-table">
+      <tr><th>Task</th><th>Value</th><th>Duration</th><th>Priority</th></tr>
+      ${selectedRows}
+    </table>
+
+    ${excludedRows ? `
+      <div class="section-title">Excluded Tasks</div>
+      <table class="results-table">
+        <tr><th>Task</th><th>Value</th><th>Duration</th><th>Reason</th></tr>
+        ${excludedRows}
+      </table>
+    ` : ''}
+
+    <div class="section-title">Resource Utilization</div>
+    ${utilBars}
+
+    ${heatmapHtml}
+    ${sensitivityHtml}
+
+    <div class="section-title">Pareto Frontier</div>
+    <canvas id="paretoCanvas"></canvas>
+
+    <div class="section-title">Algorithm Reasoning</div>
+    <div class="algo-log">${logHtml}</div>
+  `;
+
+  // Draw pareto chart
+  setTimeout(() => drawPareto(result), 100);
+}
+
+function drawPareto(result) {
+  const canvas = document.getElementById('paretoCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+  const pad = 50;
+
+  ctx.fillStyle = '#050a0f';
+  ctx.fillRect(0, 0, w, h);
+
+  // Generate pareto points by simulating subsets
+  const allTasks = [...state.tasks];
+  const points = [];
+
+  // Brute force subsets for small N, sample for large
+  const maxSubsets = allTasks.length <= 12 ? Math.pow(2, allTasks.length) : 500;
+  for (let i = 0; i < maxSubsets; i++) {
+    let mask;
+    if (allTasks.length <= 12) {
+      mask = i;
+    } else {
+      mask = Math.floor(Math.random() * Math.pow(2, allTasks.length));
+    }
+    let val = 0, cost = 0;
+    let feasible = true;
+    const tmpUsed = {};
+    state.resources.forEach(r => tmpUsed[r.id] = 0);
+    for (let j = 0; j < allTasks.length; j++) {
+      if (mask & (1 << j)) {
+        const t = allTasks[j];
+        val += t.value;
+        for (const [rid, amt] of Object.entries(t.requirements)) {
+          tmpUsed[rid] = (tmpUsed[rid] || 0) + amt;
+          cost += amt;
+          const res = state.resources.find(r => r.id === parseInt(rid));
+          if (res && tmpUsed[rid] > res.available) feasible = false;
+        }
+      }
+    }
+    if (feasible && val > 0) points.push({ cost, val });
+  }
+
+  if (points.length < 2) {
+    ctx.fillStyle = '#607080';
+    ctx.font = '13px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('Not enough data for Pareto frontier', w / 2, h / 2);
+    return;
+  }
+
+  const maxCost = Math.max(...points.map(p => p.cost)) || 1;
+  const maxVal = Math.max(...points.map(p => p.val)) || 1;
+
+  // Axes
+  ctx.strokeStyle = '#1a2a38';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad, pad);
+  ctx.lineTo(pad, h - pad);
+  ctx.lineTo(w - pad, h - pad);
+  ctx.stroke();
+
+  ctx.fillStyle = '#607080';
+  ctx.font = '10px JetBrains Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('Total Resource Cost', w / 2, h - 8);
+  ctx.save();
+  ctx.translate(12, h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Total Value', 0, 0);
+  ctx.restore();
+
+  // Plot points
+  const toX = c => pad + (c / maxCost) * (w - 2 * pad);
+  const toY = v => (h - pad) - (v / maxVal) * (h - 2 * pad);
+
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(toX(p.cost), toY(p.val), 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.3)';
+    ctx.fill();
+  });
+
+  // Pareto frontier
+  const pareto = [];
+  const sorted = [...points].sort((a, b) => a.cost - b.cost);
+  let bestVal = -1;
+  for (const p of sorted) {
+    if (p.val > bestVal) {
+      pareto.push(p);
+      bestVal = p.val;
+    }
+  }
+
+  if (pareto.length > 1) {
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(toX(pareto[0].cost), toY(pareto[0].val));
+    for (let i = 1; i < pareto.length; i++) {
+      ctx.lineTo(toX(pareto[i].cost), toY(pareto[i].val));
+    }
+    ctx.stroke();
+
+    pareto.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(toX(p.cost), toY(p.val), 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6600';
+      ctx.fill();
+    });
+  }
+
+  // Mark selected solution
+  if (result.selected.length) {
+    let selCost = 0, selVal = result.totalValue;
+    result.selected.forEach(t => {
+      for (const amt of Object.values(t.requirements)) selCost += amt;
+    });
+    ctx.beginPath();
+    ctx.arc(toX(selCost), toY(selVal), 8, 0, Math.PI * 2);
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#00ff88';
+    ctx.font = '10px JetBrains Mono';
+    ctx.textAlign = 'left';
+    ctx.fillText('Selected', toX(selCost) + 12, toY(selVal) + 4);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SCENARIOS
+// ═══════════════════════════════════════════════════════
+function renderScenarios() {
+  if (!state.resources.length || !state.tasks.length) return;
+  const el = document.getElementById('scenariosContent');
+  const objective = document.getElementById('objective').value;
+
+  let slidersHtml = '<div class="section-title">Adjust Resource Availability</div>';
+  state.resources.forEach(r => {
+    slidersHtml += `
+      <div class="slider-row">
+        <label>${esc(r.name)}</label>
+        <input type="range" id="scnSlider_${r.id}" min="${Math.floor(r.available * 0.1)}" max="${Math.floor(r.available * 3)}" value="${r.available}" step="${Math.max(1, Math.floor(r.available * 0.01))}">
+        <span class="slider-val" id="scnVal_${r.id}">${r.available.toLocaleString()}</span>
+      </div>
+    `;
+  });
+
+  // Constraint sliders
+  let conSlidersHtml = '';
+  state.constraints.forEach(c => {
+    const val = parseFloat(c.param);
+    if (!isNaN(val)) {
+      conSlidersHtml += `
+        <div class="slider-row">
+          <label>${esc(c.type)}</label>
+          <input type="range" id="scnCon_${c.id}" min="${Math.floor(val * 0.1)}" max="${Math.floor(val * 3)}" value="${val}" step="${Math.max(1, Math.floor(val * 0.01))}">
+          <span class="slider-val" id="scnConVal_${c.id}">${val.toLocaleString()}</span>
+        </div>
+      `;
+    }
+  });
+
+  if (conSlidersHtml) {
+    slidersHtml += '<div class="section-title" style="margin-top:20px;">Adjust Constraints</div>' + conSlidersHtml;
+  }
+
+  el.innerHTML = slidersHtml +
+    '<div class="btn-group"><button class="btn btn-primary" onclick="runScenarioCompare()">Compare Scenarios</button></div>' +
+    '<div id="scenarioCompare"></div>';
+
+  // Real-time update
+  state.resources.forEach(r => {
+    const slider = document.getElementById('scnSlider_' + r.id);
+    if (slider) {
+      slider.addEventListener('input', () => {
+        document.getElementById('scnVal_' + r.id).textContent = parseFloat(slider.value).toLocaleString();
+        runScenarioLive();
+      });
+    }
+  });
+
+  state.constraints.forEach(c => {
+    const slider = document.getElementById('scnCon_' + c.id);
+    if (slider) {
+      slider.addEventListener('input', () => {
+        document.getElementById('scnConVal_' + c.id).textContent = parseFloat(slider.value).toLocaleString();
+        runScenarioLive();
+      });
+    }
+  });
+}
+
+function getScenarioInputs() {
+  const adjResources = state.resources.map(r => {
+    const slider = document.getElementById('scnSlider_' + r.id);
+    return { ...r, available: slider ? parseFloat(slider.value) : r.available };
+  });
+  const adjConstraints = state.constraints.map(c => {
+    const slider = document.getElementById('scnCon_' + c.id);
+    return { ...c, param: slider ? slider.value : c.param };
+  });
+  return { adjResources, adjConstraints };
+}
+
+let scenarioDebounce;
+function runScenarioLive() {
+  clearTimeout(scenarioDebounce);
+  scenarioDebounce = setTimeout(() => {
+    const { adjResources, adjConstraints } = getScenarioInputs();
+    const objective = document.getElementById('objective').value;
+    const scenarioResult = optimize(adjResources, state.tasks, adjConstraints, objective);
+    renderScenarioResult(scenarioResult);
+  }, 150);
+}
+
+function renderScenarioResult(scenResult) {
+  const el = document.getElementById('scenarioCompare');
+  if (!el) return;
+  const origResult = state.lastResult;
+  if (!origResult) return;
+
+  let origTasks = origResult.selected.map(t => t.name);
+  let scenTasks = scenResult.selected.map(t => t.name);
+  let added = scenTasks.filter(n => !origTasks.includes(n));
+  let removed = origTasks.filter(n => !scenTasks.includes(n));
+
+  el.innerHTML = `
+    <div class="compare-grid">
+      <div class="compare-col">
+        <h4>Original</h4>
+        <div style="font-size:24px;font-weight:700;color:var(--cyan);margin-bottom:8px;">${origResult.totalValue}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">${origResult.selected.length} tasks selected</div>
+        ${origResult.selected.map(t => `<div style="font-size:12px;padding:3px 0;">${esc(t.name)} <span style="color:var(--green);">+${t.value}</span></div>`).join('')}
+      </div>
+      <div class="compare-col">
+        <h4>Scenario</h4>
+        <div style="font-size:24px;font-weight:700;color:${scenResult.totalValue >= origResult.totalValue ? 'var(--green)' : 'var(--red)'};margin-bottom:8px;">
+          ${scenResult.totalValue}
+          <span style="font-size:14px;">(${scenResult.totalValue >= origResult.totalValue ? '+' : ''}${scenResult.totalValue - origResult.totalValue})</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">${scenResult.selected.length} tasks selected</div>
+        ${scenResult.selected.map(t => {
+          const isNew = added.includes(t.name);
+          return `<div style="font-size:12px;padding:3px 0;${isNew ? 'color:var(--green);font-weight:600;' : ''}">${isNew ? '+ ' : ''}${esc(t.name)} <span style="color:var(--green);">+${t.value}</span></div>`;
+        }).join('')}
+        ${removed.length ? `<div style="margin-top:8px;font-size:11px;color:var(--red);">Removed: ${removed.join(', ')}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function runScenarioCompare() {
+  const { adjResources, adjConstraints } = getScenarioInputs();
+  const objective = document.getElementById('objective').value;
+  const scenarioResult = optimize(adjResources, state.tasks, adjConstraints, objective);
+  renderScenarioResult(scenarioResult);
+}
+
+// ═══════════════════════════════════════════════════════
+// TEMPLATES
+// ═══════════════════════════════════════════════════════
+const TEMPLATES = {
+  portfolio: {
+    name: 'Q3 Project Portfolio Selection',
+    objective: 'max-output',
+    resources: [
+      { name: 'Budget', available: 500000, unit: 'dollars' },
+      { name: 'Engineering Hours', available: 2000, unit: 'hours' },
+    ],
+    tasks: [
+      { name: 'Terminal Expansion', value: 85, duration: 120, priority: 5, reqs: { 0: 180000, 1: 800 } },
+      { name: 'Runway Resurfacing', value: 70, duration: 60, priority: 4, reqs: { 0: 120000, 1: 400 } },
+      { name: 'Parking Garage', value: 45, duration: 90, priority: 3, reqs: { 0: 200000, 1: 600 } },
+      { name: 'Signage Upgrade', value: 30, duration: 30, priority: 2, reqs: { 0: 50000, 1: 200 } },
+      { name: 'Drainage Retrofit', value: 55, duration: 45, priority: 4, reqs: { 0: 80000, 1: 350 } },
+    ],
+    constraints: [
+      { type: 'budget-cap', param: '500000', desc: 'Total budget cannot exceed $500K' },
+    ],
+  },
+  staff: {
+    name: 'Staff Allocation Plan',
+    objective: 'balance',
+    resources: [
+      { name: 'Senior Engineers', available: 8, unit: 'people' },
+      { name: 'Junior Engineers', available: 12, unit: 'people' },
+      { name: 'Budget', available: 300000, unit: 'dollars' },
+    ],
+    tasks: [
+      { name: 'Bridge Inspection', value: 60, duration: 40, priority: 5, reqs: { 0: 3, 1: 4, 2: 80000 } },
+      { name: 'Road Design', value: 50, duration: 60, priority: 4, reqs: { 0: 2, 1: 5, 2: 100000 } },
+      { name: 'Survey Project', value: 35, duration: 20, priority: 3, reqs: { 0: 1, 1: 3, 2: 40000 } },
+      { name: 'Environmental Review', value: 40, duration: 30, priority: 3, reqs: { 0: 2, 1: 2, 2: 60000 } },
+    ],
+    constraints: [
+      { type: 'budget-cap', param: '300000', desc: 'Budget cannot exceed $300K' },
+    ],
+  },
+  construction: {
+    name: 'Construction Schedule',
+    objective: 'min-time',
+    resources: [
+      { name: 'Concrete Crews', available: 4, unit: 'crews' },
+      { name: 'Steel Crews', available: 3, unit: 'crews' },
+      { name: 'Budget', available: 750000, unit: 'dollars' },
+    ],
+    tasks: [
+      { name: 'Foundation', value: 80, duration: 30, priority: 5, reqs: { 0: 3, 1: 1, 2: 150000 } },
+      { name: 'Steel Frame', value: 70, duration: 45, priority: 5, reqs: { 0: 1, 1: 3, 2: 200000 } },
+      { name: 'Concrete Deck', value: 60, duration: 25, priority: 4, reqs: { 0: 4, 1: 0, 2: 120000 } },
+      { name: 'Utilities', value: 40, duration: 20, priority: 3, reqs: { 0: 1, 1: 1, 2: 80000 } },
+      { name: 'Paving', value: 50, duration: 15, priority: 4, reqs: { 0: 2, 1: 0, 2: 90000 } },
+      { name: 'Landscaping', value: 20, duration: 10, priority: 1, reqs: { 0: 1, 1: 0, 2: 30000 } },
+    ],
+    constraints: [
+      { type: 'budget-cap', param: '750000', desc: 'Budget cannot exceed $750K' },
+      { type: 'time-limit', param: '120', desc: 'Must complete within 120 days' },
+    ],
+  },
+  equipment: {
+    name: 'Equipment Procurement Plan',
+    objective: 'max-output',
+    resources: [
+      { name: 'Procurement Budget', available: 400000, unit: 'dollars' },
+      { name: 'Storage Bays', available: 6, unit: 'units' },
+    ],
+    tasks: [
+      { name: 'Excavator CAT 320', value: 90, duration: 14, priority: 5, reqs: { 0: 120000, 1: 2 } },
+      { name: 'Backhoe Loader', value: 65, duration: 7, priority: 4, reqs: { 0: 55000, 1: 1 } },
+      { name: 'Concrete Mixer Truck', value: 50, duration: 10, priority: 3, reqs: { 0: 70000, 1: 1 } },
+      { name: 'Tower Crane', value: 85, duration: 30, priority: 5, reqs: { 0: 180000, 1: 2 } },
+      { name: 'Compactor', value: 35, duration: 5, priority: 2, reqs: { 0: 30000, 1: 1 } },
+      { name: 'Dump Truck', value: 45, duration: 7, priority: 3, reqs: { 0: 65000, 1: 1 } },
+      { name: 'Paver Machine', value: 55, duration: 14, priority: 4, reqs: { 0: 95000, 1: 1 } },
+      { name: 'Surveying Drone', value: 40, duration: 3, priority: 3, reqs: { 0: 15000, 1: 0 } },
+    ],
+    constraints: [
+      { type: 'budget-cap', param: '400000', desc: 'Cannot exceed $400K procurement budget' },
+      { type: 'resource-limit', param: 'Storage Bays, 6', desc: 'Only 6 storage bays available' },
+    ],
+  },
+};
+
+function loadTemplate(key) {
+  const tmpl = TEMPLATES[key];
+  if (!tmpl) return;
+
+  // Clear state
+  state.resources = [];
+  state.tasks = [];
+  state.constraints = [];
+
+  document.getElementById('problemName').value = tmpl.name;
+  document.getElementById('objective').value = tmpl.objective;
+
+  // Load resources
+  tmpl.resources.forEach((r, i) => {
+    state.resources.push({ id: 1000 + i, name: r.name, available: r.available, unit: r.unit });
+  });
+
+  // Load tasks
+  tmpl.tasks.forEach((t, i) => {
+    const requirements = {};
+    Object.entries(t.reqs).forEach(([idx, amt]) => {
+      const resId = 1000 + parseInt(idx);
+      requirements[resId] = amt;
+    });
+    state.tasks.push({ id: 2000 + i, name: t.name, value: t.value, duration: t.duration, priority: t.priority, requirements });
+  });
+
+  // Load constraints
+  tmpl.constraints.forEach((c, i) => {
+    state.constraints.push({ id: 3000 + i, type: c.type, param: c.param, desc: c.desc });
+  });
+
+  renderResources();
+  renderTasks();
+  renderConstraints();
+  renderTaskResReqs();
+
+  document.querySelector('[data-tab="define"]').click();
+}
+
+// ═══════════════════════════════════════════════════════
+// HISTORY (localStorage)
+// ═══════════════════════════════════════════════════════
+function saveProblem() {
+  const name = document.getElementById('problemName').value || 'Untitled';
+  const objective = document.getElementById('objective').value;
+  const history = JSON.parse(localStorage.getItem('korbOptHistory') || '[]');
+  history.unshift({
+    id: Date.now(),
+    name,
+    objective,
+    date: new Date().toISOString(),
+    resources: state.resources,
+    tasks: state.tasks,
+    constraints: state.constraints,
+    totalValue: state.lastResult?.totalValue || 0,
+    selectedCount: state.lastResult?.selected.length || 0,
+  });
+  if (history.length > 50) history.length = 50;
+  localStorage.setItem('korbOptHistory', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('korbOptHistory') || '[]');
+  const el = document.getElementById('historyList');
+  if (!history.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">&#128451;</div><strong>No Saved Problems</strong><p>Problems are saved automatically after optimization.</p></div>';
+    return;
+  }
+  el.innerHTML = history.map(h => {
+    const d = new Date(h.date);
+    const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="history-item" onclick="loadHistory(${h.id})">
+        <div>
+          <div style="font-weight:600;">${esc(h.name)}</div>
+          <div class="history-meta">${dateStr} &middot; ${h.selectedCount} tasks &middot; Value: ${h.totalValue}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="tag tag-cyan">${h.objective}</span>
+          <button class="close-btn" onclick="event.stopPropagation();deleteHistory(${h.id})" style="width:28px;height:28px;">&times;</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function loadHistory(id) {
+  const history = JSON.parse(localStorage.getItem('korbOptHistory') || '[]');
+  const h = history.find(x => x.id === id);
+  if (!h) return;
+  state.resources = h.resources || [];
+  state.tasks = h.tasks || [];
+  state.constraints = h.constraints || [];
+  document.getElementById('problemName').value = h.name;
+  document.getElementById('objective').value = h.objective;
+  renderResources();
+  renderTasks();
+  renderConstraints();
+  renderTaskResReqs();
+  document.querySelector('[data-tab="define"]').click();
+}
+
+function deleteHistory(id) {
+  let history = JSON.parse(localStorage.getItem('korbOptHistory') || '[]');
+  history = history.filter(x => x.id !== id);
+  localStorage.setItem('korbOptHistory', JSON.stringify(history));
+  renderHistory();
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Init
+renderHistory();
+</script>
+</body>
+</html>

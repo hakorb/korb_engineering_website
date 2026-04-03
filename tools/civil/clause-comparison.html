@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Clause Comparison Engine | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#000;--bg2:#050a0f;--bg3:#0a1218;--bg4:#0f1a24;
+--cyan:#00d4ff;--orange:#ff6600;--white:#e8edf2;--gray:#6a7a8a;
+--green:#00ff88;--red:#ff4455;--yellow:#ffcc00;
+--font:'JetBrains Mono',monospace;
+--radius:6px;
+}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:100dvh;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+button,select,textarea,input{font-family:var(--font);touch-action:manipulation}
+button{cursor:pointer;min-height:48px;min-width:48px;border:none;background:none;color:var(--white)}
+button:active{opacity:.7;transform:scale(.97)}
+
+/* HEADER */
+.header{background:var(--bg2);border-bottom:1px solid #1a2a3a;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:.85rem;font-weight:600;color:var(--cyan);letter-spacing:1px;text-transform:uppercase}
+.header .brand{font-size:.65rem;color:var(--orange);font-weight:500;letter-spacing:2px}
+
+/* TAB BAR */
+.tab-bar{display:flex;background:var(--bg2);border-bottom:1px solid #1a2a3a;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-btn{flex:1;min-width:80px;padding:12px 8px;font-size:.7rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--gray);border-bottom:2px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-btn:active{background:#0a1a2a}
+
+/* PANELS */
+.panel{display:none;padding:16px;max-width:1400px;margin:0 auto}
+.panel.active{display:block}
+
+/* COMPARE TAB */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.compare-grid{grid-template-columns:1fr}}
+.compare-col label{display:block;font-size:.7rem;font-weight:600;color:var(--cyan);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.compare-col textarea{width:100%;height:320px;background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);color:var(--white);padding:12px;font-size:.8rem;line-height:1.6;resize:vertical}
+.compare-col textarea:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+
+.controls-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.controls-row select{background:var(--bg3);border:1px solid #1a2a3a;color:var(--white);padding:10px 14px;border-radius:var(--radius);font-size:.75rem;min-height:48px}
+.controls-row select:focus{outline:none;border-color:var(--cyan)}
+
+.btn-primary{background:var(--cyan);color:#000;font-weight:700;padding:12px 28px;border-radius:var(--radius);font-size:.8rem;letter-spacing:1px;text-transform:uppercase}
+.btn-primary:active{background:#00b8dd}
+.btn-secondary{background:var(--bg4);border:1px solid #1a2a3a;color:var(--white);padding:10px 20px;border-radius:var(--radius);font-size:.75rem}
+.btn-secondary:active{background:#1a2a3a}
+.btn-orange{background:var(--orange);color:#000;font-weight:700;padding:12px 28px;border-radius:var(--radius);font-size:.8rem;letter-spacing:1px}
+.btn-orange:active{background:#dd5500}
+.btn-sm{min-height:40px;min-width:40px;padding:8px 14px;font-size:.7rem}
+
+/* DIFF TAB */
+.diff-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:var(--bg2);border-radius:var(--radius)}
+.diff-stats span{font-size:.7rem;margin-right:12px;font-weight:600}
+.diff-stats .add-count{color:var(--green)}
+.diff-stats .del-count{color:var(--red)}
+.diff-stats .mod-count{color:var(--yellow)}
+
+.diff-container{display:grid;grid-template-columns:1fr 1fr;gap:2px;height:calc(100dvh - 220px);min-height:400px}
+@media(max-width:768px){.diff-container{grid-template-columns:1fr;height:auto}.diff-pane{max-height:50vh}}
+.diff-pane{background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);overflow-y:auto;padding:0;font-size:.75rem;line-height:1.7}
+.diff-pane-header{position:sticky;top:0;background:var(--bg2);padding:8px 12px;font-size:.65rem;font-weight:600;color:var(--cyan);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #1a2a3a;z-index:2}
+.diff-line{padding:2px 12px 2px 40px;position:relative;white-space:pre-wrap;word-break:break-word;min-height:1.7em}
+.diff-line .ln{position:absolute;left:0;top:2px;width:34px;text-align:right;color:#3a4a5a;font-size:.65rem;padding-right:6px;user-select:none}
+.diff-line.added{background:rgba(0,255,136,.08);border-left:3px solid var(--green)}
+.diff-line.deleted{background:rgba(255,68,85,.08);border-left:3px solid var(--red)}
+.diff-line.modified{background:rgba(255,204,0,.06);border-left:3px solid var(--yellow)}
+.diff-line.empty-placeholder{background:rgba(255,255,255,.02);border-left:3px solid #1a2a3a;color:#2a3a4a;font-style:italic}
+.diff-word-add{background:rgba(0,255,136,.25);color:var(--green);border-radius:2px;padding:0 2px}
+.diff-word-del{background:rgba(255,68,85,.25);color:var(--red);border-radius:2px;padding:0 2px;text-decoration:line-through}
+.diff-word-mod{background:rgba(255,204,0,.2);color:var(--yellow);border-radius:2px;padding:0 2px}
+.highlight-change{outline:2px solid var(--cyan);outline-offset:1px}
+
+/* CHANGES TAB */
+.changes-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.filter-btn{padding:8px 16px;border-radius:20px;font-size:.65rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:1px solid #1a2a3a;background:var(--bg3);color:var(--gray)}
+.filter-btn.active{color:var(--cyan);border-color:var(--cyan);background:rgba(0,212,255,.08)}
+.change-card{background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.change-card-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.change-badge{font-size:.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px}
+.badge-added{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.badge-deleted{background:rgba(255,68,85,.12);color:var(--red);border:1px solid rgba(255,68,85,.3)}
+.badge-modified{background:rgba(255,204,0,.12);color:var(--yellow);border:1px solid rgba(255,204,0,.3)}
+.severity-badge{font-size:.6rem;font-weight:600;padding:4px 10px;border-radius:20px;letter-spacing:.5px}
+.sev-substantive{background:rgba(255,68,85,.12);color:var(--red);border:1px solid rgba(255,68,85,.3)}
+.sev-administrative{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
+.sev-clarification{background:rgba(255,204,0,.12);color:var(--yellow);border:1px solid rgba(255,204,0,.3)}
+.change-text{font-size:.75rem;line-height:1.6;margin:6px 0}
+.change-text.original{color:#ff8888;text-decoration:line-through;opacity:.7}
+.change-text.revised{color:var(--green)}
+.change-location{font-size:.65rem;color:var(--gray)}
+.change-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn-accept{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3);padding:8px 16px;border-radius:var(--radius);font-size:.65rem;font-weight:600;letter-spacing:.5px}
+.btn-accept.accepted{background:var(--green);color:#000}
+.btn-reject{background:rgba(255,68,85,.12);color:var(--red);border:1px solid rgba(255,68,85,.3);padding:8px 16px;border-radius:var(--radius);font-size:.65rem;font-weight:600;letter-spacing:.5px}
+.btn-reject.rejected{background:var(--red);color:#000}
+.btn-discuss{background:rgba(255,204,0,.12);color:var(--yellow);border:1px solid rgba(255,204,0,.3);padding:8px 16px;border-radius:var(--radius);font-size:.65rem;font-weight:600;letter-spacing:.5px}
+.btn-discuss.flagged{background:var(--yellow);color:#000}
+.note-input{width:100%;background:var(--bg2);border:1px solid #1a2a3a;border-radius:var(--radius);color:var(--white);padding:8px 10px;font-size:.7rem;margin-top:8px;min-height:48px}
+.note-input:focus{outline:none;border-color:var(--cyan)}
+
+/* SUMMARY TAB */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px}
+.summary-card{background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);padding:16px}
+.summary-card h3{font-size:.7rem;font-weight:600;color:var(--cyan);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #0a1a2a;font-size:.75rem}
+.stat-row:last-child{border-bottom:none}
+.stat-val{font-weight:700}
+.risk-indicator{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.risk-high{background:var(--red)}
+.risk-medium{background:var(--yellow)}
+.risk-low{background:var(--green)}
+.key-changes-list{list-style:none}
+.key-changes-list li{padding:8px 0;border-bottom:1px solid #0a1a2a;font-size:.75rem;line-height:1.5}
+.key-changes-list li:last-child{border-bottom:none}
+.recommendation-section{background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);padding:16px;margin-top:16px}
+.recommendation-section h3{font-size:.7rem;font-weight:600;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.rec-group{margin-bottom:12px}
+.rec-group h4{font-size:.65rem;color:var(--gray);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.rec-group ul{list-style:none}
+.rec-group ul li{font-size:.75rem;padding:4px 0;padding-left:16px;position:relative;line-height:1.5}
+.rec-group ul li::before{content:'';position:absolute;left:0;top:10px;width:6px;height:6px;border-radius:50%}
+.rec-accept li::before{background:var(--green)}
+.rec-negotiate li::before{background:var(--yellow)}
+.rec-reject li::before{background:var(--red)}
+.export-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+
+/* HISTORY TAB */
+.history-card{background:var(--bg3);border:1px solid #1a2a3a;border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.history-meta{font-size:.7rem}
+.history-meta .date{color:var(--cyan);font-weight:600}
+.history-meta .type{color:var(--gray);font-size:.65rem}
+.history-meta .stats{color:var(--gray);font-size:.65rem;margin-top:4px}
+.empty-state{text-align:center;padding:60px 20px;color:var(--gray);font-size:.8rem}
+.empty-state .icon{font-size:2rem;margin-bottom:12px;opacity:.4}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#1a2a3a;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#2a3a4a}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Clause Comparison Engine</h1>
+    <div class="brand">Korb Engineering</div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="compare">Compare</button>
+  <button class="tab-btn" data-tab="diff">Diff</button>
+  <button class="tab-btn" data-tab="changes">Changes</button>
+  <button class="tab-btn" data-tab="summary">Summary</button>
+  <button class="tab-btn" data-tab="history">History</button>
+</div>
+
+<!-- COMPARE TAB -->
+<div class="panel active" id="panel-compare">
+  <div class="compare-grid">
+    <div class="compare-col">
+      <label>Version A (Original)</label>
+      <textarea id="textA" placeholder="Paste original contract/document text here..."></textarea>
+    </div>
+    <div class="compare-col">
+      <label>Version B (Revised)</label>
+      <textarea id="textB" placeholder="Paste revised contract/document text here..."></textarea>
+    </div>
+  </div>
+  <div class="controls-row">
+    <select id="docType">
+      <option value="Contract">Contract</option>
+      <option value="Specification">Specification</option>
+      <option value="Scope of Work">Scope of Work</option>
+      <option value="Policy">Policy</option>
+      <option value="Agreement">Agreement</option>
+      <option value="General Conditions">General Conditions</option>
+    </select>
+    <button class="btn-primary" onclick="runComparison()">Compare</button>
+    <button class="btn-secondary" onclick="loadSample()">Load Sample</button>
+    <button class="btn-secondary" onclick="clearInputs()">Clear</button>
+  </div>
+</div>
+
+<!-- DIFF TAB -->
+<div class="panel" id="panel-diff">
+  <div class="diff-toolbar">
+    <div class="diff-stats" id="diffStats">
+      <span class="add-count">0 additions</span>
+      <span class="del-count">0 deletions</span>
+      <span class="mod-count">0 modifications</span>
+    </div>
+    <div style="flex:1"></div>
+    <button class="btn-secondary btn-sm" onclick="jumpChange(-1)">&#9650; Prev</button>
+    <button class="btn-secondary btn-sm" onclick="jumpChange(1)">&#9660; Next</button>
+  </div>
+  <div class="diff-container">
+    <div class="diff-pane" id="diffPaneA" onscroll="syncScroll(this,'diffPaneB')">
+      <div class="diff-pane-header">Version A (Original)</div>
+      <div id="diffContentA"></div>
+    </div>
+    <div class="diff-pane" id="diffPaneB" onscroll="syncScroll(this,'diffPaneA')">
+      <div class="diff-pane-header">Version B (Revised)</div>
+      <div id="diffContentB"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGES TAB -->
+<div class="panel" id="panel-changes">
+  <div class="changes-toolbar">
+    <button class="filter-btn active" data-filter="all" onclick="filterChanges('all',this)">All</button>
+    <button class="filter-btn" data-filter="substantive" onclick="filterChanges('substantive',this)">Substantive</button>
+    <button class="filter-btn" data-filter="administrative" onclick="filterChanges('administrative',this)">Administrative</button>
+    <button class="filter-btn" data-filter="clarification" onclick="filterChanges('clarification',this)">Clarification</button>
+    <button class="filter-btn" data-filter="added" onclick="filterChanges('added',this)">Added</button>
+    <button class="filter-btn" data-filter="deleted" onclick="filterChanges('deleted',this)">Deleted</button>
+    <button class="filter-btn" data-filter="modified" onclick="filterChanges('modified',this)">Modified</button>
+  </div>
+  <div id="changesList"></div>
+</div>
+
+<!-- SUMMARY TAB -->
+<div class="panel" id="panel-summary">
+  <div id="summaryContent">
+    <div class="empty-state"><div class="icon">&#128202;</div>Run a comparison first to see the summary.</div>
+  </div>
+</div>
+
+<!-- HISTORY TAB -->
+<div class="panel" id="panel-history">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <span style="font-size:.75rem;color:var(--gray)">Saved comparisons</span>
+    <button class="btn-secondary btn-sm" onclick="clearHistory()">Clear All</button>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+// ========== STATE ==========
+let diffResult = null;
+let changeEntries = [];
+let currentChangeIdx = -1;
+let scrollSyncing = false;
+
+// ========== TABS ==========
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'panel-' + name);
+  });
+}
+
+// ========== LCS DIFF ALGORITHM ==========
+function tokenize(text) {
+  // Split into words preserving whitespace/punctuation boundaries
+  return text.split(/(\s+)/).filter(t => t.length > 0);
+}
+
+function lcs(a, b) {
+  const m = a.length, n = b.length;
+  // For very large inputs, use a more memory-efficient approach
+  if (m > 5000 || n > 5000) return lcsHirschberg(a, b);
+
+  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+  // Backtrack
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) {
+      result.unshift({ val: a[i - 1], ai: i - 1, bi: j - 1 });
+      i--; j--;
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+  return result;
+}
+
+function lcsHirschberg(a, b) {
+  // Simplified: for very large texts, do line-level then word-level within changed lines
+  // Fall back to a greedy matching approach
+  const result = [];
+  let ai = 0, bi = 0;
+  const bMap = new Map();
+  b.forEach((w, i) => {
+    if (!bMap.has(w)) bMap.set(w, []);
+    bMap.get(w).push(i);
+  });
+  let lastB = -1;
+  for (let i = 0; i < a.length; i++) {
+    const positions = bMap.get(a[i]);
+    if (positions) {
+      for (const p of positions) {
+        if (p > lastB) {
+          result.push({ val: a[i], ai: i, bi: p });
+          lastB = p;
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function computeWordDiff(textA, textB) {
+  const wordsA = tokenize(textA);
+  const wordsB = tokenize(textB);
+  const common = lcs(wordsA, wordsB);
+
+  const ops = [];
+  let ai = 0, bi = 0, ci = 0;
+
+  while (ci < common.length) {
+    const c = common[ci];
+    // Deletions from A before this common token
+    while (ai < c.ai) {
+      ops.push({ type: 'delete', val: wordsA[ai] });
+      ai++;
+    }
+    // Additions from B before this common token
+    while (bi < c.bi) {
+      ops.push({ type: 'add', val: wordsB[bi] });
+      bi++;
+    }
+    ops.push({ type: 'equal', val: c.val });
+    ai = c.ai + 1;
+    bi = c.bi + 1;
+    ci++;
+  }
+  // Remaining
+  while (ai < wordsA.length) {
+    ops.push({ type: 'delete', val: wordsA[ai++] });
+  }
+  while (bi < wordsB.length) {
+    ops.push({ type: 'add', val: wordsB[bi++] });
+  }
+
+  return ops;
+}
+
+function splitIntoLines(text) {
+  return text.split('\n');
+}
+
+function computeLineDiff(textA, textB) {
+  const linesA = splitIntoLines(textA);
+  const linesB = splitIntoLines(textB);
+  const commonLines = lcs(linesA, linesB);
+
+  const aligned = [];
+  let ai = 0, bi = 0, ci = 0;
+
+  while (ci < commonLines.length) {
+    const c = commonLines[ci];
+    const delLines = [];
+    const addLines = [];
+    while (ai < c.ai) delLines.push(linesA[ai++]);
+    while (bi < c.bi) addLines.push(linesB[bi++]);
+
+    // Try to pair deletions with additions as modifications
+    const pairCount = Math.min(delLines.length, addLines.length);
+    for (let k = 0; k < pairCount; k++) {
+      const wordOps = computeWordDiff(delLines[k], addLines[k]);
+      aligned.push({ type: 'modified', lineA: delLines[k], lineB: addLines[k], wordOps });
+    }
+    for (let k = pairCount; k < delLines.length; k++) {
+      aligned.push({ type: 'deleted', lineA: delLines[k], lineB: null });
+    }
+    for (let k = pairCount; k < addLines.length; k++) {
+      aligned.push({ type: 'added', lineA: null, lineB: addLines[k] });
+    }
+
+    aligned.push({ type: 'equal', lineA: c.val, lineB: c.val });
+    ai = c.ai + 1;
+    bi = c.bi + 1;
+    ci++;
+  }
+
+  // Remaining after last common
+  const delLines = [];
+  const addLines = [];
+  while (ai < linesA.length) delLines.push(linesA[ai++]);
+  while (bi < linesB.length) addLines.push(linesB[bi++]);
+  const pairCount = Math.min(delLines.length, addLines.length);
+  for (let k = 0; k < pairCount; k++) {
+    const wordOps = computeWordDiff(delLines[k], addLines[k]);
+    aligned.push({ type: 'modified', lineA: delLines[k], lineB: addLines[k], wordOps });
+  }
+  for (let k = pairCount; k < delLines.length; k++) {
+    aligned.push({ type: 'deleted', lineA: delLines[k], lineB: null });
+  }
+  for (let k = pairCount; k < addLines.length; k++) {
+    aligned.push({ type: 'added', lineA: null, lineB: addLines[k] });
+  }
+
+  return aligned;
+}
+
+// ========== SEVERITY CLASSIFICATION ==========
+function classifySeverity(original, revised, type) {
+  if (type === 'deleted') {
+    const lower = (original || '').toLowerCase();
+    if (/\b(shall|must|liability|indemnif|warrant|terminat|default|penalty|liquidated damages|obligation|responsible)\b/.test(lower)) {
+      return 'substantive';
+    }
+    return 'substantive';
+  }
+  if (type === 'added') {
+    const lower = (revised || '').toLowerCase();
+    if (/\b(shall|must|liability|indemnif|warrant|terminat|default|penalty|liquidated damages|obligation|responsible)\b/.test(lower)) {
+      return 'substantive';
+    }
+    if (/^\s*$/.test(revised)) return 'administrative';
+    return 'clarification';
+  }
+  // Modified
+  const origLower = (original || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  const revLower = (revised || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+  if (origLower === revLower) return 'administrative';
+
+  const contractTerms = /\b(shall|must|liability|indemnif|warrant|terminat|default|penalty|liquidated damages|obligation|responsible|not exceeding|maximum|minimum|within \d+ days|percent|fee|cost|payment|insurance|bond)\b/i;
+  const origHas = contractTerms.test(original);
+  const revHas = contractTerms.test(revised);
+  if (origHas || revHas) {
+    // Check if the contract terms themselves changed
+    const origTerms = (original || '').match(contractTerms) || [];
+    const revTerms = (revised || '').match(contractTerms) || [];
+    if (JSON.stringify(origTerms) !== JSON.stringify(revTerms)) return 'substantive';
+  }
+
+  // Check if numbers changed
+  const origNums = (original || '').match(/\d+\.?\d*/g) || [];
+  const revNums = (revised || '').match(/\d+\.?\d*/g) || [];
+  if (JSON.stringify(origNums) !== JSON.stringify(revNums)) return 'substantive';
+
+  // Similarity check
+  const origWords = origLower.split(/\s+/);
+  const revWords = revLower.split(/\s+/);
+  const commonCount = lcs(origWords, revWords).length;
+  const similarity = commonCount / Math.max(origWords.length, revWords.length);
+  if (similarity > 0.8) return 'clarification';
+  return 'substantive';
+}
+
+function detectSection(text) {
+  if (!text) return 'General';
+  const sectionMatch = text.match(/^(?:Section|Article|Clause|Part|Item)\s*[\d.]+/i);
+  if (sectionMatch) return sectionMatch[0];
+  const numberedMatch = text.match(/^\d+[\d.]*\s/);
+  if (numberedMatch) return 'Clause ' + numberedMatch[0].trim();
+  return 'General';
+}
+
+// ========== RUN COMPARISON ==========
+function runComparison() {
+  const textA = document.getElementById('textA').value.trim();
+  const textB = document.getElementById('textB').value.trim();
+  if (!textA && !textB) return alert('Please enter text in both fields.');
+  if (!textA || !textB) return alert('Please enter text in both Version A and Version B.');
+
+  diffResult = computeLineDiff(textA, textB);
+  buildDiffView();
+  buildChangesList();
+  buildSummary();
+  saveToHistory(textA, textB);
+  switchTab('diff');
+}
+
+// ========== DIFF VIEW ==========
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function buildDiffView() {
+  if (!diffResult) return;
+  const contA = document.getElementById('diffContentA');
+  const contB = document.getElementById('diffContentB');
+  let htmlA = '', htmlB = '';
+  let lineNumA = 0, lineNumB = 0;
+  let addCount = 0, delCount = 0, modCount = 0;
+  let changeIndex = 0;
+
+  diffResult.forEach((entry, idx) => {
+    const cid = entry.type !== 'equal' ? `data-change="${changeIndex++}"` : '';
+    if (entry.type === 'equal') {
+      lineNumA++; lineNumB++;
+      htmlA += `<div class="diff-line"><span class="ln">${lineNumA}</span>${esc(entry.lineA)}</div>`;
+      htmlB += `<div class="diff-line"><span class="ln">${lineNumB}</span>${esc(entry.lineB)}</div>`;
+    } else if (entry.type === 'deleted') {
+      lineNumA++; delCount++;
+      htmlA += `<div class="diff-line deleted" ${cid}><span class="ln">${lineNumA}</span>${esc(entry.lineA)}</div>`;
+      htmlB += `<div class="diff-line empty-placeholder" ${cid}><span class="ln">-</span>(deleted)</div>`;
+    } else if (entry.type === 'added') {
+      lineNumB++; addCount++;
+      htmlA += `<div class="diff-line empty-placeholder" ${cid}><span class="ln">-</span>(added)</div>`;
+      htmlB += `<div class="diff-line added" ${cid}><span class="ln">${lineNumB}</span>${esc(entry.lineB)}</div>`;
+    } else if (entry.type === 'modified') {
+      lineNumA++; lineNumB++; modCount++;
+      // Word-level highlighting
+      let aHtml = '', bHtml = '';
+      if (entry.wordOps) {
+        entry.wordOps.forEach(op => {
+          if (op.type === 'equal') {
+            aHtml += esc(op.val);
+            bHtml += esc(op.val);
+          } else if (op.type === 'delete') {
+            aHtml += `<span class="diff-word-del">${esc(op.val)}</span>`;
+          } else if (op.type === 'add') {
+            bHtml += `<span class="diff-word-add">${esc(op.val)}</span>`;
+          }
+        });
+      } else {
+        aHtml = esc(entry.lineA);
+        bHtml = esc(entry.lineB);
+      }
+      htmlA += `<div class="diff-line modified" ${cid}><span class="ln">${lineNumA}</span>${aHtml}</div>`;
+      htmlB += `<div class="diff-line modified" ${cid}><span class="ln">${lineNumB}</span>${bHtml}</div>`;
+    }
+  });
+
+  contA.innerHTML = htmlA;
+  contB.innerHTML = htmlB;
+
+  document.getElementById('diffStats').innerHTML =
+    `<span class="add-count">${addCount} addition${addCount !== 1 ? 's' : ''}</span>` +
+    `<span class="del-count">${delCount} deletion${delCount !== 1 ? 's' : ''}</span>` +
+    `<span class="mod-count">${modCount} modification${modCount !== 1 ? 's' : ''}</span>`;
+
+  currentChangeIdx = -1;
+}
+
+// ========== SCROLL SYNC ==========
+function syncScroll(source, targetId) {
+  if (scrollSyncing) return;
+  scrollSyncing = true;
+  const target = document.getElementById(targetId);
+  const ratio = source.scrollTop / (source.scrollHeight - source.clientHeight || 1);
+  target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
+  requestAnimationFrame(() => { scrollSyncing = false; });
+}
+
+// ========== JUMP CHANGES ==========
+function jumpChange(dir) {
+  const els = document.querySelectorAll('#diffContentA [data-change]');
+  if (!els.length) return;
+  document.querySelectorAll('.highlight-change').forEach(e => e.classList.remove('highlight-change'));
+
+  const maxIdx = Math.max(...Array.from(els).map(e => parseInt(e.dataset.change)));
+  currentChangeIdx += dir;
+  if (currentChangeIdx < 0) currentChangeIdx = maxIdx;
+  if (currentChangeIdx > maxIdx) currentChangeIdx = 0;
+
+  const targets = document.querySelectorAll(`[data-change="${currentChangeIdx}"]`);
+  targets.forEach(t => {
+    t.classList.add('highlight-change');
+    t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+// ========== CHANGES LIST ==========
+function buildChangesList() {
+  changeEntries = [];
+  if (!diffResult) return;
+
+  let changeIdx = 0;
+  diffResult.forEach(entry => {
+    if (entry.type === 'equal') return;
+    const section = detectSection(entry.lineA || entry.lineB);
+    const severity = classifySeverity(entry.lineA, entry.lineB, entry.type);
+    changeEntries.push({
+      id: changeIdx++,
+      type: entry.type,
+      section,
+      severity,
+      original: entry.lineA || '',
+      revised: entry.lineB || '',
+      status: 'pending', // pending, accepted, rejected, discuss
+      note: ''
+    });
+  });
+
+  renderChangeCards();
+}
+
+function renderChangeCards(filter) {
+  const container = document.getElementById('changesList');
+  let filtered = changeEntries;
+  if (filter && filter !== 'all') {
+    if (['substantive', 'administrative', 'clarification'].includes(filter)) {
+      filtered = changeEntries.filter(c => c.severity === filter);
+    } else {
+      filtered = changeEntries.filter(c => c.type === filter);
+    }
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128196;</div>No changes found matching filter.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    const typeBadge = c.type === 'added' ? 'badge-added' : c.type === 'deleted' ? 'badge-deleted' : 'badge-modified';
+    const sevClass = c.severity === 'substantive' ? 'sev-substantive' : c.severity === 'administrative' ? 'sev-administrative' : 'sev-clarification';
+    const accClass = c.status === 'accepted' ? ' accepted' : '';
+    const rejClass = c.status === 'rejected' ? ' rejected' : '';
+    const disClass = c.status === 'discuss' ? ' flagged' : '';
+
+    return `<div class="change-card" data-id="${c.id}">
+      <div class="change-card-header">
+        <div>
+          <span class="change-badge ${typeBadge}">${c.type}</span>
+          <span class="severity-badge ${sevClass}">${c.severity}</span>
+        </div>
+        <span class="change-location">${esc(c.section)}</span>
+      </div>
+      ${c.original ? `<div class="change-text original">${esc(c.original)}</div>` : ''}
+      ${c.revised ? `<div class="change-text revised">${esc(c.revised)}</div>` : ''}
+      <div class="change-actions">
+        <button class="btn-accept${accClass}" onclick="setChangeStatus(${c.id},'accepted')">Accept</button>
+        <button class="btn-discuss${disClass}" onclick="setChangeStatus(${c.id},'discuss')">Discuss</button>
+        <button class="btn-reject${rejClass}" onclick="setChangeStatus(${c.id},'rejected')">Reject</button>
+      </div>
+      <input class="note-input" placeholder="Add note..." value="${esc(c.note)}" onchange="setChangeNote(${c.id},this.value)">
+    </div>`;
+  }).join('');
+}
+
+function filterChanges(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChangeCards(filter);
+}
+
+function setChangeStatus(id, status) {
+  const c = changeEntries.find(e => e.id === id);
+  if (c) {
+    c.status = c.status === status ? 'pending' : status;
+    const activeFilter = document.querySelector('.filter-btn.active');
+    renderChangeCards(activeFilter ? activeFilter.dataset.filter : 'all');
+  }
+}
+
+function setChangeNote(id, note) {
+  const c = changeEntries.find(e => e.id === id);
+  if (c) c.note = note;
+}
+
+// ========== SUMMARY ==========
+function buildSummary() {
+  const cont = document.getElementById('summaryContent');
+  if (!changeEntries.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="icon">&#9989;</div>No differences found between the two versions.</div>';
+    return;
+  }
+
+  const adds = changeEntries.filter(c => c.type === 'added').length;
+  const dels = changeEntries.filter(c => c.type === 'deleted').length;
+  const mods = changeEntries.filter(c => c.type === 'modified').length;
+  const subs = changeEntries.filter(c => c.severity === 'substantive');
+  const admins = changeEntries.filter(c => c.severity === 'administrative').length;
+  const clarifs = changeEntries.filter(c => c.severity === 'clarification').length;
+
+  const total = changeEntries.length;
+  const riskLevel = subs.length > total * 0.4 ? 'high' : subs.length > total * 0.15 ? 'medium' : 'low';
+  const riskLabel = riskLevel === 'high' ? 'High Risk - Significant changes to obligations/liability'
+    : riskLevel === 'medium' ? 'Moderate Risk - Some substantive changes require review'
+    : 'Low Risk - Mostly administrative/clarification changes';
+
+  const accepted = changeEntries.filter(c => c.status === 'accepted');
+  const rejected = changeEntries.filter(c => c.status === 'rejected');
+  const discussing = changeEntries.filter(c => c.status === 'discuss');
+
+  // Build recommendations
+  const toAccept = changeEntries.filter(c => c.severity === 'administrative' || c.severity === 'clarification');
+  const toNegotiate = subs.filter(c => c.type === 'modified');
+  const toReject = subs.filter(c => c.type === 'deleted');
+
+  cont.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-card">
+        <h3>Changes by Type</h3>
+        <div class="stat-row"><span>Additions</span><span class="stat-val" style="color:var(--green)">${adds}</span></div>
+        <div class="stat-row"><span>Deletions</span><span class="stat-val" style="color:var(--red)">${dels}</span></div>
+        <div class="stat-row"><span>Modifications</span><span class="stat-val" style="color:var(--yellow)">${mods}</span></div>
+        <div class="stat-row"><span><strong>Total</strong></span><span class="stat-val">${total}</span></div>
+      </div>
+      <div class="summary-card">
+        <h3>Changes by Severity</h3>
+        <div class="stat-row"><span>Substantive</span><span class="stat-val" style="color:var(--red)">${subs.length}</span></div>
+        <div class="stat-row"><span>Administrative</span><span class="stat-val" style="color:var(--cyan)">${admins}</span></div>
+        <div class="stat-row"><span>Clarification</span><span class="stat-val" style="color:var(--yellow)">${clarifs}</span></div>
+      </div>
+      <div class="summary-card">
+        <h3>Review Status</h3>
+        <div class="stat-row"><span>Accepted</span><span class="stat-val" style="color:var(--green)">${accepted.length}</span></div>
+        <div class="stat-row"><span>Needs Discussion</span><span class="stat-val" style="color:var(--yellow)">${discussing.length}</span></div>
+        <div class="stat-row"><span>Rejected</span><span class="stat-val" style="color:var(--red)">${rejected.length}</span></div>
+        <div class="stat-row"><span>Pending</span><span class="stat-val" style="color:var(--gray)">${total - accepted.length - rejected.length - discussing.length}</span></div>
+      </div>
+      <div class="summary-card">
+        <h3>Risk Assessment</h3>
+        <div class="stat-row">
+          <span><span class="risk-indicator risk-${riskLevel}"></span>${riskLabel}</span>
+        </div>
+      </div>
+    </div>
+
+    ${subs.length ? `
+    <div class="summary-card" style="margin-bottom:16px">
+      <h3>Key Substantive Changes</h3>
+      <ul class="key-changes-list">
+        ${subs.slice(0, 10).map(c => `<li>
+          <strong style="color:${c.type === 'added' ? 'var(--green)' : c.type === 'deleted' ? 'var(--red)' : 'var(--yellow)'}">[${c.type.toUpperCase()}]</strong>
+          <span style="color:var(--gray)">${esc(c.section)}</span><br>
+          ${c.original ? `<span style="color:#ff8888;text-decoration:line-through;font-size:.7rem">${esc(c.original.substring(0, 120))}${c.original.length > 120 ? '...' : ''}</span><br>` : ''}
+          ${c.revised ? `<span style="color:var(--green);font-size:.7rem">${esc(c.revised.substring(0, 120))}${c.revised.length > 120 ? '...' : ''}</span>` : ''}
+        </li>`).join('')}
+      </ul>
+    </div>` : ''}
+
+    <div class="recommendation-section">
+      <h3>Recommendations</h3>
+      ${toAccept.length ? `<div class="rec-group"><h4>Likely Safe to Accept (${toAccept.length})</h4><ul class="rec-accept">
+        ${toAccept.slice(0, 5).map(c => `<li>${esc(c.section)}: ${esc((c.revised || c.original || '').substring(0, 80))}${(c.revised || c.original || '').length > 80 ? '...' : ''}</li>`).join('')}
+        ${toAccept.length > 5 ? `<li style="color:var(--gray)">...and ${toAccept.length - 5} more</li>` : ''}
+      </ul></div>` : ''}
+      ${toNegotiate.length ? `<div class="rec-group"><h4>Recommend Negotiation (${toNegotiate.length})</h4><ul class="rec-negotiate">
+        ${toNegotiate.slice(0, 5).map(c => `<li>${esc(c.section)}: ${esc((c.revised || '').substring(0, 80))}${(c.revised || '').length > 80 ? '...' : ''}</li>`).join('')}
+        ${toNegotiate.length > 5 ? `<li style="color:var(--gray)">...and ${toNegotiate.length - 5} more</li>` : ''}
+      </ul></div>` : ''}
+      ${toReject.length ? `<div class="rec-group"><h4>Consider Rejecting (${toReject.length})</h4><ul class="rec-reject">
+        ${toReject.slice(0, 5).map(c => `<li>${esc(c.section)}: ${esc((c.original || '').substring(0, 80))}${(c.original || '').length > 80 ? '...' : ''}</li>`).join('')}
+        ${toReject.length > 5 ? `<li style="color:var(--gray)">...and ${toReject.length - 5} more</li>` : ''}
+      </ul></div>` : ''}
+    </div>
+
+    <div class="export-row">
+      <button class="btn-primary" onclick="exportText()">Export as Text</button>
+      <button class="btn-orange" onclick="exportCSV()">Export as CSV</button>
+    </div>
+  `;
+}
+
+// ========== EXPORT ==========
+function exportText() {
+  const docType = document.getElementById('docType').value;
+  const now = new Date().toLocaleString();
+  let text = `CLAUSE COMPARISON REPORT\nKorb Engineering\n${'='.repeat(50)}\nDocument Type: ${docType}\nGenerated: ${now}\n\n`;
+
+  const adds = changeEntries.filter(c => c.type === 'added').length;
+  const dels = changeEntries.filter(c => c.type === 'deleted').length;
+  const mods = changeEntries.filter(c => c.type === 'modified').length;
+  text += `SUMMARY\n${'-'.repeat(30)}\nTotal Changes: ${changeEntries.length}\nAdditions: ${adds}\nDeletions: ${dels}\nModifications: ${mods}\n\n`;
+  text += `DETAILED CHANGES\n${'-'.repeat(30)}\n\n`;
+
+  changeEntries.forEach((c, i) => {
+    text += `Change #${i + 1}\n`;
+    text += `  Type: ${c.type.toUpperCase()}\n`;
+    text += `  Severity: ${c.severity.toUpperCase()}\n`;
+    text += `  Section: ${c.section}\n`;
+    text += `  Status: ${c.status.toUpperCase()}\n`;
+    if (c.original) text += `  Original: ${c.original}\n`;
+    if (c.revised) text += `  Revised: ${c.revised}\n`;
+    if (c.note) text += `  Note: ${c.note}\n`;
+    text += '\n';
+  });
+
+  downloadFile('clause-comparison-report.txt', text, 'text/plain');
+}
+
+function exportCSV() {
+  let csv = 'Change #,Type,Severity,Section,Status,Original,Revised,Note\n';
+  changeEntries.forEach((c, i) => {
+    csv += `${i + 1},${c.type},${c.severity},"${c.section}",${c.status},"${(c.original || '').replace(/"/g, '""')}","${(c.revised || '').replace(/"/g, '""')}","${(c.note || '').replace(/"/g, '""')}"\n`;
+  });
+  downloadFile('clause-comparison-report.csv', csv, 'text/csv');
+}
+
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ========== HISTORY ==========
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('korb_clause_history') || '[]'); }
+  catch { return []; }
+}
+
+function saveToHistory(textA, textB) {
+  const history = getHistory();
+  const docType = document.getElementById('docType').value;
+  const adds = changeEntries.filter(c => c.type === 'added').length;
+  const dels = changeEntries.filter(c => c.type === 'deleted').length;
+  const mods = changeEntries.filter(c => c.type === 'modified').length;
+
+  history.unshift({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    docType,
+    textA, textB,
+    stats: { adds, dels, mods, total: changeEntries.length }
+  });
+
+  // Keep last 20
+  if (history.length > 20) history.length = 20;
+  try { localStorage.setItem('korb_clause_history', JSON.stringify(history)); } catch {}
+  renderHistory();
+}
+
+function renderHistory() {
+  const container = document.getElementById('historyList');
+  const history = getHistory();
+  if (!history.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128218;</div>No saved comparisons yet.</div>';
+    return;
+  }
+
+  container.innerHTML = history.map(h => {
+    const d = new Date(h.date);
+    const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="history-card">
+      <div class="history-meta">
+        <div class="date">${dateStr}</div>
+        <div class="type">${esc(h.docType)}</div>
+        <div class="stats">${h.stats.total} changes: ${h.stats.adds} added, ${h.stats.dels} deleted, ${h.stats.mods} modified</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary btn-sm" onclick="loadHistory(${h.id})">Load</button>
+        <button class="btn-secondary btn-sm" onclick="deleteHistory(${h.id})" style="color:var(--red)">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function loadHistory(id) {
+  const history = getHistory();
+  const h = history.find(e => e.id === id);
+  if (!h) return;
+  document.getElementById('textA').value = h.textA;
+  document.getElementById('textB').value = h.textB;
+  document.getElementById('docType').value = h.docType;
+  switchTab('compare');
+}
+
+function deleteHistory(id) {
+  let history = getHistory();
+  history = history.filter(e => e.id !== id);
+  try { localStorage.setItem('korb_clause_history', JSON.stringify(history)); } catch {}
+  renderHistory();
+}
+
+function clearHistory() {
+  if (!confirm('Clear all saved comparisons?')) return;
+  try { localStorage.removeItem('korb_clause_history'); } catch {}
+  renderHistory();
+}
+
+// ========== UTILITIES ==========
+function clearInputs() {
+  document.getElementById('textA').value = '';
+  document.getElementById('textB').value = '';
+}
+
+function loadSample() {
+  document.getElementById('textA').value = `1.0 SCOPE OF WORK
+
+1.1 The Contractor shall furnish all labor, materials, equipment, and supervision necessary to complete the runway rehabilitation project at Municipal Airport, in accordance with the plans and specifications.
+
+1.2 Work shall include removal of existing pavement to a depth of 4 inches, installation of new P-401 Hot Mix Asphalt surface course, and associated grading and drainage improvements.
+
+2.0 CONTRACT TIME
+
+2.1 The Contractor shall complete all work within 120 calendar days from the date of Notice to Proceed.
+
+2.2 Liquidated damages shall be assessed at $2,500 per calendar day for each day beyond the contract completion date.
+
+3.0 PAYMENT TERMS
+
+3.1 Progress payments shall be made monthly based on the value of work completed, less 10% retainage.
+
+3.2 Final payment shall be made within 30 days after acceptance of the work by the Owner.
+
+4.0 INSURANCE REQUIREMENTS
+
+4.1 The Contractor shall maintain Commercial General Liability insurance with limits not less than $1,000,000 per occurrence and $2,000,000 aggregate.
+
+4.2 The Contractor shall maintain Workers Compensation insurance as required by law.
+
+5.0 INDEMNIFICATION
+
+5.1 The Contractor shall indemnify and hold harmless the Owner from any and all claims, damages, losses, and expenses arising out of or resulting from the Contractor's performance of the work.`;
+
+  document.getElementById('textB').value = `1.0 SCOPE OF WORK
+
+1.1 The Contractor shall furnish all labor, materials, equipment, and supervision necessary to complete the runway rehabilitation project at Regional Airport, in accordance with the plans, specifications, and applicable FAA Advisory Circulars.
+
+1.2 Work shall include removal of existing pavement to a depth of 6 inches, installation of new P-401 Hot Mix Asphalt surface course, P-209 Crushed Aggregate base course, and associated grading, drainage, and marking improvements.
+
+1.3 The Contractor shall coordinate all work with Airport Operations and maintain compliance with FAA AC 150/5370-2G, Operational Safety on Airports During Construction.
+
+2.0 CONTRACT TIME
+
+2.1 The Contractor shall complete all work within 90 calendar days from the date of Notice to Proceed.
+
+2.2 Liquidated damages shall be assessed at $5,000 per calendar day for each day beyond the contract completion date.
+
+2.3 The Owner may grant time extensions for documented weather delays exceeding 5 consecutive days.
+
+3.0 PAYMENT TERMS
+
+3.1 Progress payments shall be made monthly based on the value of work completed, less 5% retainage.
+
+3.2 Final payment shall be made within 45 days after acceptance of the work by the Owner and receipt of all required closeout documents.
+
+4.0 INSURANCE REQUIREMENTS
+
+4.1 The Contractor shall maintain Commercial General Liability insurance with limits not less than $2,000,000 per occurrence and $5,000,000 aggregate.
+
+4.2 The Contractor shall maintain Workers Compensation insurance as required by law.
+
+4.3 The Contractor shall maintain Umbrella/Excess Liability insurance with limits not less than $5,000,000.
+
+5.0 INDEMNIFICATION
+
+5.1 The Contractor shall indemnify, defend, and hold harmless the Owner, its officers, agents, and employees from any and all claims, damages, losses, and expenses, including attorney fees, arising out of or resulting from the Contractor's negligent performance of the work.`;
+
+  document.getElementById('docType').value = 'Contract';
+}
+
+// Init history on load
+renderHistory();
+</script>
+</body>
+</html>
