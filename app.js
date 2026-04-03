@@ -608,8 +608,9 @@ function renderFolderPasswordGate(sectionKey, sec, folder) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fHash = folder._hash ? await sha256(input.value) : input.value;
-    if (fHash === (folder._hash || folder.password)) {
+    if (!folder._hash) { error.classList.add('visible'); return; }
+    const fHash = await sha256(input.value);
+    if (fHash === folder._hash) {
       folder._unlocked = true;
       renderSubfolderGrid(sectionKey, sec, folder);
     } else {
