@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digital Library | Korb Engineering</title>
+<title>Korb Digital Lending Library | Korb Engineering</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
@@ -96,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 
 <div class="header" id="mainHeader">
   <span class="brand">Korb Engineering</span>
-  <span class="title">Digital Library</span>
+  <span class="title">Korb Digital Lending Library</span>
   <div style="flex:1"></div>
   <button class="nav-tab active" data-view="library" onclick="switchView('library')">Library</button>
   <button class="nav-tab" data-view="stats" onclick="switchView('stats')">Stats</button>
@@ -181,6 +181,39 @@ function formatDate(d) { if(!d)return'-'; return new Date(d).toLocaleDateString(
 
 books = loadMeta();
 
+// Request persistent storage so browser won't evict IndexedDB data
+async function requestPersistence() {
+  if (navigator.storage && navigator.storage.persist) {
+    const granted = await navigator.storage.persist();
+    if (!granted) console.warn('Persistent storage not granted — uploads may be evicted by the browser.');
+  }
+}
+
+// Verify IndexedDB blobs exist for all metadata entries; remove orphaned metadata
+async function verifyIntegrity() {
+  if (books.length === 0) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction('pdfs', 'readonly');
+    const store = tx.objectStore('pdfs');
+    const allKeys = await new Promise((res, rej) => {
+      const r = store.getAllKeys();
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    const keySet = new Set(allKeys);
+    const before = books.length;
+    books = books.filter(b => keySet.has(b.id));
+    if (books.length < before) {
+      saveMeta();
+      console.warn(`Removed ${before - books.length} orphaned library entries (missing blobs).`);
+    }
+  } catch(e) { console.error('Integrity check failed:', e); }
+}
+
+requestPersistence();
+verifyIntegrity().then(() => render());
+
 function switchView(v) {
   view = v; selectedBook = null; editMeta = null;
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
@@ -244,9 +277,9 @@ function renderUploadPanel() {
   return `<div style="background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px">
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <div style="font-size:32px;margin-bottom:8px">&#128196;</div>
-      <div style="color:var(--dim);font-size:12px">Drop a PDF here or click to browse</div>
+      <div style="color:var(--dim);font-size:12px">Drop a PDF or EPUB here or click to browse</div>
       <div style="color:var(--dim);font-size:10px;margin-top:4px">Max ${formatBytes(MAX_FILE_SIZE)}</div>
-      <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="startUpload(this.files[0])">
+      <input type="file" id="fileInput" accept=".pdf,.epub" style="display:none" onchange="startUpload(this.files[0])">
     </div>
   </div>`;
 }
@@ -261,6 +294,7 @@ function renderBookCard(b) {
       <div style="font-size:10px;color:var(--dim);margin-top:2px">${b.author||'Unknown'}</div>
       <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
         <span class="tag">${b.category}</span>
+        <span class="tag" style="background:rgba(240,165,0,0.12);color:var(--gold)">${(b.fileType||'pdf').toUpperCase()}</span>
         <span style="font-size:10px;color:var(--dim)">${formatBytes(b.fileSize)}</span>
       </div>
     </div>
@@ -290,7 +324,8 @@ function renderDetail(el) {
       <div>
         <div style="width:100%;height:240px;border-radius:10px;background:${plColor(b.id)};display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:rgba(255,255,255,0.2);margin-bottom:16px">${initials(b.title)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-green" onclick="openReaderForBook('${b.id}')">Read</button>
+          <button class="btn btn-green" onclick="openReaderForBook('${b.id}')">${b.fileType === 'epub' ? 'Open EPUB' : 'Read'}</button>
+          <button class="btn" onclick="downloadBook('${b.id}')">Download</button>
           <button class="btn btn-danger" onclick="confirmDelete('${b.id}')">Delete</button>
         </div>
       </div>
@@ -366,7 +401,8 @@ function toggleUpload() { showUploadPanel = !showUploadPanel; render(); }
 
 async function startUpload(file) {
   if (!file) return;
-  if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Only PDF files are supported.'); return; }
+  const ext = file.name.toLowerCase().split('.').pop();
+  if (!['pdf','epub'].includes(ext)) { alert('Only PDF and EPUB files are supported.'); return; }
   if (file.size > MAX_FILE_SIZE) alert(`File is ${formatBytes(file.size)}. May exceed browser storage.`);
 
   const title = file.name.replace(/\.pdf$/i,'').replace(/[-_]/g,' ');
@@ -402,9 +438,14 @@ async function submitUpload() {
   reader.onprogress = e => { if(e.lengthComputable) { const p = Math.round(e.loaded/e.total*80); bar.style.width=p+'%'; pct.textContent=p+'%'; }};
   reader.onload = async () => {
     bar.style.width='85%'; pct.textContent='85%';
-    const blob = new Blob([reader.result], {type:'application/pdf'});
+    const mimeType = file.name.toLowerCase().endsWith('.epub') ? 'application/epub+zip' : 'application/pdf';
+    const fileType = file.name.toLowerCase().endsWith('.epub') ? 'epub' : 'pdf';
+    const blob = new Blob([reader.result], {type: mimeType});
     try {
       await savePDF(id, blob);
+      // Verify the blob was actually persisted
+      const verify = await getPDF(id);
+      if (!verify) { alert('Storage verification failed — the file was not saved. Your browser may be blocking persistent storage. Try allowing site data in browser settings.'); prog.style.display='none'; return; }
       bar.style.width='95%'; pct.textContent='95%';
       const meta = {
         id, title: document.getElementById('upTitle').value || file.name,
@@ -412,13 +453,13 @@ async function submitUpload() {
         category: document.getElementById('upCat').value,
         tags: document.getElementById('upTags').value.split(',').map(t=>t.trim()).filter(Boolean),
         notes: document.getElementById('upNotes').value ? [{text:document.getElementById('upNotes').value, page:null, date:new Date().toISOString()}] : [],
-        fileSize: file.size, dateAdded: new Date().toISOString(),
+        fileSize: file.size, fileType: fileType, dateAdded: new Date().toISOString(),
         lastRead: null, readingStatus: 'Unread', currentPage: 0, favorite: false
       };
       books.unshift(meta); saveMeta();
       bar.style.width='100%'; pct.textContent='100%';
       setTimeout(() => { modal.remove(); showUploadPanel = false; render(); }, 400);
-    } catch(err) { alert('Failed to save. Storage may be full.'); prog.style.display='none'; }
+    } catch(err) { alert('Failed to save: ' + (err.message || 'Storage may be full.')); prog.style.display='none'; }
   };
   reader.onerror = () => { alert('Failed to read file.'); prog.style.display='none'; };
   reader.readAsArrayBuffer(file);
@@ -451,12 +492,33 @@ function addNote() {
 
 // ---- PDF.js Reader ----
 
+async function downloadBook(id) {
+  const book = books.find(b => b.id === id);
+  if (!book) return;
+  const blob = await getPDF(id);
+  if (!blob) { alert('File data not found in storage.'); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = book.title + (book.fileType === 'epub' ? '.epub' : '.pdf');
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function openReaderForBook(id) {
   const book = books.find(b => b.id === id);
   if (!book) return;
+  // EPUB files: download since in-browser EPUB rendering requires heavy libraries
+  if (book.fileType === 'epub') {
+    books = books.map(b => b.id === id ? {...b, lastRead: new Date().toISOString(), readingStatus: b.readingStatus === 'Unread' ? 'Reading' : b.readingStatus} : b);
+    saveMeta();
+    await downloadBook(id);
+    render();
+    return;
+  }
   try {
     const blob = await getPDF(id);
-    if (!blob) { alert('PDF data not found.'); return; }
+    if (!blob) { alert('PDF data not found. The file may have been cleared by your browser.'); return; }
 
     currentBookId = id;
     document.getElementById('readerTitle').textContent = book.title;

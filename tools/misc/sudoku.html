@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sudoku | Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#050a0f;--surface:#0a1018;--border:#1a2535;
+--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;
+--text:#e2e8f0;--text-dim:#64748b;--text-muted:#334155;
+}
+html,body{height:100%;font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);overflow-x:hidden}
+body{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:12px}
+
+/* Header */
+.header{text-align:center;margin-bottom:8px;width:100%;max-width:560px}
+.header h1{font-size:1.1rem;font-weight:600;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
+.header .brand{font-size:.65rem;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;margin-top:2px}
+
+/* Controls bar */
+.controls{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:8px;width:100%;max-width:560px}
+.controls select,.controls button{
+font-family:inherit;font-size:.7rem;padding:6px 12px;border-radius:4px;
+border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;transition:all .15s
+}
+.controls select:hover,.controls button:hover{border-color:var(--cyan)}
+.controls button.active{border-color:var(--orange);color:var(--orange)}
+.controls .btn-new{background:var(--cyan);color:var(--bg);font-weight:600;border-color:var(--cyan)}
+.controls .btn-new:hover{opacity:.85}
+
+/* Info bar */
+.info-bar{display:flex;gap:16px;align-items:center;justify-content:center;margin-bottom:8px;font-size:.72rem;color:var(--text-dim);width:100%;max-width:560px}
+.info-bar .timer{color:var(--cyan);font-weight:500;min-width:52px;text-align:center}
+.info-bar .hints-left{color:var(--orange)}
+.info-bar button{font-family:inherit;font-size:.65rem;padding:3px 8px;border-radius:3px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);cursor:pointer}
+.info-bar button:hover{border-color:var(--cyan);color:var(--text)}
+
+/* Grid */
+.grid-wrap{position:relative;width:100%;max-width:460px;aspect-ratio:1/1}
+.grid{
+display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+width:100%;height:100%;border:2px solid var(--cyan);border-radius:4px;overflow:hidden;
+}
+.cell{
+position:relative;display:flex;align-items:center;justify-content:center;
+background:var(--surface);border:1px solid var(--border);cursor:pointer;
+font-size:clamp(1rem,4vw,1.6rem);font-weight:400;color:var(--text);
+transition:background .1s;user-select:none;
+}
+.cell.given{color:var(--cyan);font-weight:700}
+.cell.selected{background:#0d2a3a !important}
+.cell.highlight-unit{background:#0a1520}
+.cell.highlight-number{background:#0f2030}
+.cell.conflict{color:var(--red) !important}
+.cell.just-placed{animation:pop .2s ease}
+
+/* 3x3 box borders */
+.cell.box-right{border-right:2px solid var(--cyan)}
+.cell.box-bottom{border-bottom:2px solid var(--cyan)}
+
+/* Pencil marks */
+.pencil-grid{
+position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+pointer-events:none;padding:1px;
+}
+.pencil-grid span{
+display:flex;align-items:center;justify-content:center;
+font-size:clamp(.35rem,1.3vw,.55rem);color:var(--text-dim);font-weight:300;line-height:1;
+}
+
+@keyframes pop{0%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+/* Number pad */
+.numpad{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap;justify-content:center;width:100%;max-width:460px}
+.numpad button{
+font-family:inherit;font-size:clamp(.9rem,3.5vw,1.3rem);font-weight:500;
+width:clamp(36px,9.5vw,48px);height:clamp(36px,9.5vw,48px);
+border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);
+cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;
+}
+.numpad button:hover{border-color:var(--cyan);color:var(--cyan)}
+.numpad button.completed{opacity:.25;pointer-events:none}
+.numpad button.erase{font-size:.65rem;color:var(--red)}
+
+/* Action buttons row */
+.actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;justify-content:center;width:100%;max-width:460px}
+.actions button{
+font-family:inherit;font-size:.65rem;padding:6px 14px;border-radius:4px;
+border:1px solid var(--border);background:var(--surface);color:var(--text-dim);cursor:pointer;transition:all .15s
+}
+.actions button:hover{border-color:var(--cyan);color:var(--text)}
+.actions button.active{border-color:var(--orange);color:var(--orange)}
+
+/* Stats panel */
+.stats-panel{
+margin-top:14px;padding:12px 16px;border:1px solid var(--border);border-radius:6px;
+background:var(--surface);font-size:.65rem;color:var(--text-dim);
+width:100%;max-width:460px;
+}
+.stats-panel h3{color:var(--cyan);font-size:.7rem;margin-bottom:6px;font-weight:600;letter-spacing:1px}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px}
+.stats-grid .label{color:var(--text-muted)}
+.stats-grid .value{color:var(--text);text-align:right}
+
+/* Win overlay */
+.overlay{
+position:fixed;inset:0;background:rgba(5,10,15,.92);display:flex;align-items:center;justify-content:center;
+z-index:100;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.overlay.show{opacity:1;pointer-events:auto}
+.overlay-box{
+text-align:center;padding:32px 40px;border:1px solid var(--cyan);border-radius:8px;
+background:var(--surface);max-width:340px;
+}
+.overlay-box h2{color:var(--green);font-size:1.2rem;margin-bottom:8px}
+.overlay-box p{font-size:.75rem;color:var(--text-dim);margin-bottom:4px}
+.overlay-box .time-result{color:var(--cyan);font-size:1rem;font-weight:600;margin:10px 0}
+.overlay-box button{
+font-family:inherit;font-size:.75rem;padding:8px 24px;border-radius:4px;
+border:1px solid var(--cyan);background:var(--cyan);color:var(--bg);font-weight:600;
+cursor:pointer;margin-top:12px;
+}
+
+/* Pause overlay */
+.pause-overlay{
+position:fixed;inset:0;background:rgba(5,10,15,.95);display:flex;align-items:center;justify-content:center;
+z-index:99;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.pause-overlay.show{opacity:1;pointer-events:auto}
+.pause-overlay p{color:var(--text-dim);font-size:1rem;cursor:pointer}
+
+@media(max-width:480px){
+  body{padding:8px}
+  .controls{gap:4px}
+  .controls select,.controls button{font-size:.6rem;padding:5px 8px}
+  .info-bar{font-size:.62rem;gap:8px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sudoku</h1>
+  <div class="brand">Korb Engineering</div>
+</div>
+
+<div class="controls">
+  <select id="difficulty">
+    <option value="easy">Easy</option>
+    <option value="medium" selected>Medium</option>
+    <option value="hard">Hard</option>
+    <option value="expert">Expert</option>
+  </select>
+  <button class="btn-new" id="btnNew">New Game</button>
+  <button id="btnCheck">Check</button>
+</div>
+
+<div class="info-bar">
+  <span class="timer" id="timer">00:00</span>
+  <button id="btnPause">Pause</button>
+  <span class="hints-left" id="hintsLeft">Hints: 3</span>
+  <button id="btnHint">Hint</button>
+  <button id="btnUndo">Undo</button>
+  <button id="btnRedo">Redo</button>
+</div>
+
+<div class="grid-wrap">
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="numpad" id="numpad"></div>
+
+<div class="actions">
+  <button id="btnPencil">Pencil</button>
+  <button id="btnErase">Erase</button>
+</div>
+
+<div class="stats-panel">
+  <h3>Statistics</h3>
+  <div class="stats-grid" id="statsGrid"></div>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="overlay-box">
+    <h2>Congratulations!</h2>
+    <p>Puzzle Completed</p>
+    <div class="time-result" id="winTime"></div>
+    <p id="winDifficulty"></p>
+    <button id="btnNewAfterWin">New Game</button>
+  </div>
+</div>
+
+<div class="pause-overlay" id="pauseOverlay">
+  <p>PAUSED - click to resume</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ── State ── */
+let board = [];        // current board (0 = empty)
+let solution = [];     // full solution
+let given = [];        // bool mask: true = given clue
+let pencil = [];       // pencil[i] = Set of candidate numbers
+let selectedCell = -1;
+let pencilMode = false;
+let checkMode = false;
+let hintsRemaining = 3;
+let timerSeconds = 0;
+let timerInterval = null;
+let paused = false;
+let gameOver = false;
+let difficulty = 'medium';
+let undoStack = [];
+let redoStack = [];
+
+/* ── DOM refs ── */
+const gridEl = document.getElementById('grid');
+const numpadEl = document.getElementById('numpad');
+const timerEl = document.getElementById('timer');
+const hintsEl = document.getElementById('hintsLeft');
+const statsGridEl = document.getElementById('statsGrid');
+const winOverlay = document.getElementById('winOverlay');
+const winTimeEl = document.getElementById('winTime');
+const winDiffEl = document.getElementById('winDifficulty');
+const pauseOverlay = document.getElementById('pauseOverlay');
+
+/* ── Sudoku Generator ── */
+function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*i+1|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+
+function solveBoard(b){
+  const empty=b.indexOf(0);
+  if(empty===-1)return true;
+  const r=empty/9|0,c=empty%9,box=(r/3|0)*3+(c/3|0);
+  const nums=shuffleArray([1,2,3,4,5,6,7,8,9]);
+  for(const n of nums){
+    if(isValid(b,empty,n)){
+      b[empty]=n;
+      if(solveBoard(b))return true;
+      b[empty]=0;
+    }
+  }
+  return false;
+}
+
+function isValid(b,pos,num){
+  const r=pos/9|0,c=pos%9;
+  for(let i=0;i<9;i++){if(b[r*9+i]===num)return false}
+  for(let i=0;i<9;i++){if(b[i*9+c]===num)return false}
+  const br=(r/3|0)*3,bc=(c/3|0)*3;
+  for(let i=br;i<br+3;i++)for(let j=bc;j<bc+3;j++){if(b[i*9+j]===num)return false}
+  return true;
+}
+
+function generatePuzzle(diff){
+  const b=new Array(81).fill(0);
+  solveBoard(b);
+  const sol=b.slice();
+
+  const clues={easy:38,medium:30,hard:24,expert:20};
+  const target=clues[diff]||(30);
+  let remaining=81;
+  const indices=shuffleArray([...Array(81).keys()]);
+  const puzzle=sol.slice();
+
+  for(const idx of indices){
+    if(remaining<=target)break;
+    const val=puzzle[idx];
+    puzzle[idx]=0;
+    // check unique solution
+    let count=0;
+    countSolutions(puzzle.slice(),0,(c)=>count=c);
+    if(count!==1){
+      puzzle[idx]=val;
+    } else {
+      remaining--;
+    }
+  }
+  return{puzzle,solution:sol};
+}
+
+function countSolutions(b,start,cb){
+  const empty=b.indexOf(0);
+  if(empty===-1){cb(2);return}// found one more
+  const r=empty/9|0,c=empty%9;
+  let found=0;
+  for(let n=1;n<=9;n++){
+    if(isValid(b,empty,n)){
+      b[empty]=n;
+      const subEmpty=b.indexOf(0);
+      if(subEmpty===-1){found++;if(found>=2){b[empty]=0;cb(2);return}}
+      else{
+        let sub=0;
+        countSolutions(b,0,(c2)=>sub=c2);
+        found+=sub>=2?2:sub;
+        if(found>=2){b[empty]=0;cb(2);return}
+      }
+      b[empty]=0;
+    }
+  }
+  cb(found);
+}
+
+/* ── Build Grid ── */
+function buildGrid(){
+  gridEl.innerHTML='';
+  for(let i=0;i<81;i++){
+    const cell=document.createElement('div');
+    cell.className='cell';
+    const r=i/9|0,c=i%9;
+    if(c%3===2&&c<8)cell.classList.add('box-right');
+    if(r%3===2&&r<8)cell.classList.add('box-bottom');
+
+    const pencilGrid=document.createElement('div');
+    pencilGrid.className='pencil-grid';
+    for(let p=1;p<=9;p++){
+      const s=document.createElement('span');
+      s.dataset.pn=p;
+      pencilGrid.appendChild(s);
+    }
+    cell.appendChild(pencilGrid);
+    cell.dataset.idx=i;
+    cell.addEventListener('click',()=>selectCell(i));
+    gridEl.appendChild(cell);
+  }
+}
+
+function buildNumpad(){
+  numpadEl.innerHTML='';
+  for(let n=1;n<=9;n++){
+    const btn=document.createElement('button');
+    btn.textContent=n;
+    btn.dataset.num=n;
+    btn.addEventListener('click',()=>enterNumber(n));
+    numpadEl.appendChild(btn);
+  }
+}
+
+/* ── Game Flow ── */
+function newGame(){
+  difficulty=document.getElementById('difficulty').value;
+  const{puzzle,solution:sol}=generatePuzzle(difficulty);
+  board=puzzle.slice();
+  solution=sol;
+  given=puzzle.map(v=>v!==0);
+  pencil=Array.from({length:81},()=>new Set());
+  selectedCell=-1;
+  pencilMode=false;
+  checkMode=false;
+  hintsRemaining=3;
+  gameOver=false;
+  undoStack=[];
+  redoStack=[];
+  timerSeconds=0;
+  clearInterval(timerInterval);
+  paused=false;
+  pauseOverlay.classList.remove('show');
+  winOverlay.classList.remove('show');
+  document.getElementById('btnPencil').classList.remove('active');
+  updateHintsDisplay();
+  renderBoard();
+  startTimer();
+}
+
+function startTimer(){
+  clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{
+    if(!paused&&!gameOver){timerSeconds++;updateTimerDisplay()}
+  },1000);
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay(){
+  const m=timerSeconds/60|0,s=timerSeconds%60;
+  timerEl.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function updateHintsDisplay(){hintsEl.textContent='Hints: '+hintsRemaining}
+
+/* ── Rendering ── */
+function renderBoard(){
+  const cells=gridEl.children;
+  const counts=new Array(10).fill(0);
+  for(let i=0;i<81;i++){if(board[i])counts[board[i]]++}
+
+  for(let i=0;i<81;i++){
+    const cell=cells[i];
+    const val=board[i];
+    // clear classes except structural
+    cell.classList.remove('selected','highlight-unit','highlight-number','conflict','just-placed');
+
+    // value display
+    const pencilGrid=cell.querySelector('.pencil-grid');
+    if(val){
+      cell.childNodes.forEach(n=>{if(n.nodeType===3)n.remove()});
+      // set text
+      let tn=cell.firstChild;
+      while(tn&&tn.nodeType!==3)tn=tn.nextSibling;
+      if(!tn){cell.insertBefore(document.createTextNode(val),pencilGrid)}
+      else{tn.textContent=val}
+      pencilGrid.style.display='none';
+      cell.classList.toggle('given',given[i]);
+    } else {
+      // remove text nodes
+      cell.childNodes.forEach(n=>{if(n.nodeType===3)n.remove()});
+      pencilGrid.style.display='';
+      const marks=pencil[i];
+      for(let p=1;p<=9;p++){
+        pencilGrid.querySelector(`[data-pn="${p}"]`).textContent=marks.has(p)?p:'';
+      }
+    }
+  }
+
+  // highlights
+  if(selectedCell>=0){
+    const sr=selectedCell/9|0,sc=selectedCell%9;
+    const sbox=(sr/3|0)*3+(sc/3|0);
+    const sval=board[selectedCell];
+    for(let i=0;i<81;i++){
+      const r=i/9|0,c=i%9,box=(r/3|0)*3+(c/3|0);
+      if(r===sr||c===sc||box===sbox)cells[i].classList.add('highlight-unit');
+      if(sval&&board[i]===sval)cells[i].classList.add('highlight-number');
+    }
+    cells[selectedCell].classList.add('selected');
+  }
+
+  // conflicts
+  if(checkMode){
+    for(let i=0;i<81;i++){
+      if(!board[i])continue;
+      if(hasConflict(i))cells[i].classList.add('conflict');
+    }
+  }
+
+  // numpad completed
+  const npBtns=numpadEl.children;
+  for(let n=1;n<=9;n++){
+    npBtns[n-1].classList.toggle('completed',counts[n]>=9);
+  }
+}
+
+function hasConflict(pos){
+  const val=board[pos];if(!val)return false;
+  const r=pos/9|0,c=pos%9;
+  for(let i=0;i<9;i++){if(i!==c&&board[r*9+i]===val)return true}
+  for(let i=0;i<9;i++){if(i!==r&&board[i*9+c]===val)return true}
+  const br=(r/3|0)*3,bc=(c/3|0)*3;
+  for(let i=br;i<br+3;i++)for(let j=bc;j<bc+3;j++){
+    const idx=i*9+j;if(idx!==pos&&board[idx]===val)return true;
+  }
+  return false;
+}
+
+/* ── Interaction ── */
+function selectCell(i){
+  if(gameOver||paused)return;
+  selectedCell=i;
+  renderBoard();
+}
+
+function enterNumber(n){
+  if(gameOver||paused||selectedCell<0||given[selectedCell])return;
+  const i=selectedCell;
+
+  if(pencilMode){
+    const prev=new Set(pencil[i]);
+    if(pencil[i].has(n))pencil[i].delete(n);else pencil[i].add(n);
+    pushUndo({type:'pencil',idx:i,prev,next:new Set(pencil[i])});
+    redoStack=[];
+    renderBoard();
+    return;
+  }
+
+  const prevVal=board[i];
+  const prevPencil=new Set(pencil[i]);
+  board[i]=n;
+  pencil[i].clear();
+
+  // auto-remove pencil marks in same row/col/box
+  const r=i/9|0,c=i%9,br=(r/3|0)*3,bc=(c/3|0)*3;
+  const removedPencils=[];
+  for(let j=0;j<9;j++){
+    const ri=r*9+j;if(pencil[ri].has(n)){removedPencils.push({idx:ri,val:n});pencil[ri].delete(n)}
+    const ci=j*9+c;if(pencil[ci].has(n)){removedPencils.push({idx:ci,val:n});pencil[ci].delete(n)}
+  }
+  for(let rr=br;rr<br+3;rr++)for(let cc=bc;cc<bc+3;cc++){
+    const bi=rr*9+cc;if(pencil[bi].has(n)){removedPencils.push({idx:bi,val:n});pencil[bi].delete(n)}
+  }
+
+  pushUndo({type:'place',idx:i,prevVal,newVal:n,prevPencil,removedPencils});
+  redoStack=[];
+
+  // animate
+  gridEl.children[i].classList.add('just-placed');
+
+  renderBoard();
+  checkWin();
+}
+
+function eraseCell(){
+  if(gameOver||paused||selectedCell<0||given[selectedCell])return;
+  const i=selectedCell;
+  if(board[i]===0&&pencil[i].size===0)return;
+  const prevVal=board[i];
+  const prevPencil=new Set(pencil[i]);
+  board[i]=0;
+  pencil[i].clear();
+  pushUndo({type:'erase',idx:i,prevVal,prevPencil});
+  redoStack=[];
+  renderBoard();
+}
+
+/* ── Undo / Redo ── */
+function pushUndo(action){undoStack.push(action)}
+
+function undo(){
+  if(!undoStack.length||gameOver)return;
+  const a=undoStack.pop();
+  redoStack.push(a);
+  applyUndo(a);
+  renderBoard();
+}
+
+function redo(){
+  if(!redoStack.length||gameOver)return;
+  const a=redoStack.pop();
+  undoStack.push(a);
+  applyRedo(a);
+  renderBoard();
+}
+
+function applyUndo(a){
+  if(a.type==='place'){
+    board[a.idx]=a.prevVal;
+    pencil[a.idx]=new Set(a.prevPencil);
+    for(const rp of a.removedPencils)pencil[rp.idx].add(rp.val);
+  } else if(a.type==='erase'){
+    board[a.idx]=a.prevVal;
+    pencil[a.idx]=new Set(a.prevPencil);
+  } else if(a.type==='pencil'){
+    pencil[a.idx]=new Set(a.prev);
+  }
+}
+
+function applyRedo(a){
+  if(a.type==='place'){
+    board[a.idx]=a.newVal;
+    pencil[a.idx].clear();
+    for(const rp of a.removedPencils)pencil[rp.idx].delete(rp.val);
+  } else if(a.type==='erase'){
+    board[a.idx]=0;
+    pencil[a.idx].clear();
+  } else if(a.type==='pencil'){
+    pencil[a.idx]=new Set(a.next);
+  }
+}
+
+/* ── Hint ── */
+function giveHint(){
+  if(gameOver||paused||hintsRemaining<=0)return;
+  // find empty cells
+  const empties=[];
+  for(let i=0;i<81;i++){if(!board[i])empties.push(i)}
+  if(!empties.length)return;
+  const idx=empties[Math.random()*empties.length|0];
+  const prevPencil=new Set(pencil[idx]);
+  board[idx]=solution[idx];
+  given[idx]=true;
+  pencil[idx].clear();
+  hintsRemaining--;
+  pushUndo({type:'place',idx,prevVal:0,newVal:solution[idx],prevPencil,removedPencils:[]});
+  redoStack=[];
+  updateHintsDisplay();
+  selectedCell=idx;
+  renderBoard();
+  checkWin();
+}
+
+/* ── Check / Win ── */
+function toggleCheck(){
+  checkMode=!checkMode;
+  document.getElementById('btnCheck').classList.toggle('active',checkMode);
+  renderBoard();
+}
+
+function checkWin(){
+  for(let i=0;i<81;i++){if(board[i]!==solution[i])return}
+  gameOver=true;
+  clearInterval(timerInterval);
+  const m=timerSeconds/60|0,s=timerSeconds%60;
+  const timeStr=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  winTimeEl.textContent=timeStr;
+  winDiffEl.textContent=difficulty.charAt(0).toUpperCase()+difficulty.slice(1)+' difficulty';
+  setTimeout(()=>winOverlay.classList.add('show'),300);
+  saveStats(difficulty,timerSeconds);
+}
+
+/* ── Pause ── */
+function togglePause(){
+  if(gameOver)return;
+  paused=!paused;
+  pauseOverlay.classList.toggle('show',paused);
+}
+
+/* ── Stats (localStorage) ── */
+function loadStats(){
+  try{return JSON.parse(localStorage.getItem('sudoku_stats'))||defaultStats()}catch(e){return defaultStats()}
+}
+function defaultStats(){return{easy:{played:0,won:0,best:null},medium:{played:0,won:0,best:null},hard:{played:0,won:0,best:null},expert:{played:0,won:0,best:null}}}
+function saveStats(diff,time){
+  const s=loadStats();
+  s[diff].won++;
+  if(s[diff].best===null||time<s[diff].best)s[diff].best=time;
+  localStorage.setItem('sudoku_stats',JSON.stringify(s));
+  renderStats();
+}
+function incrementPlayed(diff){
+  const s=loadStats();
+  s[diff].played++;
+  localStorage.setItem('sudoku_stats',JSON.stringify(s));
+  renderStats();
+}
+function renderStats(){
+  const s=loadStats();
+  let html='';
+  for(const d of['easy','medium','hard','expert']){
+    const label=d.charAt(0).toUpperCase()+d.slice(1);
+    const best=s[d].best!==null?(String(s[d].best/60|0).padStart(2,'0')+':'+String(s[d].best%60).padStart(2,'0')):'--';
+    const wr=s[d].played?Math.round(s[d].won/s[d].played*100)+'%':'--';
+    html+=`<span class="label">${label}</span><span class="value">${s[d].won}W / ${s[d].played}P  ${wr}  Best: ${best}</span>`;
+  }
+  statsGridEl.innerHTML=html;
+}
+
+/* ── Keyboard ── */
+document.addEventListener('keydown',e=>{
+  if(gameOver||paused)return;
+  const n=parseInt(e.key);
+  if(n>=1&&n<=9){enterNumber(n);return}
+  if(e.key==='Backspace'||e.key==='Delete'){eraseCell();return}
+  if(e.key==='p'||e.key==='P'){pencilMode=!pencilMode;document.getElementById('btnPencil').classList.toggle('active',pencilMode);return}
+  if(e.key==='z'&&(e.ctrlKey||e.metaKey)&&!e.shiftKey){e.preventDefault();undo();return}
+  if((e.key==='y'&&(e.ctrlKey||e.metaKey))||(e.key==='z'&&(e.ctrlKey||e.metaKey)&&e.shiftKey)){e.preventDefault();redo();return}
+
+  // arrow navigation
+  if(selectedCell>=0){
+    const r=selectedCell/9|0,c=selectedCell%9;
+    let nr=r,nc=c;
+    if(e.key==='ArrowUp')nr=Math.max(0,r-1);
+    else if(e.key==='ArrowDown')nr=Math.min(8,r+1);
+    else if(e.key==='ArrowLeft')nc=Math.max(0,c-1);
+    else if(e.key==='ArrowRight')nc=Math.min(8,c+1);
+    else return;
+    e.preventDefault();
+    selectCell(nr*9+nc);
+  }
+});
+
+/* ── Event Bindings ── */
+document.getElementById('btnNew').addEventListener('click',()=>{newGame();incrementPlayed(difficulty)});
+document.getElementById('btnCheck').addEventListener('click',toggleCheck);
+document.getElementById('btnPause').addEventListener('click',togglePause);
+pauseOverlay.addEventListener('click',togglePause);
+document.getElementById('btnHint').addEventListener('click',giveHint);
+document.getElementById('btnUndo').addEventListener('click',undo);
+document.getElementById('btnRedo').addEventListener('click',redo);
+document.getElementById('btnPencil').addEventListener('click',()=>{pencilMode=!pencilMode;document.getElementById('btnPencil').classList.toggle('active',pencilMode)});
+document.getElementById('btnErase').addEventListener('click',eraseCell);
+document.getElementById('btnNewAfterWin').addEventListener('click',()=>{winOverlay.classList.remove('show');newGame();incrementPlayed(difficulty)});
+
+/* ── Init ── */
+buildGrid();
+buildNumpad();
+renderStats();
+newGame();
+incrementPlayed(difficulty);
+
+})();
+</script>
+</body>
+</html>
