@@ -204,6 +204,7 @@ const SECTIONS = {
       { name: 'Sudoku', file: './tools/misc/sudoku.html' },
       { name: 'Tanks', file: './tools/misc/tanks.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
+      { name: 'The Void', file: './tools/misc/the-void.html' },
       { name: 'Text to Speech', file: './tools/misc/text-to-speech.html' },
       { name: 'Typing Test', file: './tools/misc/typing-test.html' },
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },

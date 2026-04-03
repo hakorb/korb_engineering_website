@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Void</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #020204;
+    --purple: #6b5ce7;
+    --cyan: #00d4ff;
+    --text: #8a8a9a;
+    --text-bright: #c0c0d0;
+    --surface: #0a0a15;
+    --danger: #e74c3c;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Floating particles */
+  .particles {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: var(--purple);
+    border-radius: 50%;
+    opacity: 0;
+    animation: drift linear infinite;
+  }
+  @keyframes drift {
+    0% { opacity: 0; transform: translateY(0) translateX(0); }
+    10% { opacity: 0.4; }
+    90% { opacity: 0.4; }
+    100% { opacity: 0; transform: translateY(-100vh) translateX(40px); }
+  }
+
+  /* Screens */
+  .screen { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; position: relative; z-index: 1; }
+  .screen.active { display: flex; }
+
+  /* Join screen */
+  #join-screen {
+    gap: 24px;
+    padding: 24px;
+  }
+  #join-screen h1 {
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--text-bright);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  #join-screen p {
+    font-size: 0.85rem;
+    max-width: 320px;
+    text-align: center;
+    line-height: 1.6;
+    opacity: 0.7;
+  }
+  #join-screen input {
+    background: var(--surface);
+    border: 1px solid #1a1a2e;
+    color: var(--text-bright);
+    font-family: inherit;
+    font-size: 16px;
+    padding: 14px 20px;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 300px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  #join-screen input:focus { border-color: var(--purple); }
+  #join-screen input::placeholder { color: #444; }
+
+  .btn-enter {
+    background: linear-gradient(135deg, var(--purple), #4a3cb8);
+    color: #fff;
+    border: none;
+    font-family: inherit;
+    font-size: 1rem;
+    padding: 16px 48px;
+    border-radius: 40px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    min-height: 56px;
+    transition: transform 0.2s, box-shadow 0.3s;
+  }
+  .btn-enter:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(107,92,231,0.4); }
+  .btn-enter:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .error-banner {
+    background: rgba(231,76,60,0.15);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    max-width: 340px;
+    text-align: center;
+    display: none;
+  }
+  .error-banner.visible { display: block; }
+
+  /* Void screen */
+  #void-screen {
+    padding: 0;
+    justify-content: space-between;
+  }
+
+  .void-header {
+    width: 100%;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    z-index: 2;
+  }
+  .void-header .status { color: var(--purple); }
+  .void-header .soul-count { color: var(--cyan); }
+
+  .void-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* The void circle */
+  .void-orb {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--surface) 0%, transparent 70%);
+    box-shadow: 0 0 60px rgba(107,92,231,0.15), inset 0 0 40px rgba(107,92,231,0.05);
+    position: relative;
+    transition: box-shadow 0.15s;
+    flex-shrink: 0;
+  }
+  .void-orb.active {
+    box-shadow: 0 0 80px rgba(107,92,231,0.4), 0 0 120px rgba(107,92,231,0.15), inset 0 0 60px rgba(107,92,231,0.1);
+  }
+  .void-orb::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid rgba(107,92,231,0.1);
+    animation: pulse-ring 3s ease-in-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50% { transform: scale(1.08); opacity: 0.6; }
+  }
+
+  /* Peer orbs */
+  .peers-ring {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .peer-orb {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid rgba(107,92,231,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.2s, border-color 0.2s;
+  }
+  .peer-orb.speaking {
+    border-color: var(--purple);
+    box-shadow: 0 0 20px rgba(107,92,231,0.5);
+  }
+  .peer-orb .peer-label {
+    position: absolute;
+    bottom: -18px;
+    font-size: 0.55rem;
+    color: var(--text);
+    white-space: nowrap;
+    text-align: center;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .peer-orb .peer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--purple);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .peer-orb.speaking .peer-dot { opacity: 1; }
+
+  /* Status message */
+  .void-status {
+    margin-top: 32px;
+    font-size: 0.8rem;
+    opacity: 0.6;
+    text-align: center;
+    min-height: 20px;
+    transition: opacity 0.5s;
+  }
+
+  /* Controls */
+  .controls {
+    width: 100%;
+    padding: 16px 20px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 2;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+  }
+
+  .ptt-btn {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    border: 2px solid var(--purple);
+    background: rgba(107,92,231,0.08);
+    color: var(--purple);
+    font-family: inherit;
+    font-size: 0.6rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .ptt-btn svg { width: 24px; height: 24px; fill: currentColor; }
+  .ptt-btn:active, .ptt-btn.active {
+    background: rgba(107,92,231,0.3);
+    box-shadow: 0 0 40px rgba(107,92,231,0.4);
+    transform: scale(0.95);
+  }
+  .ptt-btn.open-mic {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(0,212,255,0.08);
+  }
+  .ptt-btn.open-mic.active {
+    background: rgba(0,212,255,0.25);
+    box-shadow: 0 0 40px rgba(0,212,255,0.3);
+  }
+  .ptt-btn.muted {
+    border-color: #444;
+    color: #444;
+    background: transparent;
+  }
+
+  .ctrl-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .ctrl-btn {
+    min-height: 48px;
+    padding: 10px 18px;
+    border-radius: 24px;
+    border: 1px solid #1a1a2e;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+  }
+  .ctrl-btn:hover { border-color: var(--purple); color: var(--text-bright); }
+  .ctrl-btn.active { border-color: var(--cyan); color: var(--cyan); }
+  .ctrl-btn.danger { border-color: var(--danger); color: var(--danger); }
+  .ctrl-btn.danger:hover { background: rgba(231,76,60,0.1); }
+
+  .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+  .volume-control input[type="range"] {
+    width: 80px;
+    accent-color: var(--purple);
+    height: 4px;
+  }
+
+  /* Toast messages */
+  .toast-container {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--surface);
+    border: 1px solid #1a1a2e;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: var(--text);
+    animation: toast-in 0.3s ease, toast-out 0.3s ease 3s forwards;
+    white-space: nowrap;
+  }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+  @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateY(-10px); } }
+
+  /* Loading spinner */
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid transparent;
+    border-top-color: var(--purple);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: none;
+  }
+  .spinner.active { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 400px) {
+    .void-orb { width: 150px; height: 150px; }
+    .peers-ring { width: 260px; height: 260px; }
+    #join-screen h1 { font-size: 1.5rem; }
+  }
+  @media (min-width: 768px) {
+    .void-orb { width: 260px; height: 260px; }
+    .peers-ring { width: 400px; height: 400px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+<div class="toast-container" id="toasts"></div>
+
+<!-- JOIN SCREEN -->
+<div class="screen active" id="join-screen">
+  <h1>The Void</h1>
+  <p>An open audio room. No accounts. No rules. Just voices in the dark.</p>
+  <input type="text" id="name-input" placeholder="Enter a name or leave blank" maxlength="20" autocomplete="off">
+  <div class="error-banner" id="join-error"></div>
+  <button class="btn-enter" id="enter-btn">Enter The Void</button>
+  <div class="spinner" id="join-spinner"></div>
+</div>
+
+<!-- VOID SCREEN -->
+<div class="screen" id="void-screen">
+  <div class="void-header">
+    <span class="status" id="connection-status">Connected</span>
+    <span class="soul-count" id="soul-count">0 souls in the void</span>
+  </div>
+  <div class="void-main">
+    <div class="peers-ring" id="peers-ring"></div>
+    <div class="void-orb" id="void-orb"></div>
+    <div class="void-status" id="void-status">You are alone in the void.</div>
+  </div>
+  <div class="controls">
+    <button class="ptt-btn" id="ptt-btn">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      <span>Hold</span>
+    </button>
+    <div class="ctrl-row">
+      <button class="ctrl-btn" id="mute-btn">Mute</button>
+      <button class="ctrl-btn" id="mode-btn">Open Mic</button>
+      <div class="volume-control">
+        <span>Vol</span>
+        <input type="range" id="volume-slider" min="0" max="100" value="80">
+      </div>
+      <button class="ctrl-btn danger" id="leave-btn">Exit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ---- Browser compatibility check ----
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) {
+    document.getElementById('join-error').textContent = 'Your browser does not support audio chat. Please use a modern browser.';
+    document.getElementById('join-error').classList.add('visible');
+    document.getElementById('enter-btn').disabled = true;
+    return;
+  }
+
+  // ---- Constants ----
+  const LOBBY_ID = 'korb-void-lobby';
+  const ID_PREFIX = 'korb-void-';
+  const MAX_PEERS = 20;
+  const HEARTBEAT_INTERVAL = 5000;
+  const IDLE_TIMEOUT = 30 * 60 * 1000;
+  const IDLE_WARNING = 25 * 60 * 1000;
+  const CONNECTION_TIMEOUT = 10000;
+  const NOISE_GATE_THRESHOLD = 0.015;
+
+  // ---- State ----
+  let myPeer = null;
+  let myId = '';
+  let myName = '';
+  let isLobbyHost = false;
+  let localStream = null;
+  let audioContext = null;
+  let analyserNode = null;
+  let isMuted = true;
+  let isOpenMic = false;
+  let isPTTActive = false;
+  let masterVolume = 0.8;
+  let lastAudioTime = Date.now();
+  let idleTimer = null;
+  let idleWarningTimer = null;
+  let heartbeatInterval = null;
+  let animFrameId = null;
+
+  // Peer tracking: { peerId: { conn, call, audioEl, name, analyser, gainNode } }
+  const peers = {};
+  // Lobby host tracks all known peer IDs and names
+  let peerRegistry = {}; // { peerId: name }
+
+  // ---- DOM refs ----
+  const joinScreen = document.getElementById('join-screen');
+  const voidScreen = document.getElementById('void-screen');
+  const nameInput = document.getElementById('name-input');
+  const enterBtn = document.getElementById('enter-btn');
+  const joinError = document.getElementById('join-error');
+  const joinSpinner = document.getElementById('join-spinner');
+  const connStatus = document.getElementById('connection-status');
+  const soulCount = document.getElementById('soul-count');
+  const peersRing = document.getElementById('peers-ring');
+  const voidOrb = document.getElementById('void-orb');
+  const voidStatus = document.getElementById('void-status');
+  const pttBtn = document.getElementById('ptt-btn');
+  const muteBtn = document.getElementById('mute-btn');
+  const modeBtn = document.getElementById('mode-btn');
+  const volumeSlider = document.getElementById('volume-slider');
+  const leaveBtn = document.getElementById('leave-btn');
+
+  // ---- Particles ----
+  (function initParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.top = (100 + Math.random() * 20) + '%';
+      p.style.animationDuration = (8 + Math.random() * 16) + 's';
+      p.style.animationDelay = (Math.random() * 10) + 's';
+      p.style.width = (1 + Math.random() * 2) + 'px';
+      p.style.height = p.style.width;
+      if (Math.random() > 0.6) p.style.background = '#00d4ff';
+      container.appendChild(p);
+    }
+  })();
+
+  // ---- Toast ----
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // ---- Helpers ----
+  function generateId() {
+    return ID_PREFIX + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function randomName() {
+    return 'Void-' + Math.floor(1000 + Math.random() * 9000);
+  }
+
+  function getPeerCount() {
+    return Object.keys(peers).length;
+  }
+
+  function updateSoulCount() {
+    const n = getPeerCount() + 1;
+    if (n === 1) {
+      soulCount.textContent = '1 soul in the void';
+      voidStatus.textContent = 'You are alone in the void.';
+    } else {
+      soulCount.textContent = n + ' souls in the void';
+      voidStatus.textContent = 'The void echoes with ' + n + ' voices.';
+    }
+  }
+
+  function showError(msg) {
+    joinError.textContent = msg;
+    joinError.classList.add('visible');
+  }
+
+  function setScreen(name) {
+    joinScreen.classList.toggle('active', name === 'join');
+    voidScreen.classList.toggle('active', name === 'void');
+  }
+
+  // ---- Audio setup ----
+  async function setupAudio() {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      // Start muted
+      localStream.getAudioTracks().forEach(t => t.enabled = false);
+
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === 'suspended') await audioContext.resume();
+
+      const source = audioContext.createMediaStreamSource(localStream);
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 256;
+      source.connect(analyserNode);
+
+      return true;
+    } catch (e) {
+      console.error('Mic error:', e);
+      showError('The void cannot hear you. Check microphone permissions.');
+      return false;
+    }
+  }
+
+  // ---- Noise gate & audio level ----
+  function getAudioLevel(analyser) {
+    if (!analyser) return 0;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / data.length);
+  }
+
+  function isAboveNoiseGate() {
+    return getAudioLevel(analyserNode) > NOISE_GATE_THRESHOLD;
+  }
+
+  // ---- Transmit control ----
+  function setTransmitting(on) {
+    if (!localStream) return;
+    const shouldSend = on && !isMuted;
+    localStream.getAudioTracks().forEach(t => t.enabled = shouldSend);
+    if (shouldSend) lastAudioTime = Date.now();
+  }
+
+  function updateTransmitState() {
+    if (isOpenMic && !isMuted) {
+      setTransmitting(true);
+    } else if (isPTTActive && !isMuted) {
+      setTransmitting(true);
+    } else {
+      setTransmitting(false);
+    }
+  }
+
+  // ---- Peer rendering ----
+  function renderPeers() {
+    peersRing.innerHTML = '';
+    const peerIds = Object.keys(peers);
+    const count = peerIds.length;
+    if (count === 0) return;
+
+    const ringW = peersRing.offsetWidth || 320;
+    const radius = ringW / 2 - 30;
+
+    peerIds.forEach((id, i) => {
+      const angle = (2 * Math.PI * i / count) - Math.PI / 2;
+      const x = ringW / 2 + radius * Math.cos(angle) - 20;
+      const y = ringW / 2 + radius * Math.sin(angle) - 20;
+
+      const orb = document.createElement('div');
+      orb.className = 'peer-orb';
+      orb.id = 'peer-orb-' + id.replace(/[^a-zA-Z0-9-]/g, '');
+      orb.style.left = x + 'px';
+      orb.style.top = y + 'px';
+
+      const dot = document.createElement('div');
+      dot.className = 'peer-dot';
+      orb.appendChild(dot);
+
+      const label = document.createElement('div');
+      label.className = 'peer-label';
+      label.textContent = peers[id].name || 'Unknown';
+      orb.appendChild(label);
+
+      peersRing.appendChild(orb);
+    });
+  }
+
+  // ---- Animation loop (orb pulse + peer speaking indicators) ----
+  function animLoop() {
+    // Main orb pulse based on local audio
+    const level = getAudioLevel(analyserNode);
+    const isActive = level > NOISE_GATE_THRESHOLD && !isMuted && (isOpenMic || isPTTActive);
+    voidOrb.classList.toggle('active', isActive);
+
+    // Check peer audio levels
+    for (const id in peers) {
+      const p = peers[id];
+      if (p.analyser) {
+        const pLevel = getAudioLevel(p.analyser);
+        const orbEl = document.getElementById('peer-orb-' + id.replace(/[^a-zA-Z0-9-]/g, ''));
+        if (orbEl) orbEl.classList.toggle('speaking', pLevel > NOISE_GATE_THRESHOLD);
+      }
+    }
+
+    animFrameId = requestAnimationFrame(animLoop);
+  }
+
+  // ---- PeerJS connection ----
+  function initPeer() {
+    return new Promise((resolve, reject) => {
+      myId = generateId();
+      myPeer = new Peer(myId, {
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Connection timeout'));
+      }, CONNECTION_TIMEOUT);
+
+      myPeer.on('open', (id) => {
+        clearTimeout(timeout);
+        connStatus.textContent = 'Connected';
+        resolve(id);
+      });
+
+      myPeer.on('error', (err) => {
+        console.error('Peer error:', err);
+        if (err.type === 'unavailable-id') {
+          // Lobby ID taken, we're not the host
+          clearTimeout(timeout);
+          resolve(myId);
+        } else if (err.type === 'peer-unavailable') {
+          // Expected when lobby doesn't exist
+        } else {
+          connStatus.textContent = 'Error';
+        }
+      });
+
+      myPeer.on('disconnected', () => {
+        connStatus.textContent = 'Reconnecting...';
+        toast('Connection to the void lost. Reconnecting...');
+        attemptReconnect();
+      });
+
+      myPeer.on('close', () => {
+        connStatus.textContent = 'Disconnected';
+      });
+
+      // Handle incoming data connections
+      myPeer.on('connection', (conn) => {
+        handleDataConnection(conn);
+      });
+
+      // Handle incoming calls
+      myPeer.on('call', (call) => {
+        call.answer(localStream);
+        handleIncomingCall(call);
+      });
+    });
+  }
+
+  let reconnectAttempts = 0;
+  function attemptReconnect() {
+    if (!myPeer || myPeer.destroyed) return;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+    reconnectAttempts++;
+    setTimeout(() => {
+      if (myPeer && !myPeer.destroyed && myPeer.disconnected) {
+        myPeer.reconnect();
+      }
+    }, delay);
+  }
+
+  // ---- Data connection handling (for peer discovery) ----
+  function handleDataConnection(conn) {
+    conn.on('open', () => {
+      conn.on('data', (data) => {
+        if (!data || !data.type) return;
+
+        switch (data.type) {
+          case 'register':
+            // A new peer is registering with us (we are lobby host)
+            if (isLobbyHost) {
+              const count = Object.keys(peerRegistry).length;
+              if (count >= MAX_PEERS) {
+                conn.send({ type: 'full' });
+                return;
+              }
+              peerRegistry[data.peerId] = data.name;
+              // Send the full peer list to the new peer
+              conn.send({ type: 'peer-list', peers: peerRegistry, lobbyHost: myId });
+              // Broadcast updated list to all connected peers
+              broadcastPeerList();
+            }
+            break;
+
+          case 'peer-list':
+            // We received the peer list from lobby host
+            peerRegistry = data.peers || {};
+            connectToAllPeers(data.lobbyHost);
+            break;
+
+          case 'full':
+            toast('The void is full. Try again later.');
+            leaveVoid();
+            break;
+
+          case 'heartbeat':
+            conn.send({ type: 'heartbeat-ack' });
+            break;
+
+          case 'heartbeat-ack':
+            // Peer is alive
+            break;
+
+          case 'lobby-transfer':
+            // We are being promoted to lobby host
+            becomeLobbyHost(data.peerRegistry);
+            break;
+
+          case 'new-peer':
+            // Lobby host is notifying us of a new peer
+            if (data.peerId && data.peerId !== myId && !peers[data.peerId]) {
+              connectToPeer(data.peerId, data.name);
+            }
+            break;
+
+          case 'peer-left':
+            removePeer(data.peerId);
+            break;
+        }
+      });
+    });
+  }
+
+  function broadcastPeerList() {
+    // Lobby host broadcasts the updated peer list to all known peers
+    for (const peerId in peers) {
+      const p = peers[peerId];
+      if (p.conn && p.conn.open) {
+        try {
+          p.conn.send({ type: 'peer-list', peers: peerRegistry, lobbyHost: myId });
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  function broadcastNewPeer(newPeerId, name) {
+    for (const peerId in peers) {
+      if (peerId === newPeerId) continue;
+      const p = peers[peerId];
+      if (p.conn && p.conn.open) {
+        try {
+          p.conn.send({ type: 'new-peer', peerId: newPeerId, name: name });
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  function broadcastPeerLeft(leftPeerId) {
+    for (const peerId in peers) {
+      const p = peers[peerId];
+      if (p.conn && p.conn.open) {
+        try {
+          p.conn.send({ type: 'peer-left', peerId: leftPeerId });
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  // ---- Connect to a peer (audio + data) ----
+  function connectToPeer(peerId, name) {
+    if (peers[peerId] || peerId === myId) return;
+
+    peers[peerId] = { name: name || 'Unknown', conn: null, call: null, audioEl: null, analyser: null, gainNode: null };
+
+    // Data connection
+    try {
+      const conn = myPeer.connect(peerId, { reliable: true });
+      peers[peerId].conn = conn;
+      handleDataConnection(conn);
+    } catch (e) {
+      console.error('Data conn error:', e);
+    }
+
+    // Audio call
+    try {
+      const call = myPeer.call(peerId, localStream);
+      peers[peerId].call = call;
+      call.on('stream', (remoteStream) => {
+        setupRemoteAudio(peerId, remoteStream);
+      });
+      call.on('close', () => removePeer(peerId));
+      call.on('error', () => removePeer(peerId));
+    } catch (e) {
+      console.error('Call error:', e);
+    }
+
+    toast('A presence has joined.');
+    renderPeers();
+    updateSoulCount();
+  }
+
+  function handleIncomingCall(call) {
+    const peerId = call.peer;
+    if (!peers[peerId]) {
+      peers[peerId] = { name: peerRegistry[peerId] || 'Unknown', conn: null, call: null, audioEl: null, analyser: null, gainNode: null };
+    }
+    peers[peerId].call = call;
+
+    call.on('stream', (remoteStream) => {
+      setupRemoteAudio(peerId, remoteStream);
+    });
+    call.on('close', () => removePeer(peerId));
+    call.on('error', () => removePeer(peerId));
+
+    renderPeers();
+    updateSoulCount();
+  }
+
+  function setupRemoteAudio(peerId, stream) {
+    if (!peers[peerId]) return;
+
+    // Clean up existing
+    if (peers[peerId].audioEl) {
+      peers[peerId].audioEl.srcObject = null;
+      peers[peerId].audioEl.remove();
+    }
+
+    const audio = document.createElement('audio');
+    audio.srcObject = stream;
+    audio.volume = masterVolume;
+    audio.autoplay = true;
+    audio.playsInline = true;
+    document.body.appendChild(audio);
+    audio.play().catch(() => {});
+
+    peers[peerId].audioEl = audio;
+
+    // Analyser for speaking detection
+    try {
+      if (audioContext) {
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        peers[peerId].analyser = analyser;
+      }
+    } catch (e) { /* ignore */ }
+
+    renderPeers();
+  }
+
+  function removePeer(peerId) {
+    if (!peers[peerId]) return;
+    const p = peers[peerId];
+    if (p.call) try { p.call.close(); } catch (e) {}
+    if (p.conn) try { p.conn.close(); } catch (e) {}
+    if (p.audioEl) { p.audioEl.srcObject = null; p.audioEl.remove(); }
+    delete peers[peerId];
+    delete peerRegistry[peerId];
+
+    toast('A soul has departed.');
+    renderPeers();
+    updateSoulCount();
+
+    // If lobby host left and we are the oldest remaining peer, take over
+    if (!isLobbyHost) {
+      checkLobbyPromotion();
+    } else {
+      broadcastPeerLeft(peerId);
+    }
+  }
+
+  function connectToAllPeers(lobbyHost) {
+    for (const peerId in peerRegistry) {
+      if (peerId === myId) continue;
+      if (!peers[peerId]) {
+        connectToPeer(peerId, peerRegistry[peerId]);
+      }
+    }
+  }
+
+  // ---- Lobby host logic ----
+  async function tryBecomeLobbyHost() {
+    return new Promise((resolve) => {
+      const lobbyPeer = new Peer(LOBBY_ID, {
+        debug: 0,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
+
+      const timeout = setTimeout(() => {
+        lobbyPeer.destroy();
+        resolve(false);
+      }, 5000);
+
+      lobbyPeer.on('open', () => {
+        clearTimeout(timeout);
+        // We got the lobby ID, we are the host
+        lobbyPeer.destroy();
+        resolve(true);
+      });
+
+      lobbyPeer.on('error', (err) => {
+        clearTimeout(timeout);
+        lobbyPeer.destroy();
+        if (err.type === 'unavailable-id') {
+          resolve(false);
+        } else {
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  function becomeLobbyHost(registry) {
+    isLobbyHost = true;
+    if (registry) peerRegistry = registry;
+    peerRegistry[myId] = myName;
+    connStatus.textContent = 'Connected (Host)';
+  }
+
+  function checkLobbyPromotion() {
+    // Simple: if we have peers but no connection to lobby, we might need to become host
+    // The lobby host transfer is handled via the lobby-transfer message
+  }
+
+  // ---- Join flow ----
+  async function joinVoid() {
+    enterBtn.disabled = true;
+    joinSpinner.classList.add('active');
+    joinError.classList.remove('visible');
+    voidStatus.textContent = 'Entering the void...';
+
+    myName = nameInput.value.trim() || randomName();
+
+    // Setup audio
+    const audioOk = await setupAudio();
+    if (!audioOk) {
+      enterBtn.disabled = false;
+      joinSpinner.classList.remove('active');
+      return;
+    }
+
+    // Try to become lobby host first
+    const gotLobby = await tryBecomeLobbyHost();
+
+    // Init our peer
+    try {
+      await initPeer();
+    } catch (e) {
+      showError('Could not connect to the void. Check your connection and try again.');
+      enterBtn.disabled = false;
+      joinSpinner.classList.remove('active');
+      return;
+    }
+
+    reconnectAttempts = 0;
+
+    if (gotLobby) {
+      becomeLobbyHost({});
+      toast('You have entered the void.');
+    } else {
+      // Try to connect to lobby host to get peer list
+      try {
+        const conn = myPeer.connect(LOBBY_ID, { reliable: true });
+        conn.on('open', () => {
+          conn.send({ type: 'register', peerId: myId, name: myName });
+          conn.on('data', (data) => {
+            if (data.type === 'peer-list') {
+              peerRegistry = data.peers || {};
+              connectToAllPeers(data.lobbyHost);
+            } else if (data.type === 'full') {
+              toast('The void is full. Try again later.');
+              leaveVoid();
+            }
+          });
+        });
+        conn.on('error', () => {
+          // Lobby might be gone, become host
+          becomeLobbyHost({});
+        });
+      } catch (e) {
+        becomeLobbyHost({});
+      }
+      toast('You have entered the void.');
+    }
+
+    // Switch to void screen
+    setScreen('void');
+    updateSoulCount();
+    animLoop();
+    startHeartbeat();
+    startIdleTimer();
+  }
+
+  // ---- Leave ----
+  function leaveVoid() {
+    // If we are lobby host, try to transfer
+    if (isLobbyHost) {
+      const peerIds = Object.keys(peers);
+      if (peerIds.length > 0) {
+        const nextHost = peerIds[0];
+        const p = peers[nextHost];
+        if (p.conn && p.conn.open) {
+          try {
+            p.conn.send({ type: 'lobby-transfer', peerRegistry: peerRegistry });
+          } catch (e) {}
+        }
+      }
+    }
+
+    // Clean up all peers
+    for (const id in peers) {
+      const p = peers[id];
+      if (p.call) try { p.call.close(); } catch (e) {}
+      if (p.conn) try { p.conn.close(); } catch (e) {}
+      if (p.audioEl) { p.audioEl.srcObject = null; p.audioEl.remove(); }
+    }
+    for (const k in peers) delete peers[k];
+    peerRegistry = {};
+
+    // Clean up local
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      localStream = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+    if (myPeer) {
+      myPeer.destroy();
+      myPeer = null;
+    }
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (idleWarningTimer) clearTimeout(idleWarningTimer);
+
+    isLobbyHost = false;
+    isMuted = true;
+    isOpenMic = false;
+    isPTTActive = false;
+    analyserNode = null;
+
+    setScreen('join');
+    enterBtn.disabled = false;
+    joinSpinner.classList.remove('active');
+  }
+
+  // ---- Heartbeat ----
+  function startHeartbeat() {
+    heartbeatInterval = setInterval(() => {
+      for (const id in peers) {
+        const p = peers[id];
+        if (p.conn && p.conn.open) {
+          try { p.conn.send({ type: 'heartbeat' }); } catch (e) {}
+        }
+      }
+    }, HEARTBEAT_INTERVAL);
+  }
+
+  // ---- Idle timer ----
+  function startIdleTimer() {
+    idleWarningTimer = setTimeout(() => {
+      toast('You will be disconnected in 5 minutes due to inactivity.');
+    }, IDLE_WARNING);
+
+    idleTimer = setTimeout(() => {
+      toast('Disconnected due to inactivity.');
+      leaveVoid();
+    }, IDLE_TIMEOUT);
+  }
+
+  function resetIdleTimer() {
+    if (idleTimer) clearTimeout(idleTimer);
+    if (idleWarningTimer) clearTimeout(idleWarningTimer);
+    startIdleTimer();
+  }
+
+  // ---- Controls ----
+
+  // Push-to-talk
+  function pttDown() {
+    if (isOpenMic) return;
+    isPTTActive = true;
+    pttBtn.classList.add('active');
+    updateTransmitState();
+    resetIdleTimer();
+  }
+  function pttUp() {
+    if (isOpenMic) return;
+    isPTTActive = false;
+    pttBtn.classList.remove('active');
+    updateTransmitState();
+  }
+
+  pttBtn.addEventListener('mousedown', (e) => { e.preventDefault(); pttDown(); });
+  pttBtn.addEventListener('mouseup', pttUp);
+  pttBtn.addEventListener('mouseleave', pttUp);
+  pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); pttDown(); });
+  pttBtn.addEventListener('touchend', (e) => { e.preventDefault(); pttUp(); });
+  pttBtn.addEventListener('touchcancel', pttUp);
+
+  // Spacebar PTT
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !e.repeat && voidScreen.classList.contains('active') && document.activeElement !== nameInput) {
+      e.preventDefault();
+      pttDown();
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && voidScreen.classList.contains('active')) {
+      e.preventDefault();
+      pttUp();
+    }
+  });
+
+  // Mute
+  muteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+    muteBtn.classList.toggle('active', !isMuted);
+    pttBtn.classList.toggle('muted', isMuted);
+    updateTransmitState();
+  });
+
+  // Open mic toggle
+  modeBtn.addEventListener('click', () => {
+    isOpenMic = !isOpenMic;
+    if (isOpenMic) {
+      modeBtn.textContent = 'Push-to-Talk';
+      modeBtn.classList.add('active');
+      pttBtn.classList.add('open-mic');
+      pttBtn.querySelector('span').textContent = 'Open';
+      isPTTActive = true;
+      pttBtn.classList.add('active');
+    } else {
+      modeBtn.textContent = 'Open Mic';
+      modeBtn.classList.remove('active');
+      pttBtn.classList.remove('open-mic');
+      pttBtn.querySelector('span').textContent = 'Hold';
+      isPTTActive = false;
+      pttBtn.classList.remove('active');
+    }
+    updateTransmitState();
+  });
+
+  // Volume
+  volumeSlider.addEventListener('input', () => {
+    masterVolume = volumeSlider.value / 100;
+    for (const id in peers) {
+      if (peers[id].audioEl) peers[id].audioEl.volume = masterVolume;
+    }
+  });
+
+  // Leave
+  leaveBtn.addEventListener('click', leaveVoid);
+
+  // Enter
+  enterBtn.addEventListener('click', joinVoid);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') joinVoid();
+  });
+
+  // Page unload
+  window.addEventListener('beforeunload', leaveVoid);
+
+  // Visibility change - optional mute when hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !isOpenMic) {
+      setTransmitting(false);
+    }
+  });
+})();
+</script>
+</body>
+</html>
