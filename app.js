@@ -49,6 +49,7 @@ const SECTIONS = {
       { name: 'Proposal Scope & Fee Generator', file: './tools/aviation/proposal-scope-fee.html' },
       { name: 'Punch List', file: './tools/aviation/punch-list.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
+      { name: 'Sociopath Identifier', file: './tools/aviation/sociopath-identifier.html' },
       { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' }
     ]
   },
