@@ -43,6 +43,7 @@ const SECTIONS = {
       { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
       { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
+      { name: 'Pavement Management Plan', file: './tools/aviation/pavement-management-plan.html' },
       { name: 'Performance Spec', file: './tools/aviation/performance-spec-tool.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
       { name: 'Proposal Scope & Fee Generator', file: './tools/aviation/proposal-scope-fee.html' },
