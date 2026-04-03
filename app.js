@@ -37,7 +37,7 @@ const SECTIONS = {
     </svg>`,
     tools: [
       { name: 'ADA Compliance Checker', file: './tools/aviation/ada-compliance-checker.html' },
-      { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
+      { name: 'ALP Guidance', file: './tools/aviation/alp-tracker.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
       { name: 'Capital Improvement Planner (CIP)', file: './tools/civil/capital-planning.html' },
@@ -677,6 +677,7 @@ function getToolInstructionsHTML(tool, sectionKey) {
   const shareUrl = `${location.origin}${location.pathname}#${sectionKey}/${slug}`;
 
   return `
+    <div class="info-panel-backdrop" id="infoPanelBackdrop"></div>
     <div class="info-panel" id="infoPanel">
       <div class="info-panel-header">
         <h3 class="info-panel-title">${tool.name}</h3>
@@ -715,16 +716,19 @@ function initInfoPanel() {
   const urlInput = document.getElementById('infoShareUrl');
   const toast = document.getElementById('infoCopyToast');
 
+  const backdrop = document.getElementById('infoPanelBackdrop');
   if (!infoBtn || !panel) return;
+
+  function openInfo() { panel.classList.add('open'); if (backdrop) backdrop.classList.add('open'); }
+  function closeInfo() { panel.classList.remove('open'); if (backdrop) backdrop.classList.remove('open'); }
 
   infoBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    panel.classList.toggle('open');
+    panel.classList.contains('open') ? closeInfo() : openInfo();
   });
 
-  closeBtn.addEventListener('click', () => {
-    panel.classList.remove('open');
-  });
+  closeBtn.addEventListener('click', closeInfo);
+  if (backdrop) backdrop.addEventListener('click', closeInfo);
 
   copyBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(urlInput.value).then(() => {
@@ -732,13 +736,6 @@ function initInfoPanel() {
       setTimeout(() => toast.classList.remove('show'), 1500);
     });
   });
-
-  // Close panel when clicking outside
-  document.addEventListener('click', (e) => {
-    if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== infoBtn && !infoBtn.contains(e.target)) {
-      panel.classList.remove('open');
-    }
-  }, { once: false });
 }
 
 
