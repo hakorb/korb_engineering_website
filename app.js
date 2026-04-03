@@ -39,6 +39,7 @@ const SECTIONS = {
       { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
       { name: 'Performance Spec', file: './tools/aviation/performance-spec-tool.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
+      { name: 'Proposal Scope & Fee Generator', file: './tools/aviation/proposal-scope-fee.html' },
       { name: 'Punch List', file: './tools/aviation/punch-list.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
@@ -99,6 +100,7 @@ const SECTIONS = {
       { name: 'Risk Register', file: './tools/civil/risk-register.html' },
       { name: 'Root Cause Analyzer', file: './tools/civil/root-cause-analyzer.html' },
       { name: 'Scenario Modeler', file: './tools/hk/scenario-modeler.html' },
+      { name: 'Scope Creep Counselor', file: './tools/civil/scope-creep-counselor.html' },
       { name: 'Scope Gap Detector', file: './tools/civil/scope-gap-detector.html' },
       { name: 'Shopping Decision Engine', file: './tools/hk/shopping-decision-engine.html' },
       { name: 'Smart Home', file: './tools/hk/smart-home-automation.html' },
@@ -136,6 +138,7 @@ const SECTIONS = {
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
     tools: [
+      { name: '2001: A D&D Odyssey', file: './tools/misc/dnd-odyssey.html' },
       { name: '2048', file: './tools/misc/2048.html' },
       { name: '3D Print Library', file: './tools/misc/3d-print-library.html' },
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
