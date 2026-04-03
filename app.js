@@ -672,36 +672,24 @@ const COPY_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 function getToolInstructionsHTML(tool, sectionKey) {
   const slug = getToolSlug(tool);
   const shareUrl = `${location.origin}${location.pathname}#${sectionKey}/${slug}`;
-  const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK Private' };
 
   return `
     <div class="info-panel" id="infoPanel">
       <div class="info-panel-header">
-        <h3 class="info-panel-title">Operating Instructions</h3>
+        <h3 class="info-panel-title">${tool.name}</h3>
         <button class="info-panel-close" id="infoPanelClose" aria-label="Close">${CLOSE_INFO_SVG}</button>
       </div>
       <div class="info-panel-body">
         <div class="info-section">
-          <div class="info-tool-name">${tool.name}</div>
-          <div class="info-tool-section">${sectionLabels[sectionKey] || sectionKey} Section</div>
-        </div>
-        <div class="info-section">
-          <h4 class="info-heading">Navigation</h4>
           <ul class="info-list">
-            <li>Tap the <strong>back arrow</strong> (top-left) to return to the tool grid</li>
-            <li>Use your browser's back button to navigate</li>
+            <li>Tap <strong>←</strong> to return to tools</li>
+            <li>All data is stored <strong>locally</strong> on your device</li>
+            <li>No data is transmitted to any server</li>
+            <li>For <strong>reference only</strong> — not a substitute for professional engineering judgment</li>
           </ul>
         </div>
         <div class="info-section">
-          <h4 class="info-heading">About This Tool</h4>
-          <ul class="info-list">
-            <li>Runs entirely in your browser — no data is sent to any server</li>
-            <li>Data you enter is stored locally on your device</li>
-            <li>Works offline once loaded</li>
-          </ul>
-        </div>
-        <div class="info-section">
-          <h4 class="info-heading">Share This Tool</h4>
+          <h4 class="info-heading">Share</h4>
           <div class="info-share-row">
             <input type="text" class="info-share-input" id="infoShareUrl" value="${shareUrl}" readonly>
             <button class="info-share-copy" id="infoShareCopy" aria-label="Copy link">${COPY_SVG}</button>
@@ -709,7 +697,7 @@ function getToolInstructionsHTML(tool, sectionKey) {
           <div class="info-copy-toast" id="infoCopyToast">Copied!</div>
         </div>
         <div class="info-section info-footer">
-          <span>Part of the <strong>Korb Engineering</strong> suite</span>
+          <span><strong>Korb Engineering</strong> · korb.engineering</span>
         </div>
       </div>
     </div>
