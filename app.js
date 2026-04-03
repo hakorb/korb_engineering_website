@@ -124,6 +124,7 @@ const SECTIONS = {
     locked: true,
     password: 'potato1',
     tools: [
+      { name: 'Email Client', file: './tools/hk/email-client.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
