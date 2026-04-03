@@ -333,6 +333,17 @@ function renderHome() {
       </a>`;
   }).join('');
 
+  // Show floating status on home screen
+  let homeStatus = document.getElementById('homeStatus');
+  if (!homeStatus) {
+    homeStatus = document.createElement('div');
+    homeStatus.id = 'homeStatus';
+    homeStatus.className = 'home-status';
+    homeStatus.innerHTML = '<span class="status-dot"></span><span class="vfd-label">Online</span>';
+    document.body.appendChild(homeStatus);
+  }
+  homeStatus.style.display = 'flex';
+
   main.innerHTML = `
     <section class="landing">
       <div class="search-bar-wrap">
@@ -454,6 +465,10 @@ function renderHome() {
 function renderSection(key) {
   const sec = SECTIONS[key];
   if (!sec) { renderHome(); return; }
+
+  // Hide home-screen floating status
+  const hs = document.getElementById('homeStatus');
+  if (hs) hs.style.display = 'none';
 
   // If locked, show password gate
   if (sec.locked && !sec._unlocked) {
@@ -753,6 +768,8 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
 
 
 function renderToolEmbed(key, sec, tool) {
+  const hs = document.getElementById('homeStatus');
+  if (hs) hs.style.display = 'none';
   main.innerHTML = `
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
