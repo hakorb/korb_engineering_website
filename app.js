@@ -36,6 +36,7 @@ const SECTIONS = {
       <ellipse cx="24" cy="14" rx="1.5" ry="2.5" stroke-width="0.7" opacity="0.5"/>
     </svg>`,
     tools: [
+      { name: 'ADA Compliance Checker', file: './tools/aviation/ada-compliance-checker.html' },
       { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
