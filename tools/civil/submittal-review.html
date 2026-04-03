@@ -66,12 +66,15 @@ th{color:var(--textDim);font-size:9px;text-transform:uppercase;letter-spacing:.1
   <div class="hsub">Submittal Review</div>
   <div style="flex:1"></div>
   <button class="btn" onclick="loadDemo()">Load Demo</button>
-  <button class="btn" onclick="exportReport()">Export</button>
+  <button class="btn" onclick="exportReport()">Export TXT</button>
+  <button class="btn btn-fill" onclick="exportPDF()">Export PDF</button>
 </div>
 <div class="tabs" id="tabs"></div>
 <div class="container" id="app"></div>
 <div style="position:fixed;bottom:10px;right:10px;font-size:10px;color:#00d4ff;opacity:0.5;font-family:'JetBrains Mono',monospace;pointer-events:none;z-index:9999">Korb Engineering</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 const LS_KEY='korb_submittals';
 const CATEGORIES=['Material','Performance','Testing','Certification','Compliance'];
@@ -352,7 +355,8 @@ function renderSummary(){
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-green" onclick="saveReview()">Save Review</button>
-      <button class="btn" onclick="exportReport()">Export Report</button>
+      <button class="btn" onclick="exportReport()">Export TXT</button>
+      <button class="btn btn-fill" onclick="exportPDF()">Export PDF</button>
     </div>
   </div>
   <div class="card">
@@ -390,6 +394,335 @@ function exportReport(){
     cmts.forEach(c=>{txt+=`  Comment (${c.author}, ${c.date}): ${c.text}\n`});
   });
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download=`submittal_review_${state.project.submittalNumber||'report'}.txt`;a.click();
+}
+
+function exportPDF(){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const pw=doc.internal.pageSize.getWidth();
+  const ph=doc.internal.pageSize.getHeight();
+  const ml=18,mr=18,mt=20;
+  const cw=pw-ml-mr;
+  const navy=[10,30,60];
+  const accent=[0,160,210];
+  const darkGray=[60,60,60];
+  const medGray=[120,120,120];
+  const lightBg=[245,248,252];
+  let pageCount=0;
+
+  function addHeader(){
+    // Top bar
+    doc.setFillColor(...navy);
+    doc.rect(0,0,pw,28,'F');
+    // KE logo box
+    doc.setDrawColor(0,212,255);
+    doc.setLineWidth(0.6);
+    doc.rect(ml,6,16,16);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(0,212,255);
+    doc.text('KE',ml+8,16,{align:'center'});
+    // Company name
+    doc.setFontSize(14);
+    doc.setTextColor(255,255,255);
+    doc.text('KORB ENGINEERING',ml+22,13);
+    doc.setFontSize(8);
+    doc.setTextColor(0,212,255);
+    doc.text('SUBMITTAL REVIEW',ml+22,19);
+    // Right side info
+    doc.setFontSize(7);
+    doc.setTextColor(180,200,220);
+    doc.text(`Date: ${state.project.date||'--'}`,pw-mr,12,{align:'right'});
+    doc.text(`Submittal: ${state.project.submittalNumber||'--'} Rev ${state.project.revision||'0'}`,pw-mr,17,{align:'right'});
+    doc.text(`Page ${doc.internal.getNumberOfPages()}`,pw-mr,22,{align:'right'});
+    // Accent line under header
+    doc.setDrawColor(...accent);
+    doc.setLineWidth(0.8);
+    doc.line(0,28,pw,28);
+    return 34;
+  }
+
+  function addFooter(){
+    const pg=doc.internal.getNumberOfPages();
+    for(let i=1;i<=pg;i++){
+      doc.setPage(i);
+      doc.setDrawColor(200,200,200);
+      doc.setLineWidth(0.3);
+      doc.line(ml,ph-14,pw-mr,ph-14);
+      doc.setFontSize(7);
+      doc.setTextColor(...medGray);
+      doc.text('Korb Engineering -- Confidential',ml,ph-9);
+      doc.text(`Page ${i} of ${pg}`,pw-mr,ph-9,{align:'right'});
+    }
+  }
+
+  function checkPage(y,need){
+    if(y+need>ph-20){
+      doc.addPage();
+      return addHeader();
+    }
+    return y;
+  }
+
+  function sectionTitle(y,title){
+    y=checkPage(y,14);
+    doc.setFillColor(...navy);
+    doc.rect(ml,y,cw,8,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255,255,255);
+    doc.text(title,ml+4,y+5.5);
+    return y+12;
+  }
+
+  // --- Page 1: Header ---
+  let y=addHeader();
+
+  // Project Information section
+  y=sectionTitle(y,'PROJECT INFORMATION');
+  const projFields=[
+    ['Project Name',state.project.projectName],
+    ['Project Number',state.project.projectNumber],
+    ['Contractor',state.project.contractor],
+    ['Spec Section',state.project.specSection],
+    ['Date',state.project.date],
+    ['Due Date',state.project.dueDate]
+  ];
+  projFields.forEach(([label,val])=>{
+    y=checkPage(y,7);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...darkGray);
+    doc.text(label+':',ml+2,y+4);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(30,30,30);
+    doc.text(String(val||'--'),ml+42,y+4);
+    y+=6;
+  });
+  y+=4;
+
+  // Summary stats
+  const counts={CONFORMS:0,DOES_NOT_CONFORM:0,REVIEW_REQUIRED:0,NOT_ADDRESSED:0};
+  state.requirements.forEach(r=>{const s=state.assessments[r.id]||'NOT_ADDRESSED';counts[s]++});
+  const total=state.requirements.length;
+
+  y=sectionTitle(y,'REVIEW SUMMARY');
+  // Summary boxes
+  const boxW=cw/4;
+  const summaryItems=[
+    {label:'CONFORMS',count:counts.CONFORMS,color:[0,180,100]},
+    {label:'REVIEW REQ.',count:counts.REVIEW_REQUIRED,color:[220,170,0]},
+    {label:'NON-CONFORM',count:counts.DOES_NOT_CONFORM,color:[220,50,60]},
+    {label:'NOT ADDRESSED',count:counts.NOT_ADDRESSED,color:[160,160,160]}
+  ];
+  y=checkPage(y,22);
+  summaryItems.forEach((item,i)=>{
+    const bx=ml+(i*boxW);
+    doc.setFillColor(...lightBg);
+    doc.roundedRect(bx+1,y,boxW-2,18,2,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    doc.setTextColor(...item.color);
+    doc.text(String(item.count),bx+(boxW/2),y+10,{align:'center'});
+    doc.setFontSize(6);
+    doc.setTextColor(...medGray);
+    doc.text(item.label,bx+(boxW/2),y+15,{align:'center'});
+  });
+  y+=24;
+
+  // Recommendation box
+  y=checkPage(y,20);
+  const rec=state.recommendation||'PENDING';
+  const recColors={'APPROVED':[0,180,100],'APPROVED AS NOTED':[0,160,210],'REVISE AND RESUBMIT':[220,170,0],'REJECTED':[220,50,60],'PENDING':[160,160,160]};
+  const recCol=recColors[rec]||recColors['PENDING'];
+  doc.setFillColor(recCol[0],recCol[1],recCol[2],0.08);
+  doc.setDrawColor(...recCol);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(ml,y,cw,14,2,2,'FD');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...darkGray);
+  doc.text('RECOMMENDATION:',ml+4,y+9);
+  doc.setFontSize(11);
+  doc.setTextColor(...recCol);
+  doc.text(rec,ml+50,y+9);
+  y+=20;
+
+  // Requirements Assessment Table
+  y=sectionTitle(y,'REQUIREMENTS ASSESSMENT');
+  const tableBody=state.requirements.map(r=>{
+    const s=state.assessments[r.id]||'NOT_ADDRESSED';
+    const sub=state.submittals.find(sb=>sb.reqId===r.reqId);
+    const cmts=state.comments[r.id]||[];
+    const cmtText=cmts.map(c=>`[${c.author}, ${c.date}] ${c.text}`).join('\n');
+    return[
+      r.reqId,
+      r.category,
+      r.description.length>80?r.description.slice(0,80)+'...':r.description,
+      STATUS_MAP[s].label,
+      sub?`${sub.manufacturer}\n${sub.product}`:'--',
+      cmtText||'--'
+    ];
+  });
+
+  doc.autoTable({
+    startY:y,
+    margin:{left:ml,right:mr},
+    head:[['Req ID','Category','Description','Status','Submittal','Comments']],
+    body:tableBody,
+    styles:{
+      font:'helvetica',
+      fontSize:7,
+      cellPadding:3,
+      lineColor:[200,210,220],
+      lineWidth:0.2,
+      textColor:[40,40,40],
+      overflow:'linebreak'
+    },
+    headStyles:{
+      fillColor:navy,
+      textColor:[255,255,255],
+      fontStyle:'bold',
+      fontSize:7,
+      halign:'left'
+    },
+    alternateRowStyles:{
+      fillColor:lightBg
+    },
+    columnStyles:{
+      0:{cellWidth:16,fontStyle:'bold',textColor:accent},
+      1:{cellWidth:20},
+      2:{cellWidth:50},
+      3:{cellWidth:24,fontStyle:'bold'},
+      4:{cellWidth:30},
+      5:{cellWidth:cw-140>20?cw-140:20}
+    },
+    didParseCell:function(data){
+      if(data.column.index===3&&data.section==='body'){
+        const val=data.cell.raw;
+        if(val==='CONFORMS')data.cell.styles.textColor=[0,180,100];
+        else if(val==='DOES NOT CONFORM')data.cell.styles.textColor=[220,50,60];
+        else if(val==='REVIEW REQUIRED')data.cell.styles.textColor=[220,170,0];
+        else data.cell.styles.textColor=[160,160,160];
+      }
+    },
+    didDrawPage:function(data){
+      // Add header on new auto-table pages
+      if(data.pageNumber>1){
+        addHeader();
+      }
+    }
+  });
+
+  y=doc.lastAutoTable.finalY+8;
+
+  // Submittal Details Table
+  if(state.submittals.length){
+    y=checkPage(y,20);
+    y=sectionTitle(y,'SUBMITTAL DATA');
+    const subBody=state.submittals.map(s=>{
+      const req=state.requirements.find(r=>r.reqId===s.reqId);
+      return[
+        s.reqId||'--',
+        s.manufacturer||'--',
+        s.product||'--',
+        s.properties?s.properties.slice(0,60):'--',
+        s.testResults?s.testResults.slice(0,60):'--',
+        s.certifications||'--'
+      ];
+    });
+
+    doc.autoTable({
+      startY:y,
+      margin:{left:ml,right:mr},
+      head:[['Req ID','Manufacturer','Product','Properties','Test Results','Certifications']],
+      body:subBody,
+      styles:{
+        font:'helvetica',
+        fontSize:7,
+        cellPadding:3,
+        lineColor:[200,210,220],
+        lineWidth:0.2,
+        textColor:[40,40,40],
+        overflow:'linebreak'
+      },
+      headStyles:{
+        fillColor:navy,
+        textColor:[255,255,255],
+        fontStyle:'bold',
+        fontSize:7
+      },
+      alternateRowStyles:{
+        fillColor:lightBg
+      },
+      columnStyles:{
+        0:{cellWidth:16,fontStyle:'bold',textColor:accent},
+        1:{cellWidth:26},
+        2:{cellWidth:26},
+        3:{cellWidth:36},
+        4:{cellWidth:36},
+        5:{cellWidth:cw-140>20?cw-140:20}
+      },
+      didDrawPage:function(data){
+        if(data.pageNumber>1) addHeader();
+      }
+    });
+    y=doc.lastAutoTable.finalY+8;
+  }
+
+  // Signature / Approval Block
+  y=checkPage(y,50);
+  y+=4;
+  doc.setDrawColor(...navy);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(ml,y,cw,44,2,2);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...navy);
+  doc.text('REVIEW APPROVAL',ml+4,y+8);
+
+  doc.setDrawColor(180,180,180);
+  doc.setLineWidth(0.3);
+
+  // Reviewer signature line
+  doc.line(ml+4,y+24,ml+80,y+24);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...darkGray);
+  doc.text('Reviewer Signature',ml+4,y+28);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(30,30,30);
+  doc.text(state.reviewerName||'',ml+4,y+22);
+
+  // Date line
+  doc.setDrawColor(180,180,180);
+  doc.line(ml+90,y+24,ml+130,y+24);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...darkGray);
+  doc.text('Date',ml+90,y+28);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(30,30,30);
+  doc.text(state.reviewDate||'',ml+90,y+22);
+
+  // Approval stamp area
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...medGray);
+  doc.text('Korb Engineering',ml+4,y+38);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(6);
+  doc.text('This document is for professional review purposes only.',ml+4,y+42);
+
+  // Add footers to all pages
+  addFooter();
+
+  // Save
+  const fname=`submittal_review_${state.project.submittalNumber||'report'}.pdf`;
+  doc.save(fname);
 }
 
 function render(){
