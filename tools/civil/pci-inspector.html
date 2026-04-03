@@ -62,6 +62,28 @@ th{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:0.1em}
 .badge-d6433{background:rgba(0,212,255,0.15);color:#00d4ff;border:1px solid rgba(0,212,255,0.3)}
 .badge-d5340{background:rgba(255,102,0,0.15);color:#ff6600;border:1px solid rgba(255,102,0,0.3)}
 .badge-usace{background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)}
+/* Drone Analysis */
+.drone-canvas-wrap{position:relative;width:100%;overflow:auto;background:#111;border:1px solid var(--border);border-radius:4px;max-height:70vh;cursor:crosshair}
+.drone-canvas-wrap canvas{display:block}
+.drone-overlay-wrap{position:relative;display:inline-block}
+.drone-detection{position:absolute;border:2.5px solid #ef4444;pointer-events:none;z-index:10;animation:droneDetectPulse 2s ease-in-out infinite}
+.drone-detection .det-label{position:absolute;top:-22px;left:-1px;background:#fff;color:#111;font-size:10px;font-weight:700;font-family:var(--font);padding:1px 6px;border-radius:2px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.4);letter-spacing:0.03em;line-height:1.6}
+.drone-detection .det-sev{position:absolute;bottom:-18px;left:-1px;font-size:8px;font-weight:700;font-family:var(--font);padding:1px 5px;border-radius:2px;white-space:nowrap}
+.det-sev-L{background:#3b82f6;color:#fff}.det-sev-M{background:#f59e0b;color:#111}.det-sev-H{background:#ef4444;color:#fff}
+@keyframes droneDetectPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)}50%{box-shadow:0 0 12px 3px rgba(239,68,68,0.35)}}
+.drone-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:12px}
+.drone-stat{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:10px;text-align:center}
+.drone-stat-val{font-size:20px;font-weight:700;margin-top:2px}
+.drone-stat-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.08em}
+.drone-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.drone-legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim)}
+.drone-legend-swatch{width:14px;height:14px;border-radius:2px;border:2px solid}
+.heatmap-bar{height:16px;border-radius:3px;display:flex;overflow:hidden;margin-top:8px}
+.heatmap-bar div{transition:width 0.4s ease}
+.scan-line{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.7),transparent);z-index:20;pointer-events:none;animation:scanDown 2s linear forwards}
+@keyframes scanDown{0%{top:0;opacity:1}100%{top:100%;opacity:0}}
+.reveal-detection{animation:revealBox 0.4s ease-out forwards;opacity:0}
+@keyframes revealBox{0%{opacity:0;transform:scale(0.7)}100%{opacity:1;transform:scale(1)}}
 @media(max-width:768px){.grid2,.grid3,.grid4{grid-template-columns:1fr}.body{padding:12px}.header-sub{display:none}}
 /* Print/Report styles */
 @media print{
@@ -92,7 +114,7 @@ th{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:0.1em}
 
 <script>
 const LS='korb_pci';
-const TABS=['inspections','assess','results','reference','report'];
+const TABS=['inspections','assess','results','drone','reference','report'];
 let tab='inspections';
 let state=loadState();
 let activeInsp=null;
@@ -361,7 +383,7 @@ function render(){
   renderTabs();
   updateHeaderSub();
   const a=document.getElementById('app');
-  ({inspections:renderInspections,assess:renderAssess,results:renderResultsTab,reference:renderReference,report:renderReport})[tab](a);
+  ({inspections:renderInspections,assess:renderAssess,results:renderResultsTab,drone:renderDroneTab,reference:renderReference,report:renderReport})[tab](a);
 }
 
 // ============================================================================
@@ -731,6 +753,664 @@ function drawDVChart(deducts){
     ctx.fillStyle='rgba(226,232,240,0.45)';ctx.font='8px JetBrains Mono';ctx.textAlign='left';
     ctx.fillText(d.name.substring(0,15),0,0);ctx.restore();
   });
+}
+
+// ============================================================================
+// Drone / Orthomosaic Analysis Tab
+// ============================================================================
+let droneImg=null;
+let droneDetections=[];
+let droneAnalysisRunning=false;
+let droneSurfaceType='ac';
+
+function renderDroneTab(el){
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">Orthomosaic Drone Image Analysis</div>
+      <p style="color:var(--dim);font-size:11px;margin-bottom:14px">Upload an orthomosaic or aerial drone image of a pavement section. The tool analyzes color, texture, and contrast patterns to identify potential distresses, then overlays red detection boxes with labeled distress types for review.</p>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field"><label>Surface Type</label>
+          <select id="droneSurface" onchange="droneSurfaceType=this.value">
+            <option value="ac" ${droneSurfaceType==='ac'?'selected':''}>Asphalt Concrete (AC)</option>
+            <option value="pcc" ${droneSurfaceType==='pcc'?'selected':''}>Portland Cement Concrete (PCC)</option>
+          </select>
+        </div>
+        <div class="field"><label>Sensitivity</label>
+          <select id="droneSensitivity">
+            <option value="low">Low (fewer detections)</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High (more detections)</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label class="photo-upload-btn" for="droneUpload" style="padding:12px 20px;font-size:12px">
+          <span style="font-size:16px">🛩</span> Upload Orthomosaic / Drone Image
+        </label>
+        <input type="file" id="droneUpload" accept="image/*" style="display:none" onchange="handleDroneUpload(this)">
+        ${droneImg?`<button class="btn btn-primary" onclick="runDroneAnalysis()" ${droneAnalysisRunning?'disabled':''}>
+          ${droneAnalysisRunning?'Analyzing...':'🔍 Analyze Pavement'}</button>
+        <button class="btn btn-orange" onclick="clearDroneAnalysis()">Clear</button>
+        <button class="btn btn-gold" onclick="exportDroneReport()">Export Report</button>`:''}
+      </div>
+    </div>
+    <div id="droneResultArea">
+      ${droneImg?buildDroneResultArea():'<div class="card"><div style="color:var(--muted);text-align:center;padding:60px;font-size:12px">Upload a drone orthomosaic image to begin analysis<br><span style="font-size:10px;margin-top:8px;display:inline-block">Supports JPEG, PNG, TIFF — any resolution</span></div></div>'}
+    </div>`;
+  if(droneImg && droneDetections.length>0){
+    renderDroneOverlay();
+  }
+}
+
+function buildDroneResultArea(){
+  const hasDetections=droneDetections.length>0;
+  const sevCounts={L:0,M:0,H:0};
+  const typeCounts={};
+  droneDetections.forEach(d=>{
+    sevCounts[d.severity]=(sevCounts[d.severity]||0)+1;
+    typeCounts[d.name]=(typeCounts[d.name]||0)+1;
+  });
+  const sortedTypes=Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]);
+
+  return`
+    ${hasDetections?`
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;gap:10px">
+        Detection Summary
+        <span style="font-size:12px;color:var(--green);font-weight:700">${droneDetections.length} distresses identified</span>
+      </div>
+      <div class="drone-stats">
+        <div class="drone-stat"><div class="drone-stat-val" style="color:var(--accent)">${droneDetections.length}</div><div class="drone-stat-label">Total Detections</div></div>
+        <div class="drone-stat"><div class="drone-stat-val" style="color:#3b82f6">${sevCounts.L}</div><div class="drone-stat-label">Low Severity</div></div>
+        <div class="drone-stat"><div class="drone-stat-val" style="color:#f59e0b">${sevCounts.M}</div><div class="drone-stat-label">Medium Severity</div></div>
+        <div class="drone-stat"><div class="drone-stat-val" style="color:#ef4444">${sevCounts.H}</div><div class="drone-stat-label">High Severity</div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Severity Distribution</div>
+        <div class="heatmap-bar">
+          <div style="width:${sevCounts.L/(droneDetections.length||1)*100}%;background:#3b82f6" title="Low: ${sevCounts.L}"></div>
+          <div style="width:${sevCounts.M/(droneDetections.length||1)*100}%;background:#f59e0b" title="Medium: ${sevCounts.M}"></div>
+          <div style="width:${sevCounts.H/(droneDetections.length||1)*100}%;background:#ef4444" title="High: ${sevCounts.H}"></div>
+        </div>
+        <div class="drone-legend">
+          <div class="drone-legend-item"><div class="drone-legend-swatch" style="background:rgba(59,130,246,0.2);border-color:#3b82f6"></div> Low (${sevCounts.L})</div>
+          <div class="drone-legend-item"><div class="drone-legend-swatch" style="background:rgba(245,158,11,0.2);border-color:#f59e0b"></div> Medium (${sevCounts.M})</div>
+          <div class="drone-legend-item"><div class="drone-legend-swatch" style="background:rgba(239,68,68,0.2);border-color:#ef4444"></div> High (${sevCounts.H})</div>
+        </div>
+      </div>
+      ${sortedTypes.length?`
+      <div style="margin-top:14px">
+        <div style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Distress Types Found</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${sortedTypes.map(([name,ct])=>`<span style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text)">${name} <span style="color:var(--gold);font-weight:700">(${ct})</span></span>`).join('')}
+        </div>
+      </div>`:''}
+    </div>`:''}
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>Drone Image ${hasDetections?'— Distress Overlay':''}</span>
+        ${hasDetections?`<div style="display:flex;gap:6px">
+          <button class="btn btn-primary" style="padding:4px 10px;font-size:9px;min-height:32px" onclick="toggleDroneLabels()">Toggle Labels</button>
+          <button class="btn btn-orange" style="padding:4px 10px;font-size:9px;min-height:32px" onclick="toggleDroneBoxes()">Toggle Boxes</button>
+          <button class="btn btn-green" style="padding:4px 10px;font-size:9px;min-height:32px" onclick="exportDroneImage()">Save Image</button>
+        </div>`:''}
+      </div>
+      <div class="drone-canvas-wrap" id="droneCanvasWrap">
+        <div class="drone-overlay-wrap" id="droneOverlayWrap">
+          <canvas id="droneCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+    ${hasDetections?`
+    <div class="card">
+      <div class="card-title">Detection Table</div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>#</th><th>Distress Type</th><th>Severity</th><th>Confidence</th><th>Location (px)</th><th>Size (px)</th><th>Action</th></tr></thead>
+        <tbody>${droneDetections.map((d,i)=>`<tr>
+          <td>${i+1}</td>
+          <td>${d.name}</td>
+          <td class="severity-${d.severity}">${SEV_LABELS[d.severity]}</td>
+          <td style="color:var(--accent)">${d.confidence}%</td>
+          <td style="color:var(--dim);font-size:10px">(${d.x}, ${d.y})</td>
+          <td style="color:var(--dim);font-size:10px">${d.w}×${d.h}</td>
+          <td>
+            <button class="btn" style="padding:2px 6px;font-size:9px;min-height:28px" onclick="focusDroneDetection(${i})">Focus</button>
+            <button class="btn btn-red" style="padding:2px 6px;font-size:9px;min-height:28px" onclick="removeDroneDetection(${i})">Remove</button>
+            ${activeInsp!==null?`<button class="btn btn-green" style="padding:2px 6px;font-size:9px;min-height:28px" onclick="addDroneToInspection(${i})">Add to Survey</button>`:''}
+          </td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`:''}`;
+}
+
+function handleDroneUpload(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      droneImg=img;
+      droneDetections=[];
+      renderDroneTab(document.getElementById('app'));
+      drawDroneImage();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function drawDroneImage(){
+  const c=document.getElementById('droneCanvas');
+  if(!c||!droneImg)return;
+  // Scale for display: max 1200px wide
+  const maxW=1200;
+  const scale=droneImg.width>maxW?maxW/droneImg.width:1;
+  c.width=droneImg.width*scale;
+  c.height=droneImg.height*scale;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(droneImg,0,0,c.width,c.height);
+}
+
+function runDroneAnalysis(){
+  if(!droneImg||droneAnalysisRunning)return;
+  droneAnalysisRunning=true;
+  droneDetections=[];
+  renderDroneTab(document.getElementById('app'));
+  drawDroneImage();
+
+  // Add scanning animation
+  const wrap=document.getElementById('droneOverlayWrap');
+  if(wrap){
+    const scanLine=document.createElement('div');
+    scanLine.className='scan-line';
+    wrap.appendChild(scanLine);
+  }
+
+  // Run analysis after a brief delay for visual effect
+  setTimeout(()=>{
+    analyzeOrthoImage();
+    droneAnalysisRunning=false;
+    renderDroneTab(document.getElementById('app'));
+    drawDroneImage();
+    // Animate detections appearing one by one
+    setTimeout(()=>animateDetections(),300);
+  },2200);
+}
+
+function analyzeOrthoImage(){
+  const c=document.getElementById('droneCanvas');
+  if(!c)return;
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const sensitivity=document.getElementById('droneSensitivity')?.value||'medium';
+  const sensMult={low:0.6,medium:1.0,high:1.5}[sensitivity]||1.0;
+  const isAC=droneSurfaceType==='ac';
+
+  // Get image data for analysis
+  const imgData=ctx.getImageData(0,0,W,H);
+  const px=imgData.data;
+
+  // Analysis grid: divide image into cells
+  const cellSize=Math.max(40,Math.min(80,Math.floor(Math.min(W,H)/20)));
+  const cols=Math.floor(W/cellSize);
+  const rows=Math.floor(H/cellSize);
+
+  // Compute global stats for adaptive thresholding
+  let graySum=0,grayCount=0,grayVals=[];
+  for(let i=0;i<px.length;i+=16){
+    const g=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+    graySum+=g;grayCount++;grayVals.push(g);
+  }
+  const gMean=graySum/grayCount;
+  let gVarSum=0;
+  grayVals.forEach(v=>{gVarSum+=(v-gMean)*(v-gMean)});
+  const gStd=Math.sqrt(gVarSum/grayVals.length);
+
+  // Analyze each cell
+  const cellData=[];
+  for(let row=0;row<rows;row++){
+    for(let col=0;col<cols;col++){
+      const x=col*cellSize,y=row*cellSize;
+      const cell=analyzeCellRegion(px,W,x,y,cellSize,cellSize);
+      cell.x=x;cell.y=y;cell.row=row;cell.col=col;
+      cellData.push(cell);
+    }
+  }
+
+  // Detect distress patterns based on cell characteristics
+  const detections=[];
+  const used=new Set();
+
+  // Pass 1: Detect dark anomalies (cracks, potholes)
+  cellData.forEach((cell,idx)=>{
+    if(used.has(idx))return;
+    const darkThresh=gMean-(1.8/sensMult)*gStd;
+    const highVarThresh=(15*sensMult);
+
+    // Very dark patches — potholes or severe distress
+    if(cell.mean<darkThresh-15&&cell.std>8*sensMult){
+      const region=growRegion(cellData,idx,cols,rows,used,c2=>c2.mean<darkThresh);
+      if(region.length>=1){
+        const bounds=getRegionBounds(region,cellSize);
+        const conf=Math.min(95,Math.floor(60+region.length*5+cell.std*0.4));
+        if(isAC){
+          detections.push({...bounds,name:'Potholes',severity:region.length>=3?'H':region.length>=2?'M':'L',confidence:conf,distressId:13});
+        } else {
+          detections.push({...bounds,name:'Punchout',severity:region.length>=3?'H':'M',confidence:conf,distressId:34});
+        }
+      }
+    }
+
+    // High edge variance — linear cracking patterns
+    if(!used.has(idx)&&cell.edgeStrength>highVarThresh&&cell.std>6*sensMult){
+      const region=growRegion(cellData,idx,cols,rows,used,c2=>c2.edgeStrength>highVarThresh*0.7);
+      if(region.length>=1){
+        const bounds=getRegionBounds(region,cellSize);
+        const aspect=bounds.w/bounds.h;
+        const conf=Math.min(92,Math.floor(50+cell.edgeStrength*0.8));
+        if(aspect>2||aspect<0.5){
+          // Linear feature
+          if(isAC){
+            detections.push({...bounds,name:'Longitudinal/Transverse Cracking',severity:cell.edgeStrength>highVarThresh*1.5?'H':'M',confidence:conf,distressId:10});
+          } else {
+            detections.push({...bounds,name:'Linear Cracking',severity:cell.edgeStrength>highVarThresh*1.5?'H':'M',confidence:conf,distressId:28});
+          }
+        } else if(cell.crackDensity>0.15*sensMult){
+          // Network pattern — alligator cracking or divided slab
+          if(isAC){
+            detections.push({...bounds,name:'Alligator Cracking',severity:region.length>=3?'H':region.length>=2?'M':'L',confidence:conf,distressId:1});
+          } else {
+            detections.push({...bounds,name:'Divided Slab',severity:region.length>=3?'H':'M',confidence:conf,distressId:23});
+          }
+        }
+      }
+    }
+  });
+
+  // Pass 2: Detect color/texture anomalies
+  cellData.forEach((cell,idx)=>{
+    if(used.has(idx))return;
+
+    // Patching — significantly different color from surroundings
+    const neighbors=getNeighborCells(cellData,idx,cols,rows);
+    if(neighbors.length>=3){
+      const nMean=neighbors.reduce((a,n)=>a+n.mean,0)/neighbors.length;
+      const colorDiff=Math.abs(cell.mean-nMean);
+      if(colorDiff>25*sensMult&&cell.std<gStd*0.7){
+        used.add(idx);
+        const region=growRegion(cellData,idx,cols,rows,used,c2=>{
+          const d=Math.abs(c2.mean-cell.mean);
+          return d<12;
+        });
+        const bounds=getRegionBounds([...region,cell],cellSize);
+        const conf=Math.min(88,Math.floor(45+colorDiff*0.6));
+        if(isAC){
+          detections.push({...bounds,name:'Patching',severity:cell.std>gStd*0.4?'M':'L',confidence:conf,distressId:11});
+        } else {
+          detections.push({...bounds,name:bounds.w*bounds.h>cellSize*cellSize*4?'Patching (Large, > 5 sq ft)':'Patching (Small, < 5 sq ft)',severity:'L',confidence:conf,distressId:bounds.w*bounds.h>cellSize*cellSize*4?29:30});
+        }
+      }
+    }
+
+    // Texture anomalies — weathering/raveling or scaling
+    if(!used.has(idx)&&cell.std>gStd*1.4*sensMult&&cell.mean>gMean-gStd){
+      used.add(idx);
+      const bounds=getRegionBounds([cell],cellSize);
+      const conf=Math.min(80,Math.floor(40+cell.std*0.5));
+      if(isAC){
+        detections.push({...bounds,name:'Weathering/Raveling',severity:cell.std>gStd*2?'H':'M',confidence:conf,distressId:19});
+      } else {
+        detections.push({...bounds,name:'Scaling/Map Cracking',severity:cell.std>gStd*2?'H':'M',confidence:conf,distressId:36});
+      }
+    }
+
+    // Very smooth/uniform and light — polished aggregate or bleeding
+    if(!used.has(idx)&&cell.std<gStd*0.25*sensMult&&cell.mean>gMean+gStd*0.5){
+      used.add(idx);
+      const bounds=getRegionBounds([cell],cellSize);
+      const conf=Math.min(75,Math.floor(35+Math.abs(cell.std-gStd)*0.3));
+      if(isAC){
+        detections.push({...bounds,name:'Bleeding',severity:'L',confidence:conf,distressId:2});
+      } else {
+        detections.push({...bounds,name:'Polished Aggregate',severity:'L',confidence:conf,distressId:31});
+      }
+    }
+
+    // Depression/settlement — gradual dark regions
+    if(!used.has(idx)&&cell.mean<gMean-gStd*0.8&&cell.std<gStd*0.6&&cell.edgeStrength<10){
+      used.add(idx);
+      const region=growRegion(cellData,idx,cols,rows,used,c2=>c2.mean<gMean-gStd*0.5&&c2.edgeStrength<12);
+      if(region.length>=2){
+        const bounds=getRegionBounds(region,cellSize);
+        const conf=Math.min(78,Math.floor(42+region.length*4));
+        if(isAC){
+          detections.push({...bounds,name:'Depression',severity:region.length>=4?'H':region.length>=2?'M':'L',confidence:conf,distressId:6});
+        } else {
+          detections.push({...bounds,name:'Settlement/Fault',severity:region.length>=3?'H':'M',confidence:conf,distressId:37});
+        }
+      }
+    }
+
+    // Rutting detection (AC) — parallel dark bands
+    if(!used.has(idx)&&isAC&&cell.mean<gMean-gStd*0.4){
+      const leftN=col>0?cellData[row*cols+(col-1)]:null;
+      const rightN=col<cols-1?cellData[row*cols+(col+1)]:null;
+      if(leftN&&rightN&&leftN.mean>gMean-gStd*0.2&&rightN.mean>gMean-gStd*0.2){
+        used.add(idx);
+        const bounds=getRegionBounds([cell],cellSize);
+        const conf=Math.min(76,Math.floor(40+Math.abs(cell.mean-gMean)*0.3));
+        detections.push({...bounds,name:'Rutting',severity:'M',confidence:conf,distressId:15});
+      }
+    }
+
+    // Joint-related for PCC
+    if(!used.has(idx)&&!isAC){
+      // Sharp linear dark lines = joints; check for spalling around them
+      if(cell.edgeStrength>highVarThresh*0.5&&cell.mean<gMean){
+        const aboveN=row>0?cellData[(row-1)*cols+col]:null;
+        const belowN=row<rows-1?cellData[(row+1)*cols+col]:null;
+        if((aboveN&&aboveN.std>gStd*1.2)||(belowN&&belowN.std>gStd*1.2)){
+          used.add(idx);
+          const bounds=getRegionBounds([cell],cellSize);
+          const conf=Math.min(74,Math.floor(38+cell.edgeStrength*0.4));
+          detections.push({...bounds,name:'Spalling (Joint)',severity:cell.edgeStrength>highVarThresh?'H':'M',confidence:conf,distressId:40});
+        }
+      }
+    }
+  });
+
+  // Remove duplicates/overlapping detections
+  droneDetections=removeDuplicateDetections(detections);
+}
+
+function analyzeCellRegion(px,imgW,x,y,w,h){
+  let sum=0,count=0,vals=[],edgeSum=0;
+  for(let dy=0;dy<h;dy++){
+    for(let dx=0;dx<w;dx++){
+      const i=((y+dy)*imgW+(x+dx))*4;
+      if(i>=0&&i<px.length-3){
+        const g=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+        sum+=g;vals.push(g);count++;
+        // Sobel-like edge detection
+        if(dx>0&&dy>0){
+          const prev=((y+dy)*imgW+(x+dx-1))*4;
+          const above=((y+dy-1)*imgW+(x+dx))*4;
+          if(prev>=0&&prev<px.length-3&&above>=0&&above<px.length-3){
+            const gPrev=0.299*px[prev]+0.587*px[prev+1]+0.114*px[prev+2];
+            const gAbove=0.299*px[above]+0.587*px[above+1]+0.114*px[above+2];
+            edgeSum+=Math.abs(g-gPrev)+Math.abs(g-gAbove);
+          }
+        }
+      }
+    }
+  }
+  const mean=count?sum/count:0;
+  let varSum=0;vals.forEach(v=>{varSum+=(v-mean)*(v-mean)});
+  const std=count?Math.sqrt(varSum/count):0;
+  // Crack density: count of high-gradient pixels
+  let crackPx=0;
+  for(let dy=1;dy<h;dy++){
+    for(let dx=1;dx<w;dx++){
+      const i=((y+dy)*imgW+(x+dx))*4;
+      const prev=((y+dy)*imgW+(x+dx-1))*4;
+      const above=((y+dy-1)*imgW+(x+dx))*4;
+      if(i<px.length-3&&prev>=0&&above>=0){
+        const g=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+        const gP=0.299*px[prev]+0.587*px[prev+1]+0.114*px[prev+2];
+        const gA=0.299*px[above]+0.587*px[above+1]+0.114*px[above+2];
+        if(Math.abs(g-gP)>30||Math.abs(g-gA)>30)crackPx++;
+      }
+    }
+  }
+  return{mean,std,edgeStrength:count?edgeSum/count:0,crackDensity:count?crackPx/count:0};
+}
+
+function growRegion(cells,startIdx,cols,rows,used,predicate){
+  const region=[];
+  const queue=[startIdx];
+  used.add(startIdx);
+  while(queue.length>0){
+    const idx=queue.shift();
+    region.push(cells[idx]);
+    const r=cells[idx].row,c2=cells[idx].col;
+    [[r-1,c2],[r+1,c2],[r,c2-1],[r,c2+1]].forEach(([nr,nc])=>{
+      if(nr>=0&&nr<rows&&nc>=0&&nc<cols){
+        const ni=nr*cols+nc;
+        if(!used.has(ni)&&predicate(cells[ni])){
+          used.add(ni);queue.push(ni);
+        }
+      }
+    });
+    if(region.length>15)break; // cap region size
+  }
+  return region;
+}
+
+function getNeighborCells(cells,idx,cols,rows){
+  const r=cells[idx].row,c=cells[idx].col,n=[];
+  [[r-1,c],[r+1,c],[r,c-1],[r,c+1],[r-1,c-1],[r-1,c+1],[r+1,c-1],[r+1,c+1]].forEach(([nr,nc])=>{
+    if(nr>=0&&nr<rows&&nc>=0&&nc<cols)n.push(cells[nr*cols+nc]);
+  });
+  return n;
+}
+
+function getRegionBounds(regionCells,cellSize){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  regionCells.forEach(c=>{
+    minX=Math.min(minX,c.x);minY=Math.min(minY,c.y);
+    maxX=Math.max(maxX,c.x+cellSize);maxY=Math.max(maxY,c.y+cellSize);
+  });
+  return{x:minX,y:minY,w:maxX-minX,h:maxY-minY};
+}
+
+function removeDuplicateDetections(dets){
+  // Remove significantly overlapping detections, keep higher confidence
+  const keep=[];
+  const sorted=dets.sort((a,b)=>b.confidence-a.confidence);
+  sorted.forEach(d=>{
+    const overlaps=keep.some(k=>{
+      const ox=Math.max(0,Math.min(d.x+d.w,k.x+k.w)-Math.max(d.x,k.x));
+      const oy=Math.max(0,Math.min(d.y+d.h,k.y+k.h)-Math.max(d.y,k.y));
+      const overlapArea=ox*oy;
+      const minArea=Math.min(d.w*d.h,k.w*k.h);
+      return minArea>0&&overlapArea/minArea>0.5;
+    });
+    if(!overlaps)keep.push(d);
+  });
+  return keep;
+}
+
+let droneLabelsVisible=true;
+let droneBoxesVisible=true;
+
+function renderDroneOverlay(){
+  const wrap=document.getElementById('droneOverlayWrap');
+  if(!wrap)return;
+  // Remove existing detection divs
+  wrap.querySelectorAll('.drone-detection').forEach(el=>el.remove());
+
+  if(!droneBoxesVisible)return;
+
+  droneDetections.forEach((d,i)=>{
+    const box=document.createElement('div');
+    box.className='drone-detection';
+    box.id='droneDet_'+i;
+    box.style.left=d.x+'px';
+    box.style.top=d.y+'px';
+    box.style.width=d.w+'px';
+    box.style.height=d.h+'px';
+    // Label
+    if(droneLabelsVisible){
+      const label=document.createElement('div');
+      label.className='det-label';
+      label.textContent=d.name;
+      box.appendChild(label);
+      const sev=document.createElement('div');
+      sev.className='det-sev det-sev-'+d.severity;
+      sev.textContent=SEV_LABELS[d.severity]+' · '+d.confidence+'%';
+      box.appendChild(sev);
+    }
+    wrap.appendChild(box);
+  });
+}
+
+function animateDetections(){
+  const wrap=document.getElementById('droneOverlayWrap');
+  if(!wrap||!droneImg)return;
+  // Remove old
+  wrap.querySelectorAll('.drone-detection').forEach(el=>el.remove());
+  // Add with staggered reveal
+  droneDetections.forEach((d,i)=>{
+    setTimeout(()=>{
+      const box=document.createElement('div');
+      box.className='drone-detection reveal-detection';
+      box.id='droneDet_'+i;
+      box.style.left=d.x+'px';
+      box.style.top=d.y+'px';
+      box.style.width=d.w+'px';
+      box.style.height=d.h+'px';
+      if(droneLabelsVisible){
+        const label=document.createElement('div');
+        label.className='det-label';
+        label.textContent=d.name;
+        box.appendChild(label);
+        const sev=document.createElement('div');
+        sev.className='det-sev det-sev-'+d.severity;
+        sev.textContent=SEV_LABELS[d.severity]+' · '+d.confidence+'%';
+        box.appendChild(sev);
+      }
+      wrap.appendChild(box);
+    },i*180);
+  });
+}
+
+function toggleDroneLabels(){
+  droneLabelsVisible=!droneLabelsVisible;
+  renderDroneOverlay();
+}
+
+function toggleDroneBoxes(){
+  droneBoxesVisible=!droneBoxesVisible;
+  renderDroneOverlay();
+}
+
+function focusDroneDetection(idx){
+  const el=document.getElementById('droneDet_'+idx);
+  const wrap=document.getElementById('droneCanvasWrap');
+  if(el&&wrap){
+    // Flash effect
+    el.style.borderColor='#00d4ff';
+    el.style.boxShadow='0 0 20px rgba(0,212,255,0.8)';
+    el.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+    setTimeout(()=>{
+      el.style.borderColor='#ef4444';
+      el.style.boxShadow='';
+    },1500);
+  }
+}
+
+function removeDroneDetection(idx){
+  droneDetections.splice(idx,1);
+  renderDroneTab(document.getElementById('app'));
+  drawDroneImage();
+  if(droneDetections.length>0)renderDroneOverlay();
+}
+
+function addDroneToInspection(idx){
+  if(activeInsp===null||!state.inspections[activeInsp])return;
+  const d=droneDetections[idx];
+  if(!state.inspections[activeInsp].distresses)state.inspections[activeInsp].distresses=[];
+  state.inspections[activeInsp].distresses.push({
+    distressId:d.distressId,name:d.name,unit:d.distressId===13?'count':'sq ft',
+    severity:d.severity,quantity:1,photoId:null,
+    locNote:'Detected via drone analysis at ('+d.x+','+d.y+') conf:'+d.confidence+'%'
+  });
+  saveState();
+  // Visual feedback
+  const el=document.getElementById('droneDet_'+idx);
+  if(el){el.style.borderColor='#10b981';el.style.boxShadow='0 0 16px rgba(16,185,129,0.6)';
+    setTimeout(()=>{el.style.borderColor='#ef4444';el.style.boxShadow=''},1200);
+  }
+}
+
+function exportDroneImage(){
+  const c=document.getElementById('droneCanvas');
+  if(!c)return;
+  // Create export canvas with detections drawn on
+  const ec=document.createElement('canvas');
+  ec.width=c.width;ec.height=c.height;
+  const ectx=ec.getContext('2d');
+  ectx.drawImage(c,0,0);
+
+  droneDetections.forEach(d=>{
+    // Red box
+    ectx.strokeStyle='#ef4444';ectx.lineWidth=3;
+    ectx.strokeRect(d.x,d.y,d.w,d.h);
+    // White label background
+    ectx.font='bold 11px JetBrains Mono, monospace';
+    const textW=ectx.measureText(d.name).width;
+    ectx.fillStyle='#ffffff';
+    ectx.fillRect(d.x-1,d.y-20,textW+10,18);
+    ectx.fillStyle='#111111';
+    ectx.fillText(d.name,d.x+4,d.y-6);
+    // Severity badge
+    const sevText=SEV_LABELS[d.severity]+' · '+d.confidence+'%';
+    const sevW=ectx.measureText(sevText).width;
+    ectx.fillStyle=d.severity==='H'?'#ef4444':d.severity==='M'?'#f59e0b':'#3b82f6';
+    ectx.fillRect(d.x-1,d.y+d.h+2,sevW+10,16);
+    ectx.fillStyle=d.severity==='M'?'#111':'#fff';
+    ectx.font='bold 9px JetBrains Mono, monospace';
+    ectx.fillText(sevText,d.x+4,d.y+d.h+14);
+  });
+
+  // Watermark
+  ectx.fillStyle='rgba(0,212,255,0.4)';
+  ectx.font='12px JetBrains Mono, monospace';
+  ectx.fillText('Korb Engineering — PCI Drone Analysis',ec.width-340,ec.height-14);
+
+  const a=document.createElement('a');
+  a.download='korb_pci_drone_analysis.png';
+  a.href=ec.toDataURL('image/png');
+  a.click();
+}
+
+function exportDroneReport(){
+  if(!droneDetections.length)return;
+  let text='================================================================\n';
+  text+='  KORB ENGINEERING — DRONE ORTHOMOSAIC PCI ANALYSIS REPORT\n';
+  text+='================================================================\n\n';
+  text+=`Surface Type:  ${droneSurfaceType==='ac'?'Asphalt Concrete (AC)':'Portland Cement Concrete (PCC)'}\n`;
+  text+=`Date:          ${new Date().toLocaleDateString()}\n`;
+  text+=`Detections:    ${droneDetections.length}\n\n`;
+
+  text+='--- DETECTION SUMMARY ---\n';
+  const sevCounts={L:0,M:0,H:0};
+  droneDetections.forEach(d=>sevCounts[d.severity]++);
+  text+=`Low Severity:    ${sevCounts.L}\n`;
+  text+=`Medium Severity: ${sevCounts.M}\n`;
+  text+=`High Severity:   ${sevCounts.H}\n\n`;
+
+  text+='--- DETECTION DETAILS ---\n';
+  text+=`${'#'.padEnd(4)} ${'Distress'.padEnd(32)} ${'Sev'.padEnd(8)} ${'Conf'.padEnd(6)} ${'Location'.padEnd(16)}\n`;
+  text+='-'.repeat(66)+'\n';
+  droneDetections.forEach((d,i)=>{
+    text+=`${(i+1+'').padEnd(4)} ${d.name.padEnd(32)} ${SEV_LABELS[d.severity].padEnd(8)} ${(d.confidence+'%').padEnd(6)} (${d.x},${d.y}) ${d.w}x${d.h}\n`;
+  });
+
+  text+='\n================================================================\n';
+  text+=`Generated: ${new Date().toLocaleDateString()} | Korb Engineering\n`;
+  text+='================================================================\n';
+
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+  a.download='korb_pci_drone_report.txt';
+  a.click();
+}
+
+function clearDroneAnalysis(){
+  droneImg=null;droneDetections=[];droneAnalysisRunning=false;
+  renderDroneTab(document.getElementById('app'));
 }
 
 // ============================================================================
