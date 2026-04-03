@@ -176,6 +176,7 @@ const SECTIONS = {
       { name: 'Frisco Weather', file: './tools/misc/frisco-weather.html' },
       { name: 'Guitar Tuner', file: './tools/misc/guitar-tuner.html' },
       { name: 'Habit Tracker', file: './tools/misc/habit-tracker.html' },
+      { name: "Harrison's Blog", file: './tools/misc/harrisons-blog.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
