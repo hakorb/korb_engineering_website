@@ -105,6 +105,25 @@ body {
 .pane { display: none; }
 .pane.active { display: block; }
 
+/* ASL Hand Image */
+.asl-img {
+  display: block;
+  object-fit: contain;
+  background: transparent;
+  filter: invert(1) brightness(1.8) contrast(0.9);
+}
+.asl-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  font-weight: 800;
+  color: var(--brand);
+  font-family: 'Nunito', sans-serif;
+}
+
 /* Hand Display */
 .hand-display {
   width: 200px;
@@ -117,8 +136,10 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow: hidden;
 }
-.hand-display svg { width: 140px; height: 140px; }
+.hand-display .asl-img { width: 150px; height: 150px; }
+.hand-display .asl-img-fallback { width: 150px; height: 150px; font-size: 4rem; border-radius: 50%; }
 .hand-display .letter-badge {
   position: absolute;
   top: 6px;
@@ -133,6 +154,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 
 /* Alphabet Grid */
@@ -153,7 +175,8 @@ body {
 }
 .alpha-card:hover { border-color: var(--brand); transform: translateY(-2px); }
 .alpha-card.learned { border-color: var(--brand); background: var(--brand-dim); }
-.alpha-card svg { width: 48px; height: 48px; display: block; margin: 0 auto 4px; }
+.alpha-card .asl-img { width: 52px; height: 52px; margin: 0 auto 4px; }
+.alpha-card .asl-img-fallback { width: 52px; height: 52px; font-size: 1.5rem; margin: 0 auto 4px; }
 .alpha-card .alpha-ltr { font-weight: 800; font-size: 1rem; color: var(--text); }
 
 /* Detail Modal */
@@ -224,7 +247,8 @@ body {
   background: var(--card);
   border: 2px solid var(--border);
 }
-.flashcard-front svg { width: 160px; height: 160px; }
+.flashcard-front .asl-img { width: 160px; height: 160px; }
+.flashcard-front .asl-img-fallback { width: 160px; height: 160px; font-size: 5rem; }
 .flashcard-front .fc-hint {
   margin-top: 12px;
   font-size: 0.8rem;
@@ -276,7 +300,8 @@ body {
   padding: 20px;
   margin-bottom: 16px;
 }
-.quiz-question svg { width: 140px; height: 140px; margin-bottom: 12px; }
+.quiz-question .asl-img { width: 140px; height: 140px; margin: 0 auto 12px; }
+.quiz-question .asl-img-fallback { width: 140px; height: 140px; font-size: 4rem; margin: 0 auto 12px; }
 .quiz-prompt { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
 .quiz-options {
   display: grid;
@@ -427,6 +452,19 @@ body {
   margin-right: auto;
 }
 .reset-btn:hover { background: rgba(239,68,68,0.15); }
+
+/* Attribution */
+.attribution {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 20px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  line-height: 1.6;
+}
+.attribution a { color: var(--brand); text-decoration: none; }
+.attribution a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -458,6 +496,10 @@ body {
   <div id="alpha-detail"></div>
   <div class="section-title">ASL Fingerspelling Alphabet</div>
   <div class="alpha-grid" id="alpha-grid"></div>
+  <div class="attribution">
+    Fingerspelling images from <a href="https://commons.wikimedia.org/wiki/Category:Fingerspelling" target="_blank" rel="noopener">Wikimedia Commons</a>,
+    released under public domain.
+  </div>
 </div>
 
 <!-- ========== SIGNS TAB ========== -->
@@ -530,731 +572,64 @@ body {
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  ASL HAND GESTURE SVGs — Fingerspelling Alphabet A-Z
+//  ASL FINGERSPELLING IMAGES — Wikimedia Commons (Public Domain)
 // ═══════════════════════════════════════════════════════════════
-// Each SVG shows a simplified front-facing hand shape
+// Uses the Wikimedia API to resolve correct thumbnail URLs at runtime.
+// Files: "Sign_language_A.svg" through "Sign_language_Z.svg"
+// These are clean, accurate public domain line drawings of each ASL handshape.
 
-const ASL_HANDS = {};
-function h(paths, vb='0 0 120 140') {
-  return `<svg viewBox="${vb}" fill="none" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+// Cache for resolved image URLs (letter -> url)
+const ASL_IMAGE_CACHE = {};
+let aslImagesReady = false;
+
+// Fetch all 26 thumbnail URLs in a single Wikimedia API call
+function loadASLImages() {
+  const titles = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => 'File:Sign_language_' + l + '.svg').join('|');
+  const apiUrl = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(titles) +
+    '&prop=imageinfo&iiprop=url&iiurlwidth=200&format=json&origin=*';
+
+  return fetch(apiUrl)
+    .then(r => r.json())
+    .then(data => {
+      const pages = data.query.pages;
+      Object.values(pages).forEach(page => {
+        if (page.imageinfo && page.imageinfo[0]) {
+          // Extract letter from title like "File:Sign language A.svg"
+          const match = page.title.match(/Sign[_ ]language[_ ](\w)\.svg/i);
+          if (match) {
+            ASL_IMAGE_CACHE[match[1].toUpperCase()] = page.imageinfo[0].thumburl;
+          }
+        }
+      });
+      aslImagesReady = true;
+    })
+    .catch(err => {
+      console.warn('Failed to load ASL images from Wikimedia API:', err);
+      aslImagesReady = false;
+    });
 }
 
-// Warm realistic skin tone palette
-const SK  = '#f0c8a0'; // highlight skin
-const SK2 = '#d4a070'; // midtone skin
-const SK3 = '#b8845c'; // shadow skin
-const OL  = '#8c6239'; // warm outline
-const NL  = '#f2d5c0'; // nail color
-const NL2 = '#e0b89a'; // nail shadow
-const SW  = '1.5';     // stroke width
-const CR  = '#c49468'; // crease/joint line color
-// Wrist shared element
-const WRIST = `<path d="M35 118 C35 126 43 132 60 132 C77 132 85 126 85 118 L85 108 L35 108 Z" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M38 118 C38 124 45 128 60 128 C75 128 82 124 82 118" fill="${SK2}" stroke="none"/>
-  <path d="M38 113 Q60 117 82 113" stroke="${CR}" stroke-width="0.8" fill="none"/>
-  <path d="M40 116 Q60 119 80 116" stroke="${CR}" stroke-width="0.6" fill="none" opacity="0.5"/>`;
+// Build the image URL for a letter at a given size
+function aslImgUrl(letter, size) {
+  const cached = ASL_IMAGE_CACHE[letter];
+  if (cached) {
+    // Wikimedia thumb URLs contain a width segment like /200px-; swap to desired size
+    return cached.replace(/\/\d+px-/, '/' + size + 'px-');
+  }
+  // Fallback: direct Wikimedia Special:FilePath redirect (always works, no hash needed)
+  return 'https://commons.wikimedia.org/wiki/Special:FilePath/Sign_language_' + letter + '.svg?width=' + size;
+}
 
-ASL_HANDS.A = h(`
-  <!-- A: Fist with thumb alongside -->
-  <defs>
-    <radialGradient id="gA" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm/fist body -->
-  <rect x="38" y="50" width="44" height="55" rx="12" ry="10" fill="url(#gA)" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="40" y="52" width="40" height="50" rx="10" ry="8" fill="${SK}" stroke="none" opacity="0.3"/>
-  <!-- Curled index finger -->
-  <path d="M42 55 C42 46 45 41 50 41 C53 41 55 45 55 50 L55 55" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M44 48 Q50 45 54 48" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <!-- Curled middle finger -->
-  <path d="M55 55 C55 45 57 40 61 40 C64 40 66 44 66 50 L66 55" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M57 47 Q61 44 65 47" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <!-- Curled ring finger -->
-  <path d="M66 55 C66 47 67 43 70 43 C73 43 74 47 74 52 L74 55" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled pinky -->
-  <path d="M74 57 C74 51 75 48 77 48 C79 48 80 51 80 55 L80 57" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M40 56 Q60 52 82 57" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb resting alongside fist -->
-  <path d="M38 82 C30 80 26 72 27 62 C28 54 32 50 38 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M30 66 C32 62 35 59 38 60" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <ellipse cx="29" cy="58" rx="4" ry="3" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <rect x="27" y="55" width="5" height="3.5" rx="1.5" fill="${NL}" stroke="${OL}" stroke-width="0.5"/>
-  <!-- Palm crease lines -->
-  <path d="M42 70 Q55 66 78 72" stroke="${CR}" stroke-width="0.6" fill="none" opacity="0.5"/>
-  <path d="M42 78 Q55 74 78 80" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
+// Generate an <img> tag for a given letter, with styled fallback on error
+function aslImg(letter, size) {
+  size = size || 120;
+  const url = aslImgUrl(letter, size);
+  return `<img class="asl-img" src="${url}" alt="ASL sign for letter ${letter}" width="${size}" height="${size}" loading="lazy" onerror="this.outerHTML='<div class=\\'asl-img-fallback\\' style=\\'width:${size}px;height:${size}px;font-size:${Math.round(size*0.4)}px\\'>${letter}</div>'">`;
+}
 
-ASL_HANDS.B = h(`
-  <!-- B: Flat hand, fingers together, thumb tucked across palm -->
-  <defs>
-    <linearGradient id="gB" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></linearGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M40 62 L40 108 C40 114 48 118 60 118 C72 118 80 114 80 108 L80 62 Z" fill="url(#gB)" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M44 75 Q60 70 78 76" stroke="${CR}" stroke-width="0.6" fill="none" opacity="0.5"/>
-  <!-- Index finger -->
-  <path d="M43 62 L43 16 C43 11 46 8 49 8 C52 8 55 11 55 16 L55 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M46 35 Q49 33 53 35" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <path d="M46 22 Q49 20 53 22" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Middle finger -->
-  <path d="M55 62 L55 12 C55 7 57 4 60 4 C63 4 65 7 65 12 L65 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M58 30 Q60 28 63 30" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Ring finger -->
-  <path d="M65 62 L65 14 C65 9 67 6 70 6 C73 6 75 9 75 14 L75 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Pinky -->
-  <path d="M75 62 L75 22 C75 17 77 15 79 15 C81 15 83 17 83 22 L83 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Finger separation lines -->
-  <line x1="55" y1="62" x2="55" y2="14" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <line x1="65" y1="62" x2="65" y2="14" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <line x1="75" y1="62" x2="75" y2="20" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <!-- Thumb tucked across palm -->
-  <path d="M40 88 C33 86 29 78 30 70 C31 64 35 62 40 65" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M33 74 Q37 70 40 72" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Nails -->
-  <rect x="45" y="8" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <rect x="57" y="4" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <rect x="67" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <rect x="76" y="15" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.C = h(`
-  <!-- C: Curved hand like holding a cup -->
-  <defs>
-    <radialGradient id="gC" cx="50%" cy="50%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Curved fingers forming top of C -->
-  <path d="M75 28 C75 14 68 5 58 5 C48 5 40 10 38 22" fill="url(#gC)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Thumb side (bottom of C) -->
-  <path d="M38 86 C38 96 45 102 58 102 C70 102 75 96 75 86" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Right side connection (fingers) -->
-  <path d="M75 28 C82 40 84 58 82 72 C80 82 77 86 75 86" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Left side connection (thumb/palm) -->
-  <path d="M38 22 C32 34 30 52 32 68 C34 80 37 86 38 86" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Inner shading -->
-  <path d="M42 30 C42 48 42 70 44 84" stroke="${CR}" stroke-width="0.8" fill="none" opacity="0.5"/>
-  <path d="M72 30 C72 48 72 70 70 84" stroke="${CR}" stroke-width="0.8" fill="none" opacity="0.5"/>
-  <!-- Finger tip nails at top -->
-  <ellipse cx="48" cy="10" rx="4" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <ellipse cx="58" cy="6" rx="4" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <ellipse cx="68" cy="12" rx="4" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Thumb nail at bottom -->
-  <ellipse cx="48" cy="100" rx="5" ry="3" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Knuckle creases -->
-  <path d="M44 18 Q58 12 72 20" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <path d="M42 84 Q58 90 72 84" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Wrist below -->
-  <path d="M42 86 L42 118 C42 125 50 130 58 130 C66 130 74 125 74 118 L74 86" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M45 95 Q58 99 71 95" stroke="${CR}" stroke-width="0.7" fill="none"/>
-`);
-
-ASL_HANDS.D = h(`
-  <!-- D: Index finger up, other fingers touch thumb -->
-  <defs>
-    <radialGradient id="gD" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 65 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 65 Z" fill="url(#gD)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger pointing up -->
-  <path d="M53 65 L53 14 C53 9 56 6 59 6 C62 6 65 9 65 14 L65 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="55" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M56 28 Q59 26 63 28" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <path d="M56 42 Q59 40 63 42" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Circle formed by middle, ring, pinky touching thumb -->
-  <ellipse cx="60" cy="72" rx="18" ry="14" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="60" cy="72" rx="9" ry="6" fill="${SK3}" stroke="${OL}" stroke-width="0.8" opacity="0.6"/>
-  <!-- Thumb coming from left -->
-  <path d="M38 80 C33 76 32 69 35 64 C38 60 42 61 46 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M36 70 Q40 66 44 68" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Curled fingers from right -->
-  <path d="M68 64 C74 62 78 64 80 69 C82 74 80 79 75 80" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Palm crease -->
-  <path d="M42 88 Q60 84 78 90" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.E = h(`
-  <!-- E: Fingertips curled to touch thumb pad -->
-  <defs>
-    <radialGradient id="gE" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <rect x="38" y="52" width="44" height="55" rx="12" ry="10" fill="url(#gE)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled fingers (tips pointing down toward thumb) -->
-  <path d="M42 56 C42 44 44 36 48 34 C52 32 55 36 55 42 L55 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M55 52 C55 42 56 34 60 32 C64 30 67 34 67 40 L67 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M67 52 C67 44 68 38 72 36 C76 34 78 38 78 44 L78 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M78 55 C78 48 79 44 81 43 C83 42 84 45 84 50 L82 55" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Fingertip curl details -->
-  <path d="M48 38 C50 36 53 36 54 39" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <path d="M60 36 C62 34 65 34 66 37" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <path d="M72 40 C73 38 76 38 77 41" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <!-- Knuckle ridge -->
-  <path d="M40 57 Q62 52 84 57" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb across front touching fingertips -->
-  <path d="M38 78 C30 75 27 66 28 58 C29 52 33 48 38 52 L44 55" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M30 62 Q36 56 42 55" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <rect x="28" y="54" width="5" height="3.5" rx="1.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Palm creases -->
-  <path d="M42 72 Q62 68 80 74" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  <path d="M42 82 Q62 78 80 84" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.3"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.F = h(`
-  <!-- F: Index and thumb form circle, other 3 fingers up spread -->
-  <defs>
-    <linearGradient id="gF" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></linearGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 65 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 60 Z" fill="url(#gF)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Middle finger up -->
-  <path d="M58 60 L58 14 C58 9 61 6 64 6 C67 6 69 9 69 14 L69 60" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="60" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M61 28 Q64 26 67 28" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Ring finger up -->
-  <path d="M69 60 L69 18 C69 13 71 10 74 10 C77 10 79 13 79 18 L79 60" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="71" y="10" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Pinky up -->
-  <path d="M79 62 L79 26 C79 21 81 19 83 19 C85 19 87 21 87 26 L87 64" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="80" y="19" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Index + thumb forming circle -->
-  <path d="M38 65 C34 58 34 50 38 46 C42 42 48 42 52 47 C56 52 56 60 52 66" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="44" cy="56" rx="7" ry="8" fill="${SK3}" stroke="${OL}" stroke-width="0.8" opacity="0.5"/>
-  <!-- Thumb -->
-  <path d="M38 82 C30 79 27 72 29 64 C31 58 35 56 38 60" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M32 68 Q36 64 38 66" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M42 90 Q60 86 78 92" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.G = h(`
-  <!-- G: Fist with index finger and thumb pointing sideways -->
-  <defs>
-    <radialGradient id="gG" cx="55%" cy="45%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm (side view, rotated) -->
-  <path d="M65 52 L65 108 C65 114 72 118 80 118 C88 118 94 114 94 108 L94 52 Z" fill="url(#gG)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger pointing left -->
-  <path d="M65 52 L18 52 C13 52 10 55 10 59 C10 63 13 66 18 66 L65 66" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="10" y="54" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M30 56 Q30 59 30 62" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M48 56 Q48 59 48 62" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Thumb parallel below -->
-  <path d="M65 70 L30 70 C25 70 22 73 22 76 C22 80 25 83 30 83 L65 83" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="27" cy="76" rx="5" ry="4" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <!-- Curled other fingers -->
-  <path d="M70 52 C70 44 73 40 76 40 C79 40 81 44 81 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M81 52 C81 46 82 43 85 43 C88 43 89 47 89 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M68 53 Q80 49 94 53" stroke="${SK3}" stroke-width="1" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M68 76 Q80 73 92 77" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-`);
-
-ASL_HANDS.H = h(`
-  <!-- H: Index and middle finger extended sideways together -->
-  <defs>
-    <radialGradient id="gH" cx="60%" cy="45%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M68 58 L68 108 C68 114 74 118 82 118 C90 118 96 114 96 108 L96 58 Z" fill="url(#gH)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger pointing left -->
-  <path d="M68 46 L18 46 C13 46 10 49 10 53 C10 57 13 60 18 60 L68 60" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="10" y="48" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M32 50 Q32 53 32 56" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger pointing left -->
-  <path d="M68 60 L18 60 C13 60 10 63 10 67 C10 71 13 74 18 74 L68 74" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="10" y="62" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Finger separation -->
-  <line x1="18" y1="60" x2="68" y2="60" stroke="${CR}" stroke-width="0.5" opacity="0.5"/>
-  <!-- Curled ring + pinky -->
-  <path d="M73 58 C73 50 76 46 79 46 C82 46 84 50 84 56" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M84 58 C84 52 85 49 88 49 C91 49 92 53 92 58" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle -->
-  <path d="M70 58 Q82 54 96 58" stroke="${SK3}" stroke-width="1" fill="none"/>
-  <!-- Thumb folded -->
-  <path d="M68 86 C62 83 59 76 61 70 C63 65 66 63 68 66" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M63 74 Q66 70 68 72" stroke="${CR}" stroke-width="0.5" fill="none"/>
-`);
-
-ASL_HANDS.I = h(`
-  <!-- I: Pinky up, fist -->
-  <defs>
-    <radialGradient id="gI" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="42" height="55" rx="12" ry="10" fill="url(#gI)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled index -->
-  <path d="M38 55 C38 46 41 42 45 42 C48 42 49 46 49 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M40 48 Q45 45 48 48" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Curled middle -->
-  <path d="M49 52 C49 46 51 42 54 42 C57 42 59 46 59 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled ring -->
-  <path d="M59 52 C59 46 61 43 64 43 C67 43 68 47 68 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 56 Q55 51 77 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Pinky extended up -->
-  <path d="M68 52 L68 15 C68 10 70 7 73 7 C76 7 78 10 78 15 L78 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="70" y="7" width="6" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M71 22 Q73 20 76 22" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M71 35 Q73 33 76 35" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Thumb over fingers -->
-  <path d="M35 80 C28 77 25 69 26 62 C27 57 31 54 35 57" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M29 66 Q33 62 35 64" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M39 74 Q55 70 75 76" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.J = h(`
-  <!-- J: Like I but with J-motion arc shown -->
-  <defs>
-    <radialGradient id="gJ" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="42" height="55" rx="12" ry="10" fill="url(#gJ)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled index -->
-  <path d="M38 55 C38 46 41 42 45 42 C48 42 49 46 49 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled middle -->
-  <path d="M49 52 C49 46 51 42 54 42 C57 42 59 46 59 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled ring -->
-  <path d="M59 52 C59 46 61 43 64 43 C67 43 68 47 68 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 56 Q55 51 77 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Pinky extended up -->
-  <path d="M68 52 L68 15 C68 10 70 7 73 7 C76 7 78 10 78 15 L78 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="70" y="7" width="6" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Thumb -->
-  <path d="M35 80 C28 77 25 69 26 62 C27 57 31 54 35 57" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- J motion arc (warm amber color) -->
-  <path d="M73 10 C82 8 90 16 90 30 C90 44 82 52 70 56" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 3"/>
-  <polygon points="72,52 67,60 76,56" fill="#f59e0b" opacity="0.7"/>
-  <circle cx="73" cy="10" r="2.5" fill="#f59e0b" opacity="0.5"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.K = h(`
-  <!-- K: Index up, middle finger angled, thumb between them -->
-  <defs>
-    <radialGradient id="gK" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 65 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 65 Z" fill="url(#gK)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger straight up -->
-  <path d="M47 65 L47 14 C47 9 50 6 53 6 C56 6 59 9 59 14 L59 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="49" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M50 28 Q53 26 57 28" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger angled forward -->
-  <path d="M59 65 L74 24 C75 19 78 18 80 19 C82 21 82 24 81 28 L68 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="78" cy="20" rx="4" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.6" transform="rotate(-22,78,20)"/>
-  <!-- Thumb between index and middle -->
-  <path d="M38 76 C32 72 29 64 31 56 C33 50 38 47 43 52 L53 62" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M34 60 Q38 56 42 58" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Curled ring + pinky -->
-  <path d="M68 65 C71 61 74 60 77 62 C80 64 81 68 79 72" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M79 68 C81 66 83 65 85 67 C87 69 86 72 84 74" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Palm crease -->
-  <path d="M42 88 Q60 84 78 90" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.L = h(`
-  <!-- L: L-shape with index up and thumb out -->
-  <defs>
-    <radialGradient id="gL" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M48 62 L48 108 C48 114 56 118 65 118 C74 118 82 114 82 108 L82 62 Z" fill="url(#gL)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger straight up -->
-  <path d="M56 62 L56 14 C56 9 59 6 62 6 C65 6 68 9 68 14 L68 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="58" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M59 24 Q62 22 66 24" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M59 38 Q62 36 66 38" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Thumb pointing left (making L shape) -->
-  <path d="M48 68 L16 68 C11 68 8 71 8 75 C8 79 11 82 16 82 L48 82" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="8" y="70" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M24 72 Q24 75 24 78" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Curled other fingers -->
-  <path d="M68 62 C68 55 71 51 74 51 C77 51 79 55 79 62" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M79 62 C79 57 80 54 82 54 C84 54 85 57 85 62" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle line -->
-  <path d="M68 62 Q76 58 85 62" stroke="${SK3}" stroke-width="1" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M52 86 Q65 82 80 88" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.M = h(`
-  <!-- M: Fist with thumb under three fingers -->
-  <defs>
-    <radialGradient id="gM" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="50" height="55" rx="12" ry="10" fill="url(#gM)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Three fingers draped over thumb -->
-  <path d="M38 50 L38 38 C38 33 41 30 44 32 L45 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M48 50 L48 36 C48 31 51 28 54 30 L55 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M58 50 L58 38 C58 33 61 30 64 32 L65 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Pinky curled -->
-  <path d="M70 50 C70 44 72 41 75 41 C78 41 79 45 79 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 52 Q58 47 85 53" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb peeking between ring and pinky -->
-  <path d="M66 76 C70 74 73 69 71 64 C69 60 65 60 66 64" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <circle cx="70" cy="64" r="3" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <!-- Finger separation lines on fist -->
-  <line x1="45" y1="50" x2="45" y2="74" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <line x1="55" y1="50" x2="55" y2="74" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <line x1="65" y1="50" x2="65" y2="74" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <!-- Palm crease -->
-  <path d="M39 76 Q58 72 82 78" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.N = h(`
-  <!-- N: Fist with thumb under two fingers -->
-  <defs>
-    <radialGradient id="gN" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="50" height="55" rx="12" ry="10" fill="url(#gN)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Two fingers draped over thumb -->
-  <path d="M40 50 L40 38 C40 33 43 30 46 32 L47 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M50 50 L50 36 C50 31 53 28 56 30 L57 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Ring + pinky curled -->
-  <path d="M62 50 C62 44 64 40 67 40 C70 40 72 44 72 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M72 50 C72 46 73 43 76 43 C79 43 80 47 80 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M38 52 Q58 47 85 53" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb peeking between middle and ring -->
-  <path d="M58 76 C62 74 65 69 63 64 C61 60 57 60 58 64" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <circle cx="62" cy="64" r="3" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <!-- Finger separation -->
-  <line x1="47" y1="50" x2="47" y2="74" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <line x1="57" y1="50" x2="57" y2="74" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <!-- Palm crease -->
-  <path d="M39 78 Q58 74 82 80" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.O = h(`
-  <!-- O: All fingertips touching thumb (O shape) -->
-  <defs>
-    <radialGradient id="gO" cx="50%" cy="45%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Outer O shape formed by fingers and thumb -->
-  <path d="M60 18 C75 18 86 30 86 50 C86 70 75 82 60 82 C45 82 34 70 34 50 C34 30 45 18 60 18 Z" fill="url(#gO)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Inner hole of O -->
-  <ellipse cx="60" cy="50" rx="16" ry="18" fill="#1e2330" stroke="${OL}" stroke-width="1"/>
-  <!-- Finger tip suggestion at top -->
-  <path d="M48 22 C52 16 56 14 60 14 C64 14 68 16 72 22" stroke="${SK3}" stroke-width="1" fill="none"/>
-  <!-- Nails on fingertips at top -->
-  <ellipse cx="50" cy="20" rx="3.5" ry="2" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <ellipse cx="60" cy="16" rx="3.5" ry="2" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <ellipse cx="70" cy="20" rx="3.5" ry="2" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Thumb tip at bottom -->
-  <path d="M48 78 C52 84 56 86 60 86 C64 86 68 84 72 78" stroke="${SK3}" stroke-width="1" fill="none"/>
-  <ellipse cx="54" cy="82" rx="4.5" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Finger creases on O surface -->
-  <path d="M46 26 Q60 20 74 26" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <path d="M46 74 Q60 80 74 74" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <!-- Shading on sides -->
-  <path d="M37 35 C36 42 36 55 38 68" stroke="${SK3}" stroke-width="1.5" fill="none" opacity="0.4"/>
-  <path d="M83 35 C84 42 84 55 82 68" stroke="${SK3}" stroke-width="1.5" fill="none" opacity="0.4"/>
-  <!-- Wrist below -->
-  <path d="M46 82 L46 118 C46 125 52 130 60 130 C68 130 74 125 74 118 L74 82" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M49 92 Q60 96 71 92" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <path d="M49 96 Q60 99 71 96" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-`);
-
-ASL_HANDS.P = h(`
-  <!-- P: Like K but pointing down -->
-  <defs>
-    <radialGradient id="gP" cx="50%" cy="50%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm (angled) -->
-  <path d="M28 35 L28 58 C28 66 34 72 44 72 L72 72 C82 72 86 66 86 58 L86 35 Z" fill="url(#gP)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger pointing down -->
-  <path d="M44 72 L44 118 C44 123 47 126 50 126 C53 126 56 123 56 118 L56 72" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="46" y="122" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M47 95 Q50 93 54 95" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger angled down -->
-  <path d="M56 72 L68 112 C69 117 72 118 74 117 C76 115 76 112 75 108 L65 72" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="72" cy="116" rx="3.5" ry="2.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Thumb between (pointing down) -->
-  <path d="M28 50 C22 55 19 63 21 72 C23 78 27 82 32 78" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M24 64 Q28 60 32 62" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Curled ring + pinky on top -->
-  <path d="M70 35 C70 29 73 27 76 28 C79 30 79 35 76 38" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M78 36 C78 31 80 29 82 30 C84 32 84 36 82 39" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Palm crease -->
-  <path d="M32 52 Q56 48 82 54" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-`);
-
-ASL_HANDS.Q = h(`
-  <!-- Q: Like G but pointing down -->
-  <defs>
-    <radialGradient id="gQ" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M35 28 L35 58 C35 66 42 72 52 72 L70 72 C80 72 86 66 86 58 L86 28 Z" fill="url(#gQ)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger pointing down -->
-  <path d="M50 72 L50 122 C50 127 53 130 56 130 C59 130 62 127 62 122 L62 72" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="52" y="126" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M53 98 Q56 96 60 98" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Thumb pointing down parallel -->
-  <path d="M35 56 C28 62 25 72 27 84 C28 91 32 95 37 92 L42 72" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="32" cy="90" rx="4" ry="3" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <path d="M30 78 Q34 74 38 76" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Curled fingers on top -->
-  <path d="M64 28 C64 22 67 20 70 21 C73 23 73 28 70 31" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M74 28 C74 23 76 21 78 22 C80 24 80 29 78 32" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M82 30 C82 26 83 24 85 25 C87 27 87 32 85 34" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Palm crease -->
-  <path d="M38 48 Q60 44 84 50" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-`);
-
-ASL_HANDS.R = h(`
-  <!-- R: Crossed index and middle fingers -->
-  <defs>
-    <radialGradient id="gR" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 65 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 65 Z" fill="url(#gR)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger (behind, going up) -->
-  <path d="M50 65 L50 16 C50 11 53 8 56 8 C59 8 62 11 62 16 L62 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Middle finger (in front, crossing over index) -->
-  <path d="M58 65 L52 14 C51 9 54 6 57 6 C60 6 63 9 64 14 L68 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Cross point visual -->
-  <path d="M53 34 L64 30" stroke="${SK3}" stroke-width="1.5" opacity="0.6"/>
-  <!-- Nails -->
-  <rect x="52" y="8" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <rect x="53" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Knuckle creases on fingers -->
-  <path d="M53 28 Q56 26 60 28" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M55 22 Q58 20 62 22" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Curled ring + pinky -->
-  <path d="M68 65 C68 58 71 54 74 54 C77 54 79 58 79 65" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M79 65 C79 60 80 57 82 57 C84 57 85 60 85 65" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Thumb -->
-  <path d="M38 84 C31 80 28 73 30 66 C32 60 36 58 38 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M33 70 Q36 66 38 68" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.S = h(`
-  <!-- S: Fist with thumb over fingers -->
-  <defs>
-    <radialGradient id="gS" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="48" height="55" rx="14" ry="10" fill="url(#gS)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled fingers (top of fist) -->
-  <path d="M38 55 C38 46 41 40 45 40 C48 40 50 44 50 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M50 50 C50 44 52 40 56 40 C59 40 61 44 61 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M61 50 C61 44 63 40 67 40 C70 40 72 44 72 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M72 50 C72 46 73 43 76 43 C79 43 80 47 80 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 55 Q58 50 83 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb wrapping across front of fingers -->
-  <path d="M35 82 C28 78 24 68 26 60 C28 53 33 50 38 54 L50 58" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M29 62 Q37 56 48 56" stroke="${CR}" stroke-width="0.7" fill="none"/>
-  <ellipse cx="29" cy="58" rx="4.5" ry="3" fill="${SK}" stroke="${OL}" stroke-width="0.8"/>
-  <rect x="27" y="55" width="5" height="3.5" rx="1.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Palm creases -->
-  <path d="M39 74 Q58 70 80 76" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  <path d="M39 82 Q58 78 80 84" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.3"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.T = h(`
-  <!-- T: Fist with thumb between index and middle -->
-  <defs>
-    <radialGradient id="gT" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="48" height="55" rx="14" ry="10" fill="url(#gT)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled fingers -->
-  <path d="M38 55 C38 46 41 40 45 40 C48 40 50 44 50 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M50 50 C50 44 52 40 56 40 C59 40 61 44 61 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M61 50 C61 44 63 40 67 40 C70 40 72 44 72 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M72 50 C72 46 73 43 76 43 C79 43 80 47 80 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 55 Q58 50 83 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb poking between index and middle -->
-  <path d="M35 74 C28 70 25 62 27 55 C29 49 34 47 38 50" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="47" cy="48" rx="6" ry="5" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M44 46 Q47 43 50 46" stroke="${CR}" stroke-width="0.6" fill="none"/>
-  <rect x="44" y="43" width="5" height="3.5" rx="1.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5"/>
-  <!-- Palm creases -->
-  <path d="M39 76 Q58 72 80 78" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.U = h(`
-  <!-- U: Index and middle fingers up together -->
-  <defs>
-    <radialGradient id="gU" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 65 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 65 Z" fill="url(#gU)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger up -->
-  <path d="M48 65 L48 16 C48 11 51 8 54 8 C57 8 60 11 60 16 L60 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M51 30 Q54 28 58 30" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M51 44 Q54 42 58 44" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger up -->
-  <path d="M60 65 L60 12 C60 7 63 4 66 4 C69 4 72 7 72 12 L72 65" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M63 28 Q66 26 70 28" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Finger separation -->
-  <line x1="60" y1="14" x2="60" y2="65" stroke="${CR}" stroke-width="0.5" opacity="0.4"/>
-  <!-- Nails -->
-  <rect x="50" y="8" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <rect x="62" y="4" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <!-- Curled ring + pinky -->
-  <path d="M72 65 C72 58 74 54 77 54 C80 54 82 58 82 65" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M82 65 C82 60 83 57 85 57 C87 57 88 60 88 65" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Thumb over curled fingers -->
-  <path d="M38 84 C31 80 28 73 30 66 C32 60 36 58 38 62" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M33 70 Q36 66 38 68" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.V = h(`
-  <!-- V: Peace sign - index and middle spread -->
-  <defs>
-    <radialGradient id="gV" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M38 68 L38 108 C38 114 48 118 60 118 C72 118 82 114 82 108 L82 68 Z" fill="url(#gV)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger up-left (spread) -->
-  <path d="M48 68 L38 18 C37 13 40 9 43 9 C46 9 48 13 49 18 L54 68" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="38" y="9" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6" transform="rotate(-8,42,11)"/>
-  <path d="M42 30 Q44 28 47 30" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger up-right (spread) -->
-  <path d="M64 68 L72 18 C73 13 75 9 78 9 C81 9 82 13 81 18 L75 68" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="73" y="9" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6" transform="rotate(8,76,11)"/>
-  <path d="M74 30 Q76 28 79 30" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Curled ring + pinky -->
-  <path d="M70 68 C70 61 73 57 76 57 C79 57 81 61 81 68" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M81 68 C81 63 82 60 84 60 C86 60 87 63 87 68" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Thumb over curled fingers -->
-  <path d="M38 88 C31 85 28 77 30 70 C32 64 36 62 38 66" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M33 74 Q36 70 38 72" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M42 90 Q60 86 78 92" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.W = h(`
-  <!-- W: Index, middle, ring fingers up spread -->
-  <defs>
-    <radialGradient id="gW" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Palm -->
-  <path d="M34 68 L34 108 C34 114 44 118 60 118 C76 118 86 114 86 108 L86 68 Z" fill="url(#gW)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger up-left -->
-  <path d="M38 68 L30 18 C29 13 32 9 35 9 C38 9 40 13 41 18 L46 68" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="30" y="9" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6" transform="rotate(-6,34,11)"/>
-  <path d="M34 30 Q36 28 39 30" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Middle finger straight up -->
-  <path d="M54 68 L54 14 C54 9 57 6 60 6 C63 6 66 9 66 14 L66 68" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="56" y="6" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M57 26 Q60 24 64 26" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Ring finger up-right -->
-  <path d="M72 68 L78 20 C79 15 81 11 84 11 C87 11 88 15 87 20 L83 68" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="79" y="11" width="7" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6" transform="rotate(6,82,13)"/>
-  <path d="M80 30 Q82 28 85 30" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Pinky curled with thumb -->
-  <path d="M83 68 C83 63 85 60 87 60 C89 60 90 63 90 68" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Thumb -->
-  <path d="M34 88 C27 85 24 77 26 70 C28 64 32 62 34 66" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M29 74 Q32 70 34 72" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M38 90 Q60 86 82 92" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.X = h(`
-  <!-- X: Index finger hooked/bent -->
-  <defs>
-    <radialGradient id="gX" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="50" width="48" height="55" rx="14" ry="10" fill="url(#gX)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled index base -->
-  <path d="M38 55 C38 46 41 40 45 40 C48 40 50 44 50 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Hooked index finger (extends up then bends back) -->
-  <path d="M50 50 L50 28 C50 22 53 18 56 18 C59 18 62 22 62 28 L62 38 C62 42 60 44 57 44 C54 44 52 42 52 38" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="53" y="17" width="6" height="4" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M53 28 Q56 26 60 28" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Other curled fingers -->
-  <path d="M62 50 C62 44 64 40 67 40 C70 40 72 44 72 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M72 50 C72 46 73 43 76 43 C79 43 80 47 80 50" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M36 55 Q58 50 83 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Thumb -->
-  <path d="M35 82 C28 78 25 70 27 62 C29 56 33 54 37 58" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M30 66 Q34 62 37 64" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M39 76 Q58 72 80 78" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.Y = h(`
-  <!-- Y: Thumb and pinky extended (hang loose) -->
-  <defs>
-    <radialGradient id="gY" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="38" y="50" width="44" height="55" rx="12" ry="10" fill="url(#gY)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled middle three fingers -->
-  <path d="M45 55 C45 46 48 42 51 42 C54 42 56 46 56 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M56 51 C56 46 58 42 61 42 C64 42 66 46 66 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M66 51 C66 46 67 43 70 43 C73 43 74 47 74 51" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Knuckle ridge -->
-  <path d="M43 56 Q60 51 76 56" stroke="${SK3}" stroke-width="1.2" fill="none"/>
-  <!-- Pinky extended up -->
-  <path d="M74 52 L74 15 C74 10 76 7 79 7 C82 7 84 10 84 15 L84 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="76" y="7" width="6" height="4.5" rx="2" fill="${NL}" stroke="${NL2}" stroke-width="0.6"/>
-  <path d="M77 22 Q79 20 82 22" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <path d="M77 35 Q79 33 82 35" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Thumb extended out to the left -->
-  <path d="M38 65 L16 44 C12 40 9 41 9 45 C9 49 12 52 16 55 L38 76" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <ellipse cx="14" cy="44" rx="4.5" ry="3" fill="${SK}" stroke="${OL}" stroke-width="0.8" transform="rotate(-40,14,44)"/>
-  <rect x="11" y="41" width="5" height="3.5" rx="1.5" fill="${NL}" stroke="${NL2}" stroke-width="0.5" transform="rotate(-40,14,43)"/>
-  <path d="M22 48 Q22 51 22 54" stroke="${CR}" stroke-width="0.5" fill="none"/>
-  <!-- Palm crease -->
-  <path d="M42 74 Q58 70 76 76" stroke="${CR}" stroke-width="0.5" fill="none" opacity="0.4"/>
-  ${WRIST}
-`);
-
-ASL_HANDS.Z = h(`
-  <!-- Z: Index finger traces Z shape (show motion path) -->
-  <defs>
-    <radialGradient id="gZ" cx="50%" cy="40%"><stop offset="0%" stop-color="${SK}"/><stop offset="100%" stop-color="${SK2}"/></radialGradient>
-  </defs>
-  <!-- Fist body -->
-  <rect x="35" y="55" width="48" height="55" rx="14" ry="10" fill="url(#gZ)" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Curled fingers -->
-  <path d="M38 60 C38 52 41 46 45 46 C48 46 50 50 50 56" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M42 52 C42 46 43 42 47 42 C50 42 51 46 51 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M51 52 C51 46 52 42 56 42 C59 42 60 46 60 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <path d="M60 52 C60 48 61 46 63 46 C65 46 66 48 66 52" fill="${SK2}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Index finger extended up -->
-  <path d="M42 52 L42 22 C42 18 44 16 46 16 C48 16 50 18 50 22 L50 52" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <rect x="43" y="16" width="6" height="4" rx="2" fill="${NL}" stroke="${OL}" stroke-width="0.8"/>
-  <!-- Thumb -->
-  <path d="M30 76 C24 73 22 66 24 60 C26 55 29 54 32 58" fill="${SK}" stroke="${OL}" stroke-width="${SW}"/>
-  <!-- Z motion trace -->
-  <path d="M20 14 L42 14 L22 40 L44 40" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="4 3"/>
-  <circle cx="44" cy="40" r="3" fill="#f59e0b" opacity="0.6"/>
-  <path d="M42 38 L46 42 L40 42" fill="#f59e0b" opacity="0.5"/>
-`);
-
-// Letter descriptions (how to form each)
+// ═══════════════════════════════════════════════════════════════
+//  ASL LETTER DESCRIPTIONS
+// ═══════════════════════════════════════════════════════════════
 const ASL_DESC = {
   A: "Make a fist with your thumb resting against the side of your index finger. Palm faces forward.",
   B: "Hold all four fingers straight up and together. Tuck your thumb across the palm.",
@@ -1497,7 +872,7 @@ function renderAlphabet() {
   'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
     const card = document.createElement('div');
     card.className = 'alpha-card' + (state.learned.includes('alpha-' + letter) ? ' learned' : '');
-    card.innerHTML = `${ASL_HANDS[letter]}<div class="alpha-ltr">${letter}</div>`;
+    card.innerHTML = `${aslImg(letter, 52)}<div class="alpha-ltr">${letter}</div>`;
     card.onclick = () => showAlphaDetail(letter);
     grid.appendChild(card);
   });
@@ -1510,7 +885,7 @@ function showAlphaDetail(letter) {
   detail.innerHTML = `
     <div class="sign-detail">
       <div class="hand-display">
-        ${ASL_HANDS[letter]}
+        ${aslImg(letter, 150)}
         <div class="letter-badge">${letter}</div>
       </div>
       <h2>Letter ${letter}</h2>
@@ -1562,7 +937,7 @@ let fcDeck = [];
 let fcIdx = 0;
 
 function initFlashcards() {
-  fcDeck = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => ({ letter: l, svg: ASL_HANDS[l], desc: ASL_DESC[l] }));
+  fcDeck = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => ({ letter: l, desc: ASL_DESC[l] }));
   fcIdx = 0;
   renderFlashcard();
 }
@@ -1579,7 +954,7 @@ function shuffleCards() {
 
 function renderFlashcard() {
   const card = fcDeck[fcIdx];
-  document.getElementById('fc-front').innerHTML = `${card.svg}<div class="fc-hint">Tap to reveal letter</div>`;
+  document.getElementById('fc-front').innerHTML = `${aslImg(card.letter, 160)}<div class="fc-hint">Tap to reveal letter</div>`;
   document.getElementById('fc-back').innerHTML = `<div class="fc-letter">${card.letter}</div><div class="fc-desc">${card.desc}</div>`;
   document.getElementById('fc-counter').textContent = `${fcIdx + 1} / ${fcDeck.length}`;
   document.getElementById('flashcard').classList.remove('flipped');
@@ -1642,7 +1017,7 @@ function renderQuizQuestion() {
 
   area.innerHTML = `
     <div class="quiz-question">
-      ${ASL_HANDS[q.letter]}
+      ${aslImg(q.letter, 140)}
       <div class="quiz-prompt">What letter is this sign?</div>
       <div class="quiz-options">
         ${q.opts.map(o => `<button class="quiz-opt" onclick="answerQuiz('${o}','${q.letter}',this)">${o}</button>`).join('')}
@@ -1709,7 +1084,13 @@ function renderAll() {
   updateStats();
 }
 
-renderAll();
+// Load ASL images from Wikimedia API, then render.
+// If the API call fails, renderAll still runs with the fallback URLs.
+loadASLImages().then(() => {
+  renderAll();
+}).catch(() => {
+  renderAll();
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Conference | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#050a0f;--bg1:#0a1018;--bg2:#0f1620;--border:#1a2535;--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;--text:#e2e8f0;--dim:rgba(226,232,240,0.4);--font:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* Gate screen */
+.gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:20px}
+.gate.hidden{display:none}
+.gate-box{background:var(--bg1);border:1px solid var(--border);border-radius:16px;padding:40px 36px;max-width:420px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.5)}
+.gate-eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;font-weight:600}
+.gate-title{font-size:24px;font-weight:700;color:var(--text);margin-bottom:6px}
+.gate-sub{font-size:12px;color:var(--dim);margin-bottom:28px;line-height:1.6}
+.gate-icon{font-size:48px;margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(0,212,255,0.3))}
+.gate-input-wrap{position:relative;margin-bottom:16px}
+.gate-input{width:100%;padding:14px 16px;background:var(--bg2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:15px;outline:none;text-align:center;letter-spacing:2px;transition:border-color 0.2s}
+.gate-input:focus{border-color:var(--cyan)}
+.gate-input.error{border-color:var(--red);animation:shake 0.4s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.gate-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--cyan),#0099cc);color:#050a0f;border:none;border-radius:10px;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:opacity 0.2s,transform 0.1s}
+.gate-btn:hover{opacity:0.9}
+.gate-btn:active{transform:scale(0.97)}
+.gate-error{font-size:11px;color:var(--red);margin-top:10px;min-height:16px}
+.gate-name-wrap{margin-bottom:16px}
+.gate-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;text-align:left}
+.gate-name-input{width:100%;padding:12px 16px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border-color 0.2s}
+.gate-name-input:focus{border-color:var(--cyan)}
+
+/* Conference view */
+.conf-header{background:var(--bg1);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;min-height:52px}
+.conf-brand{color:var(--cyan);font-weight:700;font-size:10px;letter-spacing:2px;text-transform:uppercase}
+.conf-title{font-size:15px;font-weight:600;color:var(--text)}
+.conf-status{margin-left:auto;display:flex;align-items:center;gap:8px}
+.conf-live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green);font-weight:600}
+.conf-live::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.conf-participants{font-size:11px;color:var(--dim)}
+.conf-leave{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:7px 16px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;margin-left:8px}
+.conf-leave:hover{background:var(--red);color:#fff}
+
+/* Jitsi container */
+.conf-body{flex:1;background:#000;position:relative;overflow:hidden}
+#jitsi-container{width:100%;height:100%}
+
+/* Footer badge */
+.badge{position:fixed;bottom:8px;right:12px;font-size:9px;color:var(--cyan);opacity:0.4;font-family:var(--font);pointer-events:none;z-index:9999;letter-spacing:1px}
+
+@media(max-width:600px){
+  .gate-box{padding:28px 20px}
+  .gate-title{font-size:20px}
+  .conf-header{padding:8px 12px;gap:8px}
+  .conf-title{font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<!-- Password Gate -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="gate-icon">📹</div>
+    <div class="gate-eyebrow">Korb Engineering</div>
+    <div class="gate-title">Video Conference</div>
+    <div class="gate-sub">Enter the room password and your display name to join the call. One room, everyone in the same space.</div>
+    <div class="gate-name-wrap">
+      <div class="gate-label">Your Name</div>
+      <input class="gate-name-input" id="nameInput" type="text" placeholder="e.g. Harrison" autocomplete="off" maxlength="30">
+    </div>
+    <div class="gate-input-wrap">
+      <div class="gate-label">Room Password</div>
+      <input class="gate-input" id="passInput" type="password" placeholder="Enter password" autocomplete="off" maxlength="30">
+    </div>
+    <button class="gate-btn" id="joinBtn" onclick="attemptJoin()">Join Conference</button>
+    <div class="gate-error" id="gateError"></div>
+  </div>
+</div>
+
+<!-- Conference View -->
+<div class="conf-header" id="confHeader" style="display:none">
+  <span class="conf-brand">Korb Engineering</span>
+  <span class="conf-title">Video Conference</span>
+  <div class="conf-status">
+    <span class="conf-live">LIVE</span>
+    <span class="conf-participants" id="participantCount"></span>
+    <button class="conf-leave" onclick="leaveConference()">Leave</button>
+  </div>
+</div>
+<div class="conf-body" id="confBody" style="display:none">
+  <div id="jitsi-container"></div>
+</div>
+
+<div class="badge">Korb Engineering</div>
+
+<script>
+const ROOM_PASSWORD = 'potato';
+const ROOM_NAME = 'KorbEngineeringHQ';
+const JITSI_DOMAIN = '8x8.vc';
+
+let api = null;
+
+// Remember name
+const savedName = localStorage.getItem('korb_conf_name') || '';
+document.getElementById('nameInput').value = savedName;
+
+// Enter key support
+document.getElementById('passInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') attemptJoin();
+});
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('passInput').focus();
+});
+
+// Focus name input on load
+setTimeout(() => {
+  const nameEl = document.getElementById('nameInput');
+  if (!nameEl.value) nameEl.focus();
+  else document.getElementById('passInput').focus();
+}, 100);
+
+function attemptJoin() {
+  const passEl = document.getElementById('passInput');
+  const nameEl = document.getElementById('nameInput');
+  const errEl = document.getElementById('gateError');
+  const pass = passEl.value.trim().toLowerCase();
+  const name = nameEl.value.trim();
+
+  errEl.textContent = '';
+  passEl.classList.remove('error');
+
+  if (!name) {
+    errEl.textContent = 'Please enter your name.';
+    nameEl.focus();
+    return;
+  }
+
+  if (pass !== ROOM_PASSWORD) {
+    passEl.classList.add('error');
+    errEl.textContent = 'Incorrect password. Try again.';
+    passEl.value = '';
+    passEl.focus();
+    setTimeout(() => passEl.classList.remove('error'), 500);
+    return;
+  }
+
+  // Save name for next time
+  localStorage.setItem('korb_conf_name', name);
+
+  // Hide gate, show conference
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('confHeader').style.display = 'flex';
+  document.getElementById('confBody').style.display = 'block';
+
+  // Load Jitsi
+  loadJitsi(name);
+}
+
+function loadJitsi(displayName) {
+  const script = document.createElement('script');
+  script.src = 'https://8x8.vc/vpaas-magic-cookie-30location03/external_api.js';
+  script.onload = () => initJitsi(displayName);
+  script.onerror = () => {
+    // Fallback to meet.jit.si
+    const fallback = document.createElement('script');
+    fallback.src = 'https://meet.jit.si/external_api.js';
+    fallback.onload = () => initJitsi(displayName, 'meet.jit.si');
+    fallback.onerror = () => {
+      document.getElementById('jitsi-container').innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;text-align:center;padding:20px">
+          <div style="font-size:48px">⚠️</div>
+          <div style="font-size:16px;font-weight:600">Could not load video conferencing</div>
+          <div style="font-size:12px;color:rgba(226,232,240,0.4)">The Jitsi service may be temporarily unavailable.<br>Please try again in a moment.</div>
+          <button onclick="location.reload()" style="margin-top:12px;padding:10px 24px;background:#00d4ff;color:#050a0f;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Retry</button>
+        </div>`;
+    };
+    document.head.appendChild(fallback);
+  };
+  document.head.appendChild(script);
+}
+
+function initJitsi(displayName, domain) {
+  const useDomain = domain || 'meet.jit.si';
+  const container = document.getElementById('jitsi-container');
+
+  const options = {
+    roomName: ROOM_NAME,
+    parentNode: container,
+    width: '100%',
+    height: '100%',
+    userInfo: {
+      displayName: displayName
+    },
+    configOverwrite: {
+      startWithAudioMuted: false,
+      startWithVideoMuted: false,
+      prejoinPageEnabled: false,
+      disableDeepLinking: true,
+      enableClosePage: false,
+      enableWelcomePage: false,
+      toolbarButtons: [
+        'microphone', 'camera', 'desktop', 'chat',
+        'raisehand', 'tileview', 'fullscreen',
+        'filmstrip', 'settings', 'select-background'
+      ],
+      hideConferenceSubject: true,
+      hideConferenceTimer: false,
+      disableProfile: false,
+      enableNoisyMicDetection: true,
+      notifications: [],
+      disableThirdPartyRequests: true,
+      defaultBackground: '#050a0f',
+    },
+    interfaceConfigOverwrite: {
+      SHOW_JITSI_WATERMARK: false,
+      SHOW_WATERMARK_FOR_GUESTS: false,
+      SHOW_BRAND_WATERMARK: false,
+      SHOW_CHROME_EXTENSION_BANNER: false,
+      TOOLBAR_ALWAYS_VISIBLE: true,
+      DEFAULT_BACKGROUND: '#050a0f',
+      DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+      MOBILE_APP_PROMO: false,
+      HIDE_INVITE_MORE_HEADER: true,
+      DISABLE_FOCUS_INDICATOR: true,
+      filmStripOnly: false,
+      TOOLBAR_TIMEOUT: 8000,
+    }
+  };
+
+  try {
+    api = new JitsiMeetExternalAPI(useDomain, options);
+
+    api.addEventListener('participantJoined', updateParticipants);
+    api.addEventListener('participantLeft', updateParticipants);
+    api.addEventListener('videoConferenceJoined', () => {
+      updateParticipants();
+      // Set display name again after join
+      api.executeCommand('displayName', displayName);
+    });
+    api.addEventListener('videoConferenceLeft', () => {
+      leaveConference();
+    });
+
+    // Initial count
+    setTimeout(updateParticipants, 2000);
+  } catch(e) {
+    console.error('Jitsi init error:', e);
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;text-align:center;padding:20px">
+        <div style="font-size:48px">⚠️</div>
+        <div style="font-size:16px;font-weight:600">Connection Error</div>
+        <div style="font-size:12px;color:rgba(226,232,240,0.4)">Could not connect to the conference room.<br>Please check your connection and try again.</div>
+        <button onclick="location.reload()" style="margin-top:12px;padding:10px 24px;background:#00d4ff;color:#050a0f;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Retry</button>
+      </div>`;
+  }
+}
+
+function updateParticipants() {
+  if (!api) return;
+  try {
+    const count = api.getNumberOfParticipants();
+    const el = document.getElementById('participantCount');
+    if (el) el.textContent = `${count} participant${count !== 1 ? 's' : ''}`;
+  } catch(e) {}
+}
+
+function leaveConference() {
+  if (api) {
+    try { api.dispose(); } catch(e) {}
+    api = null;
+  }
+  document.getElementById('confHeader').style.display = 'none';
+  document.getElementById('confBody').style.display = 'none';
+  document.getElementById('jitsi-container').innerHTML = '';
+  document.getElementById('gate').classList.remove('hidden');
+  document.getElementById('passInput').value = '';
+  document.getElementById('gateError').textContent = '';
+}
+
+// Warn before closing
+window.addEventListener('beforeunload', e => {
+  if (api) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+</script>
+</body>
+</html>

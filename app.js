@@ -145,14 +145,17 @@ const SECTIONS = {
       <text x="37" y="28" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="600" fill="currentColor" stroke="none" text-anchor="middle">-1</text>
     </svg>`,
     tools: [
+      { name: '3D Print Library', file: './tools/misc/3d-print-library.html' },
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
+      { name: 'Audiobook Player', file: './tools/misc/audiobook-player.html' },
       { name: 'ASL Learning Tool', file: './tools/misc/asl-learning-tool.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
       { name: 'Digital Library', file: './tools/misc/digital-library.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
+      { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
       { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
@@ -171,6 +174,7 @@ const SECTIONS = {
       { name: 'Tanks', file: './tools/misc/tanks.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
       { name: 'Text to Speech', file: './tools/misc/text-to-speech.html' },
+      { name: 'Video Conference', file: './tools/misc/video-conferencing.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
       { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
     ]
@@ -502,12 +506,12 @@ function stopAboutAudio() {
 }
 
 function renderAboutPage() {
-  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);margin-top:10px;text-align:center;text-shadow:0 0 8px rgba(0,212,255,0.25);';
+  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);margin-top:10px;text-align:center;text-shadow:0 0 12px rgba(0,212,255,0.4);';
 
   const companyEntryStyle = 'margin-bottom:28px;';
-  const companyNameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-base);letter-spacing:0.08em;color:var(--vfd-cyan);margin:0;text-shadow:0 0 8px rgba(0,212,255,0.25);';
+  const companyNameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-base);letter-spacing:0.08em;color:var(--vfd-cyan);margin:0;text-shadow:0 0 12px rgba(0,212,255,0.4);';
   const companyDatesStyle = 'color:#ff6600;font-size:var(--text-sm);margin-left:6px;text-shadow:0 0 6px rgba(255,102,0,0.3);';
-  const companyDetailStyle = 'color:rgba(0,212,255,0.45);font-size:var(--text-xs);letter-spacing:0.04em;margin:4px 0 0;line-height:1.6;';
+  const companyDetailStyle = 'color:rgba(0,212,255,0.6);font-size:var(--text-xs);letter-spacing:0.04em;margin:4px 0 0;line-height:1.7;';
 
   main.innerHTML = `
     <section class="section-page">
@@ -516,7 +520,7 @@ function renderAboutPage() {
       </div>
       <div class="about-content reveal">
         <h1 class="about-heading" style="display:flex;justify-content:center;"><span style="width:80px;height:100px;color:var(--vfd-cyan);">${K_LOGO_SVG}</span></h1>
-        <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.8;font-size:var(--text-base);color:var(--vfd-cyan);text-shadow:0 0 12px rgba(0,212,255,0.3);">"If I have seen further, it is by standing on the shoulders of giants."</p>
+        <p class="about-text" style="font-style:italic;max-width:520px;margin:var(--space-4) auto 0;line-height:1.8;font-size:var(--text-base);color:var(--vfd-cyan);text-shadow:0 0 14px rgba(0,212,255,0.45);">"If I have seen further, it is by standing on the shoulders of giants."</p>
         <p class="about-text" style="color:var(--vfd-cyan);opacity:0.75;font-size:var(--text-sm);margin-top:8px;letter-spacing:0.05em;">— Isaac Newton, 1675</p>
 
         <div style="text-align:center;">
@@ -535,7 +539,7 @@ function renderAboutPage() {
         </div>
 
         <div id="company-history" style="max-width:640px;margin:48px auto 0;text-align:left;">
-          <h2 style="font-family:Cinzel,serif;font-size:var(--text-lg);letter-spacing:0.25em;color:var(--vfd-cyan);text-align:center;margin-bottom:32px;text-shadow:0 0 12px rgba(0,212,255,0.3);">KORB ENGINEERING</h2>
+          <h2 style="font-family:Cinzel,serif;font-size:var(--text-lg);letter-spacing:0.25em;color:var(--vfd-cyan);text-align:center;margin-bottom:32px;text-shadow:0 0 14px rgba(0,212,255,0.45);">KORB ENGINEERING</h2>
 
           <div style="${companyEntryStyle}">
             <p style="${companyNameStyle}">Korb Engineering Company <span style="${companyDatesStyle}">1972 - 2014</span></p>
