@@ -80,15 +80,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .reader-side-nav.left{left:12px}
 .reader-side-nav.right{right:12px}
 
+/* Mobile-first touch targets */
+.btn,.nav-tab,.select,.reader-btn{min-height:44px;touch-action:manipulation}
+.input{min-height:44px;font-size:16px}
+.card{touch-action:manipulation}
+.list-item{min-height:56px;touch-action:manipulation}
+
 @media(max-width:600px){
-  .grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
-  .header{padding:10px 14px;gap:8px}
-  .toolbar{flex-direction:column}
-  .body{padding:12px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .header{padding:10px 14px;gap:6px}
+  .header .title{font-size:14px}
+  .header .brand{font-size:10px}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar .input{max-width:100%!important}
+  .toolbar .select{width:100%}
+  .body{padding:10px}
+  .modal{padding:16px;margin:10px;max-height:85vh}
+  .modal .input,.modal .select{font-size:16px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat-value{font-size:22px}
   .reader-top-bar{padding:6px 10px;gap:6px}
-  .reader-bottom-bar{padding:6px 10px;gap:8px}
+  .reader-bottom-bar{padding:8px 10px;gap:6px;flex-wrap:wrap;justify-content:center}
   .reader-side-nav{display:none}
   .reader-canvas-wrap canvas{margin:10px auto}
+  .reader-btn{width:44px;height:44px;font-size:18px}
+  /* Detail view: single column on mobile */
+  .detail-grid{grid-template-columns:1fr!important}
+  .book-cover-detail{height:180px!important}
+  .drop-zone{padding:24px 16px}
 }
 </style>
 </head>
@@ -149,26 +168,63 @@ let showUploadPanel = false, selectedBook = null, editMeta = null;
 let pdfDoc = null, currentPage = 1, totalPages = 0, currentScale = 1.0, rendering = false, pendingPage = null;
 let currentBookId = null;
 
-// IndexedDB
+// IndexedDB — with timeout & abort handling for Safari Private Browsing
+let _dbWarned = false;
 function openDB() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('korb_library_db', 1);
-    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('pdfs')) r.result.createObjectStore('pdfs', {keyPath:'id'}); };
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
+    try {
+      const r = indexedDB.open('korb_library_db', 1);
+      r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains('pdfs')) r.result.createObjectStore('pdfs', {keyPath:'id'}); };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error || new Error('IndexedDB open failed'));
+      // Safari Private Browsing may block IndexedDB entirely
+      setTimeout(() => rej(new Error('IndexedDB open timed out — private browsing may block storage.')), 5000);
+    } catch(e) { rej(new Error('IndexedDB unavailable: ' + e.message)); }
   });
 }
+function _idbWithTimeout(promiseFn, ms) {
+  return Promise.race([
+    promiseFn(),
+    new Promise((_, rej) => setTimeout(() => rej(new Error(
+      'Storage operation timed out. If you are in Private/Incognito mode, please switch to a normal browser window — private browsing blocks file storage.'
+    )), ms || 8000))
+  ]);
+}
 async function savePDF(id, blob) {
-  const db = await openDB();
-  return new Promise((res, rej) => { const tx = db.transaction('pdfs','readwrite'); tx.objectStore('pdfs').put({id, blob, addedAt:Date.now()}); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+  return _idbWithTimeout(async () => {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('pdfs','readwrite');
+      tx.objectStore('pdfs').put({id, blob, addedAt:Date.now()});
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error || new Error('Save transaction failed'));
+      tx.onabort = () => rej(new Error('Save transaction aborted — storage may be restricted in private browsing.'));
+    });
+  });
 }
 async function getPDF(id) {
-  const db = await openDB();
-  return new Promise((res, rej) => { const tx = db.transaction('pdfs','readonly'); const r = tx.objectStore('pdfs').get(id); r.onsuccess = () => res(r.result?.blob ?? null); r.onerror = () => rej(r.error); });
+  return _idbWithTimeout(async () => {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('pdfs','readonly');
+      const r = tx.objectStore('pdfs').get(id);
+      r.onsuccess = () => res(r.result?.blob ?? null);
+      r.onerror = () => rej(r.error || new Error('Read transaction failed'));
+      tx.onabort = () => rej(new Error('Read transaction aborted.'));
+    });
+  });
 }
 async function deletePDFFromDB(id) {
-  const db = await openDB();
-  return new Promise((res, rej) => { const tx = db.transaction('pdfs','readwrite'); tx.objectStore('pdfs').delete(id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+  return _idbWithTimeout(async () => {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('pdfs','readwrite');
+      tx.objectStore('pdfs').delete(id);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error || new Error('Delete transaction failed'));
+      tx.onabort = () => rej(new Error('Delete transaction aborted.'));
+    });
+  });
 }
 
 function loadMeta() { try { return JSON.parse(localStorage.getItem(META_KEY)) || []; } catch { return []; } }
@@ -320,9 +376,9 @@ function renderDetail(el) {
   const sc = STATUS_COLORS[b.readingStatus] || '#6b7280';
   el.innerHTML = `
     <button class="btn" onclick="saveDetailAndBack()" style="margin-bottom:16px">Back to Library</button>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px">
+    <div class="detail-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px">
       <div>
-        <div style="width:100%;height:240px;border-radius:10px;background:${plColor(b.id)};display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:rgba(255,255,255,0.2);margin-bottom:16px">${initials(b.title)}</div>
+        <div class="book-cover-detail" style="width:100%;height:240px;border-radius:10px;background:${plColor(b.id)};display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:rgba(255,255,255,0.2);margin-bottom:16px">${initials(b.title)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-green" onclick="openReaderForBook('${b.id}')">${b.fileType === 'epub' ? 'Open EPUB' : 'Read'}</button>
           <button class="btn" onclick="downloadBook('${b.id}')">Download</button>
