@@ -178,6 +178,7 @@ const SECTIONS = {
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
       { name: 'Metronome', file: './tools/misc/metronome.html' },
       { name: 'Minesweeper', file: './tools/misc/minesweeper.html' },
+      { name: 'Music Library', file: './tools/misc/music-library.html' },
       { name: 'Moving Specialist Invoice', file: './tools/misc/moving-invoice.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
