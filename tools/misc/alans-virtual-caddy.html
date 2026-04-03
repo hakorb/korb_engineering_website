@@ -231,6 +231,29 @@ button{-webkit-touch-callout:none;user-select:none;}
 .play-good{background:rgba(201,168,76,.15);color:var(--gold);}
 .play-poor{background:rgba(239,83,80,.15);color:var(--red);}
 
+/* --- GOLFER PROFILES --- */
+.golfer-bar{display:flex;gap:6px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+.golfer-chip{padding:8px 14px;border-radius:20px;font-size:.85em;font-weight:600;
+  cursor:pointer;background:var(--gold-light);color:var(--gold);border:1.5px solid var(--border);
+  min-height:44px;display:flex;align-items:center;gap:4px;user-select:none;}
+.golfer-chip:active{opacity:.8;}
+.golfer-chip.active{background:var(--gold);color:#2c1215;border-color:var(--gold);}
+.golfer-chip .remove-golfer{font-size:.75em;opacity:.6;margin-left:2px;cursor:pointer;}
+.golfer-chip.active .remove-golfer{opacity:.8;}
+.add-golfer-btn{padding:8px 14px;border-radius:20px;font-size:.85em;font-weight:700;
+  cursor:pointer;background:transparent;color:var(--gold);border:1.5px dashed var(--gold-dim);
+  min-height:44px;display:flex;align-items:center;gap:4px;user-select:none;}
+.add-golfer-btn:active{background:var(--gold-light);}
+.golfer-form{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.golfer-form input{height:44px;border-radius:8px;border:1.5px solid var(--border);
+  padding:0 10px;background:var(--panel);color:var(--text);font-size:1em;}
+.golfer-form input.fname{flex:1;min-width:100px;}
+.golfer-form input.linitial{width:50px;text-transform:uppercase;text-align:center;}
+.golfer-form button{height:44px;padding:0 16px;border-radius:8px;font-weight:700;
+  cursor:pointer;font-size:.9em;user-select:none;}
+.golfer-active-label{font-size:.82em;color:var(--muted);margin-bottom:6px;}
+.golfer-active-label strong{color:var(--gold);}
+
 /* --- CLUB DISTANCE EDITOR --- */
 .club-editor{font-size:.85em;}
 .club-editor-row{display:flex;align-items:center;gap:6px;margin:4px 0;}
@@ -409,10 +432,13 @@ select option{background:var(--panel);color:var(--text);}
       </div>
     </div>
     <div class="card">
-      <h2>&#9971; My Club Distances</h2>
+      <h2>&#9971; Golfer Profiles & Club Distances</h2>
+      <div id="golferProfiles"></div>
+      <div id="golferForm" class="hidden"></div>
+      <div class="golfer-active-label" id="golferActiveLabel"></div>
       <div class="club-editor" id="clubEditor"></div>
       <div class="round-actions" style="margin-top:8px;">
-        <button class="btn-secondary" onclick="resetClubs()">Reset Defaults</button>
+        <button class="btn-secondary" onclick="resetClubs()">Reset to Defaults</button>
       </div>
     </div>
   </div>
@@ -779,6 +805,12 @@ let carouselIdx = 0;
 let gpsWatchId = null;
 let speechSynth = window.speechSynthesis || null;
 
+// Golfer profile system
+let golferProfiles = []; // [{id, firstName, lastInitial, clubs:[{name,dist},...]}]
+let activeGolferId = null;
+
+function golferDisplayName(g){ return g.firstName + ' ' + g.lastInitial.toUpperCase() + '.'; }
+
 function loadState(){
   try {
     const s = localStorage.getItem('vcaddy_state');
@@ -788,9 +820,17 @@ function loadState(){
       putts = d.putts || {};
       clubs = d.clubs || [...DEFAULT_CLUBS];
       roundHistory = d.roundHistory || [];
+      golferProfiles = d.golferProfiles || [];
+      activeGolferId = d.activeGolferId || null;
       if(d.currentCourse && COURSES[d.currentCourse]){
         currentCourse = d.currentCourse;
         currentHole = d.currentHole || 0;
+      }
+      // Load active golfer's clubs
+      if(activeGolferId){
+        const g = golferProfiles.find(p=>p.id===activeGolferId);
+        if(g) clubs = g.clubs.map(c=>({...c}));
+        else activeGolferId = null;
       }
     } else {
       clubs = [...DEFAULT_CLUBS.map(c=>({...c}))];
@@ -800,10 +840,117 @@ function loadState(){
 
 function saveState(){
   try {
+    // Sync current clubs back to active golfer profile
+    if(activeGolferId){
+      golferProfiles = golferProfiles.map(g =>
+        g.id === activeGolferId ? {...g, clubs: clubs.map(c=>({...c}))} : g
+      );
+    }
     localStorage.setItem('vcaddy_state', JSON.stringify({
-      currentCourse, currentHole, scores, putts, clubs, roundHistory
+      currentCourse, currentHole, scores, putts, clubs, roundHistory,
+      golferProfiles, activeGolferId
     }));
   } catch(e){}
+}
+
+function renderGolferProfiles(){
+  const container = document.getElementById('golferProfiles');
+  if(!container) return;
+  let html = '<div class="golfer-bar">';
+  golferProfiles.forEach(g => {
+    const isActive = g.id === activeGolferId;
+    html += `<div class="golfer-chip ${isActive?'active':''}" onclick="switchGolfer('${g.id}')">
+      ${golferDisplayName(g)}
+      <span class="remove-golfer" onclick="event.stopPropagation();removeGolfer('${g.id}')">&times;</span>
+    </div>`;
+  });
+  html += `<div class="add-golfer-btn" onclick="showGolferForm()">+ Add Golfer</div>`;
+  html += '</div>';
+  container.innerHTML = html;
+
+  const label = document.getElementById('golferActiveLabel');
+  if(label){
+    if(activeGolferId){
+      const g = golferProfiles.find(p=>p.id===activeGolferId);
+      label.innerHTML = 'Editing distances for: <strong>' + (g ? golferDisplayName(g) : 'Unknown') + '</strong>';
+    } else {
+      label.innerHTML = golferProfiles.length ? 'Using default distances — select a golfer above' : '';
+    }
+  }
+}
+
+function showGolferForm(){
+  const form = document.getElementById('golferForm');
+  form.classList.remove('hidden');
+  form.innerHTML = `<div class="golfer-form">
+    <input class="fname" id="golferFname" placeholder="First name" maxlength="20" autocomplete="off">
+    <input class="linitial" id="golferLinitial" placeholder="L" maxlength="1" autocomplete="off">
+    <button class="btn-primary" onclick="addGolfer()">Save</button>
+    <button class="btn-secondary" onclick="hideGolferForm()">Cancel</button>
+  </div>`;
+  document.getElementById('golferFname').focus();
+}
+
+function hideGolferForm(){
+  document.getElementById('golferForm').classList.add('hidden');
+  document.getElementById('golferForm').innerHTML = '';
+}
+
+function addGolfer(){
+  const fname = (document.getElementById('golferFname').value || '').trim();
+  const linitial = (document.getElementById('golferLinitial').value || '').trim().charAt(0);
+  if(!fname){ alert('Please enter a first name.'); return; }
+  if(!linitial){ alert('Please enter a last name initial.'); return; }
+
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  const newGolfer = {
+    id,
+    firstName: fname,
+    lastInitial: linitial.toUpperCase(),
+    clubs: DEFAULT_CLUBS.map(c=>({...c}))
+  };
+  golferProfiles.push(newGolfer);
+  activeGolferId = id;
+  clubs = newGolfer.clubs.map(c=>({...c}));
+  hideGolferForm();
+  renderGolferProfiles();
+  buildClubEditor();
+  saveState();
+}
+
+function switchGolfer(id){
+  // Save current golfer's clubs first
+  if(activeGolferId){
+    golferProfiles = golferProfiles.map(g =>
+      g.id === activeGolferId ? {...g, clubs: clubs.map(c=>({...c}))} : g
+    );
+  }
+  if(activeGolferId === id){
+    // Deselect — go back to defaults
+    activeGolferId = null;
+    clubs = DEFAULT_CLUBS.map(c=>({...c}));
+  } else {
+    activeGolferId = id;
+    const g = golferProfiles.find(p=>p.id===id);
+    if(g) clubs = g.clubs.map(c=>({...c}));
+  }
+  renderGolferProfiles();
+  buildClubEditor();
+  saveState();
+}
+
+function removeGolfer(id){
+  const g = golferProfiles.find(p=>p.id===id);
+  if(!g) return;
+  if(!confirm('Remove golfer profile for ' + golferDisplayName(g) + '? Their custom distances will be deleted.')) return;
+  golferProfiles = golferProfiles.filter(p=>p.id!==id);
+  if(activeGolferId === id){
+    activeGolferId = null;
+    clubs = DEFAULT_CLUBS.map(c=>({...c}));
+  }
+  renderGolferProfiles();
+  buildClubEditor();
+  saveState();
 }
 
 /* ============================= INIT ============================= */
@@ -1059,9 +1206,10 @@ function caddyMe(){
         document.getElementById('gpsDist').textContent = dist;
         document.getElementById('gpsLabel').textContent = 'yards to green (GPS live)';
         const club = recommendClub(dist);
-        document.getElementById('gpsClub').textContent = club ? ('Recommended: ' + club.name) : '';
+        const golferTag = activeGolferId ? (' for ' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId))) : '';
+        document.getElementById('gpsClub').textContent = club ? ('Recommended' + golferTag + ': ' + club.name) : '';
         document.getElementById('gpsStatus').textContent =
-          'GPS live • Accuracy: ±' + Math.round(pos.coords.accuracy * 1.09361) + ' yds • Hole ' + h.n;
+          'GPS live • Accuracy: ±' + Math.round(pos.coords.accuracy * 1.09361) + ' yds • Hole ' + h.n + (activeGolferId ? ' • ' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId)) + "'s clubs" : '');
 
         if(speechSynth && !speechSynth.speaking && dist > 20){
           const msg = new SpeechSynthesisUtterance(`${dist} yards to the green. ${club ? club.name : ''}`);
@@ -1075,9 +1223,10 @@ function caddyMe(){
         document.getElementById('gpsDist').textContent = dist;
         document.getElementById('gpsLabel').textContent = 'yards (tee distance — mark green for live GPS)';
         const club = recommendClub(dist);
-        document.getElementById('gpsClub').textContent = club ? ('Recommended: ' + club.name) : '';
+        const golferTag2 = activeGolferId ? (' for ' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId))) : '';
+        document.getElementById('gpsClub').textContent = club ? ('Recommended' + golferTag2 + ': ' + club.name) : '';
         document.getElementById('gpsStatus').textContent =
-          'GPS connected • Showing ' + c.tees[teeIdx] + ' tee yardage • Tap "Mark Green" when on the green';
+          'GPS connected • Showing ' + c.tees[teeIdx] + ' tee yardage • Tap "Mark Green" when on the green' + (activeGolferId ? ' • Using ' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId)) + "'s clubs" : '');
       }
       updateMarkBtn();
     },
@@ -1148,7 +1297,8 @@ function calcClub(){
 
   const club = recommendClub(adj);
   document.getElementById('calcAdjDist').textContent = adj + ' yds';
-  document.getElementById('calcClubName').textContent = club ? club.name : 'Beyond range';
+  const golferCalcTag = activeGolferId ? ' (' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId)) + "'s bag)" : '';
+  document.getElementById('calcClubName').textContent = club ? club.name + golferCalcTag : 'Beyond range';
   let details = [];
   if(elev!==0) details.push(elev>0?'Uphill':'Downhill');
   if(wind!==0) details.push(wind>0?'Into wind':'Helping wind');
@@ -1159,6 +1309,7 @@ function calcClub(){
 
 /* ============================= CLUB EDITOR ============================= */
 function buildClubEditor(){
+  renderGolferProfiles();
   let html = '';
   clubs.forEach((c,i) => {
     html += `<div class="club-editor-row">
@@ -1177,6 +1328,11 @@ function updateClubDist(i,v){
 
 function resetClubs(){
   clubs = DEFAULT_CLUBS.map(c=>({...c}));
+  if(activeGolferId){
+    golferProfiles = golferProfiles.map(g =>
+      g.id === activeGolferId ? {...g, clubs: clubs.map(c=>({...c}))} : g
+    );
+  }
   buildClubEditor();
   saveState();
 }
