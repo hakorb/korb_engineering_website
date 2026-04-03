@@ -116,7 +116,6 @@
     background: var(--toy-red-dark);
     border-radius: 50%;
     box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
-    animation: speaker-pulse 0s ease infinite;
   }
 
   .speaker-hole.active {
@@ -218,11 +217,13 @@
     border-radius: 6px;
     color: var(--toy-cream);
     font-family: 'VT323', monospace;
-    font-size: 1.2rem;
+    font-size: 16px;
     padding: 8px 12px;
+    min-height: 44px;
     outline: none;
     letter-spacing: 2px;
     transition: border-color 0.2s, box-shadow 0.2s;
+    touch-action: manipulation;
   }
 
   .text-input::placeholder { color: rgba(245,240,232,0.3); }
@@ -237,6 +238,7 @@
     font-size: 1rem;
     letter-spacing: 1px;
     padding: 8px 14px;
+    min-height: 44px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -244,6 +246,8 @@
     transition: transform 0.08s, box-shadow 0.08s;
     text-transform: uppercase;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .btn:active { transform: translateY(2px); }
@@ -313,6 +317,7 @@
     font-size: 1rem;
     width: 36px;
     height: 34px;
+    min-height: 44px;
     border-radius: 4px;
     border: none;
     cursor: pointer;
@@ -323,6 +328,8 @@
     font-weight: bold;
     position: relative;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .key:active, .key.pressed {
@@ -366,6 +373,7 @@
     border: 1px solid rgba(243,156,18,0.3);
     border-radius: 4px;
     padding: 6px 10px;
+    min-height: 44px;
     font-family: 'VT323', monospace;
     font-size: 1rem;
     color: var(--toy-yellow);
@@ -375,6 +383,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .suggestion-chip:hover {
@@ -443,16 +453,19 @@
     background: var(--toy-brown);
     border-radius: 2px;
     outline: none;
+    touch-action: manipulation;
+    min-height: 24px;
   }
 
   .rate-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 12px; height: 12px;
+    width: 24px; height: 24px;
     border-radius: 50%;
     background: var(--toy-yellow);
     cursor: pointer;
     box-shadow: 0 0 6px rgba(243,156,18,0.5);
   }
+
 
   .toast {
     position: fixed;
@@ -472,6 +485,20 @@
   }
 
   .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Responsive: small screens */
+  @media (max-width: 520px) {
+    body { padding: 10px; }
+    .toy-body { padding: 12px; border-radius: 16px 16px 28px 28px; }
+    .brand-name { font-size: 1.6rem; }
+    .key { width: 28px; font-size: 0.9rem; }
+    .key-row { gap: 3px; margin-bottom: 3px; }
+    .key.special { font-size: 0.65rem; padding: 0 6px; }
+    .input-section { flex-wrap: wrap; }
+    .btn-speak { order: -1; width: 100%; flex: none; }
+    .text-input { min-width: 0; }
+    .screen-text { font-size: 1.3rem; }
+  }
 </style>
 </head>
 <body>
@@ -675,40 +702,44 @@ function speak(text, onEnd) {
   utter.pitch = 0.1;     // Very low pitch = robotic
   utter.volume = 1;
 
-  // Wait for voices to load
+  // Set up utterance events before speaking
+  utter.onstart = () => {
+    isSpeaking = true;
+    const btn = document.getElementById('speakBtn');
+    btn.textContent = 'STOP';
+    btn.classList.add('speaking');
+    animateSpeaker(true);
+    animateVoiceMeter(true);
+    // Chrome workaround: pause/resume keeps synthesis alive on long text
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = setInterval(() => {
+      if(window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 5000);
+  };
+  utter.onend = () => {
+    stopSpeaking();
+    if(onEnd) onEnd();
+  };
+  utter.onerror = (e) => {
+    if(e.error !== 'canceled') stopSpeaking();
+  };
+
+  // Wait for voices to load, then speak
   const trySpeak = () => {
     const voice = getSpeakSpellVoice();
     if(voice) utter.voice = voice;
-
-    utter.onstart = () => {
-      isSpeaking = true;
-      const btn = document.getElementById('speakBtn');
-      btn.textContent = 'STOP';
-      btn.classList.add('speaking');
-      animateSpeaker(true);
-      animateVoiceMeter(true);
-      // Chrome workaround: pause/resume keeps synthesis alive on long text
-      clearInterval(keepAliveTimer);
-      keepAliveTimer = setInterval(() => {
-        if(window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-          window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
-        }
-      }, 5000);
-    };
-    utter.onend = () => {
-      stopSpeaking();
-      if(onEnd) onEnd();
-    };
-    utter.onerror = (e) => {
-      if(e.error !== 'canceled') stopSpeaking();
-    };
-
     window.speechSynthesis.speak(utter);
   };
 
   if(window.speechSynthesis.getVoices().length === 0) {
-    window.speechSynthesis.onvoiceschanged = trySpeak;
+    // Use addEventListener so multiple calls don't overwrite each other
+    window.speechSynthesis.addEventListener('voiceschanged', function onVoices() {
+      window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+      trySpeak();
+    });
   } else {
     trySpeak();
   }
@@ -878,10 +909,8 @@ document.getElementById('micBtn').addEventListener('click', () => {
 });
 
 // ========== INIT ==========
-// Pre-load voices
-if(window.speechSynthesis.getVoices().length === 0) {
-  window.speechSynthesis.onvoiceschanged = () => {};
-}
+// Pre-load voices (trigger the browser to fetch them)
+window.speechSynthesis.getVoices();
 
 // Greeting — delayed so user sees the UI first; stoppable via STOP button
 setTimeout(() => {
