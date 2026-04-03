@@ -13,7 +13,7 @@ Personal engineering tools archive. Static site hosted on AWS S3 + CloudFront.
 │   ├── aviation/       # Aviation tools (.html files)
 │   ├── civil/          # Civil Engineering tools
 │   │   └── pdf-editor.html
-│   ├── hk/             # HK section (password: hk2026)
+│   ├── hk/             # HK section (password-protected)
 │   └── misc/           # Miscellaneous tools
 └── .github/
     └── workflows/

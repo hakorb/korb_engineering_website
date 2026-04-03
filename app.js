@@ -3,6 +3,12 @@
    VFD / Segmented Display Edition
    ============================================ */
 
+// --- Security: SHA-256 hash for password gates ---
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // --- Header K logo SVG (reused for Civil Engineering tile) ---
 // Charlemagne / Carolingian inspired K with serif details
 const K_LOGO_SVG = `<svg viewBox="0 0 85 100" fill="currentColor" aria-hidden="true">
@@ -32,7 +38,7 @@ const SECTIONS = {
     tools: [
       { name: 'ALP Tracker', file: './tools/aviation/alp-tracker.html' },
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
-      { name: 'Graphing Calculator', file: './tools/aviation/1980s Calculator.html' },
+      { name: 'Graphing Calculator', file: './tools/aviation/1980s-calculator.html' },
       { name: 'Hangar Door Selector', file: './tools/aviation/hangar-door-selector.html' },
       { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
@@ -42,7 +48,6 @@ const SECTIONS = {
       { name: 'Proposal Scope & Fee Generator', file: './tools/aviation/proposal-scope-fee.html' },
       { name: 'Punch List', file: './tools/aviation/punch-list.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
-      { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' }
     ]
   },
@@ -50,7 +55,6 @@ const SECTIONS = {
     title: '',
     icon: K_LOGO_SVG,
     tools: [
-      { name: 'AssetMax', file: './tools/civil/assetmax.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
       { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
@@ -122,7 +126,7 @@ const SECTIONS = {
       <path d="M18 27v2"/>
     </svg>`,
     locked: true,
-    password: 'potato1',
+    _hash: 'f1535ce1805987f0d854e54688476a02d14f33b47db57f26d17237b390960a47',
     tools: [
       { name: 'Email Client', file: './tools/hk/email-client.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
@@ -188,6 +192,7 @@ const SECTIONS = {
       { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
       { name: 'Soundboard', file: './tools/misc/soundboard.html' },
       { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
+      { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'Sudoku', file: './tools/misc/sudoku.html' },
       { name: 'Tanks', file: './tools/misc/tanks.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
@@ -598,9 +603,10 @@ function renderFolderPasswordGate(sectionKey, sec, folder) {
   const input = document.getElementById('folderGatePassword');
   const error = document.getElementById('folderGateError');
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (input.value === folder.password) {
+    const fHash = folder._hash ? await sha256(input.value) : input.value;
+    if (fHash === (folder._hash || folder.password)) {
       folder._unlocked = true;
       renderSubfolderGrid(sectionKey, sec, folder);
     } else {
@@ -938,9 +944,10 @@ function renderPasswordGate(key, sec) {
   const input = document.getElementById('gatePassword');
   const error = document.getElementById('gateError');
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (input.value === sec.password) {
+    const hash = await sha256(input.value);
+    if (hash === sec._hash) {
       sec._unlocked = true;
       renderSection(key);
     } else {
