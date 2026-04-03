@@ -166,6 +166,7 @@ const SECTIONS = {
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
       { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
+      { name: 'Leadership Forge', file: './tools/misc/leadership-principles.html' },
       { name: 'Legal Advisor', file: './tools/misc/legal-advisor.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
