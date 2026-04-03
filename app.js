@@ -169,6 +169,7 @@ const SECTIONS = {
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
+      { name: 'Painting Studio', file: './tools/misc/painting-studio.html' },
       { name: 'Password Forge', file: './tools/misc/password-forge.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
       { name: 'Pomodoro Timer', file: './tools/misc/pomodoro-timer.html' },
@@ -627,13 +628,102 @@ function renderSubfolderGrid(sectionKey, sec, folder) {
 }
 
 
+// --- Operating Instructions Panel ---
+const INFO_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+const CLOSE_INFO_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const COPY_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+
+function getToolInstructionsHTML(tool, sectionKey) {
+  const slug = getToolSlug(tool);
+  const shareUrl = `${location.origin}${location.pathname}#${sectionKey}/${slug}`;
+  const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK Private' };
+
+  return `
+    <div class="info-panel" id="infoPanel">
+      <div class="info-panel-header">
+        <h3 class="info-panel-title">Operating Instructions</h3>
+        <button class="info-panel-close" id="infoPanelClose" aria-label="Close">${CLOSE_INFO_SVG}</button>
+      </div>
+      <div class="info-panel-body">
+        <div class="info-section">
+          <div class="info-tool-name">${tool.name}</div>
+          <div class="info-tool-section">${sectionLabels[sectionKey] || sectionKey} Section</div>
+        </div>
+        <div class="info-section">
+          <h4 class="info-heading">Navigation</h4>
+          <ul class="info-list">
+            <li>Tap the <strong>back arrow</strong> (top-left) to return to the tool grid</li>
+            <li>Use your browser's back button to navigate</li>
+          </ul>
+        </div>
+        <div class="info-section">
+          <h4 class="info-heading">About This Tool</h4>
+          <ul class="info-list">
+            <li>Runs entirely in your browser — no data is sent to any server</li>
+            <li>Data you enter is stored locally on your device</li>
+            <li>Works offline once loaded</li>
+          </ul>
+        </div>
+        <div class="info-section">
+          <h4 class="info-heading">Share This Tool</h4>
+          <div class="info-share-row">
+            <input type="text" class="info-share-input" id="infoShareUrl" value="${shareUrl}" readonly>
+            <button class="info-share-copy" id="infoShareCopy" aria-label="Copy link">${COPY_SVG}</button>
+          </div>
+          <div class="info-copy-toast" id="infoCopyToast">Copied!</div>
+        </div>
+        <div class="info-section info-footer">
+          <span>Part of the <strong>Korb Engineering</strong> suite</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initInfoPanel() {
+  const infoBtn = main.querySelector('.info-btn');
+  const panel = document.getElementById('infoPanel');
+  const closeBtn = document.getElementById('infoPanelClose');
+  const copyBtn = document.getElementById('infoShareCopy');
+  const urlInput = document.getElementById('infoShareUrl');
+  const toast = document.getElementById('infoCopyToast');
+
+  if (!infoBtn || !panel) return;
+
+  infoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.classList.toggle('open');
+  });
+
+  closeBtn.addEventListener('click', () => {
+    panel.classList.remove('open');
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(urlInput.value).then(() => {
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1500);
+    });
+  });
+
+  // Close panel when clicking outside
+  document.addEventListener('click', (e) => {
+    if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== infoBtn && !infoBtn.contains(e.target)) {
+      panel.classList.remove('open');
+    }
+  }, { once: false });
+}
+
+
 // --- Subfolder tool embed (back goes to subfolder, not section) ---
 function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
   main.innerHTML = `
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
         <button type="button" class="back-link tool-back-btn" aria-label="Back to folder">${BACK_SVG}</button>
+        <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
+      ${getToolInstructionsHTML(tool, sectionKey)}
       <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
     </section>
   `;
@@ -646,6 +736,8 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
     // Navigate back to section grid
     location.hash = sectionKey;
   });
+
+  initInfoPanel();
 }
 
 
@@ -654,7 +746,9 @@ function renderToolEmbed(key, sec, tool) {
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
         <button type="button" class="back-link tool-back-btn" aria-label="Back to section">${BACK_SVG}</button>
+        <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
+      ${getToolInstructionsHTML(tool, key)}
       <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
     </section>
   `;
@@ -669,6 +763,8 @@ function renderToolEmbed(key, sec, tool) {
     // Navigate back to section grid
     location.hash = key;
   });
+
+  initInfoPanel();
 }
 
 
