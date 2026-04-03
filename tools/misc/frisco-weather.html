@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frisco, TX Weather Station</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#050a0f;--bg2:#0a1520;--bg3:#0f1f2e;--bg4:#142838;
+--cyan:#00d4ff;--orange:#ff6600;--green:#00ff88;--yellow:#ffd700;
+--red:#ff3344;--purple:#bf5af2;--white:#e8f0f8;--dim:#5a7a90;
+--card-radius:12px;--gap:16px;
+}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--white);min-height:100vh;line-height:1.5;font-size:14px}
+a{color:var(--cyan);text-decoration:none}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--dim);border-radius:3px}
+
+/* Alert Banner */
+#alert-banner{display:none;padding:12px 20px;font-weight:600;text-align:center;position:sticky;top:0;z-index:100;cursor:pointer;animation:pulse-bg 2s ease-in-out infinite}
+@keyframes pulse-bg{0%,100%{opacity:1}50%{opacity:.85}}
+.alert-warning{background:#cc0000;color:#fff}
+.alert-watch{background:#cc6600;color:#fff}
+.alert-advisory{background:#ccaa00;color:#000}
+
+/* Layout */
+.container{max-width:1400px;margin:0 auto;padding:var(--gap)}
+.grid{display:grid;gap:var(--gap)}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--card-radius);padding:20px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent)}
+.card-title{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:16px}
+
+/* Header */
+.header{text-align:center;padding:20px 0 10px}
+.header h1{font-size:20px;font-weight:300;color:var(--cyan);letter-spacing:3px}
+.header .subtitle{font-size:11px;color:var(--dim);margin-top:4px}
+.refresh-row{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:8px;font-size:11px;color:var(--dim)}
+.refresh-btn{background:var(--bg3);border:1px solid var(--dim);color:var(--cyan);padding:4px 12px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;transition:all .2s}
+.refresh-btn:hover{background:var(--cyan);color:var(--bg)}
+
+/* Current Conditions */
+.current-main{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.current-temp{font-size:64px;font-weight:700;color:var(--white);line-height:1}
+.current-temp .unit{font-size:24px;color:var(--dim);font-weight:300}
+.current-desc{font-size:14px;color:var(--cyan);margin-top:4px}
+.current-feels{font-size:12px;color:var(--dim)}
+.current-icon{font-size:56px;line-height:1}
+.current-details{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:16px}
+.detail-item{display:flex;flex-direction:column;gap:2px}
+.detail-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+.detail-value{font-size:14px;font-weight:500}
+
+/* Tornado Risk */
+.tornado-card{border:2px solid var(--green)}
+.tornado-card.risk-low{border-color:var(--green)}
+.tornado-card.risk-moderate{border-color:var(--yellow)}
+.tornado-card.risk-enhanced{border-color:var(--orange)}
+.tornado-card.risk-high{border-color:var(--red)}
+.tornado-card.risk-extreme{border-color:var(--purple)}
+.tornado-card::before{display:none}
+.tornado-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.tornado-level{font-size:28px;font-weight:700;text-transform:uppercase}
+.tornado-score{font-size:48px;font-weight:700;line-height:1}
+.tornado-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin:12px 0}
+.tornado-bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.tornado-factors{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:12px}
+.factor{padding:8px 12px;background:var(--bg);border-radius:8px;font-size:12px}
+.factor-name{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.factor-value{font-weight:600;margin-top:2px}
+.tornado-daily{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:16px}
+.tornado-day{text-align:center;padding:8px 4px;background:var(--bg);border-radius:8px;font-size:11px}
+.tornado-day .day-name{color:var(--dim);font-size:10px}
+.tornado-day .risk-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-top:4px}
+
+/* Checklist */
+.checklist{background:var(--bg);border-radius:8px;padding:16px;margin-top:16px;border-left:4px solid var(--orange)}
+.checklist h4{color:var(--orange);font-size:13px;margin-bottom:10px}
+.checklist li{font-size:12px;margin-bottom:6px;padding-left:4px;color:var(--white);opacity:.9;list-style:none}
+.checklist li::before{content:'>';color:var(--orange);margin-right:8px;font-weight:700}
+
+/* Hourly */
+.hourly-scroll{display:flex;gap:8px;overflow-x:auto;padding:8px 0}
+.hour-card{min-width:72px;text-align:center;padding:12px 8px;background:var(--bg);border-radius:8px;font-size:11px;flex-shrink:0;border:1px solid transparent;transition:border-color .2s}
+.hour-card.severe{border-color:var(--red);background:rgba(255,51,68,.08)}
+.hour-card .h-time{color:var(--dim);font-size:10px}
+.hour-card .h-icon{font-size:20px;margin:6px 0}
+.hour-card .h-temp{font-weight:600;font-size:14px}
+.hour-card .h-precip{color:var(--cyan);font-size:10px;margin-top:4px}
+.hour-card .h-wind{color:var(--dim);font-size:9px;margin-top:2px}
+
+/* 7-Day */
+.daily-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--bg3);font-size:13px}
+.daily-row:last-child{border-bottom:none}
+.daily-day{width:44px;font-weight:600;font-size:12px}
+.daily-icon{font-size:22px;width:36px;text-align:center}
+.daily-desc{flex:1;font-size:11px;color:var(--dim);min-width:80px}
+.daily-precip{width:48px;text-align:right;color:var(--cyan);font-size:11px}
+.daily-temps{display:flex;align-items:center;gap:8px;width:200px}
+.daily-low{width:36px;text-align:right;color:var(--dim);font-size:12px}
+.daily-high{width:36px;font-weight:600;font-size:12px}
+.daily-bar-wrap{flex:1;height:6px;background:var(--bg);border-radius:3px;position:relative;min-width:60px}
+.daily-bar{position:absolute;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan),var(--orange))}
+.daily-wind{width:60px;text-align:right;font-size:11px;color:var(--dim)}
+.daily-uv{width:30px;text-align:center;font-size:11px;padding:2px 4px;border-radius:4px}
+.daily-tornado-badge{width:24px;text-align:center}
+
+/* Radar */
+.radar-frame{width:100%;height:400px;border:none;border-radius:8px;background:var(--bg)}
+
+/* AQI */
+.aqi-main{display:flex;align-items:center;gap:20px;margin-bottom:16px}
+.aqi-number{font-size:48px;font-weight:700;line-height:1}
+.aqi-label{font-size:14px;font-weight:600}
+.aqi-desc{font-size:12px;color:var(--dim);margin-top:4px}
+.aqi-pollutants{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.pollutant{background:var(--bg);padding:10px;border-radius:8px;text-align:center}
+.pollutant-name{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.pollutant-value{font-size:16px;font-weight:600;margin-top:4px}
+
+/* Astronomy */
+.astro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.astro-item{text-align:center;padding:12px;background:var(--bg);border-radius:8px}
+.astro-icon{font-size:28px;margin-bottom:6px}
+.astro-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.astro-value{font-size:14px;font-weight:500;margin-top:4px}
+
+/* NWS Alerts */
+.nws-alert{padding:12px;border-radius:8px;margin-bottom:8px;font-size:12px}
+.nws-alert.nws-warning{background:rgba(255,51,68,.15);border-left:4px solid var(--red)}
+.nws-alert.nws-watch{background:rgba(255,102,0,.15);border-left:4px solid var(--orange)}
+.nws-alert.nws-advisory{background:rgba(255,215,0,.15);border-left:4px solid var(--yellow)}
+.nws-alert h4{margin-bottom:4px}
+.nws-alert p{color:var(--dim);line-height:1.4}
+
+/* Pollen */
+.pollen-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pollen-label{width:80px;font-size:11px;color:var(--dim)}
+.pollen-track{flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+.pollen-fill{height:100%;border-radius:4px}
+
+/* Settings */
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bg3);font-size:12px}
+.settings-row:last-child{border-bottom:none}
+.toggle-group{display:flex;gap:4px}
+.toggle-btn{padding:4px 10px;border-radius:4px;border:1px solid var(--dim);background:transparent;color:var(--dim);cursor:pointer;font-family:inherit;font-size:11px;transition:all .2s}
+.toggle-btn.active{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+
+/* Severity colors */
+.sev-low{color:var(--green)}.sev-mod{color:var(--yellow)}.sev-enh{color:var(--orange)}.sev-high{color:var(--red)}.sev-ext{color:var(--purple)}
+.bg-low{background:var(--green);color:#000}.bg-mod{background:var(--yellow);color:#000}.bg-enh{background:var(--orange);color:#000}.bg-high{background:var(--red);color:#fff}.bg-ext{background:var(--purple);color:#fff}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:var(--dim)}
+.spinner{display:inline-block;width:24px;height:24px;border:2px solid var(--bg3);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Wind shear viz */
+.shear-viz{position:relative;height:120px;background:var(--bg);border-radius:8px;overflow:hidden;margin-top:12px}
+.shear-arrow{position:absolute;transition:all .3s}
+
+/* Storm timeline */
+.storm-timeline{display:flex;gap:2px;margin-top:12px;height:40px;align-items:flex-end}
+.storm-bar{flex:1;border-radius:2px 2px 0 0;min-width:4px;transition:height .3s}
+
+/* Historical */
+.hist-compare{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.hist-item{text-align:center;padding:12px 16px;background:var(--bg);border-radius:8px}
+.hist-value{font-size:24px;font-weight:700}
+.hist-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+/* Responsive */
+@media(max-width:768px){
+  .current-temp{font-size:48px}
+  .current-icon{font-size:40px}
+  .tornado-daily{grid-template-columns:repeat(4,1fr)}
+  .daily-desc,.daily-wind{display:none}
+  .daily-temps{width:140px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .radar-frame{height:300px}
+}
+@media(max-width:480px){
+  .container{padding:8px}
+  .card{padding:14px}
+  .tornado-daily{grid-template-columns:repeat(3,1fr)}
+}
+
+/* Theme light */
+body.light{--bg:#f0f4f8;--bg2:#fff;--bg3:#e2e8f0;--bg4:#d0d8e4;--white:#1a2332;--dim:#6b7f8e;--cyan:#0088cc;--orange:#dd5500}
+body.light .card{box-shadow:0 1px 4px rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+
+<div id="alert-banner" onclick="this.style.display='none'"></div>
+
+<div class="container">
+  <div class="header">
+    <h1>FRISCO, TX WEATHER STATION</h1>
+    <div class="subtitle">33.1507N, 96.8236W &middot; Collin County &middot; Tornado Alley</div>
+    <div class="refresh-row">
+      <span id="last-updated">Loading...</span>
+      <button class="refresh-btn" onclick="loadAll()">REFRESH</button>
+    </div>
+  </div>
+
+  <!-- NWS Alerts -->
+  <div id="nws-alerts-section" class="card" style="display:none;margin-bottom:var(--gap)">
+    <div class="card-title"><span class="icon">&#9888;</span> ACTIVE WEATHER ALERTS</div>
+    <div id="nws-alerts-list"></div>
+  </div>
+
+  <!-- Current + Tornado -->
+  <div class="grid grid-2">
+    <div class="card" id="current-card">
+      <div class="card-title"><span class="icon">&#9728;</span> CURRENT CONDITIONS</div>
+      <div id="current-content"><div class="loading"><div class="spinner"></div><br>Loading weather data...</div></div>
+    </div>
+
+    <div class="card tornado-card" id="tornado-card">
+      <div class="card-title"><span class="icon">&#127744;</span> TORNADO RISK ASSESSMENT</div>
+      <div id="tornado-content"><div class="loading"><div class="spinner"></div><br>Analyzing atmospheric conditions...</div></div>
+    </div>
+  </div>
+
+  <!-- Storm Timeline & Wind Shear -->
+  <div class="card" id="storm-card">
+    <div class="card-title"><span class="icon">&#9889;</span> SEVERE WEATHER TIMELINE (NEXT 48H)</div>
+    <div id="storm-content"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- Hourly -->
+  <div class="card">
+    <div class="card-title"><span class="icon">&#128339;</span> HOURLY FORECAST (48H)</div>
+    <div id="hourly-content"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- 7-Day -->
+  <div class="card">
+    <div class="card-title"><span class="icon">&#128197;</span> 7-DAY FORECAST</div>
+    <div id="daily-content"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- Radar + AQI -->
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">&#128225;</span> RADAR / PRECIPITATION MAP</div>
+      <iframe class="radar-frame" src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=in&metricTemp=°F&metricWind=mph&zoom=8&overlay=radar&product=radar&level=surface&lat=33.15&lon=-96.82&detailLat=33.15&detailLon=-96.82&marker=true" loading="lazy"></iframe>
+    </div>
+
+    <div class="card" id="aqi-card">
+      <div class="card-title"><span class="icon">&#127811;</span> AIR QUALITY</div>
+      <div id="aqi-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- Astronomy + Historical -->
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">&#127769;</span> ASTRONOMY</div>
+      <div id="astro-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">&#128200;</span> HISTORICAL COMPARISON</div>
+      <div id="history-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- Pollen + Settings -->
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title"><span class="icon">&#127800;</span> POLLEN &amp; ALLERGY OUTLOOK</div>
+      <div id="pollen-content"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">&#9881;</span> SETTINGS</div>
+      <div id="settings-content"></div>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:20px;font-size:10px;color:var(--dim)">
+    Data: Open-Meteo &middot; NWS &middot; Windy &middot; Frisco, TX Weather Station &middot; Auto-refreshes every 15 min
+  </div>
+</div>
+
+<script>
+// === CONFIGURATION ===
+const LAT = 33.1507, LON = -96.8236;
+const TZ = 'America/Chicago';
+let settings = JSON.parse(localStorage.getItem('frisco-wx-settings') || '{}');
+if (!settings.tempUnit) settings.tempUnit = 'F';
+if (!settings.windUnit) settings.windUnit = 'mph';
+if (!settings.timeFormat) settings.timeFormat = '12';
+if (!settings.theme) settings.theme = 'dark';
+if (!settings.refreshMin) settings.refreshMin = 15;
+applyTheme();
+
+let weatherData = null, aqiData = null, alertsData = null;
+let refreshInterval = null;
+
+// === HELPERS ===
+function applyTheme() {
+  document.body.classList.toggle('light', settings.theme === 'light');
+}
+function saveSettings() {
+  localStorage.setItem('frisco-wx-settings', JSON.stringify(settings));
+}
+function toC(f) { return ((f - 32) * 5 / 9); }
+function displayTemp(f) {
+  if (settings.tempUnit === 'C') return Math.round(toC(f)) + '\u00B0C';
+  return Math.round(f) + '\u00B0F';
+}
+function displayTempVal(f) {
+  return settings.tempUnit === 'C' ? Math.round(toC(f)) : Math.round(f);
+}
+function displayWind(mph) {
+  if (settings.windUnit === 'km/h') return Math.round(mph * 1.609) + ' km/h';
+  if (settings.windUnit === 'knots') return Math.round(mph * 0.868976) + ' kt';
+  return Math.round(mph) + ' mph';
+}
+function windDir(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+function formatTime(iso) {
+  const d = new Date(iso);
+  if (settings.timeFormat === '24') return d.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});
+  return d.toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit',hour12:true,timeZone:TZ});
+}
+function formatHour(iso) {
+  const d = new Date(iso);
+  if (settings.timeFormat === '24') return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});
+  return d.toLocaleTimeString('en-US',{hour:'numeric',hour12:true,timeZone:TZ});
+}
+function formatDay(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'short',timeZone:TZ});
+}
+function formatDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:TZ});
+}
+
+function weatherIcon(code, isDay = true) {
+  const icons = {
+    0: isDay ? '\u2600\uFE0F' : '\u{1F319}', 1: isDay ? '\u{1F324}\uFE0F' : '\u{1F319}',
+    2: '\u26C5', 3: '\u2601\uFE0F',
+    45: '\u{1F32B}\uFE0F', 48: '\u{1F32B}\uFE0F',
+    51: '\u{1F326}\uFE0F', 53: '\u{1F326}\uFE0F', 55: '\u{1F327}\uFE0F',
+    56: '\u{1F327}\uFE0F', 57: '\u{1F327}\uFE0F',
+    61: '\u{1F326}\uFE0F', 63: '\u{1F327}\uFE0F', 65: '\u{1F327}\uFE0F',
+    66: '\u{1F327}\uFE0F', 67: '\u{1F327}\uFE0F',
+    71: '\u{1F328}\uFE0F', 73: '\u{1F328}\uFE0F', 75: '\u{1F328}\uFE0F', 77: '\u{1F328}\uFE0F',
+    80: '\u{1F326}\uFE0F', 81: '\u{1F327}\uFE0F', 82: '\u{1F327}\uFE0F',
+    85: '\u{1F328}\uFE0F', 86: '\u{1F328}\uFE0F',
+    95: '\u26C8\uFE0F', 96: '\u26C8\uFE0F', 99: '\u26C8\uFE0F'
+  };
+  return icons[code] || '\u{1F324}\uFE0F';
+}
+function weatherDesc(code) {
+  const d = {
+    0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+    45:'Fog',48:'Depositing rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',
+    56:'Freezing drizzle',57:'Heavy freezing drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',
+    66:'Light freezing rain',67:'Heavy freezing rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',
+    77:'Snow grains',80:'Slight showers',81:'Moderate showers',82:'Violent showers',
+    85:'Slight snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'Thunderstorm with hail',99:'Severe thunderstorm with hail'
+  };
+  return d[code] || 'Unknown';
+}
+function uvLevel(uv) {
+  if (uv <= 2) return {text:'Low',cls:'sev-low'};
+  if (uv <= 5) return {text:'Moderate',cls:'sev-mod'};
+  if (uv <= 7) return {text:'High',cls:'sev-enh'};
+  if (uv <= 10) return {text:'Very High',cls:'sev-high'};
+  return {text:'Extreme',cls:'sev-ext'};
+}
+
+// === TORNADO RISK CALC ===
+function calcTornadoRisk(cape, shear, li, dewpoint, cin) {
+  let capeScore = 0;
+  if (cape > 4000) capeScore = 100;
+  else if (cape > 2500) capeScore = 60 + (cape - 2500) / 1500 * 40;
+  else if (cape > 1000) capeScore = 20 + (cape - 1000) / 1500 * 40;
+  else capeScore = cape / 1000 * 20;
+
+  // wind shear in mph, convert thresholds from knots: 25kt=28.8mph, 40kt=46mph, 55kt=63.3mph
+  let shearScore = 0;
+  if (shear > 63) shearScore = 100;
+  else if (shear > 46) shearScore = 60 + (shear - 46) / 17 * 40;
+  else if (shear > 29) shearScore = 20 + (shear - 29) / 17 * 40;
+  else shearScore = shear / 29 * 20;
+
+  let liScore = 0;
+  if (li !== null && li !== undefined) {
+    if (li < -6) liScore = 100;
+    else if (li < -4) liScore = 60 + (-4 - li) / 2 * 40;
+    else if (li < -2) liScore = 20 + (-2 - li) / 2 * 40;
+    else if (li < 0) liScore = li / -2 * 20;
+    else liScore = 0;
+  }
+
+  let dpScore = 0;
+  if (dewpoint > 65) dpScore = 60 + Math.min((dewpoint - 65) / 10 * 40, 40);
+  else if (dewpoint > 60) dpScore = 20 + (dewpoint - 60) / 5 * 40;
+  else dpScore = Math.max(0, dewpoint / 60 * 20);
+
+  let cinScore = 0;
+  if (cin !== null && cin !== undefined) {
+    // CIN is typically negative; closer to 0 = more likely storms
+    if (cin > -50) cinScore = 60 + Math.min((cin + 50) / 50 * 40, 40);
+    else if (cin > -100) cinScore = 20 + (cin + 100) / 50 * 40;
+    else cinScore = Math.max(0, (cin + 200) / 100 * 20);
+  }
+
+  const total = capeScore * 0.3 + shearScore * 0.3 + liScore * 0.2 + dpScore * 0.1 + cinScore * 0.1;
+  return { total: Math.round(Math.min(100, Math.max(0, total))), capeScore: Math.round(capeScore), shearScore: Math.round(shearScore), liScore: Math.round(liScore), dpScore: Math.round(dpScore), cinScore: Math.round(cinScore) };
+}
+
+function riskLevel(score) {
+  if (score >= 80) return {label:'EXTREME',cls:'ext',color:'var(--purple)',bgcls:'bg-ext'};
+  if (score >= 60) return {label:'HIGH',cls:'high',color:'var(--red)',bgcls:'bg-high'};
+  if (score >= 40) return {label:'ENHANCED',cls:'enh',color:'var(--orange)',bgcls:'bg-enh'};
+  if (score >= 20) return {label:'MODERATE',cls:'mod',color:'var(--yellow)',bgcls:'bg-mod'};
+  return {label:'LOW',cls:'low',color:'var(--green)',bgcls:'bg-low'};
+}
+
+function riskDescription(level) {
+  const descs = {
+    LOW: 'No significant severe weather expected for the Frisco area.',
+    MODERATE: 'Isolated storms are possible. Stay aware of changing conditions.',
+    ENHANCED: 'Scattered severe storms possible including isolated tornadoes. Review your safety plan.',
+    HIGH: 'Numerous severe storms likely. Tornadoes possible. Be ready to shelter immediately.',
+    EXTREME: 'Violent tornadoes possible. This is a life-threatening situation. Know your shelter NOW.'
+  };
+  return descs[level] || '';
+}
+
+// === MOON PHASE ===
+function getMoonPhase(date) {
+  const d = new Date(date);
+  const year = d.getFullYear(), month = d.getMonth() + 1, day = d.getDate();
+  let c = 0, e = 0, jd = 0, b = 0;
+  if (month < 3) { year--; month += 12; }
+  ++month;
+  c = 365.25 * year;
+  e = 30.6 * month;
+  jd = c + e + day - 694039.09;
+  jd /= 29.5305882;
+  b = parseInt(jd);
+  jd -= b;
+  b = Math.round(jd * 8);
+  if (b >= 8) b = 0;
+  const phases = [
+    {name:'New Moon',icon:'\u{1F311}'},
+    {name:'Waxing Crescent',icon:'\u{1F312}'},
+    {name:'First Quarter',icon:'\u{1F313}'},
+    {name:'Waxing Gibbous',icon:'\u{1F314}'},
+    {name:'Full Moon',icon:'\u{1F315}'},
+    {name:'Waning Gibbous',icon:'\u{1F316}'},
+    {name:'Last Quarter',icon:'\u{1F317}'},
+    {name:'Waning Crescent',icon:'\u{1F318}'}
+  ];
+  return phases[b];
+}
+
+// === GOLDEN HOUR ===
+function goldenHour(sunriseISO, sunsetISO) {
+  const sr = new Date(sunriseISO), ss = new Date(sunsetISO);
+  const morningEnd = new Date(sr.getTime() + 60 * 60 * 1000);
+  const eveningStart = new Date(ss.getTime() - 60 * 60 * 1000);
+  return {
+    morningStart: sr, morningEnd,
+    eveningStart, eveningEnd: ss
+  };
+}
+
+// === SEASONAL POLLEN ===
+function getPollenInfo() {
+  const month = new Date().getMonth() + 1;
+  let tree = 0, grass = 0, weed = 0, mold = 0, overall = '', advice = '';
+  if (month >= 2 && month <= 4) { tree = 80; grass = 20; weed = 10; mold = 30; overall = 'High (Tree Pollen Season)'; advice = 'Cedar, oak, and elm are major allergens in North Texas during spring. Consider antihistamines and limit morning outdoor activities.'; }
+  else if (month >= 5 && month <= 6) { tree = 30; grass = 85; weed = 30; mold = 50; overall = 'High (Grass Pollen Season)'; advice = 'Bermuda and Johnson grass peak. Keep windows closed and shower after outdoor activities.'; }
+  else if (month >= 7 && month <= 9) { tree = 10; grass = 40; weed = 70; mold = 70; overall = 'Moderate-High (Weed & Mold)'; advice = 'Ragweed is the primary allergen. Mold spores increase with humidity. Use HEPA filters indoors.'; }
+  else if (month >= 10 && month <= 11) { tree = 15; grass = 15; weed = 60; mold = 50; overall = 'Moderate (Ragweed Decline)'; advice = 'Ragweed season winds down. Cedar elm may cause late-season issues. First frost will bring relief.'; }
+  else { tree = 10; grass = 5; weed = 5; mold = 15; overall = 'Low (Winter)'; advice = 'Minimal pollen. Mountain cedar (Ashe juniper) can affect those with "cedar fever" in Jan-Feb.'; }
+
+  return { tree, grass, weed, mold, overall, advice };
+}
+
+// === HISTORICAL AVERAGES (Frisco/DFW area monthly normals) ===
+function getHistoricalData() {
+  const month = new Date().getMonth();
+  // Monthly avg highs/lows for DFW area (F)
+  const avgHigh = [56,60,68,77,85,93,97,97,89,79,67,57];
+  const avgLow  = [35,39,46,55,64,72,76,76,68,57,45,36];
+  const recordHigh = [88,95,100,101,106,113,113,112,111,103,92,90];
+  const recordLow  = [-2,4,11,26,37,51,56,55,40,26,14,0];
+  return { avgHigh: avgHigh[month], avgLow: avgLow[month], recordHigh: recordHigh[month], recordLow: recordLow[month] };
+}
+
+// === API CALLS ===
+async function fetchWeather() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,rain,weather_code,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,cape,lifted_index,surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=${TZ}&forecast_days=7`;
+  const r = await fetch(url);
+  return await r.json();
+}
+
+async function fetchAQI() {
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=us_aqi,pm10,pm2_5,ozone,nitrogen_dioxide&timezone=${TZ}`;
+  const r = await fetch(url);
+  return await r.json();
+}
+
+async function fetchAlerts() {
+  try {
+    const r = await fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`, {headers:{'User-Agent':'FriscoWeatherApp'}});
+    return await r.json();
+  } catch(e) { return {features:[]}; }
+}
+
+// === RENDER FUNCTIONS ===
+function renderCurrent(data) {
+  const c = data.current;
+  const h = data.hourly;
+  const d = data.daily;
+  // Find current hour index for dewpoint, uv, visibility
+  const now = new Date();
+  const nowStr = now.toLocaleString('en-US',{timeZone:TZ});
+  const nowLocal = new Date(nowStr);
+  let hIdx = 0;
+  for (let i = 0; i < h.time.length; i++) {
+    if (new Date(h.time[i]) <= now) hIdx = i; else break;
+  }
+  const dewpoint = h.dew_point_2m[hIdx];
+  const uv = h.uv_index[hIdx] || 0;
+  const visibility = h.visibility[hIdx];
+  const uvInfo = uvLevel(uv);
+
+  // Pressure trend (compare current to 3h ago)
+  let pressureTrend = '\u2194\uFE0F';
+  if (hIdx >= 3) {
+    const diff = h.surface_pressure[hIdx] - h.surface_pressure[hIdx - 3];
+    if (diff > 0.5) pressureTrend = '\u2B06\uFE0F';
+    else if (diff < -0.5) pressureTrend = '\u2B07\uFE0F';
+  }
+
+  const sunrise = d.sunrise[0], sunset = d.sunset[0];
+  const gh = goldenHour(sunrise, sunset);
+  let goldenNote = '';
+  if (now >= gh.morningStart && now <= gh.morningEnd) goldenNote = ' (Golden Hour NOW)';
+  else if (now >= gh.eveningStart && now <= gh.eveningEnd) goldenNote = ' (Golden Hour NOW)';
+
+  const isDay = c.is_day === 1;
+
+  document.getElementById('current-content').innerHTML = `
+    <div class="current-main">
+      <div class="current-icon">${weatherIcon(c.weather_code, isDay)}</div>
+      <div>
+        <div class="current-temp">${displayTempVal(c.temperature_2m)}<span class="unit">${settings.tempUnit === 'C' ? '\u00B0C' : '\u00B0F'}</span></div>
+        <div class="current-desc">${weatherDesc(c.weather_code)}</div>
+        <div class="current-feels">Feels like ${displayTemp(c.apparent_temperature)}</div>
+      </div>
+    </div>
+    <div class="current-details">
+      <div class="detail-item"><span class="detail-label">Humidity</span><span class="detail-value">${c.relative_humidity_2m}%</span></div>
+      <div class="detail-item"><span class="detail-label">Dewpoint</span><span class="detail-value">${displayTemp(dewpoint)}</span></div>
+      <div class="detail-item"><span class="detail-label">Wind</span><span class="detail-value">${displayWind(c.wind_speed_10m)} ${windDir(c.wind_direction_10m)}</span></div>
+      <div class="detail-item"><span class="detail-label">Gusts</span><span class="detail-value">${displayWind(c.wind_gusts_10m)}</span></div>
+      <div class="detail-item"><span class="detail-label">UV Index</span><span class="detail-value ${uvInfo.cls}">${uv.toFixed(1)} (${uvInfo.text})</span></div>
+      <div class="detail-item"><span class="detail-label">Cloud Cover</span><span class="detail-value">${c.cloud_cover}%</span></div>
+      <div class="detail-item"><span class="detail-label">Visibility</span><span class="detail-value">${visibility ? (visibility / 1000 * 0.621371).toFixed(1) + ' mi' : 'N/A'}</span></div>
+      <div class="detail-item"><span class="detail-label">Pressure</span><span class="detail-value">${(c.pressure_msl * 0.02953).toFixed(2)} inHg ${pressureTrend}</span></div>
+      <div class="detail-item"><span class="detail-label">Sunrise</span><span class="detail-value">${formatTime(sunrise)}</span></div>
+      <div class="detail-item"><span class="detail-label">Sunset</span><span class="detail-value">${formatTime(sunset)}</span></div>
+      <div class="detail-item"><span class="detail-label">Precipitation</span><span class="detail-value">${c.precipitation}" today</span></div>
+      <div class="detail-item"><span class="detail-label">Golden Hour</span><span class="detail-value" style="color:var(--orange)">${formatTime(gh.eveningStart.toISOString())} - ${formatTime(gh.eveningEnd.toISOString())}${goldenNote}</span></div>
+    </div>
+  `;
+}
+
+function renderTornado(data) {
+  const h = data.hourly;
+  const d = data.daily;
+  // Get max values from next 24h
+  const now = new Date();
+  let hIdx = 0;
+  for (let i = 0; i < h.time.length; i++) {
+    if (new Date(h.time[i]) <= now) hIdx = i; else break;
+  }
+  const next24End = Math.min(hIdx + 24, h.time.length);
+
+  let maxCape = 0, maxShear = 0, minLI = 10, maxDew = 0, maxCIN = -999;
+  for (let i = hIdx; i < next24End; i++) {
+    const cape = h.cape ? h.cape[i] : 0;
+    const li = h.lifted_index ? h.lifted_index[i] : 0;
+    const gust = h.wind_gusts_10m[i] || 0;
+    const wind = h.wind_speed_10m[i] || 0;
+    const shear = Math.abs(gust - wind); // approximate shear
+    const dew = h.dew_point_2m[i] || 0;
+    if (cape > maxCape) maxCape = cape;
+    if (shear > maxShear) maxShear = shear;
+    if (li < minLI) minLI = li;
+    if (dew > maxDew) maxDew = dew;
+  }
+
+  const risk = calcTornadoRisk(maxCape, maxShear, minLI, maxDew, maxCIN);
+  const level = riskLevel(risk.total);
+
+  const card = document.getElementById('tornado-card');
+  card.className = 'card tornado-card risk-' + level.cls;
+
+  // Tornado season context
+  const month = now.getMonth() + 1;
+  let seasonNote = '';
+  if (month >= 3 && month <= 6) seasonNote = '<div style="margin-top:12px;padding:8px 12px;background:rgba(255,102,0,.1);border-radius:8px;font-size:11px;color:var(--orange)"><strong>PEAK TORNADO SEASON</strong> -- March through June is historically the most active period for tornadoes in North Texas. Stay vigilant.</div>';
+  else if (month >= 9 && month <= 11) seasonNote = '<div style="margin-top:12px;padding:8px 12px;background:rgba(255,215,0,.08);border-radius:8px;font-size:11px;color:var(--yellow)">Secondary tornado season (fall) is active in North Texas. Remain weather-aware.</div>';
+
+  // Daily risk
+  let dailyRiskHTML = '';
+  for (let di = 0; di < d.time.length; di++) {
+    // Estimate daily risk from max conditions
+    const dayGusts = d.wind_gusts_10m_max[di] || 0;
+    const dayWind = d.wind_speed_10m_max[di] || 0;
+    const dayShear = Math.abs(dayGusts - dayWind);
+    // Use hourly data for this day if available
+    let dayCape = 0, dayLI = 10, dayDew = 0;
+    const dayStart = d.time[di];
+    for (let j = 0; j < h.time.length; j++) {
+      if (h.time[j].startsWith(dayStart)) {
+        if (h.cape && h.cape[j] > dayCape) dayCape = h.cape[j];
+        if (h.lifted_index && h.lifted_index[j] < dayLI) dayLI = h.lifted_index[j];
+        if (h.dew_point_2m[j] > dayDew) dayDew = h.dew_point_2m[j];
+      }
+    }
+    const dayRisk = calcTornadoRisk(dayCape, dayShear, dayLI, dayDew, -75);
+    const dayLevel = riskLevel(dayRisk.total);
+    dailyRiskHTML += `<div class="tornado-day">
+      <div class="day-name">${formatDay(d.time[di])}</div>
+      <div style="font-size:16px;font-weight:700;color:${dayLevel.color}">${dayRisk.total}</div>
+      <div class="risk-badge ${dayLevel.bgcls}">${dayLevel.label}</div>
+    </div>`;
+  }
+
+  // Checklist
+  let checklistHTML = '';
+  if (risk.total >= 40) {
+    checklistHTML = `<div class="checklist">
+      <h4>\u26A0 TORNADO PREPARATION CHECKLIST</h4>
+      <ul>
+        <li>Know your safe room / shelter location (interior room, lowest floor, no windows)</li>
+        <li>Charge phones and portable batteries NOW</li>
+        <li>Have NOAA weather radio on and monitoring</li>
+        <li>Keep shoes near bed (nighttime storms cause debris)</li>
+        <li>Review family communication plan</li>
+        <li>Ensure emergency kit accessible: water, flashlight, first aid, medications</li>
+        <li>Clear garage / shelter path of obstacles</li>
+        <li><strong>WATCH</strong> = conditions favorable for tornadoes | <strong>WARNING</strong> = tornado spotted or radar-indicated, TAKE SHELTER NOW</li>
+      </ul>
+    </div>`;
+  }
+
+  // Alert banner for elevated risk
+  if (risk.total >= 40) {
+    const banner = document.getElementById('alert-banner');
+    banner.style.display = 'block';
+    banner.className = risk.total >= 80 ? 'alert-warning' : risk.total >= 60 ? 'alert-warning' : 'alert-watch';
+    banner.innerHTML = `\u26A0 TORNADO RISK: ${level.label} (${risk.total}/100) -- Conditions ${risk.total >= 60 ? 'are favorable for' : 'may support'} severe weather including tornadoes. Click to dismiss.`;
+  }
+
+  document.getElementById('tornado-content').innerHTML = `
+    <div class="tornado-header">
+      <div>
+        <div class="tornado-score" style="color:${level.color}">${risk.total}</div>
+        <div style="font-size:10px;color:var(--dim)">/ 100</div>
+      </div>
+      <div>
+        <div class="tornado-level" style="color:${level.color}">${level.label}</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:4px">${riskDescription(level.label)}</div>
+      </div>
+    </div>
+    <div class="tornado-bar"><div class="tornado-bar-fill" style="width:${risk.total}%;background:${level.color}"></div></div>
+    <div class="tornado-factors">
+      <div class="factor"><div class="factor-name">CAPE</div><div class="factor-value">${Math.round(maxCape)} J/kg <span style="color:var(--dim)">(${risk.capeScore}%)</span></div></div>
+      <div class="factor"><div class="factor-name">Wind Shear (est)</div><div class="factor-value">${displayWind(maxShear)} <span style="color:var(--dim)">(${risk.shearScore}%)</span></div></div>
+      <div class="factor"><div class="factor-name">Lifted Index</div><div class="factor-value">${minLI.toFixed(1)} <span style="color:var(--dim)">(${risk.liScore}%)</span></div></div>
+      <div class="factor"><div class="factor-name">Max Dewpoint</div><div class="factor-value">${displayTemp(maxDew)} <span style="color:var(--dim)">(${risk.dpScore}%)</span></div></div>
+    </div>
+    ${seasonNote}
+    <div style="margin-top:16px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">7-Day Tornado Risk</div>
+    <div class="tornado-daily">${dailyRiskHTML}</div>
+    ${checklistHTML}
+  `;
+}
+
+function renderStormTimeline(data) {
+  const h = data.hourly;
+  const now = new Date();
+  let hIdx = 0;
+  for (let i = 0; i < h.time.length; i++) {
+    if (new Date(h.time[i]) <= now) hIdx = i; else break;
+  }
+  const hours = Math.min(48, h.time.length - hIdx);
+
+  let barsHTML = '';
+  let maxProb = 0;
+  for (let i = 0; i < hours; i++) {
+    const idx = hIdx + i;
+    const cape = h.cape ? (h.cape[idx] || 0) : 0;
+    const precip = h.precipitation_probability[idx] || 0;
+    const code = h.weather_code[idx];
+    const isSevere = code >= 95 || cape > 2000;
+    const prob = Math.min(100, precip + (cape / 50));
+    if (prob > maxProb) maxProb = prob;
+
+    const color = isSevere ? 'var(--red)' : cape > 1000 ? 'var(--orange)' : precip > 50 ? 'var(--cyan)' : 'var(--dim)';
+    const height = Math.max(2, prob * 0.38);
+    const label = i % 6 === 0 ? `<div style="font-size:8px;color:var(--dim);text-align:center;margin-top:2px">${formatHour(h.time[idx])}</div>` : '';
+    barsHTML += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:60px">
+      <div class="storm-bar" style="width:100%;height:${height}px;background:${color}" title="${formatHour(h.time[idx])}: ${Math.round(precip)}% precip, CAPE ${Math.round(cape)}"></div>
+      ${label}
+    </div>`;
+  }
+
+  // Wind shear visualization
+  let shearHTML = '<div class="shear-viz">';
+  for (let i = 0; i < Math.min(24, hours); i++) {
+    const idx = hIdx + i;
+    const wind = h.wind_speed_10m[idx] || 0;
+    const gust = h.wind_gusts_10m[idx] || 0;
+    const dir = h.wind_direction_10m[idx] || 0;
+    const shear = Math.abs(gust - wind);
+    const x = (i / 24) * 100;
+    const height = Math.min(100, shear * 2);
+    const color = shear > 40 ? 'var(--red)' : shear > 25 ? 'var(--orange)' : shear > 15 ? 'var(--yellow)' : 'var(--cyan)';
+    shearHTML += `<div style="position:absolute;bottom:0;left:${x}%;width:${100/24}%;height:${height}%;background:${color};opacity:0.6;border-radius:2px 2px 0 0" title="${formatHour(h.time[idx])}: Shear ~${Math.round(shear)} mph"></div>`;
+  }
+  shearHTML += '<div style="position:absolute;top:4px;left:8px;font-size:9px;color:var(--dim)">WIND SHEAR (24H)</div></div>';
+
+  document.getElementById('storm-content').innerHTML = `
+    <div style="display:flex;gap:2px;align-items:flex-end;height:60px;padding:0 4px">${barsHTML}</div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:4px;padding:0 4px">
+      <span>Now</span><span>+12h</span><span>+24h</span><span>+36h</span><span>+48h</span>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:16px;font-size:10px;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--dim);border-radius:2px"></span> Light</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--cyan);border-radius:2px"></span> Rain</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:2px"></span> Storms</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:2px"></span> Severe</span>
+    </div>
+    ${shearHTML}
+  `;
+}
+
+function renderHourly(data) {
+  const h = data.hourly;
+  const now = new Date();
+  let hIdx = 0;
+  for (let i = 0; i < h.time.length; i++) {
+    if (new Date(h.time[i]) <= now) hIdx = i; else break;
+  }
+  const hours = Math.min(48, h.time.length - hIdx);
+
+  let html = '<div class="hourly-scroll">';
+  for (let i = 0; i < hours; i++) {
+    const idx = hIdx + i;
+    const code = h.weather_code[idx];
+    const cape = h.cape ? (h.cape[idx] || 0) : 0;
+    const isSevere = code >= 95 || cape > 2500;
+    const hr = new Date(h.time[idx]);
+    const isDay = hr.getHours() >= 6 && hr.getHours() < 20;
+
+    html += `<div class="hour-card ${isSevere ? 'severe' : ''}">
+      <div class="h-time">${i === 0 ? 'Now' : formatHour(h.time[idx])}</div>
+      <div class="h-icon">${weatherIcon(code, isDay)}</div>
+      <div class="h-temp">${displayTempVal(h.temperature_2m[idx])}\u00B0</div>
+      <div class="h-precip">${h.precipitation_probability[idx]}%</div>
+      <div class="h-wind">${Math.round(h.wind_speed_10m[idx])}</div>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('hourly-content').innerHTML = html;
+}
+
+function renderDaily(data) {
+  const d = data.daily;
+  const allTemps = [...d.temperature_2m_max, ...d.temperature_2m_min];
+  const minT = Math.min(...allTemps), maxT = Math.max(...allTemps);
+  const range = maxT - minT || 1;
+  const h = data.hourly;
+
+  let html = '';
+  for (let i = 0; i < d.time.length; i++) {
+    const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
+    const leftPct = ((lo - minT) / range) * 100;
+    const widthPct = ((hi - lo) / range) * 100;
+    const uv = d.uv_index_max[i];
+    const uvInfo = uvLevel(uv);
+
+    // Daily tornado badge
+    let dayCape = 0, dayLI = 10, dayDew = 0;
+    for (let j = 0; j < h.time.length; j++) {
+      if (h.time[j].startsWith(d.time[i])) {
+        if (h.cape && h.cape[j] > dayCape) dayCape = h.cape[j];
+        if (h.lifted_index && h.lifted_index[j] < dayLI) dayLI = h.lifted_index[j];
+        if (h.dew_point_2m[j] > dayDew) dayDew = h.dew_point_2m[j];
+      }
+    }
+    const dayShear = Math.abs((d.wind_gusts_10m_max[i] || 0) - (d.wind_speed_10m_max[i] || 0));
+    const dayRisk = calcTornadoRisk(dayCape, dayShear, dayLI, dayDew, -75);
+    const dayLevel = riskLevel(dayRisk.total);
+    const tornadoBadge = dayRisk.total >= 20 ? `<span style="color:${dayLevel.color}" title="${dayLevel.label}: ${dayRisk.total}/100">\u{1F32A}\uFE0F</span>` : '';
+
+    html += `<div class="daily-row">
+      <div class="daily-day">${i === 0 ? 'Today' : formatDay(d.time[i])}</div>
+      <div class="daily-icon">${weatherIcon(d.weather_code[i])}</div>
+      <div class="daily-desc">${weatherDesc(d.weather_code[i])}</div>
+      <div class="daily-precip">${d.precipitation_probability_max[i]}%</div>
+      <div class="daily-temps">
+        <span class="daily-low">${displayTempVal(lo)}\u00B0</span>
+        <div class="daily-bar-wrap"><div class="daily-bar" style="left:${leftPct}%;width:${Math.max(widthPct,4)}%"></div></div>
+        <span class="daily-high">${displayTempVal(hi)}\u00B0</span>
+      </div>
+      <div class="daily-wind">${displayWind(d.wind_speed_10m_max[i])}</div>
+      <div class="daily-uv ${uvInfo.cls}">${Math.round(uv)}</div>
+      <div class="daily-tornado-badge">${tornadoBadge}</div>
+    </div>`;
+  }
+  document.getElementById('daily-content').innerHTML = html;
+}
+
+function renderAQI(data) {
+  if (!data || !data.current) {
+    document.getElementById('aqi-content').innerHTML = '<div style="color:var(--dim)">Air quality data unavailable.</div>';
+    return;
+  }
+  const c = data.current;
+  const aqi = c.us_aqi || 0;
+  let color, label, desc;
+  if (aqi <= 50) { color = 'var(--green)'; label = 'Good'; desc = 'Air quality is satisfactory. Enjoy outdoor activities.'; }
+  else if (aqi <= 100) { color = 'var(--yellow)'; label = 'Moderate'; desc = 'Acceptable. Unusually sensitive people should limit prolonged outdoor exertion.'; }
+  else if (aqi <= 150) { color = 'var(--orange)'; label = 'Unhealthy (Sensitive)'; desc = 'Sensitive groups may experience health effects. Limit prolonged outdoor exertion.'; }
+  else if (aqi <= 200) { color = 'var(--red)'; label = 'Unhealthy'; desc = 'Everyone may begin to experience health effects. Limit outdoor activities.'; }
+  else if (aqi <= 300) { color = 'var(--purple)'; label = 'Very Unhealthy'; desc = 'Health alert. Everyone should reduce outdoor exertion.'; }
+  else { color = '#7e0023'; label = 'Hazardous'; desc = 'Health emergency. Avoid all outdoor activities.'; }
+
+  document.getElementById('aqi-content').innerHTML = `
+    <div class="aqi-main">
+      <div class="aqi-number" style="color:${color}">${aqi}</div>
+      <div>
+        <div class="aqi-label" style="color:${color}">${label}</div>
+        <div class="aqi-desc">${desc}</div>
+      </div>
+    </div>
+    <div class="aqi-pollutants">
+      <div class="pollutant"><div class="pollutant-name">PM2.5</div><div class="pollutant-value">${c.pm2_5 != null ? c.pm2_5.toFixed(1) : '--'}</div><div style="font-size:9px;color:var(--dim)">\u03BCg/m\u00B3</div></div>
+      <div class="pollutant"><div class="pollutant-name">PM10</div><div class="pollutant-value">${c.pm10 != null ? c.pm10.toFixed(1) : '--'}</div><div style="font-size:9px;color:var(--dim)">\u03BCg/m\u00B3</div></div>
+      <div class="pollutant"><div class="pollutant-name">Ozone</div><div class="pollutant-value">${c.ozone != null ? c.ozone.toFixed(1) : '--'}</div><div style="font-size:9px;color:var(--dim)">\u03BCg/m\u00B3</div></div>
+      <div class="pollutant"><div class="pollutant-name">NO\u2082</div><div class="pollutant-value">${c.nitrogen_dioxide != null ? c.nitrogen_dioxide.toFixed(1) : '--'}</div><div style="font-size:9px;color:var(--dim)">\u03BCg/m\u00B3</div></div>
+    </div>
+  `;
+}
+
+function renderAstronomy(data) {
+  const d = data.daily;
+  const sunrise = d.sunrise[0], sunset = d.sunset[0];
+  const srDate = new Date(sunrise), ssDate = new Date(sunset);
+  const dayLenMs = ssDate - srDate;
+  const dayLenH = Math.floor(dayLenMs / 3600000);
+  const dayLenM = Math.floor((dayLenMs % 3600000) / 60000);
+
+  // Solar noon
+  const solarNoon = new Date(srDate.getTime() + dayLenMs / 2);
+
+  // Day length change (approximate)
+  let changeSec = 0;
+  if (d.sunrise.length > 1) {
+    const sr2 = new Date(d.sunrise[1]), ss2 = new Date(d.sunset[1]);
+    const tmrLen = ss2 - sr2;
+    changeSec = Math.round((tmrLen - dayLenMs) / 1000);
+  }
+  const changeStr = changeSec >= 0 ? `+${Math.floor(changeSec/60)}m ${Math.abs(changeSec%60)}s` : `-${Math.floor(Math.abs(changeSec)/60)}m ${Math.abs(changeSec%60)}s`;
+
+  const gh = goldenHour(sunrise, sunset);
+  const moon = getMoonPhase(new Date());
+
+  // Blue hour: ~20-30 min before sunrise and after sunset
+  const blueAM = new Date(srDate.getTime() - 25 * 60000);
+  const bluePM = new Date(ssDate.getTime() + 5 * 60000);
+  const bluePMEnd = new Date(ssDate.getTime() + 30 * 60000);
+
+  document.getElementById('astro-content').innerHTML = `
+    <div class="astro-grid">
+      <div class="astro-item"><div class="astro-icon">\u{1F305}</div><div class="astro-label">Sunrise</div><div class="astro-value">${formatTime(sunrise)}</div></div>
+      <div class="astro-item"><div class="astro-icon">\u{1F307}</div><div class="astro-label">Sunset</div><div class="astro-value">${formatTime(sunset)}</div></div>
+      <div class="astro-item"><div class="astro-icon">\u2600\uFE0F</div><div class="astro-label">Solar Noon</div><div class="astro-value">${formatTime(solarNoon.toISOString())}</div></div>
+      <div class="astro-item"><div class="astro-icon">${moon.icon}</div><div class="astro-label">Moon Phase</div><div class="astro-value" style="font-size:11px">${moon.name}</div></div>
+      <div class="astro-item"><div class="astro-icon">\u23F1</div><div class="astro-label">Day Length</div><div class="astro-value">${dayLenH}h ${dayLenM}m</div></div>
+      <div class="astro-item"><div class="astro-icon">${changeSec >= 0 ? '\u2B06\uFE0F' : '\u2B07\uFE0F'}</div><div class="astro-label">vs Tomorrow</div><div class="astro-value">${changeStr}</div></div>
+      <div class="astro-item"><div class="astro-icon" style="color:var(--orange)">\u2728</div><div class="astro-label">Golden Hour (PM)</div><div class="astro-value" style="font-size:11px">${formatTime(gh.eveningStart.toISOString())}-${formatTime(gh.eveningEnd.toISOString())}</div></div>
+      <div class="astro-item"><div class="astro-icon" style="color:#4488ff">\u{1F309}</div><div class="astro-label">Blue Hour (PM)</div><div class="astro-value" style="font-size:11px">${formatTime(bluePM.toISOString())}-${formatTime(bluePMEnd.toISOString())}</div></div>
+    </div>
+  `;
+}
+
+function renderAlerts(data) {
+  if (!data || !data.features || data.features.length === 0) {
+    document.getElementById('nws-alerts-section').style.display = 'none';
+    return;
+  }
+  const section = document.getElementById('nws-alerts-section');
+  section.style.display = 'block';
+  let html = '';
+  data.features.forEach(f => {
+    const p = f.properties;
+    const sev = p.severity || '';
+    let cls = 'nws-advisory';
+    if (sev === 'Extreme' || sev === 'Severe') cls = 'nws-warning';
+    else if (sev === 'Moderate') cls = 'nws-watch';
+
+    const expires = p.expires ? ` | Expires: ${formatTime(p.expires)}` : '';
+    html += `<div class="nws-alert ${cls}">
+      <h4>${p.event || 'Weather Alert'}</h4>
+      <p>${p.headline || ''}${expires}</p>
+      <p style="margin-top:6px;font-size:11px">${(p.description || '').substring(0, 300)}${(p.description || '').length > 300 ? '...' : ''}</p>
+    </div>`;
+  });
+  document.getElementById('nws-alerts-list').innerHTML = html;
+}
+
+function renderHistory(data) {
+  const hist = getHistoricalData();
+  const todayHi = data.daily.temperature_2m_max[0];
+  const todayLo = data.daily.temperature_2m_min[0];
+  const hiDiff = todayHi - hist.avgHigh;
+  const loDiff = todayLo - hist.avgLow;
+
+  document.getElementById('history-content').innerHTML = `
+    <div class="hist-compare">
+      <div class="hist-item">
+        <div class="hist-value">${displayTempVal(todayHi)}\u00B0</div>
+        <div class="hist-label">Today's High</div>
+      </div>
+      <div class="hist-item">
+        <div class="hist-value">${displayTempVal(hist.avgHigh)}\u00B0</div>
+        <div class="hist-label">Avg High</div>
+      </div>
+      <div class="hist-item" style="color:${hiDiff > 0 ? 'var(--orange)' : 'var(--cyan)'}">
+        <div class="hist-value">${hiDiff > 0 ? '+' : ''}${Math.round(hiDiff)}\u00B0</div>
+        <div class="hist-label">Departure</div>
+      </div>
+      <div class="hist-item">
+        <div class="hist-value">${displayTempVal(todayLo)}\u00B0</div>
+        <div class="hist-label">Today's Low</div>
+      </div>
+      <div class="hist-item">
+        <div class="hist-value">${displayTempVal(hist.avgLow)}\u00B0</div>
+        <div class="hist-label">Avg Low</div>
+      </div>
+      <div class="hist-item" style="color:${loDiff > 0 ? 'var(--orange)' : 'var(--cyan)'}">
+        <div class="hist-value">${loDiff > 0 ? '+' : ''}${Math.round(loDiff)}\u00B0</div>
+        <div class="hist-label">Departure</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap">
+      <div class="hist-item" style="border:1px solid var(--red)">
+        <div class="hist-value" style="color:var(--red)">${hist.recordHigh}\u00B0F</div>
+        <div class="hist-label">Record High</div>
+      </div>
+      <div class="hist-item" style="border:1px solid var(--cyan)">
+        <div class="hist-value" style="color:var(--cyan)">${hist.recordLow}\u00B0F</div>
+        <div class="hist-label">Record Low</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPollen() {
+  const p = getPollenInfo();
+  const barColor = (val) => val > 60 ? 'var(--red)' : val > 30 ? 'var(--orange)' : val > 10 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('pollen-content').innerHTML = `
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:${p.tree > 50 || p.grass > 50 ? 'var(--orange)' : 'var(--green)'}">${p.overall}</div>
+    <div class="pollen-bar"><span class="pollen-label">Tree</span><div class="pollen-track"><div class="pollen-fill" style="width:${p.tree}%;background:${barColor(p.tree)}"></div></div><span style="width:30px;text-align:right;font-size:11px">${p.tree}%</span></div>
+    <div class="pollen-bar"><span class="pollen-label">Grass</span><div class="pollen-track"><div class="pollen-fill" style="width:${p.grass}%;background:${barColor(p.grass)}"></div></div><span style="width:30px;text-align:right;font-size:11px">${p.grass}%</span></div>
+    <div class="pollen-bar"><span class="pollen-label">Weed</span><div class="pollen-track"><div class="pollen-fill" style="width:${p.weed}%;background:${barColor(p.weed)}"></div></div><span style="width:30px;text-align:right;font-size:11px">${p.weed}%</span></div>
+    <div class="pollen-bar"><span class="pollen-label">Mold</span><div class="pollen-track"><div class="pollen-fill" style="width:${p.mold}%;background:${barColor(p.mold)}"></div></div><span style="width:30px;text-align:right;font-size:11px">${p.mold}%</span></div>
+    <div style="margin-top:12px;font-size:11px;color:var(--dim);line-height:1.6;padding:10px;background:var(--bg);border-radius:8px">${p.advice}</div>
+  `;
+}
+
+function renderSettings() {
+  function btn(group, val, label) {
+    return `<button class="toggle-btn ${settings[group] === val ? 'active' : ''}" onclick="updateSetting('${group}','${val}')">${label}</button>`;
+  }
+  document.getElementById('settings-content').innerHTML = `
+    <div class="settings-row"><span>Temperature</span><div class="toggle-group">${btn('tempUnit','F','\u00B0F')}${btn('tempUnit','C','\u00B0C')}</div></div>
+    <div class="settings-row"><span>Wind Speed</span><div class="toggle-group">${btn('windUnit','mph','mph')}${btn('windUnit','km/h','km/h')}${btn('windUnit','knots','knots')}</div></div>
+    <div class="settings-row"><span>Time Format</span><div class="toggle-group">${btn('timeFormat','12','12hr')}${btn('timeFormat','24','24hr')}</div></div>
+    <div class="settings-row"><span>Theme</span><div class="toggle-group">${btn('theme','dark','Dark')}${btn('theme','light','Light')}</div></div>
+    <div class="settings-row"><span>Auto-Refresh</span><div class="toggle-group">${btn('refreshMin','5','5m')}${btn('refreshMin','15','15m')}${btn('refreshMin','30','30m')}</div></div>
+  `;
+}
+
+function updateSetting(key, val) {
+  settings[key] = val;
+  saveSettings();
+  if (key === 'theme') applyTheme();
+  if (key === 'refreshMin') setupRefresh();
+  renderAll();
+}
+
+function renderAll() {
+  if (weatherData) {
+    renderCurrent(weatherData);
+    renderTornado(weatherData);
+    renderStormTimeline(weatherData);
+    renderHourly(weatherData);
+    renderDaily(weatherData);
+    renderAstronomy(weatherData);
+    renderHistory(weatherData);
+  }
+  if (aqiData) renderAQI(aqiData);
+  if (alertsData) renderAlerts(alertsData);
+  renderPollen();
+  renderSettings();
+}
+
+async function loadAll() {
+  const now = new Date();
+  document.getElementById('last-updated').textContent = `Updated: ${now.toLocaleTimeString('en-US',{timeZone:TZ,hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}`;
+
+  try {
+    const [wx, aqi, alerts] = await Promise.all([fetchWeather(), fetchAQI(), fetchAlerts()]);
+    weatherData = wx;
+    aqiData = aqi;
+    alertsData = alerts;
+    renderAll();
+  } catch(e) {
+    console.error('Weather load error:', e);
+    document.getElementById('current-content').innerHTML = `<div style="color:var(--red)">Error loading weather data. Check your connection and try again.<br><br><button class="refresh-btn" onclick="loadAll()">RETRY</button></div>`;
+  }
+}
+
+function setupRefresh() {
+  if (refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = setInterval(loadAll, parseInt(settings.refreshMin) * 60 * 1000);
+}
+
+// === INIT ===
+renderPollen();
+renderSettings();
+loadAll();
+setupRefresh();
+</script>
+</body>
+</html>

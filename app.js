@@ -157,6 +157,7 @@ const SECTIONS = {
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
       { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
       { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
+      { name: 'Frisco Weather', file: './tools/misc/frisco-weather.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
