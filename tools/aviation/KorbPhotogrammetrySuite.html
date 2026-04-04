@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KORB ENGINEERING — Photogrammetry Suite</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+/* ============================================================
+   KORB ENGINEERING — Dark Theme (SpaceX Red/Black)
+   ============================================================ */
+:root {
+  --bg: #0a0a0a;
+  --surface: #1a1a1a;
+  --surface2: #111111;
+  --border: #2a2a2a;
+  --accent: #cc0000;
+  --accent-hover: #ff1a1a;
+  --text: #f0f0f0;
+  --muted: #888888;
+  --success: #00cc66;
+  --warning: #ffaa00;
+  --error: #ff3333;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Consolas', 'Cascadia Code', 'Fira Code', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── Splash Screen ────────────────────────────── */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.6s ease;
+}
+#splash.fade-out { opacity: 0; pointer-events: none; }
+#splash h1 { font-size: 42px; color: var(--accent); letter-spacing: 4px; margin-bottom: 8px; }
+#splash p { font-size: 16px; color: var(--muted); letter-spacing: 2px; }
+#splash .loading-bar {
+  margin-top: 30px; width: 300px; height: 3px;
+  background: var(--border); border-radius: 2px; overflow: hidden;
+}
+#splash .loading-bar div {
+  height: 100%; width: 0%; background: var(--accent);
+  animation: splash-load 1.8s ease forwards;
+}
+@keyframes splash-load { to { width: 100%; } }
+
+/* ── Top Bar ──────────────────────────────────── */
+#topbar {
+  height: 36px; background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 8px; gap: 2px;
+}
+#topbar .menu-group {
+  display: flex; gap: 1px; margin-right: 12px;
+}
+#topbar button {
+  background: transparent; border: none; color: var(--text);
+  padding: 4px 12px; cursor: pointer; font-size: 12px;
+  font-family: var(--font); border-radius: 2px;
+}
+#topbar button:hover { background: var(--accent); color: #fff; }
+#topbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; }
+
+/* ── Toolbar ──────────────────────────────────── */
+#toolbar {
+  height: 34px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 8px; gap: 4px;
+}
+#toolbar button {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 4px 14px; cursor: pointer;
+  font-size: 11px; font-family: var(--font); border-radius: 2px;
+  letter-spacing: 0.5px;
+}
+#toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+#toolbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Main Layout ──────────────────────────────── */
+#app {
+  display: flex; height: calc(100vh - 36px - 34px - 24px);
+}
+
+/* ── Dock Panels ──────────────────────────────── */
+.dock {
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.dock:last-child { border-right: none; }
+
+.dock-header {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  padding: 6px 10px;
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  user-select: none;
+}
+.dock-body {
+  flex: 1; overflow-y: auto; padding: 6px;
+  background: var(--bg);
+}
+
+#dock-left { width: 320px; min-width: 280px; }
+#dock-center { flex: 1; min-width: 400px; }
+#dock-right { width: 340px; min-width: 280px; }
+
+/* ── Resize Handle ────────────────────────────── */
+.resize-handle {
+  width: 4px; cursor: col-resize;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.resize-handle:hover { background: var(--accent); }
+
+/* ── Tabs ─────────────────────────────────────── */
+.tab-bar {
+  display: flex; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tab-bar button {
+  background: transparent; border: none;
+  color: var(--muted); padding: 8px 18px;
+  cursor: pointer; font-size: 11px;
+  font-family: var(--font);
+  border-bottom: 2px solid transparent;
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.tab-bar button:hover { color: var(--text); }
+.tab-bar button.active {
+  color: var(--accent); border-bottom-color: var(--accent);
+}
+.tab-content { display: none; flex: 1; overflow: auto; }
+.tab-content.active { display: flex; flex-direction: column; }
+
+/* ── Status Bar ───────────────────────────────── */
+#statusbar {
+  height: 24px; background: var(--surface2);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 12px; gap: 16px;
+  font-size: 11px; color: var(--muted);
+  font-family: var(--mono);
+}
+#statusbar .conn { display: flex; align-items: center; gap: 4px; }
+#statusbar .conn.ok { color: var(--success); }
+#statusbar .conn.fail { color: var(--error); }
+
+/* ── Forms ────────────────────────────────────── */
+.form-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px;
+}
+.form-row label {
+  width: 100px; text-align: right;
+  font-size: 11px; color: var(--muted);
+  flex-shrink: 0;
+}
+input, select, textarea {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 8px; border-radius: 2px;
+  font-family: var(--font); font-size: 12px;
+  flex: 1; min-width: 0;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+textarea { resize: vertical; font-family: var(--mono); }
+
+/* ── Buttons ──────────────────────────────────── */
+.btn {
+  background: var(--surface); border: 1px solid var(--accent);
+  color: var(--text); padding: 6px 16px; cursor: pointer;
+  border-radius: 2px; font-size: 12px; font-family: var(--font);
+}
+.btn:hover { background: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-primary {
+  background: var(--accent); color: #fff; font-weight: bold;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-sm { padding: 3px 10px; font-size: 11px; }
+
+/* ── Drop Zone ────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  color: var(--muted); text-align: center;
+  padding: 24px 12px; border-radius: 4px;
+  cursor: pointer; transition: all 0.2s;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent); color: var(--accent);
+}
+
+/* ── Thumbnail Grid ───────────────────────────── */
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 4px; padding: 4px;
+}
+.thumb-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 2px; padding: 4px; cursor: pointer;
+  text-align: center; transition: border-color 0.15s;
+}
+.thumb-card:hover { border-color: var(--accent); }
+.thumb-card.selected { border-color: var(--accent); background: #1a0000; }
+.thumb-card .thumb-img {
+  width: 100%; aspect-ratio: 4/3;
+  background: var(--border); display: flex;
+  align-items: center; justify-content: center;
+  color: var(--muted); font-size: 10px;
+  border-radius: 2px; overflow: hidden;
+}
+.thumb-card .thumb-img img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.thumb-card .fname {
+  font-size: 9px; color: var(--muted);
+  margin-top: 3px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.thumb-card .badge-warn {
+  font-size: 8px; color: var(--error);
+}
+
+/* ── EXIF Table ───────────────────────────────── */
+.exif-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 11px;
+}
+.exif-table th {
+  background: var(--surface); border-bottom: 2px solid var(--accent);
+  color: var(--accent); text-align: left; padding: 4px 6px;
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+}
+.exif-table td {
+  padding: 3px 6px; border-bottom: 1px solid var(--border);
+}
+.exif-table td:first-child { color: var(--accent); font-weight: bold; }
+
+/* ── Pipeline Stages ──────────────────────────── */
+.stage-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; font-family: var(--mono); font-size: 11px;
+}
+.stage-icon { width: 20px; text-align: center; }
+.stage-name { flex: 1; }
+.stage-bar {
+  width: 80px; height: 5px; background: var(--border);
+  border-radius: 3px; overflow: hidden; flex-shrink: 0;
+}
+.stage-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+.stage-time { width: 40px; text-align: right; color: var(--muted); font-size: 10px; }
+
+.stage-row.pending .stage-name { color: var(--muted); }
+.stage-row.running .stage-name { color: var(--warning); }
+.stage-row.done .stage-name { color: var(--success); }
+.stage-row.error .stage-name { color: var(--error); }
+
+/* ── Log Console ──────────────────────────────── */
+#log-console {
+  background: #050505; color: var(--success);
+  font-family: var(--mono); font-size: 11px;
+  padding: 6px; overflow-y: auto; flex: 1;
+  border: 1px solid var(--border); border-radius: 2px;
+  min-height: 120px; max-height: 200px;
+  white-space: pre-wrap; word-break: break-all;
+}
+.log-error { color: var(--error); }
+.log-warn { color: var(--warning); }
+.log-info { color: var(--success); }
+
+/* ── Orthomosaic Map ──────────────────────────── */
+#ortho-map {
+  width: 100%; flex: 1; min-height: 300px;
+  background: #0a0a0a; border-radius: 2px;
+}
+.leaflet-container { background: #0a0a0a !important; }
+.ortho-info-bar {
+  display: flex; gap: 16px; padding: 4px 8px;
+  font-size: 11px; color: var(--muted);
+  font-family: var(--mono); background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.ortho-info-bar span { display: flex; align-items: center; gap: 4px; }
+.ortho-info-bar .label { color: var(--accent); font-weight: bold; }
+
+/* ── PWL Section ──────────────────────────────── */
+.pwl-result-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.pwl-result-table th {
+  background: var(--accent); color: #fff;
+  padding: 5px 8px; text-align: left;
+  font-size: 10px; letter-spacing: 0.5px;
+}
+.pwl-result-table td {
+  padding: 4px 8px; border-bottom: 1px solid var(--border);
+}
+.pwl-pass { color: var(--success); font-weight: bold; }
+.pwl-warn { color: var(--warning); font-weight: bold; }
+.pwl-fail { color: var(--error); font-weight: bold; }
+
+/* ── Group Box ────────────────────────────────── */
+.group-box {
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  margin: 6px 0; padding: 8px;
+  border-radius: 2px;
+}
+.group-box-title {
+  color: var(--accent); font-weight: bold;
+  font-size: 11px; letter-spacing: 1px;
+  margin: -16px 0 6px 6px;
+  background: var(--bg); padding: 0 6px;
+  display: inline-block;
+}
+
+/* ── Measurement Overlay ──────────────────────── */
+.measure-controls {
+  display: flex; gap: 4px; padding: 4px 0;
+}
+.measure-result {
+  font-family: var(--mono); font-size: 12px;
+  color: var(--warning); padding: 4px 8px;
+}
+
+/* ── Modal / Dialog ───────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 4px; padding: 20px;
+  min-width: 420px; max-width: 600px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal h2 {
+  color: var(--accent); font-size: 16px;
+  margin-bottom: 16px; letter-spacing: 1px;
+}
+.modal-actions {
+  display: flex; justify-content: flex-end;
+  gap: 8px; margin-top: 16px;
+}
+
+/* ── Scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── Leaflet overrides for dark theme ─────────── */
+.leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--accent) !important; }
+.leaflet-control-attribution {
+  background: rgba(10,10,10,0.8) !important;
+  color: var(--muted) !important; font-size: 9px !important;
+}
+.leaflet-control-attribution a { color: var(--accent) !important; }
+.leaflet-popup-content-wrapper {
+  background: var(--surface) !important;
+  color: var(--text) !important; border-radius: 4px !important;
+}
+.leaflet-popup-tip { background: var(--surface) !important; }
+
+/* ── Coord display on map ─────────────────────── */
+.coord-display {
+  position: absolute; bottom: 6px; left: 6px;
+  z-index: 1000; background: rgba(10,10,10,0.85);
+  color: var(--success); font-family: var(--mono);
+  font-size: 11px; padding: 3px 8px; border-radius: 2px;
+  border: 1px solid var(--border); pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SPLASH SCREEN ══════════════ -->
+<div id="splash">
+  <h1>KORB ENGINEERING</h1>
+  <p>Photogrammetry Suite</p>
+  <div class="loading-bar"><div></div></div>
+</div>
+
+<!-- ══════════════ TOP MENU BAR ══════════════ -->
+<div id="topbar">
+  <div class="menu-group">
+    <button onclick="showNewProject()">📄 New</button>
+    <button onclick="openProject()">📂 Open</button>
+    <button onclick="saveProject()">💾 Save</button>
+  </div>
+  <div class="sep"></div>
+  <div class="menu-group">
+    <button onclick="showSettings()">⚙ Settings</button>
+    <button onclick="showAbout()">ℹ About</button>
+  </div>
+  <div style="flex:1"></div>
+  <span style="color:var(--accent);font-weight:bold;letter-spacing:2px;font-size:12px;">KORB ENGINEERING</span>
+</div>
+
+<!-- ══════════════ TOOLBAR ══════════════ -->
+<div id="toolbar">
+  <button onclick="switchView('project')" id="tb-project" class="active">📷 Project</button>
+  <button onclick="switchView('ortho')" id="tb-ortho">🗺 Orthomosaic</button>
+  <button onclick="switchView('pipeline')" id="tb-pipeline">⚙ Pipeline</button>
+  <button onclick="switchView('outputs')" id="tb-outputs">📊 Outputs</button>
+  <button onclick="switchView('pwl')" id="tb-pwl">📐 PWL</button>
+  <button onclick="switchView('report')" id="tb-report">📑 Report</button>
+  <div style="flex:1"></div>
+  <button onclick="runODM()" id="btn-run-odm" class="btn-primary" style="border:none;">▶ Run ODM</button>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div id="app">
+
+  <!-- ── LEFT DOCK: Project ─────────────────── -->
+  <div class="dock" id="dock-left">
+    <div class="dock-header">Project</div>
+    <div class="dock-body">
+      <!-- Project Info -->
+      <div class="group-box">
+        <div class="group-box-title">Info</div>
+        <div class="form-row"><label>Name:</label><span id="proj-name-display" style="color:var(--text);font-size:12px;">No project</span></div>
+        <div class="form-row"><label>Client:</label><span id="proj-client-display" style="color:var(--muted);font-size:12px;">—</span></div>
+        <div class="form-row"><label>ICAO:</label><span id="proj-icao-display" style="color:var(--muted);font-size:12px;">—</span></div>
+        <div class="form-row"><label>CRS:</label><span id="proj-crs-display" style="color:var(--muted);font-size:12px;">WGS84</span></div>
+        <div class="form-row"><label>Date:</label><span id="proj-date-display" style="color:var(--muted);font-size:12px;">—</span></div>
+      </div>
+
+      <!-- Image Import -->
+      <div class="group-box">
+        <div class="group-box-title">Images</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+          <button class="btn btn-primary btn-sm" onclick="importImages()">Import Images</button>
+          <span id="img-count" style="color:var(--muted);font-size:11px;line-height:26px;">No images</span>
+        </div>
+        <div class="drop-zone" id="drop-zone"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          📁 Drag & drop images here<br><span style="font-size:10px;color:var(--muted)">JPG / JPEG / TIFF / DNG</span>
+        </div>
+        <div class="thumb-grid" id="thumb-grid"></div>
+      </div>
+
+      <!-- EXIF Inspector -->
+      <div class="group-box">
+        <div class="group-box-title">EXIF Inspector</div>
+        <table class="exif-table" id="exif-table">
+          <thead><tr><th>Field</th><th>Value</th></tr></thead>
+          <tbody id="exif-tbody">
+            <tr><td colspan="2" style="color:var(--muted);text-align:center;">Click an image to inspect</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="resize-handle" data-resize="dock-left"></div>
+
+  <!-- ── CENTER DOCK: Main Content ──────────── -->
+  <div class="dock" id="dock-center" style="border-right:none;">
+    <div class="dock-header" id="center-title">Orthomosaic Viewer</div>
+
+    <!-- === VIEW: Project Welcome === -->
+    <div class="tab-content active" id="view-project" style="align-items:center;justify-content:center;text-align:center;padding:40px;">
+      <div style="color:var(--accent);font-size:28px;font-weight:bold;letter-spacing:3px;margin-bottom:8px;">KORB ENGINEERING</div>
+      <div style="color:var(--muted);font-size:14px;margin-bottom:30px;">Photogrammetry Suite — Browser Edition</div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button class="btn btn-primary" onclick="showNewProject()">New Project</button>
+        <button class="btn" onclick="openProject()">Open Project</button>
+      </div>
+      <div style="color:var(--border);font-size:11px;margin-top:40px;line-height:1.8;">
+        Import drone images → Read EXIF/GPS → Connect NodeODM → Process → View Orthomosaic<br>
+        All processing runs locally via your NodeODM Docker instance on port 3000
+      </div>
+    </div>
+
+    <!-- === VIEW: Orthomosaic === -->
+    <div class="tab-content" id="view-ortho" style="flex-direction:column;">
+      <div class="ortho-info-bar" id="ortho-info">
+        <span><span class="label">GSD:</span> <span id="ortho-gsd">—</span></span>
+        <span><span class="label">CRS:</span> <span id="ortho-crs">—</span></span>
+        <span><span class="label">Size:</span> <span id="ortho-size">—</span></span>
+        <span><span class="label">Bands:</span> <span id="ortho-bands">—</span></span>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="loadOrthoFile()">📂 Load .tif</button>
+        <button class="btn btn-sm" onclick="loadOrthoImage()">🖼 Load Image</button>
+        <button class="btn btn-sm" id="btn-measure" onclick="toggleMeasure()">📏 Measure</button>
+      </div>
+      <div style="position:relative;flex:1;display:flex;">
+        <div id="ortho-map"></div>
+        <div class="coord-display" id="coord-display">Lat: — Lon: —</div>
+      </div>
+      <div class="measure-result" id="measure-result" style="display:none;"></div>
+    </div>
+
+    <!-- === VIEW: Pipeline === -->
+    <div class="tab-content" id="view-pipeline" style="flex-direction:column;padding:8px;">
+      <div style="background:var(--surface);border-radius:2px;padding:6px;margin-bottom:8px;">
+        <div id="pipeline-stages"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button class="btn btn-sm" id="btn-cancel-odm" onclick="cancelODM()" disabled>Cancel</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm" onclick="clearLog()">Clear Log</button>
+      </div>
+      <div style="color:var(--accent);font-weight:bold;font-size:10px;letter-spacing:1.5px;margin-bottom:4px;">LOG CONSOLE</div>
+      <div id="log-console"></div>
+    </div>
+
+    <!-- === VIEW: Outputs === -->
+    <div class="tab-content" id="view-outputs" style="flex-direction:column;">
+      <div class="tab-bar" id="output-tabs">
+        <button class="active" onclick="switchOutputTab('ortho-out')">Orthophoto</button>
+        <button onclick="switchOutputTab('pc-out')">Point Cloud</button>
+        <button onclick="switchOutputTab('mesh-out')">3D Mesh</button>
+        <button onclick="switchOutputTab('dsm-out')">DSM / DTM</button>
+      </div>
+      <div class="tab-content active" id="ortho-out" style="align-items:center;justify-content:center;padding:20px;">
+        <div style="color:var(--muted);text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">🗺</div>
+          <div>Use the <strong style="color:var(--accent);">Orthomosaic</strong> tab for the full-featured viewer</div>
+          <div style="font-size:11px;margin-top:4px;">Supports GeoTIFF (.tif) and standard images (PNG/JPG)</div>
+        </div>
+      </div>
+      <div class="tab-content" id="pc-out" style="align-items:center;justify-content:center;padding:20px;">
+        <div style="color:var(--muted);text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">☁</div>
+          <div>Point Cloud Viewer</div>
+          <button class="btn btn-sm" style="margin-top:12px;" onclick="loadPointCloud()">Load .laz / .las</button>
+          <div id="pc-info" style="margin-top:12px;font-family:var(--mono);font-size:12px;"></div>
+        </div>
+      </div>
+      <div class="tab-content" id="mesh-out" style="align-items:center;justify-content:center;padding:20px;">
+        <div style="color:var(--muted);text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">🔷</div>
+          <div>3D Mesh Viewer</div>
+          <button class="btn btn-sm" style="margin-top:12px;" onclick="loadMesh()">Load .obj</button>
+          <div id="mesh-info" style="margin-top:12px;font-family:var(--mono);font-size:12px;"></div>
+        </div>
+      </div>
+      <div class="tab-content" id="dsm-out" style="align-items:center;justify-content:center;padding:20px;">
+        <div style="color:var(--muted);text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">⛰</div>
+          <div>DSM / DTM Viewer</div>
+          <button class="btn btn-sm" style="margin-top:12px;" onclick="loadDSM()">Load .tif</button>
+          <div id="dsm-info" style="margin-top:12px;font-family:var(--mono);font-size:12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === VIEW: PWL Calculator === -->
+    <div class="tab-content" id="view-pwl" style="flex-direction:column;padding:12px;">
+      <div style="color:var(--accent);font-size:16px;font-weight:bold;margin-bottom:4px;">FAA Pavement Quality — PWL Calculator</div>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:12px;">Per FAA AC 150/5370-10H. PWL &lt; 75 = rejection candidate.</div>
+      <div class="group-box">
+        <div class="group-box-title">Input</div>
+        <div class="form-row"><label>Measurements:</label><textarea id="pwl-values" rows="3" placeholder="Enter values, one per line or comma-separated&#10;e.g.: 98.5, 99.1, 97.3, 100.2, 98.8"></textarea></div>
+        <div class="form-row"><label>Lower Spec:</label><input id="pwl-lower" type="number" step="0.1" placeholder="e.g. 97.0"></div>
+        <div class="form-row"><label>Upper Spec:</label><input id="pwl-upper" type="number" step="0.1" placeholder="e.g. 103.0"></div>
+        <div class="form-row"><label>Material:</label><input id="pwl-material" placeholder="e.g. P-401 HMA Surface"></div>
+        <div class="form-row"><label>Lot / Sublot:</label>
+          <input id="pwl-lot" style="max-width:80px;" placeholder="Lot">
+          <input id="pwl-sublot" style="max-width:80px;" placeholder="Sublot">
+        </div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn" onclick="addPWLResult()">Add to Results</button>
+          <button class="btn btn-primary" onclick="computePWL()">Calculate PWL</button>
+        </div>
+      </div>
+      <div id="pwl-output" style="display:none;" class="group-box">
+        <div class="group-box-title">Result</div>
+        <div id="pwl-single-result" style="font-family:var(--mono);font-size:12px;line-height:1.8;"></div>
+      </div>
+      <div id="pwl-table-container" style="display:none;margin-top:12px;">
+        <div style="color:var(--accent);font-weight:bold;font-size:11px;letter-spacing:1px;margin-bottom:6px;">ACCUMULATED RESULTS</div>
+        <table class="pwl-result-table" id="pwl-table">
+          <thead><tr><th>Lot</th><th>Sublot</th><th>Material</th><th>PWL</th><th>Pay Factor</th><th>Status</th></tr></thead>
+          <tbody id="pwl-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- === VIEW: Report === -->
+    <div class="tab-content" id="view-report" style="flex-direction:column;padding:12px;">
+      <div style="color:var(--accent);font-size:16px;font-weight:bold;margin-bottom:4px;">PDF Report Generator</div>
+      <div style="color:var(--muted);font-size:11px;margin-bottom:12px;">Generates a Korb Engineering branded PDF report.</div>
+      <div class="group-box">
+        <div class="group-box-title">Report Options</div>
+        <div class="form-row"><label>Engineer:</label><input id="rpt-engineer" value="Engineer"></div>
+        <div class="form-row"><label>Company:</label><input id="rpt-company" value="Korb Engineering"></div>
+        <div class="form-row"><label>Include PWL:</label><input type="checkbox" id="rpt-pwl" checked style="flex:none;width:auto;"></div>
+        <div class="form-row"><label>Include ODM:</label><input type="checkbox" id="rpt-odm" checked style="flex:none;width:auto;"></div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-primary" onclick="generatePDF()">📑 Generate PDF Report</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dock-center -->
+
+  <!-- ── RIGHT DOCK: Pipeline / CRS ─────────── -->
+  <div class="resize-handle" data-resize="dock-right"></div>
+  <div class="dock" id="dock-right">
+    <div class="dock-header">Tools</div>
+    <div class="dock-body">
+      <!-- CRS Converter -->
+      <div class="group-box">
+        <div class="group-box-title">CRS Converter</div>
+        <div class="form-row"><label>From:</label>
+          <select id="crs-from">
+            <option value="4326">WGS84 (EPSG:4326)</option>
+            <option value="4269">NAD83 (EPSG:4269)</option>
+          </select>
+        </div>
+        <div class="form-row"><label>To Zone:</label>
+          <select id="crs-to"></select>
+        </div>
+        <div class="form-row"><label>Lat / Y:</label><input id="crs-lat" type="number" step="0.000001" placeholder="32.897480"></div>
+        <div class="form-row"><label>Lon / X:</label><input id="crs-lon" type="number" step="0.000001" placeholder="-97.038066"></div>
+        <div style="text-align:right;margin-top:6px;">
+          <button class="btn btn-sm" onclick="convertCRS()">Convert →</button>
+        </div>
+        <div id="crs-result" style="font-family:var(--mono);font-size:11px;color:var(--success);margin-top:6px;display:none;"></div>
+      </div>
+
+      <!-- GCP Editor -->
+      <div class="group-box">
+        <div class="group-box-title">GCP File</div>
+        <textarea id="gcp-text" rows="6" placeholder="EPSG:32139&#10;623456.1234 3654321.5678 152.34 1234 5678 IMG_0001.JPG&#10;..."></textarea>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn btn-sm" onclick="parseGCP()">Parse</button>
+          <button class="btn btn-sm" onclick="loadGCPFile()">Load File</button>
+          <button class="btn btn-sm" onclick="exportGCP()">Export</button>
+        </div>
+        <div id="gcp-result" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;"></div>
+      </div>
+
+      <!-- Flight Stats -->
+      <div class="group-box">
+        <div class="group-box-title">Flight Statistics</div>
+        <table class="exif-table" id="flight-stats-table">
+          <tbody>
+            <tr><td>Images</td><td id="fs-images">—</td></tr>
+            <tr><td>Camera</td><td id="fs-camera">—</td></tr>
+            <tr><td>Avg Altitude</td><td id="fs-alt">—</td></tr>
+            <tr><td>Focal Length</td><td id="fs-focal">—</td></tr>
+            <tr><td>GPS Coverage</td><td id="fs-gps">—</td></tr>
+            <tr><td>Coord System</td><td id="fs-crs">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- NodeODM Connection -->
+      <div class="group-box">
+        <div class="group-box-title">NodeODM</div>
+        <div class="form-row"><label>URL:</label><input id="odm-url" value="http://localhost:3000"></div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+          <button class="btn btn-sm" onclick="checkODMConnection()">Test Connection</button>
+          <span id="odm-status" style="font-family:var(--mono);font-size:11px;color:var(--muted);">Not checked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ══════════════ STATUS BAR ══════════════ -->
+<div id="statusbar">
+  <span id="proj-status">No project loaded</span>
+  <div style="flex:1"></div>
+  <span class="conn fail" id="odm-conn-status">NodeODM: Not Connected</span>
+</div>
+
+<!-- ══════════════ MODAL: New Project ══════════════ -->
+<div class="modal-overlay hidden" id="modal-new-project">
+  <div class="modal">
+    <h2>New Project</h2>
+    <div class="form-row"><label>Project Name:</label><input id="np-name" placeholder="e.g., DFW Runway 18L Survey"></div>
+    <div class="form-row"><label>Client:</label><input id="np-client"></div>
+    <div class="form-row"><label>Airport ICAO:</label><input id="np-icao" maxlength="4" placeholder="e.g., KDFW" style="text-transform:uppercase;"></div>
+    <div class="form-row"><label>Runway:</label><input id="np-runway" placeholder="e.g., 18L/36R, TWY-B"></div>
+    <div class="form-row"><label>Survey Date:</label><input id="np-date" type="date"></div>
+    <div class="form-row"><label>Coord System:</label><select id="np-crs"></select></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-new-project')">Cancel</button>
+      <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Settings ══════════════ -->
+<div class="modal-overlay hidden" id="modal-settings">
+  <div class="modal">
+    <h2>Settings</h2>
+    <div class="group-box">
+      <div class="group-box-title">NodeODM</div>
+      <div class="form-row"><label>URL:</label><input id="set-odm-url" value="http://localhost:3000"></div>
+    </div>
+    <div class="group-box">
+      <div class="group-box-title">Defaults</div>
+      <div class="form-row"><label>Engineer:</label><input id="set-engineer" value="Engineer"></div>
+      <div class="form-row"><label>Company:</label><input id="set-company" value="Korb Engineering"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modal-settings')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: About ══════════════ -->
+<div class="modal-overlay hidden" id="modal-about">
+  <div class="modal" style="text-align:center;">
+    <h2 style="font-size:24px;letter-spacing:3px;">KORB ENGINEERING</h2>
+    <div style="color:var(--muted);margin-bottom:12px;">Photogrammetry Suite — Browser Edition</div>
+    <div style="color:var(--text);font-size:12px;line-height:1.8;">
+      Version 1.0<br>
+      Built on OpenDroneMap + Leaflet + GeoTIFF.js<br>
+      &copy; Korb Engineering
+    </div>
+    <div class="modal-actions" style="justify-content:center;">
+      <button class="btn btn-primary" onclick="closeModal('modal-about')">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HIDDEN FILE INPUTS ══════════════ -->
+<input type="file" id="file-images" multiple accept=".jpg,.jpeg,.tif,.tiff,.dng" style="display:none" onchange="handleImageFiles(this.files)">
+<input type="file" id="file-ortho" accept=".tif,.tiff,.png,.jpg,.jpeg" style="display:none" onchange="handleOrthoFile(this.files[0])">
+<input type="file" id="file-ortho-img" accept=".png,.jpg,.jpeg,.tif,.tiff" style="display:none" onchange="handleOrthoImageFile(this.files[0])">
+<input type="file" id="file-project" accept=".kep,.json" style="display:none" onchange="handleProjectFile(this.files[0])">
+<input type="file" id="file-gcp" accept=".txt,.gcp" style="display:none" onchange="handleGCPFile(this.files[0])">
+<input type="file" id="file-pc" accept=".laz,.las" style="display:none" onchange="handlePCFile(this.files[0])">
+<input type="file" id="file-dsm" accept=".tif,.tiff" style="display:none" onchange="handleDSMFile(this.files[0])">
+
+<!-- ══════════════ LIBRARIES ══════════════ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+<script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   KORB ENGINEERING — Photogrammetry Suite (Browser Edition)
+   Single-file HTML application
+   ════════════════════════════════════════════════════════════ */
+
+// ── State ─────────────────────────────────────────────────
+let project = null;
+let images = [];       // Array of { file, exif }
+let pwlResults = [];
+let odmTaskUUID = null;
+let odmPolling = null;
+let odmLogLine = 0;
+let orthoMap = null;
+let orthoLayer = null;
+let measureMode = false;
+let measurePoints = [];
+let measurePolyline = null;
+let measureMarkers = [];
+
+// ── State Plane Zones (matching Python version) ───────────
+const STATE_PLANE_ZONES = {
+  32104: "Alabama East", 32105: "Alabama West", 32119: "North Carolina",
+  32136: "Tennessee", 32138: "Texas North", 32139: "Texas North Central",
+  32140: "Texas Central", 32141: "Texas South Central", 32142: "Texas South",
+  32145: "Vermont", 32148: "Washington North", 32149: "Washington South",
+  32150: "West Virginia North", 32153: "Wisconsin Central", 32155: "Wyoming East",
+  32161: "Puerto Rico",
+  3426: "Iowa North (ft)", 3427: "Iowa South (ft)", 2229: "California Zone 6 (ft)",
+  2232: "Colorado Central (ft)", 2236: "Florida East (ft)", 2237: "Florida West (ft)",
+  2238: "Florida North (ft)", 2247: "Kentucky North (ft)", 2264: "North Carolina (ft)",
+  2279: "Texas North Central (ft)", 2280: "Texas Central (ft)",
+};
+
+// ── Q→PWL Lookup (FAA AC 150/5370-10H) ───────────────────
+const Q_TO_PWL = [
+  [-1.45,5],[-1.20,10],[-0.98,15],[-0.79,20],[-0.61,25],[-0.45,30],
+  [-0.29,35],[-0.14,40],[0.00,45],[0.14,50],[0.29,55],[0.45,60],
+  [0.61,65],[0.79,70],[0.98,75],[1.20,80],[1.45,85],[1.76,90],
+  [2.19,95],[2.91,99],[999.0,100],
+];
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Splash
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('fade-out');
+    setTimeout(() => document.getElementById('splash').remove(), 600);
+  }, 2000);
+
+  // Set today's date on new project form
+  document.getElementById('np-date').value = new Date().toISOString().slice(0,10);
+
+  // Populate CRS dropdowns
+  populateCRSDropdowns();
+
+  // Init Leaflet map
+  initOrthoMap();
+
+  // Build pipeline stage rows
+  buildPipelineStages();
+
+  // Load settings from localStorage
+  loadSettings();
+
+  // Resize handles
+  initResizeHandles();
+
+  // Try connecting to NodeODM
+  checkODMConnection();
+});
+
+// ══════════════════════════════════════════════════════════
+// VIEW SWITCHING
+// ══════════════════════════════════════════════════════════
+function switchView(name) {
+  document.querySelectorAll('#dock-center .tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#toolbar button').forEach(b => b.classList.remove('active'));
+  const view = document.getElementById('view-' + name);
+  const btn = document.getElementById('tb-' + name);
+  if (view) view.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  const titles = {
+    project: 'Welcome', ortho: 'Orthomosaic Viewer', pipeline: 'Pipeline Monitor',
+    outputs: 'Output Viewer', pwl: 'PWL Calculator', report: 'Report Generator'
+  };
+  document.getElementById('center-title').textContent = titles[name] || name;
+
+  if (name === 'ortho' && orthoMap) {
+    setTimeout(() => orthoMap.invalidateSize(), 100);
+  }
+}
+
+function switchOutputTab(id) {
+  document.querySelectorAll('#view-outputs .tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#output-tabs button').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+  // find matching button
+  const btns = document.querySelectorAll('#output-tabs button');
+  const idx = ['ortho-out','pc-out','mesh-out','dsm-out'].indexOf(id);
+  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════
+function showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function showNewProject() { showModal('modal-new-project'); }
+function showSettings() { showModal('modal-settings'); }
+function showAbout() { showModal('modal-about'); }
+
+// Close modals on overlay click
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.add('hidden');
+});
+
+// ══════════════════════════════════════════════════════════
+// PROJECT MANAGEMENT
+// ══════════════════════════════════════════════════════════
+function createProject() {
+  const name = document.getElementById('np-name').value.trim();
+  if (!name) return;
+  const crsSelect = document.getElementById('np-crs');
+  project = {
+    name, client: document.getElementById('np-client').value.trim(),
+    icao_code: document.getElementById('np-icao').value.trim().toUpperCase(),
+    runway_id: document.getElementById('np-runway').value.trim(),
+    survey_date: document.getElementById('np-date').value,
+    crs_epsg: parseInt(crsSelect.value),
+    crs_description: crsSelect.options[crsSelect.selectedIndex].text,
+    image_folder: '', gcp_file_path: '', output_directory: '',
+    odm_task_uuid: null, odm_options: {}, output_paths: {}, notes: ''
+  };
+  updateProjectDisplay();
+  closeModal('modal-new-project');
+  logMsg('INFO', `Project created: ${project.name}`);
+}
+
+function updateProjectDisplay() {
+  if (!project) return;
+  document.getElementById('proj-name-display').textContent = project.name;
+  document.getElementById('proj-client-display').textContent = project.client || '—';
+  document.getElementById('proj-icao-display').textContent = project.icao_code || '—';
+  document.getElementById('proj-crs-display').textContent = project.crs_description;
+  document.getElementById('proj-date-display').textContent = project.survey_date;
+  document.getElementById('proj-status').textContent = `Project: ${project.name}${project.icao_code ? ' — ' + project.icao_code : ''}`;
+}
+
+function saveProject() {
+  if (!project) return;
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (project.name.replace(/\s+/g,'_') || 'project') + '.kep';
+  a.click(); URL.revokeObjectURL(a.href);
+  logMsg('INFO', 'Project saved.');
+}
+
+function openProject() { document.getElementById('file-project').click(); }
+function handleProjectFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      project = JSON.parse(e.target.result);
+      updateProjectDisplay();
+      logMsg('INFO', `Project loaded: ${project.name}`);
+    } catch(err) { logMsg('ERROR', 'Failed to parse project file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════════════════════
+// IMAGE IMPORT + EXIF READING
+// ══════════════════════════════════════════════════════════
+function importImages() { document.getElementById('file-images').click(); }
+
+async function handleImageFiles(files) {
+  if (!files || !files.length) return;
+  const validExts = ['.jpg','.jpeg','.tif','.tiff','.dng'];
+  const fileArray = Array.from(files).filter(f => {
+    const ext = '.' + f.name.split('.').pop().toLowerCase();
+    return validExts.includes(ext);
+  });
+
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('img-count').textContent = `Loading ${fileArray.length} images...`;
+
+  images = [];
+  for (const file of fileArray) {
+    try {
+      const exif = await exifr.parse(file, { gps: true, ifd0: true, exif: true });
+      images.push({ file, exif: exif || {} });
+    } catch {
+      images.push({ file, exif: {} });
+    }
+  }
+
+  const missingGPS = images.filter(i => !i.exif.latitude).length;
+  document.getElementById('img-count').textContent =
+    `${images.length} images (${missingGPS} missing GPS)`;
+
+  renderThumbnails();
+  updateFlightStats();
+  logMsg('INFO', `Loaded ${images.length} images, ${missingGPS} missing GPS.`);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const files = e.dataTransfer.files;
+  if (files.length) handleImageFiles(files);
+}
+
+function renderThumbnails() {
+  const grid = document.getElementById('thumb-grid');
+  grid.innerHTML = '';
+  images.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.className = 'thumb-card';
+    card.onclick = () => showExif(idx);
+
+    const thumbDiv = document.createElement('div');
+    thumbDiv.className = 'thumb-img';
+
+    // Generate actual thumbnail for JPEGs
+    if (img.file.type.startsWith('image/') || img.file.name.match(/\.(jpg|jpeg)$/i)) {
+      const imgEl = document.createElement('img');
+      imgEl.src = URL.createObjectURL(img.file);
+      imgEl.onload = () => { /* keep it */ };
+      thumbDiv.appendChild(imgEl);
+    } else {
+      thumbDiv.textContent = 'IMG';
+    }
+
+    card.appendChild(thumbDiv);
+    const fname = document.createElement('div');
+    fname.className = 'fname';
+    fname.textContent = img.file.name;
+    card.appendChild(fname);
+
+    if (!img.exif.latitude) {
+      const badge = document.createElement('div');
+      badge.className = 'badge-warn';
+      badge.textContent = '⚠ GPS';
+      card.appendChild(badge);
+    }
+    grid.appendChild(card);
+  });
+}
+
+function showExif(idx) {
+  // Highlight selected
+  document.querySelectorAll('.thumb-card').forEach((c,i) => {
+    c.classList.toggle('selected', i === idx);
+  });
+
+  const img = images[idx];
+  const e = img.exif;
+  const fields = [
+    ['Filename', img.file.name],
+    ['GPS Latitude', e.latitude ? e.latitude.toFixed(6) : '⚠ Missing'],
+    ['GPS Longitude', e.longitude ? e.longitude.toFixed(6) : '⚠ Missing'],
+    ['Altitude (m)', e.GPSAltitude ? e.GPSAltitude.toFixed(1) : '—'],
+    ['Camera Model', e.Model || e.model || '—'],
+    ['Focal Length', e.FocalLength ? e.FocalLength.toFixed(1) + ' mm' : '—'],
+    ['Timestamp', e.DateTimeOriginal ? new Date(e.DateTimeOriginal).toLocaleString() : '—'],
+    ['Image Size', (e.ImageWidth || e.ExifImageWidth) ?
+      `${e.ImageWidth || e.ExifImageWidth}×${e.ImageHeight || e.ExifImageHeight}` : '—'],
+    ['File Size', (img.file.size / 1024 / 1024).toFixed(1) + ' MB'],
+  ];
+
+  const tbody = document.getElementById('exif-tbody');
+  tbody.innerHTML = '';
+  fields.forEach(([k,v]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td${v.includes('Missing') ? ' style="color:var(--error)"' : ''}>${v}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateFlightStats() {
+  const withGPS = images.filter(i => i.exif.latitude);
+  const alts = images.map(i => i.exif.GPSAltitude).filter(Boolean);
+  const focals = images.map(i => i.exif.FocalLength).filter(Boolean);
+  const cameras = images.map(i => i.exif.Model || i.exif.model).filter(Boolean);
+  const cameraModel = cameras.length ? cameras[0] : '—';
+
+  document.getElementById('fs-images').textContent = images.length;
+  document.getElementById('fs-camera').textContent = cameraModel;
+  document.getElementById('fs-alt').textContent = alts.length ?
+    (alts.reduce((a,b) => a+b, 0) / alts.length).toFixed(1) + ' m' : '—';
+  document.getElementById('fs-focal').textContent = focals.length ?
+    focals[0].toFixed(1) + ' mm' : '—';
+  document.getElementById('fs-gps').textContent = `${withGPS.length}/${images.length}`;
+  document.getElementById('fs-crs').textContent = project ? project.crs_description : 'WGS84';
+}
+
+// ══════════════════════════════════════════════════════════
+// ORTHOMOSAIC VIEWER (TOP PRIORITY)
+// ══════════════════════════════════════════════════════════
+function initOrthoMap() {
+  orthoMap = L.map('ortho-map', {
+    center: [32.8975, -97.038],
+    zoom: 14,
+    zoomControl: true,
+    attributionControl: true,
+  });
+
+  // Dark tile basemap
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 22,
+  }).addTo(orthoMap);
+
+  // Coordinate display on hover
+  orthoMap.on('mousemove', e => {
+    document.getElementById('coord-display').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}  Lon: ${e.latlng.lng.toFixed(6)}`;
+  });
+
+  // Measurement click handler
+  orthoMap.on('click', e => {
+    if (!measureMode) return;
+    measurePoints.push(e.latlng);
+    const marker = L.circleMarker(e.latlng, {
+      radius: 5, color: '#ffaa00', fillColor: '#ffaa00', fillOpacity: 1
+    }).addTo(orthoMap);
+    measureMarkers.push(marker);
+
+    if (measurePoints.length > 1) {
+      if (measurePolyline) orthoMap.removeLayer(measurePolyline);
+      measurePolyline = L.polyline(measurePoints, {
+        color: '#ffaa00', weight: 2, dashArray: '6,4'
+      }).addTo(orthoMap);
+
+      // Calculate total distance
+      let total = 0;
+      for (let i = 1; i < measurePoints.length; i++) {
+        total += measurePoints[i-1].distanceTo(measurePoints[i]);
+      }
+      const el = document.getElementById('measure-result');
+      el.style.display = 'block';
+      if (total < 1000) {
+        el.textContent = `📏 Distance: ${total.toFixed(2)} m  (${(total * 3.28084).toFixed(2)} ft)  |  ${measurePoints.length} points`;
+      } else {
+        el.textContent = `📏 Distance: ${(total/1000).toFixed(4)} km  (${(total * 3.28084).toFixed(1)} ft)  |  ${measurePoints.length} points`;
+      }
+    }
+  });
+
+  // Also add image markers when images have GPS
+}
+
+function loadOrthoFile() { document.getElementById('file-ortho').click(); }
+function loadOrthoImage() { document.getElementById('file-ortho-img').click(); }
+
+async function handleOrthoFile(file) {
+  if (!file) return;
+  switchView('ortho');
+  logMsg('INFO', `Loading orthomosaic: ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)...`);
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const tiff = await GeoTIFF.fromArrayBuffer(arrayBuffer);
+    const image = await tiff.getImage();
+
+    const width = image.getWidth();
+    const height = image.getHeight();
+    const bands = image.getSamplesPerPixel();
+    const bbox = image.getBoundingBox(); // [xmin, ymin, xmax, ymax]
+    const geoKeys = image.getGeoKeys();
+    const resolution = image.getResolution();
+
+    // Update info bar
+    const gsdVal = resolution ? Math.abs(resolution[0]) : null;
+    document.getElementById('ortho-gsd').textContent = gsdVal ?
+      (gsdVal < 0.01 ? (gsdVal * 100).toFixed(2) + ' cm/px' : gsdVal.toFixed(6) + '°/px') : '—';
+    document.getElementById('ortho-crs').textContent =
+      geoKeys.ProjectedCSTypeGeoKey ? `EPSG:${geoKeys.ProjectedCSTypeGeoKey}` :
+      geoKeys.GeographicTypeGeoKey ? `EPSG:${geoKeys.GeographicTypeGeoKey}` : 'Unknown';
+    document.getElementById('ortho-size').textContent = `${width}×${height} px`;
+    document.getElementById('ortho-bands').textContent = bands;
+
+    logMsg('INFO', `GeoTIFF parsed: ${width}×${height}, ${bands} bands, bbox: [${bbox.map(v=>v.toFixed(4)).join(', ')}]`);
+
+    // Read raster data — handle large files by downsampling
+    const maxDim = 4096;
+    const scale = Math.min(1, maxDim / Math.max(width, height));
+    const rw = Math.round(width * scale);
+    const rh = Math.round(height * scale);
+
+    logMsg('INFO', `Rendering at ${rw}×${rh} (${(scale*100).toFixed(0)}% scale)...`);
+
+    const rasters = await image.readRasters({ width: rw, height: rh });
+
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = rw;
+    canvas.height = rh;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(rw, rh);
+
+    // Determine band mapping
+    if (bands >= 3) {
+      // RGB or RGBA
+      const r = rasters[0], g = rasters[1], b = rasters[2];
+      const a = bands >= 4 ? rasters[3] : null;
+
+      // Auto-stretch: find min/max for contrast
+      let rMin = Infinity, rMax = -Infinity;
+      let gMin = Infinity, gMax = -Infinity;
+      let bMin = Infinity, bMax = -Infinity;
+      const sampleStep = Math.max(1, Math.floor(r.length / 50000));
+      for (let i = 0; i < r.length; i += sampleStep) {
+        if (r[i] !== 0 && r[i] !== undefined) {
+          if (r[i] < rMin) rMin = r[i]; if (r[i] > rMax) rMax = r[i];
+        }
+        if (g[i] !== 0 && g[i] !== undefined) {
+          if (g[i] < gMin) gMin = g[i]; if (g[i] > gMax) gMax = g[i];
+        }
+        if (b[i] !== 0 && b[i] !== undefined) {
+          if (b[i] < bMin) bMin = b[i]; if (b[i] > bMax) bMax = b[i];
+        }
+      }
+
+      // For 8-bit imagery, skip stretching
+      const is8bit = rMax <= 255 && gMax <= 255 && bMax <= 255;
+
+      for (let i = 0; i < r.length; i++) {
+        const idx = i * 4;
+        if (is8bit) {
+          imgData.data[idx] = r[i];
+          imgData.data[idx+1] = g[i];
+          imgData.data[idx+2] = b[i];
+        } else {
+          imgData.data[idx] = Math.round(((r[i] - rMin) / (rMax - rMin || 1)) * 255);
+          imgData.data[idx+1] = Math.round(((g[i] - gMin) / (gMax - gMin || 1)) * 255);
+          imgData.data[idx+2] = Math.round(((b[i] - bMin) / (bMax - bMin || 1)) * 255);
+        }
+        imgData.data[idx+3] = a ? (is8bit ? a[i] : Math.round(((a[i] - 0) / (rMax || 255)) * 255)) : 255;
+        // Set nodata pixels transparent
+        if (r[i] === 0 && g[i] === 0 && b[i] === 0) imgData.data[idx+3] = 0;
+      }
+    } else {
+      // Single band — grayscale
+      const band = rasters[0];
+      let bMin = Infinity, bMax = -Infinity;
+      const sampleStep = Math.max(1, Math.floor(band.length / 50000));
+      for (let i = 0; i < band.length; i += sampleStep) {
+        if (band[i] !== 0 && band[i] !== undefined && isFinite(band[i])) {
+          if (band[i] < bMin) bMin = band[i];
+          if (band[i] > bMax) bMax = band[i];
+        }
+      }
+      for (let i = 0; i < band.length; i++) {
+        const idx = i * 4;
+        const v = Math.round(((band[i] - bMin) / (bMax - bMin || 1)) * 255);
+        imgData.data[idx] = v;
+        imgData.data[idx+1] = v;
+        imgData.data[idx+2] = v;
+        imgData.data[idx+3] = isFinite(band[i]) && band[i] !== bMin ? 255 : 0;
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    const dataUrl = canvas.toDataURL('image/png');
+
+    // Determine bounds
+    let bounds;
+    const epsg = geoKeys.ProjectedCSTypeGeoKey;
+    if (epsg && epsg !== 4326 && epsg !== 4269) {
+      // Projected CRS — need to reproject corners to WGS84
+      try {
+        // Try using proj4 for reprojection
+        const projDef = proj4.defs('EPSG:' + epsg);
+        if (projDef || tryDefineProj(epsg)) {
+          const sw = proj4('EPSG:' + epsg, 'EPSG:4326', [bbox[0], bbox[1]]);
+          const ne = proj4('EPSG:' + epsg, 'EPSG:4326', [bbox[2], bbox[3]]);
+          bounds = [[sw[1], sw[0]], [ne[1], ne[0]]];
+        } else {
+          // Fallback: assume coords are already geographic
+          bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
+        }
+      } catch {
+        bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
+      }
+    } else {
+      // Geographic CRS or unknown — bbox is [lon_min, lat_min, lon_max, lat_max]
+      bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
+    }
+
+    // Remove old layer
+    if (orthoLayer) {
+      orthoMap.removeLayer(orthoLayer);
+    }
+
+    // Add image overlay
+    orthoLayer = L.imageOverlay(dataUrl, bounds, { opacity: 1, interactive: true }).addTo(orthoMap);
+    orthoMap.fitBounds(bounds);
+
+    logMsg('INFO', `✅ Orthomosaic loaded and rendered successfully.`);
+
+  } catch (err) {
+    logMsg('ERROR', `Failed to load GeoTIFF: ${err.message}`);
+    console.error(err);
+
+    // Fallback: try loading as regular image
+    try {
+      const url = URL.createObjectURL(file);
+      handleOrthoAsImage(url, file.name);
+    } catch (e2) {
+      logMsg('ERROR', `Fallback also failed: ${e2.message}`);
+    }
+  }
+}
+
+function handleOrthoImageFile(file) {
+  if (!file) return;
+  switchView('ortho');
+  const url = URL.createObjectURL(file);
+  handleOrthoAsImage(url, file.name);
+}
+
+function handleOrthoAsImage(url, name) {
+  const img = new Image();
+  img.onload = () => {
+    document.getElementById('ortho-size').textContent = `${img.width}×${img.height} px`;
+    document.getElementById('ortho-gsd').textContent = 'N/A (raster image)';
+    document.getElementById('ortho-crs').textContent = 'N/A';
+    document.getElementById('ortho-bands').textContent = 'RGB';
+
+    // Place image centered on current view
+    const center = orthoMap.getCenter();
+    // Approximate bounds based on image aspect ratio
+    const aspect = img.width / img.height;
+    const spread = 0.005; // ~500m at mid latitudes
+    const bounds = [
+      [center.lat - spread, center.lng - spread * aspect],
+      [center.lat + spread, center.lng + spread * aspect]
+    ];
+
+    if (orthoLayer) orthoMap.removeLayer(orthoLayer);
+    orthoLayer = L.imageOverlay(url, bounds, { opacity: 1 }).addTo(orthoMap);
+    orthoMap.fitBounds(bounds);
+    logMsg('INFO', `Image loaded: ${name} (${img.width}×${img.height})`);
+  };
+  img.src = url;
+}
+
+function tryDefineProj(epsg) {
+  // Common State Plane definitions for proj4
+  const defs = {
+    32139: '+proj=lcc +lat_1=32.13333333333333 +lat_2=33.96666666666667 +lat_0=31.66666666666667 +lon_0=-98.5 +x_0=600000 +y_0=2000000 +datum=NAD83 +units=m +no_defs',
+    32140: '+proj=lcc +lat_1=30.11666666666667 +lat_2=31.88333333333333 +lat_0=29.66666666666667 +lon_0=-100.3333333333333 +x_0=700000 +y_0=3000000 +datum=NAD83 +units=m +no_defs',
+    32138: '+proj=lcc +lat_1=34.65 +lat_2=36.18333333333333 +lat_0=34 +lon_0=-101.5 +x_0=200000 +y_0=1000000 +datum=NAD83 +units=m +no_defs',
+    32141: '+proj=lcc +lat_1=28.38333333333333 +lat_2=30.28333333333333 +lat_0=27.83333333333333 +lon_0=-99 +x_0=600000 +y_0=4000000 +datum=NAD83 +units=m +no_defs',
+    32142: '+proj=lcc +lat_1=26.16666666666667 +lat_2=27.83333333333333 +lat_0=25.66666666666667 +lon_0=-98.5 +x_0=300000 +y_0=5000000 +datum=NAD83 +units=m +no_defs',
+    2279: '+proj=lcc +lat_1=32.13333333333333 +lat_2=33.96666666666667 +lat_0=31.66666666666667 +lon_0=-98.5 +x_0=600000 +y_0=2000000 +datum=NAD83 +units=us-ft +no_defs',
+    2280: '+proj=lcc +lat_1=30.11666666666667 +lat_2=31.88333333333333 +lat_0=29.66666666666667 +lon_0=-100.3333333333333 +x_0=700000 +y_0=3000000 +datum=NAD83 +units=us-ft +no_defs',
+    32119: '+proj=lcc +lat_1=34.33333333333334 +lat_2=36.16666666666666 +lat_0=33.75 +lon_0=-79 +x_0=609601.22 +y_0=0 +datum=NAD83 +units=m +no_defs',
+    2264: '+proj=lcc +lat_1=34.33333333333334 +lat_2=36.16666666666666 +lat_0=33.75 +lon_0=-79 +x_0=609601.2192024384 +y_0=0 +datum=NAD83 +units=us-ft +no_defs',
+  };
+  if (defs[epsg]) {
+    proj4.defs('EPSG:' + epsg, defs[epsg]);
+    return true;
+  }
+  return false;
+}
+
+// ── Measurement Tool ──────────────────────────────────────
+function toggleMeasure() {
+  measureMode = !measureMode;
+  document.getElementById('btn-measure').classList.toggle('active', measureMode);
+  if (!measureMode) {
+    clearMeasure();
+  } else {
+    measurePoints = [];
+    document.getElementById('measure-result').textContent = '📏 Click on map to start measuring. Click multiple points.';
+    document.getElementById('measure-result').style.display = 'block';
+    orthoMap.getContainer().style.cursor = 'crosshair';
+  }
+}
+
+function clearMeasure() {
+  measurePoints = [];
+  if (measurePolyline) { orthoMap.removeLayer(measurePolyline); measurePolyline = null; }
+  measureMarkers.forEach(m => orthoMap.removeLayer(m));
+  measureMarkers = [];
+  document.getElementById('measure-result').style.display = 'none';
+  orthoMap.getContainer().style.cursor = '';
+}
+
+// ══════════════════════════════════════════════════════════
+// CRS CONVERSION
+// ══════════════════════════════════════════════════════════
+function populateCRSDropdowns() {
+  const selectors = ['np-crs', 'crs-to'];
+  selectors.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    if (id === 'np-crs') {
+      sel.innerHTML = '<option value="4326">WGS84 Geographic (EPSG:4326)</option><option value="4269">NAD83 Geographic (EPSG:4269)</option>';
+    } else {
+      sel.innerHTML = '';
+    }
+    for (const [epsg, name] of Object.entries(STATE_PLANE_ZONES)) {
+      const opt = document.createElement('option');
+      opt.value = epsg;
+      opt.textContent = `${name} (EPSG:${epsg})`;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+function convertCRS() {
+  const fromEpsg = document.getElementById('crs-from').value;
+  const toEpsg = document.getElementById('crs-to').value;
+  const lat = parseFloat(document.getElementById('crs-lat').value);
+  const lon = parseFloat(document.getElementById('crs-lon').value);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  tryDefineProj(parseInt(toEpsg));
+
+  try {
+    const result = proj4('EPSG:' + fromEpsg, 'EPSG:' + toEpsg, [lon, lat]);
+    const el = document.getElementById('crs-result');
+    el.style.display = 'block';
+    el.innerHTML = `<strong>Easting:</strong> ${result[0].toFixed(4)}<br><strong>Northing:</strong> ${result[1].toFixed(4)}`;
+  } catch (err) {
+    const el = document.getElementById('crs-result');
+    el.style.display = 'block';
+    el.style.color = 'var(--error)';
+    el.textContent = 'Conversion failed: ' + err.message;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// GCP FILE HANDLING
+// ══════════════════════════════════════════════════════════
+function loadGCPFile() { document.getElementById('file-gcp').click(); }
+function handleGCPFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('gcp-text').value = e.target.result;
+    parseGCP();
+  };
+  reader.readAsText(file);
+}
+
+function parseGCP() {
+  const text = document.getElementById('gcp-text').value.trim();
+  if (!text) return;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const header = lines[0];
+  let epsg = 4326;
+  if (header.toUpperCase().includes('EPSG:')) {
+    epsg = parseInt(header.toUpperCase().replace('EPSG:', '').trim());
+  }
+  const gcps = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].startsWith('#')) continue;
+    const parts = lines[i].split(/\s+/);
+    if (parts.length >= 6) {
+      gcps.push({ easting: parseFloat(parts[0]), northing: parseFloat(parts[1]),
+        alt: parseFloat(parts[2]), px: parseFloat(parts[3]), py: parseFloat(parts[4]),
+        image: parts[5] });
+    }
+  }
+  document.getElementById('gcp-result').textContent =
+    `Parsed ${gcps.length} GCPs, CRS: EPSG:${epsg}`;
+  logMsg('INFO', `GCP file parsed: ${gcps.length} points, EPSG:${epsg}`);
+}
+
+function exportGCP() {
+  const text = document.getElementById('gcp-text').value;
+  if (!text.trim()) return;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gcp_list.txt';
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════
+// PWL CALCULATOR (FAA AC 150/5370-10H)
+// ══════════════════════════════════════════════════════════
+function qToPWL(q) {
+  if (q <= Q_TO_PWL[0][0]) return Q_TO_PWL[0][1];
+  for (let i = 1; i < Q_TO_PWL.length; i++) {
+    if (q <= Q_TO_PWL[i][0]) {
+      const [qLo, pwlLo] = Q_TO_PWL[i-1];
+      const [qHi, pwlHi] = Q_TO_PWL[i];
+      const frac = (q - qLo) / (qHi - qLo);
+      return Math.round(pwlLo + frac * (pwlHi - pwlLo));
+    }
+  }
+  return 100;
+}
+
+function payFactor(pwl) {
+  if (pwl >= 96) return 1.05;
+  if (pwl >= 90) return 1.00;
+  if (pwl >= 85) return 0.98;
+  if (pwl >= 80) return 0.95;
+  if (pwl >= 75) return 0.90;
+  return 0.00;
+}
+
+function computePWL() {
+  const text = document.getElementById('pwl-values').value.trim();
+  if (!text) return;
+  const values = text.split(/[\s,]+/).map(Number).filter(v => !isNaN(v));
+  if (values.length < 2) { logMsg('ERROR', 'Need at least 2 measurements'); return; }
+
+  const lower = document.getElementById('pwl-lower').value ? parseFloat(document.getElementById('pwl-lower').value) : null;
+  const upper = document.getElementById('pwl-upper').value ? parseFloat(document.getElementById('pwl-upper').value) : null;
+
+  const n = values.length;
+  const mean = values.reduce((a,b) => a+b, 0) / n;
+  const stdDev = Math.sqrt(values.reduce((s,v) => s + (v-mean)**2, 0) / (n-1));
+
+  let qLower = null, qUpper = null;
+  let pwlLower = 100, pwlUpper = 100;
+
+  if (lower !== null) {
+    qLower = stdDev > 0 ? (mean - lower) / stdDev : (mean >= lower ? 999 : -999);
+    pwlLower = qToPWL(qLower);
+  }
+  if (upper !== null) {
+    qUpper = stdDev > 0 ? (upper - mean) / stdDev : (mean <= upper ? 999 : -999);
+    pwlUpper = qToPWL(qUpper);
+  }
+
+  let pwl;
+  if (lower !== null && upper !== null) pwl = Math.max(0, Math.min(100, pwlLower + pwlUpper - 100));
+  else if (lower !== null) pwl = pwlLower;
+  else if (upper !== null) pwl = pwlUpper;
+  else pwl = 100;
+
+  const pf = payFactor(pwl);
+  const reject = pwl < 75;
+
+  const pwlClass = pwl >= 90 ? 'pwl-pass' : (pwl >= 75 ? 'pwl-warn' : 'pwl-fail');
+
+  document.getElementById('pwl-output').style.display = 'block';
+  document.getElementById('pwl-single-result').innerHTML = `
+    <span style="color:var(--muted)">n =</span> ${n}  &nbsp;
+    <span style="color:var(--muted)">Mean =</span> ${mean.toFixed(3)}  &nbsp;
+    <span style="color:var(--muted)">Std Dev =</span> ${stdDev.toFixed(3)}<br>
+    ${qLower !== null ? `<span style="color:var(--muted)">Q<sub>L</sub> =</span> ${qLower.toFixed(3)}  &nbsp; <span style="color:var(--muted)">PWL<sub>L</sub> =</span> ${pwlLower}  &nbsp;` : ''}
+    ${qUpper !== null ? `<span style="color:var(--muted)">Q<sub>U</sub> =</span> ${qUpper.toFixed(3)}  &nbsp; <span style="color:var(--muted)">PWL<sub>U</sub> =</span> ${pwlUpper}  &nbsp;` : ''}<br>
+    <strong class="${pwlClass}" style="font-size:16px;">PWL = ${pwl}</strong>  &nbsp;
+    <span style="color:var(--muted)">Pay Factor =</span> <strong>${pf.toFixed(2)}</strong>  &nbsp;
+    ${reject ? '<span class="pwl-fail">✗ REJECTION CANDIDATE</span>' : '<span class="pwl-pass">✓ Accept</span>'}
+  `;
+
+  // Store for addPWLResult
+  window._lastPWL = { pwl, pf, mean, stdDev, n, reject };
+}
+
+function addPWLResult() {
+  computePWL();
+  if (!window._lastPWL) return;
+  const r = window._lastPWL;
+  pwlResults.push({
+    lot: document.getElementById('pwl-lot').value || '—',
+    sublot: document.getElementById('pwl-sublot').value || '—',
+    material: document.getElementById('pwl-material').value || '—',
+    pwl: r.pwl, pay_factor: r.pf, mean: r.mean, std_dev: r.stdDev, n: r.n
+  });
+  renderPWLTable();
+}
+
+function renderPWLTable() {
+  if (!pwlResults.length) return;
+  document.getElementById('pwl-table-container').style.display = 'block';
+  const tbody = document.getElementById('pwl-tbody');
+  tbody.innerHTML = '';
+  pwlResults.forEach(r => {
+    const pwlClass = r.pwl >= 90 ? 'pwl-pass' : (r.pwl >= 75 ? 'pwl-warn' : 'pwl-fail');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.lot}</td><td>${r.sublot}</td><td>${r.material}</td>
+      <td class="${pwlClass}">${r.pwl}</td><td>${r.pay_factor.toFixed(2)}</td>
+      <td>${r.pwl >= 75 ? '<span class="pwl-pass">✓ Accept</span>' : '<span class="pwl-fail">✗ Reject</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// NodeODM PIPELINE
+// ══════════════════════════════════════════════════════════
+const ODM_STAGES = [
+  'Dataset / Image Load', 'OpenSFM (Structure from Motion)',
+  'OpenMVS (Multi-View Stereo)', 'Ground Point Classification',
+  'DSM / DTM Generation', 'Orthophoto Generation',
+  '3D Mesh', 'Point Cloud Export (LAZ)', 'Tiling', 'Report Generation'
+];
+
+function buildPipelineStages() {
+  const container = document.getElementById('pipeline-stages');
+  container.innerHTML = '';
+  ODM_STAGES.forEach((name, i) => {
+    const row = document.createElement('div');
+    row.className = 'stage-row pending';
+    row.id = `stage-${i}`;
+    row.innerHTML = `
+      <span class="stage-icon">⬜</span>
+      <span class="stage-name">${String(i+1).padStart(2,'0')}. ${name}</span>
+      <div class="stage-bar"><div class="stage-bar-fill" style="width:0%"></div></div>
+      <span class="stage-time">--:--</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function setStageStatus(idx, status, progress=0) {
+  const row = document.getElementById(`stage-${idx}`);
+  if (!row) return;
+  row.className = 'stage-row ' + status;
+  const icons = { pending: '⬜', running: '⏳', done: '✅', error: '❌' };
+  row.querySelector('.stage-icon').textContent = icons[status] || '⬜';
+  row.querySelector('.stage-bar-fill').style.width = progress + '%';
+}
+
+async function checkODMConnection() {
+  const url = document.getElementById('odm-url').value || 'http://localhost:3000';
+  const statusEl = document.getElementById('odm-status');
+  const connEl = document.getElementById('odm-conn-status');
+  try {
+    const r = await fetch(url + '/info', { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      const info = await r.json();
+      statusEl.textContent = '✓ Connected';
+      statusEl.style.color = 'var(--success)';
+      connEl.textContent = `NodeODM: Connected ✓ :${new URL(url).port || '3000'}`;
+      connEl.className = 'conn ok';
+      logMsg('INFO', `NodeODM connected. Version: ${info.version || 'unknown'}, Engine: ${info.engine || 'unknown'}`);
+    } else throw new Error('Bad response');
+  } catch {
+    statusEl.textContent = '✗ Disconnected';
+    statusEl.style.color = 'var(--error)';
+    connEl.textContent = 'NodeODM: Disconnected ✗';
+    connEl.className = 'conn fail';
+  }
+}
+
+async function runODM() {
+  if (!project) { logMsg('ERROR', 'No project loaded.'); return; }
+  if (!images.length) { logMsg('ERROR', 'No images loaded.'); return; }
+
+  const url = document.getElementById('odm-url').value || 'http://localhost:3000';
+  switchView('pipeline');
+  logMsg('INFO', `Starting ODM pipeline for: ${project.name}`);
+
+  // Reset stages
+  ODM_STAGES.forEach((_, i) => setStageStatus(i, 'pending'));
+  setStageStatus(0, 'running', 10);
+
+  try {
+    // Create task
+    logMsg('INFO', 'Creating task on NodeODM...');
+    const options = {
+      dsm: true, dtm: true, 'orthophoto-resolution': 2.0,
+      'pc-quality': 'high', 'feature-quality': 'high',
+      'min-num-features': 10000, cog: true, ...project.odm_options
+    };
+    const createResp = await fetch(url + '/task/new/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: project.name,
+        options: Object.entries(options).map(([name, value]) => ({ name, value }))
+      })
+    });
+
+    if (!createResp.ok) {
+      // Try alternative endpoint
+      const createResp2 = await fetch(url + '/task/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: project.name,
+          options: Object.entries(options).map(([name, value]) => ({ name, value }))
+        })
+      });
+      if (!createResp2.ok) throw new Error('Failed to create task');
+      const data = await createResp2.json();
+      odmTaskUUID = data.uuid;
+    } else {
+      const data = await createResp.json();
+      odmTaskUUID = data.uuid;
+    }
+
+    logMsg('INFO', `Task created: ${odmTaskUUID}`);
+    document.getElementById('btn-cancel-odm').disabled = false;
+
+    // Upload images
+    logMsg('INFO', `Uploading ${images.length} images...`);
+    setStageStatus(0, 'running', 30);
+    for (let i = 0; i < images.length; i++) {
+      const formData = new FormData();
+      formData.append('images', images[i].file, images[i].file.name);
+      await fetch(`${url}/task/new/upload/${odmTaskUUID}`, {
+        method: 'POST', body: formData
+      });
+      if ((i+1) % 10 === 0 || i === images.length - 1) {
+        logMsg('INFO', `Uploaded ${i+1}/${images.length}`);
+        setStageStatus(0, 'running', 30 + Math.round((i/images.length) * 60));
+      }
+    }
+
+    // Commit task
+    logMsg('INFO', 'Committing task...');
+    await fetch(`${url}/task/new/commit/${odmTaskUUID}`, { method: 'POST' });
+    setStageStatus(0, 'done', 100);
+    logMsg('INFO', 'Task committed. Processing started.');
+
+    // Start polling
+    odmLogLine = 0;
+    odmPolling = setInterval(() => pollODM(url), 2000);
+
+  } catch (err) {
+    logMsg('ERROR', `Pipeline failed: ${err.message}`);
+    setStageStatus(0, 'error');
+  }
+}
+
+async function pollODM(url) {
+  if (!odmTaskUUID) return;
+  try {
+    const r = await fetch(`${url}/task/${odmTaskUUID}/info`);
+    const info = await r.json();
+    const statusCode = info.status?.code || 10;
+    const progress = info.progress || 0;
+
+    const stageIdx = Math.min(Math.floor(progress / 10), ODM_STAGES.length - 1);
+    ODM_STAGES.forEach((_, i) => {
+      if (i < stageIdx) setStageStatus(i, 'done', 100);
+      else if (i === stageIdx) setStageStatus(i, 'running', Math.round((progress % 10) * 10));
+      else setStageStatus(i, 'pending');
+    });
+
+    // Fetch log lines
+    try {
+      const logResp = await fetch(`${url}/task/${odmTaskUUID}/output?line=${odmLogLine}`);
+      const lines = await logResp.json();
+      lines.forEach(line => {
+        const lower = line.toLowerCase();
+        const cls = lower.includes('error') ? 'ERROR' : (lower.includes('warn') ? 'WARN' : 'INFO');
+        logMsg(cls, line);
+      });
+      odmLogLine += lines.length;
+    } catch {}
+
+    if (statusCode === 40) {
+      ODM_STAGES.forEach((_, i) => setStageStatus(i, 'done', 100));
+      clearInterval(odmPolling);
+      document.getElementById('btn-cancel-odm').disabled = true;
+      logMsg('INFO', '✅ Processing complete!');
+      if (project) project.odm_task_uuid = odmTaskUUID;
+    } else if (statusCode === 30 || statusCode === 50) {
+      clearInterval(odmPolling);
+      document.getElementById('btn-cancel-odm').disabled = true;
+      logMsg('ERROR', statusCode === 30 ? 'Task failed.' : 'Task cancelled.');
+    }
+  } catch (err) {
+    logMsg('ERROR', 'Poll failed: ' + err.message);
+  }
+}
+
+async function cancelODM() {
+  const url = document.getElementById('odm-url').value || 'http://localhost:3000';
+  if (odmTaskUUID) {
+    try {
+      await fetch(`${url}/task/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uuid: odmTaskUUID })
+      });
+      logMsg('INFO', 'Task cancelled.');
+    } catch (e) { logMsg('ERROR', 'Cancel failed: ' + e.message); }
+  }
+  if (odmPolling) clearInterval(odmPolling);
+  document.getElementById('btn-cancel-odm').disabled = true;
+}
+
+// ══════════════════════════════════════════════════════════
+// OUTPUT VIEWERS (Lightweight)
+// ══════════════════════════════════════════════════════════
+function loadPointCloud() { document.getElementById('file-pc').click(); }
+async function handlePCFile(file) {
+  if (!file) return;
+  const info = document.getElementById('pc-info');
+  info.innerHTML = `<span style="color:var(--success)">Loaded: ${file.name}</span><br>Size: ${(file.size/1024/1024).toFixed(1)} MB<br><span style="color:var(--muted)">(Full 3D viewer requires desktop app)</span>`;
+  logMsg('INFO', `Point cloud loaded: ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`);
+}
+
+function loadMesh() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.obj,.ply';
+  input.onchange = () => {
+    if (input.files[0]) {
+      const f = input.files[0];
+      document.getElementById('mesh-info').innerHTML =
+        `<span style="color:var(--success)">Loaded: ${f.name}</span><br>Size: ${(f.size/1024/1024).toFixed(1)} MB<br><span style="color:var(--muted)">(Full 3D viewer requires desktop app)</span>`;
+      logMsg('INFO', `Mesh loaded: ${f.name}`);
+    }
+  };
+  input.click();
+}
+
+function loadDSM() { document.getElementById('file-dsm').click(); }
+async function handleDSMFile(file) {
+  if (!file) return;
+  try {
+    const ab = await file.arrayBuffer();
+    const tiff = await GeoTIFF.fromArrayBuffer(ab);
+    const img = await tiff.getImage();
+    const raster = await img.readRasters({ samples: [0], width: Math.min(img.getWidth(), 512), height: Math.min(img.getHeight(), 512) });
+    const band = raster[0];
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < band.length; i++) {
+      if (isFinite(band[i]) && band[i] > -9999) {
+        if (band[i] < min) min = band[i];
+        if (band[i] > max) max = band[i];
+      }
+    }
+    document.getElementById('dsm-info').innerHTML =
+      `<span style="color:var(--success)">Loaded: ${file.name}</span><br>` +
+      `${img.getWidth()}×${img.getHeight()} px<br>` +
+      `Min Elev: ${min.toFixed(2)} m &nbsp; Max: ${max.toFixed(2)} m<br>` +
+      `Range: ${(max-min).toFixed(2)} m`;
+    logMsg('INFO', `DSM loaded: ${file.name}, elev range ${min.toFixed(1)}–${max.toFixed(1)} m`);
+  } catch (err) {
+    document.getElementById('dsm-info').innerHTML = `<span style="color:var(--error)">Error: ${err.message}</span>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// PDF REPORT GENERATION (jsPDF)
+// ══════════════════════════════════════════════════════════
+function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'letter');
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const red = [204, 0, 0];
+  const black = [10, 10, 10];
+  const gray = [136, 136, 136];
+  const white = [255, 255, 255];
+
+  const engineer = document.getElementById('rpt-engineer').value || 'Engineer';
+  const company = document.getElementById('rpt-company').value || 'Korb Engineering';
+  const pName = project ? project.name : 'Untitled Project';
+  const today = new Date().toISOString().slice(0, 10);
+
+  // ── Header/Footer helper
+  function addHF(pageNum) {
+    // Header bar
+    doc.setFillColor(...red);
+    doc.rect(0, 0, W, 10, 'F');
+    doc.setTextColor(...white);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('KORB ENGINEERING', 19, 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Photogrammetry Suite — Confidential', W - 19, 7, { align: 'right' });
+
+    // Footer
+    doc.setTextColor(...gray);
+    doc.setFontSize(7);
+    doc.text(`${pName}  |  ${today}`, 19, H - 8);
+    doc.text(`Page ${pageNum}`, W - 19, H - 8, { align: 'right' });
+    doc.setFillColor(...red);
+    doc.rect(0, H - 5, W, 5, 'F');
+  }
+
+  // ── Page 1: Cover ──
+  addHF(1);
+  doc.setTextColor(...red);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+  doc.text('KORB ENGINEERING', W / 2, 70, { align: 'center' });
+  doc.setTextColor(...gray);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(14);
+  doc.text('Photogrammetry Suite', W / 2, 80, { align: 'center' });
+
+  doc.setDrawColor(...red);
+  doc.setLineWidth(0.5);
+  doc.line(40, 88, W - 40, 88);
+
+  doc.setTextColor(...black);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text(pName, W / 2, 100, { align: 'center' });
+
+  // Info table
+  const coverData = [
+    ['Airport:', project?.icao_code || '—'],
+    ['Client:', project?.client || '—'],
+    ['Survey Date:', project?.survey_date || '—'],
+    ['CRS:', project?.crs_description || 'WGS84'],
+    ['Prepared By:', engineer],
+    ['Company:', company],
+    ['Report Date:', today],
+  ];
+  doc.autoTable({
+    body: coverData, startY: 115,
+    margin: { left: 60, right: 60 },
+    theme: 'grid',
+    styles: { fontSize: 10, cellPadding: 3, textColor: black },
+    columnStyles: {
+      0: { fontStyle: 'bold', textColor: red, cellWidth: 35 },
+      1: { cellWidth: 80 }
+    },
+    didDrawPage: () => {}
+  });
+
+  // ── Page 2: Executive Summary ──
+  doc.addPage();
+  addHF(2);
+  doc.setTextColor(...red);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Executive Summary', 19, 22);
+
+  if (images.length) {
+    const withGPS = images.filter(i => i.exif.latitude).length;
+    const alts = images.map(i => i.exif.GPSAltitude).filter(Boolean);
+    const cameras = images.map(i => i.exif.Model || i.exif.model).filter(Boolean);
+    const summaryData = [
+      ['Images Processed', String(images.length)],
+      ['GPS Coverage', `${withGPS}/${images.length}`],
+      ['Avg Altitude', alts.length ? (alts.reduce((a,b)=>a+b,0)/alts.length).toFixed(1) + ' m AGL' : '—'],
+      ['Camera', cameras[0] || '—'],
+    ];
+    doc.autoTable({
+      body: summaryData, startY: 28,
+      margin: { left: 19, right: 19 },
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 3 },
+      columnStyles: { 0: { fontStyle: 'bold', textColor: red, cellWidth: 45 } }
+    });
+  } else {
+    doc.setTextColor(...gray);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('No flight data available.', 19, 30);
+  }
+
+  // ── Page 3: PWL Results (if enabled) ──
+  if (document.getElementById('rpt-pwl').checked && pwlResults.length) {
+    doc.addPage();
+    addHF(3);
+    doc.setTextColor(...red);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('FAA Pavement Quality — PWL Results', 19, 22);
+    doc.setTextColor(...gray);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Per FAA AC 150/5370-10H. PWL < 75 = rejection candidate.', 19, 28);
+
+    const pwlTableData = pwlResults.map(r => [
+      r.lot, r.sublot, r.material, String(r.pwl),
+      r.pay_factor.toFixed(2), r.pwl >= 75 ? '✓ Accept' : '✗ Reject'
+    ]);
+
+    doc.autoTable({
+      head: [['Lot', 'Sublot', 'Material', 'PWL', 'Pay Factor', 'Status']],
+      body: pwlTableData, startY: 33,
+      margin: { left: 19, right: 19 },
+      headStyles: { fillColor: red, textColor: white, fontStyle: 'bold', fontSize: 9 },
+      styles: { fontSize: 9, cellPadding: 3 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 3) {
+          const pwl = parseInt(data.cell.raw);
+          data.cell.styles.textColor = pwl >= 90 ? [0,204,102] : (pwl >= 75 ? [255,170,0] : [255,51,51]);
+          data.cell.styles.fontStyle = 'bold';
+        }
+      }
+    });
+  }
+
+  // ── Appendix: ODM Parameters ──
+  if (document.getElementById('rpt-odm').checked && project?.odm_options && Object.keys(project.odm_options).length) {
+    doc.addPage();
+    addHF(doc.internal.getNumberOfPages());
+    doc.setTextColor(...red);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Appendix — ODM Processing Parameters', 19, 22);
+
+    const odmData = Object.entries(project.odm_options).map(([k,v]) => [k, String(v)]);
+    doc.autoTable({
+      head: [['Parameter', 'Value']],
+      body: odmData, startY: 28,
+      margin: { left: 19, right: 19 },
+      headStyles: { fillColor: red, textColor: white },
+      styles: { fontSize: 9, cellPadding: 3 },
+    });
+  }
+
+  // Save
+  doc.save(`${pName.replace(/\s+/g,'_')}_Report_${today}.pdf`);
+  logMsg('INFO', '📑 PDF report generated and downloaded.');
+}
+
+// ══════════════════════════════════════════════════════════
+// LOGGING
+// ══════════════════════════════════════════════════════════
+function logMsg(level, text) {
+  const el = document.getElementById('log-console');
+  const cls = level === 'ERROR' ? 'log-error' : (level === 'WARN' ? 'log-warn' : 'log-info');
+  const time = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `[${time}] [${level}] ${text}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() { document.getElementById('log-console').innerHTML = ''; }
+
+// ══════════════════════════════════════════════════════════
+// SETTINGS (localStorage)
+// ══════════════════════════════════════════════════════════
+function loadSettings() {
+  const s = JSON.parse(localStorage.getItem('korb_settings') || '{}');
+  if (s.odmUrl) document.getElementById('odm-url').value = s.odmUrl;
+  if (s.engineer) document.getElementById('rpt-engineer').value = s.engineer;
+  if (s.company) document.getElementById('rpt-company').value = s.company;
+}
+
+function saveSettings() {
+  const s = {
+    odmUrl: document.getElementById('set-odm-url').value,
+    engineer: document.getElementById('set-engineer').value,
+    company: document.getElementById('set-company').value,
+  };
+  localStorage.setItem('korb_settings', JSON.stringify(s));
+  document.getElementById('odm-url').value = s.odmUrl;
+  document.getElementById('rpt-engineer').value = s.engineer;
+  document.getElementById('rpt-company').value = s.company;
+  closeModal('modal-settings');
+  logMsg('INFO', 'Settings saved.');
+}
+
+// ══════════════════════════════════════════════════════════
+// RESIZE HANDLES
+// ══════════════════════════════════════════════════════════
+function initResizeHandles() {
+  document.querySelectorAll('.resize-handle').forEach(handle => {
+    let startX, startWidth, target;
+    handle.addEventListener('mousedown', e => {
+      const dockId = handle.dataset.resize;
+      target = document.getElementById(dockId);
+      startX = e.clientX;
+      startWidth = target.offsetWidth;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+    function onMove(e) {
+      const isLeft = handle.dataset.resize === 'dock-left';
+      const dx = e.clientX - startX;
+      const newW = isLeft ? startWidth + dx : startWidth - dx;
+      if (newW > 200 && newW < 600) target.style.width = newW + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (orthoMap) setTimeout(() => orthoMap.invalidateSize(), 50);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// Add GPS image markers to map
+// ══════════════════════════════════════════════════════════
+function addImageMarkersToMap() {
+  if (!orthoMap) return;
+  const gpsImages = images.filter(i => i.exif.latitude && i.exif.longitude);
+  if (!gpsImages.length) return;
+
+  gpsImages.forEach(img => {
+    L.circleMarker([img.exif.latitude, img.exif.longitude], {
+      radius: 3, color: '#cc0000', fillColor: '#cc0000', fillOpacity: 0.8
+    }).bindPopup(`<b>${img.file.name}</b><br>Alt: ${img.exif.GPSAltitude?.toFixed(1) || '—'} m`)
+      .addTo(orthoMap);
+  });
+
+  // Fit to markers
+  const lats = gpsImages.map(i => i.exif.latitude);
+  const lons = gpsImages.map(i => i.exif.longitude);
+  orthoMap.fitBounds([
+    [Math.min(...lats) - 0.001, Math.min(...lons) - 0.001],
+    [Math.max(...lats) + 0.001, Math.max(...lons) + 0.001]
+  ]);
+}
+
+// Override handleImageFiles to also plot markers
+const _origHandleImages = handleImageFiles;
+handleImageFiles = async function(files) {
+  await _origHandleImages(files);
+  addImageMarkersToMap();
+};
+</script>
+</body>
+</html>
