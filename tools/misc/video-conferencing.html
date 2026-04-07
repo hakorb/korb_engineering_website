@@ -44,6 +44,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
 .conf-leave{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:7px 16px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;margin-left:8px}
 .conf-leave:hover{background:var(--red);color:#fff}
 
+/* Connection status indicator */
+.conn-status{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;padding:4px 10px;border-radius:6px;transition:all 0.3s}
+.conn-status.connected{color:var(--green);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)}
+.conn-status.reconnecting{color:var(--orange);background:rgba(255,102,0,0.1);border:1px solid rgba(255,102,0,0.2)}
+.conn-status.disconnected{color:var(--red);background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)}
+.conn-status-dot{width:6px;height:6px;border-radius:50%}
+.conn-status.connected .conn-status-dot{background:var(--green)}
+.conn-status.reconnecting .conn-status-dot{background:var(--orange);animation:pulse 0.8s infinite}
+.conn-status.disconnected .conn-status-dot{background:var(--red)}
+
+/* Reconnection overlay */
+.reconnect-overlay{position:absolute;inset:0;background:rgba(5,10,15,0.85);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100;backdrop-filter:blur(4px)}
+.reconnect-overlay.hidden{display:none}
+.reconnect-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reconnect-text{font-size:14px;font-weight:600;color:var(--text)}
+.reconnect-sub{font-size:11px;color:var(--dim);text-align:center;line-height:1.5}
+
 /* Jitsi container */
 .conf-body{flex:1;background:#000;position:relative;overflow:hidden}
 #jitsi-container{width:100%;height:100%}
@@ -86,13 +104,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
   <span class="conf-brand">Korb Engineering</span>
   <span class="conf-title">Video Conference</span>
   <div class="conf-status">
+    <span class="conn-status connected" id="connStatus">
+      <span class="conn-status-dot"></span>
+      <span id="connStatusText">Connected</span>
+    </span>
     <span class="conf-live">LIVE</span>
     <span class="conf-participants" id="participantCount"></span>
-    <button class="conf-leave" onclick="leaveConference()">Leave</button>
+    <button class="conf-leave" onclick="intentionalLeave()">Leave</button>
   </div>
 </div>
 <div class="conf-body" id="confBody" style="display:none">
   <div id="jitsi-container"></div>
+  <div class="reconnect-overlay hidden" id="reconnectOverlay">
+    <div class="reconnect-spinner"></div>
+    <div class="reconnect-text" id="reconnectText">Reconnecting...</div>
+    <div class="reconnect-sub" id="reconnectSub">Attempting to rejoin the conference room.<br>Please wait a moment.</div>
+  </div>
 </div>
 
 <div class="badge">Korb Engineering</div>
@@ -107,7 +134,18 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// --- Connection state management ---
 let api = null;
+let currentDisplayName = '';
+let currentDomain = 'meet.jit.si';
+let userIntentionallyLeft = false;
+let isReconnecting = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY = 2000; // 2 seconds
+let keepaliveInterval = null;
+let connectionCheckInterval = null;
+let reconnectTimeout = null;
 
 // Remember name
 const savedName = localStorage.getItem('korb_conf_name') || '';
@@ -156,6 +194,9 @@ async function attemptJoin() {
 
   // Save name for next time
   localStorage.setItem('korb_conf_name', name);
+  currentDisplayName = name;
+  userIntentionallyLeft = false;
+  reconnectAttempts = 0;
 
   // Hide gate, show conference
   document.getElementById('gate').classList.add('hidden');
@@ -191,7 +232,12 @@ function loadJitsi(displayName) {
 
 function initJitsi(displayName, domain) {
   const useDomain = domain || 'meet.jit.si';
+  currentDomain = useDomain;
+  currentDisplayName = displayName;
   const container = document.getElementById('jitsi-container');
+
+  // Clean up any existing instance before creating a new one
+  disposeApi();
 
   const options = {
     roomName: ROOM_NAME,
@@ -220,6 +266,41 @@ function initJitsi(displayName, domain) {
       notifications: [],
       disableThirdPartyRequests: true,
       defaultBackground: '#050a0f',
+
+      // --- Connection stability settings ---
+      // Keep P2P enabled but with longer timeouts
+      p2p: {
+        enabled: true,
+        stunServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+      },
+      // Increase channel last-N to keep all participants visible
+      channelLastN: -1,
+      // Longer certificate expiry
+      otr: { enable: false },
+      // WebSocket keepalive
+      websocketKeepAliveUrl: '',
+      // Disable only if causing disconnects
+      enableLayerSuspension: false,
+      // ICE transport policy - allow all candidates
+      iceTransportPolicy: 'all',
+      // Longer timeouts for bridging
+      openBridgeChannel: 'websocket',
+      // Connection quality thresholds
+      connectionIndicators: {
+        autoHide: false,
+        autoHideTimeout: 5000,
+        disabled: false
+      },
+      // Prevent auto-hangup on network issues
+      enableForcedReload: false,
+      // Disable auto-leaving on connectivity issues
+      conferenceRequestTimeout: 30000,
     },
     interfaceConfigOverwrite: {
       SHOW_JITSI_WATERMARK: false,
@@ -234,37 +315,298 @@ function initJitsi(displayName, domain) {
       DISABLE_FOCUS_INDICATOR: true,
       filmStripOnly: false,
       TOOLBAR_TIMEOUT: 8000,
+      // Longer reconnect settings
+      CONNECTION_INDICATOR_AUTO_HIDE_TIMEOUT: 10000,
     }
   };
 
   try {
     api = new JitsiMeetExternalAPI(useDomain, options);
 
+    // --- Core event listeners ---
     api.addEventListener('participantJoined', updateParticipants);
     api.addEventListener('participantLeft', updateParticipants);
+
     api.addEventListener('videoConferenceJoined', () => {
+      console.log('[Korb VC] Conference joined successfully');
       updateParticipants();
-      // Set display name again after join
       api.executeCommand('displayName', displayName);
+      setConnectionStatus('connected');
+      hideReconnectOverlay();
+      reconnectAttempts = 0;
+      isReconnecting = false;
+      startKeepalive();
+      startConnectionMonitor();
     });
+
+    // --- Disconnection handling ---
+    // Only leave if the user clicked "Leave" intentionally
     api.addEventListener('videoConferenceLeft', () => {
-      leaveConference();
+      console.log('[Korb VC] videoConferenceLeft event fired, intentional:', userIntentionallyLeft);
+      if (userIntentionallyLeft) {
+        cleanupAndReturnToGate();
+      } else {
+        // Unintentional disconnect - attempt reconnection
+        handleUnexpectedDisconnect('Conference connection lost');
+      }
+    });
+
+    // Monitor connection quality changes
+    api.addEventListener('connectionEstablished', () => {
+      console.log('[Korb VC] Connection established');
+      setConnectionStatus('connected');
+    });
+
+    api.addEventListener('connectionFailed', () => {
+      console.log('[Korb VC] Connection failed');
+      if (!userIntentionallyLeft) {
+        handleUnexpectedDisconnect('Connection failed');
+      }
+    });
+
+    api.addEventListener('connectionDisconnected', () => {
+      console.log('[Korb VC] Connection disconnected');
+      if (!userIntentionallyLeft) {
+        handleUnexpectedDisconnect('Connection disconnected');
+      }
+    });
+
+    // Suspended/resumed (tab visibility, sleep, etc.)
+    api.addEventListener('suspendDetected', () => {
+      console.log('[Korb VC] Suspend detected (device sleep or tab hidden)');
+      if (!userIntentionallyLeft) {
+        handleUnexpectedDisconnect('Device suspended - reconnecting');
+      }
+    });
+
+    // Track readiness
+    api.addEventListener('readyToClose', () => {
+      console.log('[Korb VC] readyToClose event');
+      if (!userIntentionallyLeft && !isReconnecting) {
+        handleUnexpectedDisconnect('Session ended unexpectedly');
+      }
     });
 
     // Initial count
     setTimeout(updateParticipants, 2000);
   } catch(e) {
-    console.error('Jitsi init error:', e);
-    container.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;text-align:center;padding:20px">
-        <div style="font-size:48px">⚠️</div>
-        <div style="font-size:16px;font-weight:600">Connection Error</div>
-        <div style="font-size:12px;color:rgba(226,232,240,0.4)">Could not connect to the conference room.<br>Please check your connection and try again.</div>
-        <button onclick="location.reload()" style="margin-top:12px;padding:10px 24px;background:#00d4ff;color:#050a0f;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Retry</button>
-      </div>`;
+    console.error('[Korb VC] Jitsi init error:', e);
+    if (!isReconnecting) {
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:16px;color:#e2e8f0;font-family:'JetBrains Mono',monospace;text-align:center;padding:20px">
+          <div style="font-size:48px">⚠️</div>
+          <div style="font-size:16px;font-weight:600">Connection Error</div>
+          <div style="font-size:12px;color:rgba(226,232,240,0.4)">Could not connect to the conference room.<br>Please check your connection and try again.</div>
+          <button onclick="location.reload()" style="margin-top:12px;padding:10px 24px;background:#00d4ff;color:#050a0f;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Retry</button>
+        </div>`;
+    } else {
+      // Retry if we were in the middle of reconnecting
+      scheduleReconnect();
+    }
   }
 }
 
+// --- Keepalive mechanism ---
+// Sends a periodic ping to prevent idle timeout disconnections
+function startKeepalive() {
+  stopKeepalive();
+  keepaliveInterval = setInterval(() => {
+    if (api && !userIntentionallyLeft) {
+      try {
+        // Query participant count as a lightweight keepalive ping
+        api.getNumberOfParticipants();
+        // Also poke the iframe to prevent it from going idle
+        try {
+          const iframe = document.querySelector('#jitsi-container iframe');
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'keepalive' }, '*');
+          }
+        } catch(e) { /* cross-origin, fine */ }
+      } catch(e) {
+        console.warn('[Korb VC] Keepalive failed:', e.message);
+      }
+    }
+  }, 15000); // Every 15 seconds
+}
+
+function stopKeepalive() {
+  if (keepaliveInterval) {
+    clearInterval(keepaliveInterval);
+    keepaliveInterval = null;
+  }
+}
+
+// --- Connection monitor ---
+// Periodically checks if the Jitsi iframe is still alive and responsive
+function startConnectionMonitor() {
+  stopConnectionMonitor();
+  connectionCheckInterval = setInterval(() => {
+    if (userIntentionallyLeft || isReconnecting) return;
+
+    try {
+      const iframe = document.querySelector('#jitsi-container iframe');
+      if (!iframe) {
+        console.warn('[Korb VC] Connection monitor: iframe missing');
+        handleUnexpectedDisconnect('Video frame lost');
+        return;
+      }
+      // Check that the API object is still functional
+      if (api) {
+        api.getNumberOfParticipants();
+      } else if (!isReconnecting) {
+        console.warn('[Korb VC] Connection monitor: API object is null');
+        handleUnexpectedDisconnect('API connection lost');
+      }
+    } catch(e) {
+      console.warn('[Korb VC] Connection monitor error:', e.message);
+      if (!isReconnecting && !userIntentionallyLeft) {
+        handleUnexpectedDisconnect('Connection check failed');
+      }
+    }
+  }, 20000); // Check every 20 seconds
+}
+
+function stopConnectionMonitor() {
+  if (connectionCheckInterval) {
+    clearInterval(connectionCheckInterval);
+    connectionCheckInterval = null;
+  }
+}
+
+// --- Reconnection logic with exponential backoff ---
+function handleUnexpectedDisconnect(reason) {
+  if (userIntentionallyLeft || isReconnecting) return;
+
+  console.log('[Korb VC] Unexpected disconnect:', reason, '| Attempt:', reconnectAttempts + 1);
+
+  isReconnecting = true;
+  stopKeepalive();
+  stopConnectionMonitor();
+  setConnectionStatus('reconnecting');
+  showReconnectOverlay(reason);
+
+  scheduleReconnect();
+}
+
+function scheduleReconnect() {
+  if (userIntentionallyLeft) return;
+
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.error('[Korb VC] Max reconnect attempts reached');
+    setConnectionStatus('disconnected');
+    showReconnectOverlay('Unable to reconnect', true);
+    isReconnecting = false;
+    return;
+  }
+
+  // Exponential backoff: 2s, 4s, 8s, 16s, 32s, capped at 30s
+  const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), 30000);
+  // Add jitter: +/- 25%
+  const jitter = delay * (0.75 + Math.random() * 0.5);
+  reconnectAttempts++;
+
+  console.log(`[Korb VC] Scheduling reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${Math.round(jitter)}ms`);
+  updateReconnectOverlay(`Reconnecting... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
+  if (reconnectTimeout) clearTimeout(reconnectTimeout);
+  reconnectTimeout = setTimeout(() => {
+    if (userIntentionallyLeft) return;
+    attemptReconnect();
+  }, jitter);
+}
+
+function attemptReconnect() {
+  if (userIntentionallyLeft) return;
+
+  console.log('[Korb VC] Attempting reconnect...');
+
+  // Dispose old API cleanly
+  disposeApi();
+
+  // Clear the container for a fresh iframe
+  const container = document.getElementById('jitsi-container');
+  container.innerHTML = '';
+
+  // Re-init Jitsi with the same settings
+  try {
+    initJitsi(currentDisplayName, currentDomain);
+  } catch(e) {
+    console.error('[Korb VC] Reconnect init failed:', e);
+    scheduleReconnect();
+  }
+}
+
+// --- Connection status UI ---
+function setConnectionStatus(status) {
+  const el = document.getElementById('connStatus');
+  const textEl = document.getElementById('connStatusText');
+  if (!el || !textEl) return;
+
+  el.className = 'conn-status ' + status;
+  switch(status) {
+    case 'connected':
+      textEl.textContent = 'Connected';
+      break;
+    case 'reconnecting':
+      textEl.textContent = 'Reconnecting...';
+      break;
+    case 'disconnected':
+      textEl.textContent = 'Disconnected';
+      break;
+  }
+}
+
+function showReconnectOverlay(reason, isFinal) {
+  const overlay = document.getElementById('reconnectOverlay');
+  const textEl = document.getElementById('reconnectText');
+  const subEl = document.getElementById('reconnectSub');
+  if (!overlay) return;
+
+  overlay.classList.remove('hidden');
+  if (textEl) textEl.textContent = isFinal ? 'Connection Lost' : 'Reconnecting...';
+  if (subEl) {
+    if (isFinal) {
+      subEl.innerHTML = `${reason}.<br>
+        <button onclick="forceReconnect()" style="margin-top:12px;padding:8px 20px;background:#00d4ff;color:#050a0f;border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-right:8px">Try Again</button>
+        <button onclick="intentionalLeave()" style="margin-top:12px;padding:8px 20px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:8px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">Leave Room</button>`;
+    } else {
+      subEl.innerHTML = `${reason}.<br>Attempting to rejoin the conference room.`;
+    }
+  }
+}
+
+function updateReconnectOverlay(text) {
+  const textEl = document.getElementById('reconnectText');
+  if (textEl) textEl.textContent = text;
+}
+
+function hideReconnectOverlay() {
+  const overlay = document.getElementById('reconnectOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+// --- Force reconnect (user-initiated from overlay) ---
+function forceReconnect() {
+  reconnectAttempts = 0;
+  isReconnecting = false;
+  handleUnexpectedDisconnect('Manual reconnect requested');
+}
+
+// --- Dispose API safely without triggering reconnect ---
+function disposeApi() {
+  if (api) {
+    try {
+      // Remove event listeners to prevent cascading disconnect events during dispose
+      api.removeAllListeners && api.removeAllListeners();
+      api.dispose();
+    } catch(e) {
+      console.warn('[Korb VC] Error during API dispose:', e.message);
+    }
+    api = null;
+  }
+}
+
+// --- Participant count ---
 function updateParticipants() {
   if (!api) return;
   try {
@@ -274,18 +616,77 @@ function updateParticipants() {
   } catch(e) {}
 }
 
-function leaveConference() {
-  if (api) {
-    try { api.dispose(); } catch(e) {}
-    api = null;
+// --- Intentional leave (user clicked Leave button) ---
+function intentionalLeave() {
+  userIntentionallyLeft = true;
+  isReconnecting = false;
+
+  // Cancel any pending reconnect
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
   }
+
+  stopKeepalive();
+  stopConnectionMonitor();
+  cleanupAndReturnToGate();
+}
+
+function cleanupAndReturnToGate() {
+  disposeApi();
   document.getElementById('confHeader').style.display = 'none';
   document.getElementById('confBody').style.display = 'none';
   document.getElementById('jitsi-container').innerHTML = '';
+  hideReconnectOverlay();
   document.getElementById('gate').classList.remove('hidden');
   document.getElementById('passInput').value = '';
   document.getElementById('gateError').textContent = '';
+  setConnectionStatus('connected'); // Reset for next session
 }
+
+// --- Handle page visibility changes ---
+// When the user switches tabs or minimizes, prevent the Jitsi iframe from
+// thinking the session is abandoned
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    console.log('[Korb VC] Page hidden - pausing monitors');
+    // Don't stop keepalive - let it continue to maintain the connection
+  } else {
+    console.log('[Korb VC] Page visible again - checking connection');
+    if (api && !userIntentionallyLeft && !isReconnecting) {
+      try {
+        api.getNumberOfParticipants();
+        setConnectionStatus('connected');
+      } catch(e) {
+        console.warn('[Korb VC] Connection lost while page was hidden');
+        handleUnexpectedDisconnect('Connection lost while tab was inactive');
+      }
+    }
+  }
+});
+
+// --- Handle network online/offline events ---
+window.addEventListener('offline', () => {
+  console.log('[Korb VC] Network offline detected');
+  if (!userIntentionallyLeft && !isReconnecting) {
+    setConnectionStatus('reconnecting');
+    showReconnectOverlay('Network connection lost');
+  }
+});
+
+window.addEventListener('online', () => {
+  console.log('[Korb VC] Network back online');
+  if (!userIntentionallyLeft) {
+    // Give the network a moment to stabilize, then reconnect
+    setTimeout(() => {
+      if (!userIntentionallyLeft) {
+        reconnectAttempts = 0; // Reset attempts since this is a fresh network
+        isReconnecting = false;
+        handleUnexpectedDisconnect('Network restored - reconnecting');
+      }
+    }, 2000);
+  }
+});
 
 // Warn before closing
 window.addEventListener('beforeunload', e => {
