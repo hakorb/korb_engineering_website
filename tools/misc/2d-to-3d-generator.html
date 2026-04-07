@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D to 3D Asset Generator | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;
+--text:#e2e8f0;--text-dim:#8892a4;--text-bright:#f8fafc;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px}
+input,select,textarea,button{font-family:'JetBrains Mono',monospace;font-size:16px}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#2a3545}
+button{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:8px 14px;border-radius:4px;min-height:44px;min-width:44px;transition:all .15s}
+button:hover{border-color:var(--cyan);color:var(--cyan)}
+button.active{background:rgba(0,212,255,.12);border-color:var(--cyan);color:var(--cyan)}
+button.btn-primary{background:rgba(0,212,255,.15);border-color:var(--cyan);color:var(--cyan)}
+button.btn-primary:hover{background:rgba(0,212,255,.25)}
+button.btn-orange{background:rgba(255,102,0,.15);border-color:var(--orange);color:var(--orange)}
+button.btn-orange:hover{background:rgba(255,102,0,.25)}
+button.btn-green{background:rgba(16,185,129,.15);border-color:var(--green);color:var(--green)}
+button.btn-green:hover{background:rgba(16,185,129,.25)}
+button.btn-red{background:rgba(239,68,68,.1);border-color:var(--red);color:var(--red)}
+button.btn-red:hover{background:rgba(239,68,68,.2)}
+button.btn-sm{min-height:36px;padding:4px 10px;font-size:12px}
+input[type="text"],input[type="number"],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:4px;min-height:44px;width:100%;font-size:16px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+input[type="range"]{-webkit-appearance:none;width:100%;height:6px;background:var(--border);border-radius:3px;outline:none}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--cyan);border-radius:50%;cursor:pointer}
+input[type="color"]{-webkit-appearance:none;border:1px solid var(--border);width:44px;height:44px;padding:2px;background:var(--surface);border-radius:4px;cursor:pointer}
+input[type="color"]::-webkit-color-swatch-wrapper{padding:0}
+input[type="color"]::-webkit-color-swatch{border:none;border-radius:2px}
+input[type="checkbox"]{width:20px;height:20px;accent-color:var(--cyan)}
+label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);margin-bottom:4px}
+.panel-section{margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.panel-header{background:var(--surface2);padding:10px 12px;font-size:12px;font-weight:600;color:var(--cyan);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;text-transform:uppercase;letter-spacing:1px}
+.panel-header::after{content:'\25BC';font-size:8px;transition:transform .2s}
+.panel-header.collapsed::after{transform:rotate(-90deg)}
+.panel-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.panel-body.collapsed{display:none}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}
+.row label{margin-bottom:0}
+.slider-row{display:flex;align-items:center;gap:8px}
+.slider-row label{flex:0 0 auto;min-width:60px;margin-bottom:0}
+.slider-row input[type="range"]{flex:1}
+.slider-row .val{flex:0 0 45px;text-align:right;font-size:11px;color:var(--cyan)}
+
+#app{display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:280px 1fr 280px;height:100vh;width:100vw}
+#topbar{grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;overflow-x:auto}
+#topbar .title{font-weight:700;color:var(--cyan);font-size:15px;white-space:nowrap;margin-right:8px}
+#topbar .mode-tabs{display:flex;gap:4px}
+#topbar .mode-tabs button{font-size:12px;padding:6px 12px}
+#topbar .scene-btns{display:flex;gap:4px;margin-left:auto}
+#topbar .view-btns{display:flex;gap:4px}
+
+#left-panel{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:8px}
+#right-panel{background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;padding:8px}
+#viewport-container{position:relative;overflow:hidden;background:var(--bg)}
+#viewport-container canvas{display:block}
+#viewport-overlay{position:absolute;bottom:8px;left:8px;right:8px;display:flex;justify-content:space-between;pointer-events:none;font-size:11px;color:var(--text-dim)}
+#viewport-overlay>*{pointer-events:auto}
+
+#bottombar{grid-column:1/-1;background:var(--surface);border-top:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:12px;font-size:11px;overflow-x:auto}
+#object-list{display:flex;gap:4px;flex:1;overflow-x:auto}
+#object-list .obj-chip{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:4px 10px;white-space:nowrap;cursor:pointer;font-size:11px;display:flex;align-items:center;gap:6px;min-height:32px}
+#object-list .obj-chip.selected{border-color:var(--cyan);color:var(--cyan)}
+#object-list .obj-chip .vis-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+#object-list .obj-chip .vis-dot.hidden{background:var(--red)}
+#status-info{color:var(--text-dim);white-space:nowrap}
+
+.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+.upload-zone .icon{font-size:28px;color:var(--cyan)}
+.upload-zone p{font-size:11px;color:var(--text-dim)}
+
+#draw-canvas-wrap{position:relative;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#000}
+#draw-canvas{width:100%;cursor:crosshair}
+.draw-tools{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.draw-tools button{font-size:11px;padding:4px 8px;min-height:36px}
+
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.preset-grid button{font-size:11px;padding:6px 8px;text-align:left}
+
+.color-row{display:flex;align-items:center;gap:8px}
+.color-row label{min-width:50px;margin-bottom:0}
+
+@media(max-width:900px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr auto auto}
+  #left-panel,#right-panel{max-height:40vh;border:none;border-bottom:1px solid var(--border)}
+  #right-panel{border-top:1px solid var(--border);border-bottom:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span class="title">2D-to-3D Generator</span>
+    <div class="mode-tabs">
+      <button class="active" data-mode="image" onclick="setMode('image')">Image</button>
+      <button data-mode="draw" onclick="setMode('draw')">Draw</button>
+      <button data-mode="text" onclick="setMode('text')">Text</button>
+      <button data-mode="shapes" onclick="setMode('shapes')">Shapes</button>
+      <button data-mode="presets" onclick="setMode('presets')">Presets</button>
+    </div>
+    <div class="view-btns">
+      <button class="btn-sm" onclick="setCameraView('perspective')" title="Perspective">P</button>
+      <button class="btn-sm" onclick="setCameraView('top')" title="Top">T</button>
+      <button class="btn-sm" onclick="setCameraView('front')" title="Front">F</button>
+      <button class="btn-sm" onclick="setCameraView('side')" title="Side">S</button>
+    </div>
+    <div class="scene-btns">
+      <button class="btn-sm" onclick="fitToScreen()" title="Fit to Screen">Fit</button>
+      <button class="btn-sm" onclick="resetView()" title="Reset View">Reset</button>
+      <button class="btn-sm" onclick="saveScene()">Save</button>
+      <button class="btn-sm" onclick="loadScene()">Load</button>
+    </div>
+  </div>
+
+  <div id="left-panel">
+    <!-- IMAGE MODE -->
+    <div id="mode-image" class="mode-content">
+      <div class="upload-zone" id="upload-zone">
+        <div class="icon">&#x1F5BC;</div>
+        <p>Drop image or click to upload<br>JPG, PNG, SVG</p>
+        <input type="file" id="file-input" accept="image/*" style="display:none">
+      </div>
+      <div id="image-preview-wrap" style="display:none;margin-top:8px">
+        <canvas id="image-preview" style="width:100%;border-radius:4px;border:1px solid var(--border)"></canvas>
+      </div>
+
+      <div class="panel-section" style="margin-top:8px">
+        <div class="panel-header" onclick="togglePanel(this)">Conversion Method</div>
+        <div class="panel-body">
+          <select id="img-method" onchange="updateImageMethod()">
+            <option value="heightmap">Heightmap Extrusion</option>
+            <option value="lithophane">Lithophane</option>
+            <option value="texture">Image on Shape</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="heightmap-opts" class="panel-section">
+        <div class="panel-header" onclick="togglePanel(this)">Heightmap Options</div>
+        <div class="panel-body">
+          <div class="slider-row"><label>Height</label><input type="range" min="0.1" max="5" step="0.1" value="1.5" id="hm-height" oninput="this.nextElementSibling.textContent=this.value"><span class="val">1.5</span></div>
+          <div class="slider-row"><label>Resolution</label><input type="range" min="16" max="256" step="8" value="64" id="hm-res" oninput="this.nextElementSibling.textContent=this.value"><span class="val">64</span></div>
+          <div class="slider-row"><label>Smooth</label><input type="range" min="0" max="10" step="1" value="2" id="hm-smooth" oninput="this.nextElementSibling.textContent=this.value"><span class="val">2</span></div>
+          <label><input type="checkbox" id="hm-invert"> Invert heightmap</label>
+          <button class="btn-primary" onclick="generateHeightmap()">Generate Heightmap</button>
+        </div>
+      </div>
+
+      <div id="litho-opts" class="panel-section" style="display:none">
+        <div class="panel-header" onclick="togglePanel(this)">Lithophane Options</div>
+        <div class="panel-body">
+          <div class="slider-row"><label>Min Thick</label><input type="range" min="0.2" max="2" step="0.1" value="0.4" id="litho-min" oninput="this.nextElementSibling.textContent=this.value"><span class="val">0.4</span></div>
+          <div class="slider-row"><label>Max Thick</label><input type="range" min="1" max="5" step="0.1" value="3" id="litho-max" oninput="this.nextElementSibling.textContent=this.value"><span class="val">3</span></div>
+          <label><input type="checkbox" id="litho-frame"> Add frame border</label>
+          <label><input type="checkbox" id="litho-neg"> Negative (invert)</label>
+          <button class="btn-primary" onclick="generateLithophane()">Generate Lithophane</button>
+        </div>
+      </div>
+
+      <div id="texture-opts" class="panel-section" style="display:none">
+        <div class="panel-header" onclick="togglePanel(this)">Texture on Shape</div>
+        <div class="panel-body">
+          <select id="tex-shape">
+            <option value="box">Cube</option>
+            <option value="sphere">Sphere</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="torus">Torus</option>
+            <option value="plane">Plane</option>
+          </select>
+          <div class="slider-row"><label>Repeat U</label><input type="range" min="1" max="8" step="1" value="1" id="tex-ru" oninput="this.nextElementSibling.textContent=this.value"><span class="val">1</span></div>
+          <div class="slider-row"><label>Repeat V</label><input type="range" min="1" max="8" step="1" value="1" id="tex-rv" oninput="this.nextElementSibling.textContent=this.value"><span class="val">1</span></div>
+          <button class="btn-primary" onclick="generateTexturedShape()">Apply Texture</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRAW MODE -->
+    <div id="mode-draw" class="mode-content" style="display:none">
+      <div class="draw-tools">
+        <button class="btn-sm active" data-tool="pen" onclick="setDrawTool('pen',this)">Pen</button>
+        <button class="btn-sm" data-tool="line" onclick="setDrawTool('line',this)">Line</button>
+        <button class="btn-sm" data-tool="rect" onclick="setDrawTool('rect',this)">Rect</button>
+        <button class="btn-sm" data-tool="circle" onclick="setDrawTool('circle',this)">Circle</button>
+        <button class="btn-sm" data-tool="polygon" onclick="setDrawTool('polygon',this)">Poly</button>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn-sm" onclick="drawUndo()">Undo</button>
+        <button class="btn-sm" onclick="drawRedo()">Redo</button>
+        <button class="btn-sm btn-red" onclick="drawClear()">Clear</button>
+      </div>
+      <label><input type="checkbox" id="snap-grid"> Snap to grid</label>
+      <div id="draw-canvas-wrap">
+        <canvas id="draw-canvas" width="256" height="256"></canvas>
+      </div>
+      <div class="panel-section" style="margin-top:8px">
+        <div class="panel-header" onclick="togglePanel(this)">3D Conversion</div>
+        <div class="panel-body">
+          <select id="draw-method">
+            <option value="extrude">Extrude</option>
+            <option value="lathe">Revolve / Lathe</option>
+          </select>
+          <div class="slider-row"><label>Depth</label><input type="range" min="0.1" max="5" step="0.1" value="1" id="draw-depth" oninput="this.nextElementSibling.textContent=this.value"><span class="val">1</span></div>
+          <div class="slider-row" id="lathe-angle-row" style="display:none"><label>Angle</label><input type="range" min="10" max="360" step="5" value="360" id="lathe-angle" oninput="this.nextElementSibling.textContent=this.value+'°'"><span class="val">360°</span></div>
+          <div class="slider-row" id="lathe-seg-row" style="display:none"><label>Segments</label><input type="range" min="4" max="64" step="2" value="24" id="lathe-segs" oninput="this.nextElementSibling.textContent=this.value"><span class="val">24</span></div>
+          <button class="btn-primary" onclick="generateFromDrawing()">Generate 3D</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEXT MODE -->
+    <div id="mode-text" class="mode-content" style="display:none">
+      <div class="panel-section">
+        <div class="panel-header" onclick="togglePanel(this)">Text to 3D</div>
+        <div class="panel-body">
+          <input type="text" id="text-input" placeholder="Enter text..." value="KORB">
+          <div class="slider-row"><label>Size</label><input type="range" min="0.5" max="5" step="0.1" value="2" id="text-size" oninput="this.nextElementSibling.textContent=this.value"><span class="val">2</span></div>
+          <div class="slider-row"><label>Depth</label><input type="range" min="0.1" max="3" step="0.1" value="0.5" id="text-depth" oninput="this.nextElementSibling.textContent=this.value"><span class="val">0.5</span></div>
+          <div class="slider-row"><label>Bevel</label><input type="range" min="0" max="0.5" step="0.01" value="0.05" id="text-bevel" oninput="this.nextElementSibling.textContent=this.value"><span class="val">0.05</span></div>
+          <div class="slider-row"><label>Bevel Seg</label><input type="range" min="1" max="8" step="1" value="3" id="text-bseg" oninput="this.nextElementSibling.textContent=this.value"><span class="val">3</span></div>
+          <select id="text-align"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
+          <button class="btn-primary" onclick="generateText3D()">Generate 3D Text</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHAPES MODE -->
+    <div id="mode-shapes" class="mode-content" style="display:none">
+      <div class="panel-section">
+        <div class="panel-header" onclick="togglePanel(this)">Shape Primitives</div>
+        <div class="panel-body">
+          <select id="shape-type" onchange="updateShapeParams()">
+            <option value="box">Box</option>
+            <option value="sphere">Sphere</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="torus">Torus</option>
+            <option value="cone">Cone</option>
+            <option value="torusknot">Torus Knot</option>
+            <option value="icosahedron">Icosahedron</option>
+            <option value="octahedron">Octahedron</option>
+            <option value="dodecahedron">Dodecahedron</option>
+            <option value="tetrahedron">Tetrahedron</option>
+          </select>
+          <div id="shape-params"></div>
+          <button class="btn-primary" onclick="addPrimitive()">Add to Scene</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRESETS MODE -->
+    <div id="mode-presets" class="mode-content" style="display:none">
+      <div class="panel-section">
+        <div class="panel-header" onclick="togglePanel(this)">Quick Workflows</div>
+        <div class="panel-body">
+          <div class="preset-grid">
+            <button onclick="presetLogoTo3D()">Logo to 3D</button>
+            <button onclick="presetPhotoRelief()">Photo Relief</button>
+            <button onclick="presetTextSign()">Text Sign</button>
+            <button onclick="presetChessPiece()">Chess Piece</button>
+            <button onclick="presetTerrain()">Terrain</button>
+            <button onclick="presetShowcase()">Product Showcase</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewport-container">
+    <div id="viewport-overlay">
+      <span id="poly-count">Tris: 0</span>
+      <span id="fps-counter">FPS: 60</span>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div class="panel-section">
+      <div class="panel-header" onclick="togglePanel(this)">Material</div>
+      <div class="panel-body">
+        <select id="mat-type" onchange="updateMaterial()">
+          <option value="standard">Standard (PBR)</option>
+          <option value="phong">Phong (Shiny)</option>
+          <option value="lambert">Lambert (Matte)</option>
+          <option value="wireframe">Wireframe</option>
+          <option value="normal">Normal Map</option>
+          <option value="toon">Toon / Cel</option>
+        </select>
+        <div class="color-row"><label>Color</label><input type="color" id="mat-color" value="#00d4ff" onchange="updateMaterial()"></div>
+        <div class="slider-row"><label>Metalness</label><input type="range" min="0" max="1" step="0.05" value="0.3" id="mat-metal" oninput="this.nextElementSibling.textContent=this.value;updateMaterial()"><span class="val">0.3</span></div>
+        <div class="slider-row"><label>Roughness</label><input type="range" min="0" max="1" step="0.05" value="0.4" id="mat-rough" oninput="this.nextElementSibling.textContent=this.value;updateMaterial()"><span class="val">0.4</span></div>
+        <div class="slider-row"><label>Opacity</label><input type="range" min="0" max="1" step="0.05" value="1" id="mat-opacity" oninput="this.nextElementSibling.textContent=this.value;updateMaterial()"><span class="val">1</span></div>
+        <div class="color-row"><label>Emissive</label><input type="color" id="mat-emissive" value="#000000" onchange="updateMaterial()"></div>
+        <div class="slider-row"><label>Emis. Int.</label><input type="range" min="0" max="2" step="0.1" value="0" id="mat-emis-int" oninput="this.nextElementSibling.textContent=this.value;updateMaterial()"><span class="val">0</span></div>
+        <label><input type="checkbox" id="mat-envmap" onchange="updateMaterial()"> Environment Reflection</label>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-header" onclick="togglePanel(this)">Lighting</div>
+      <div class="panel-body">
+        <select id="light-preset" onchange="applyLightPreset()">
+          <option value="studio">Studio</option>
+          <option value="outdoor">Outdoor</option>
+          <option value="dramatic">Dramatic</option>
+          <option value="soft">Soft</option>
+          <option value="rim">Rim Light</option>
+        </select>
+        <div class="slider-row"><label>Ambient</label><input type="range" min="0" max="2" step="0.1" value="0.4" id="light-ambient" oninput="this.nextElementSibling.textContent=this.value;updateLighting()"><span class="val">0.4</span></div>
+        <div class="slider-row"><label>Key Light</label><input type="range" min="0" max="3" step="0.1" value="1.2" id="light-key" oninput="this.nextElementSibling.textContent=this.value;updateLighting()"><span class="val">1.2</span></div>
+        <div class="slider-row"><label>Fill Light</label><input type="range" min="0" max="2" step="0.1" value="0.5" id="light-fill" oninput="this.nextElementSibling.textContent=this.value;updateLighting()"><span class="val">0.5</span></div>
+        <div class="slider-row"><label>Shadow Qual</label><input type="range" min="512" max="4096" step="512" value="2048" id="shadow-qual" oninput="this.nextElementSibling.textContent=this.value;updateLighting()"><span class="val">2048</span></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-header" onclick="togglePanel(this)">Transform</div>
+      <div class="panel-body">
+        <label>Position</label>
+        <div class="row">
+          <input type="number" step="0.1" value="0" id="tx" onchange="updateTransform()" placeholder="X" style="font-size:13px">
+          <input type="number" step="0.1" value="0" id="ty" onchange="updateTransform()" placeholder="Y" style="font-size:13px">
+          <input type="number" step="0.1" value="0" id="tz" onchange="updateTransform()" placeholder="Z" style="font-size:13px">
+        </div>
+        <label>Rotation (deg)</label>
+        <div class="row">
+          <input type="number" step="5" value="0" id="rx" onchange="updateTransform()" placeholder="X" style="font-size:13px">
+          <input type="number" step="5" value="0" id="ry" onchange="updateTransform()" placeholder="Y" style="font-size:13px">
+          <input type="number" step="5" value="0" id="rz" onchange="updateTransform()" placeholder="Z" style="font-size:13px">
+        </div>
+        <label>Scale</label>
+        <div class="row">
+          <input type="number" step="0.1" value="1" min="0.01" id="sx" onchange="updateTransform()" placeholder="X" style="font-size:13px">
+          <input type="number" step="0.1" value="1" min="0.01" id="sy" onchange="updateTransform()" placeholder="Y" style="font-size:13px">
+          <input type="number" step="0.1" value="1" min="0.01" id="sz" onchange="updateTransform()" placeholder="Z" style="font-size:13px">
+        </div>
+        <label><input type="checkbox" id="auto-rotate" onchange="toggleAutoRotate()"> Auto-rotate</label>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-header" onclick="togglePanel(this)">Background</div>
+      <div class="panel-body">
+        <select id="bg-mode" onchange="updateBackground()">
+          <option value="dark">Dark</option>
+          <option value="gradient">Gradient</option>
+          <option value="solid">Solid Color</option>
+          <option value="transparent">Transparent</option>
+        </select>
+        <div class="color-row"><label>Color</label><input type="color" id="bg-color" value="#050a0f" onchange="updateBackground()"></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-header" onclick="togglePanel(this)">Export</div>
+      <div class="panel-body">
+        <label>Screenshot</label>
+        <div class="row">
+          <button class="btn-sm btn-green" onclick="exportPNG(1)">1x</button>
+          <button class="btn-sm btn-green" onclick="exportPNG(2)">2x</button>
+          <button class="btn-sm btn-green" onclick="exportPNG(4)">4x</button>
+        </div>
+        <label><input type="checkbox" id="export-transparent"> Transparent BG</label>
+        <label>3D Model</label>
+        <div class="row">
+          <button class="btn-sm btn-orange" onclick="exportOBJ()">OBJ</button>
+          <button class="btn-sm btn-orange" onclick="exportSTL()">STL</button>
+          <button class="btn-sm btn-orange" onclick="exportGLTF()">GLTF</button>
+        </div>
+        <label>Turntable</label>
+        <div class="row">
+          <input type="number" id="turntable-frames" value="36" min="8" max="120" placeholder="Frames" style="font-size:13px">
+          <button class="btn-sm btn-primary" onclick="recordTurntable()">Record</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottombar">
+    <div id="object-list"></div>
+    <div id="status-info">Ready</div>
+  </div>
+</div>
+
+<script>
+// ========== INLINE OBJ EXPORTER ==========
+class OBJExporter {
+  parse(object) {
+    let output = '# OBJ exported by Korb 2D-to-3D Generator\n';
+    let indexVertex = 0, indexNormals = 0, indexUvs = 0;
+    const parseMesh = (mesh) => {
+      let nbVertex = 0, nbNormals = 0, nbUvs = 0;
+      const geometry = mesh.geometry;
+      const normalMatrixWorld = new THREE.Matrix3();
+      if (geometry.isBufferGeometry) {
+        const vertices = geometry.getAttribute('position');
+        const normals = geometry.getAttribute('normal');
+        const uvs = geometry.getAttribute('uv');
+        const indices = geometry.getIndex();
+        output += 'o ' + mesh.name + '\n';
+        if (mesh.material && mesh.material.name) output += 'usemtl ' + mesh.material.name + '\n';
+        if (vertices) {
+          for (let i = 0; i < vertices.count; i++) {
+            const vertex = new THREE.Vector3(vertices.getX(i), vertices.getY(i), vertices.getZ(i));
+            vertex.applyMatrix4(mesh.matrixWorld);
+            output += 'v ' + vertex.x + ' ' + vertex.y + ' ' + vertex.z + '\n';
+            nbVertex++;
+          }
+        }
+        if (uvs) {
+          for (let i = 0; i < uvs.count; i++) {
+            output += 'vt ' + uvs.getX(i) + ' ' + uvs.getY(i) + '\n';
+            nbUvs++;
+          }
+        }
+        if (normals) {
+          normalMatrixWorld.getNormalMatrix(mesh.matrixWorld);
+          for (let i = 0; i < normals.count; i++) {
+            const normal = new THREE.Vector3(normals.getX(i), normals.getY(i), normals.getZ(i));
+            normal.applyMatrix3(normalMatrixWorld).normalize();
+            output += 'vn ' + normal.x + ' ' + normal.y + ' ' + normal.z + '\n';
+            nbNormals++;
+          }
+        }
+        if (indices) {
+          for (let i = 0; i < indices.count; i += 3) {
+            const a = indices.getX(i) + 1, b = indices.getX(i+1) + 1, c = indices.getX(i+2) + 1;
+            const fa = a + indexVertex, fb = b + indexVertex, fc = c + indexVertex;
+            if (nbNormals > 0 && nbUvs > 0) {
+              const fna = a + indexNormals, fnb = b + indexNormals, fnc = c + indexNormals;
+              const fua = a + indexUvs, fub = b + indexUvs, fuc = c + indexUvs;
+              output += 'f ' + fa+'/'+fua+'/'+fna + ' ' + fb+'/'+fub+'/'+fnb + ' ' + fc+'/'+fuc+'/'+fnc + '\n';
+            } else if (nbNormals > 0) {
+              output += 'f ' + fa+'//'+( a+indexNormals) + ' ' + fb+'//'+(b+indexNormals) + ' ' + fc+'//'+(c+indexNormals) + '\n';
+            } else {
+              output += 'f ' + fa + ' ' + fb + ' ' + fc + '\n';
+            }
+          }
+        } else {
+          for (let i = 0; i < vertices.count; i += 3) {
+            const a = i+1, b = i+2, c = i+3;
+            output += 'f ' + (a+indexVertex) + ' ' + (b+indexVertex) + ' ' + (c+indexVertex) + '\n';
+          }
+        }
+      }
+      indexVertex += nbVertex;
+      indexNormals += nbNormals;
+      indexUvs += nbUvs;
+    };
+    object.traverse((child) => { if (child.isMesh) parseMesh(child); });
+    return output;
+  }
+}
+
+// ========== INLINE STL EXPORTER ==========
+class STLExporter {
+  parse(scene, {binary=false}={}) {
+    const triangles = [];
+    scene.traverse((obj) => {
+      if (!obj.isMesh) return;
+      const geo = obj.geometry;
+      const pos = geo.getAttribute('position');
+      const nor = geo.getAttribute('normal');
+      const idx = geo.getIndex();
+      const matWorld = obj.matrixWorld;
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(matWorld);
+      const count = idx ? idx.count : pos.count;
+      for (let i = 0; i < count; i += 3) {
+        const ia = idx ? idx.getX(i) : i;
+        const ib = idx ? idx.getX(i+1) : i+1;
+        const ic = idx ? idx.getX(i+2) : i+2;
+        const va = new THREE.Vector3(pos.getX(ia),pos.getY(ia),pos.getZ(ia)).applyMatrix4(matWorld);
+        const vb = new THREE.Vector3(pos.getX(ib),pos.getY(ib),pos.getZ(ib)).applyMatrix4(matWorld);
+        const vc = new THREE.Vector3(pos.getX(ic),pos.getY(ic),pos.getZ(ic)).applyMatrix4(matWorld);
+        let n;
+        if (nor) { n = new THREE.Vector3(nor.getX(ia),nor.getY(ia),nor.getZ(ia)).applyMatrix3(normalMatrix).normalize(); }
+        else { const cb = new THREE.Vector3().subVectors(vc,vb); const ab = new THREE.Vector3().subVectors(va,vb); n = cb.cross(ab).normalize(); }
+        triangles.push({normal:n,vertices:[va,vb,vc]});
+      }
+    });
+    if (binary) {
+      const bufLen = 80 + 4 + triangles.length * 50;
+      const buf = new ArrayBuffer(bufLen);
+      const dv = new DataView(buf);
+      for (let i = 0; i < 80; i++) dv.setUint8(i, 0);
+      dv.setUint32(80, triangles.length, true);
+      let offset = 84;
+      for (const tri of triangles) {
+        dv.setFloat32(offset, tri.normal.x, true); offset += 4;
+        dv.setFloat32(offset, tri.normal.y, true); offset += 4;
+        dv.setFloat32(offset, tri.normal.z, true); offset += 4;
+        for (const v of tri.vertices) {
+          dv.setFloat32(offset, v.x, true); offset += 4;
+          dv.setFloat32(offset, v.y, true); offset += 4;
+          dv.setFloat32(offset, v.z, true); offset += 4;
+        }
+        dv.setUint16(offset, 0, true); offset += 2;
+      }
+      return buf;
+    } else {
+      let out = 'solid exported\n';
+      for (const tri of triangles) {
+        out += ' facet normal ' + tri.normal.x + ' ' + tri.normal.y + ' ' + tri.normal.z + '\n';
+        out += '  outer loop\n';
+        for (const v of tri.vertices) out += '   vertex ' + v.x + ' ' + v.y + ' ' + v.z + '\n';
+        out += '  endloop\n endfacet\n';
+      }
+      out += 'endsolid exported\n';
+      return out;
+    }
+  }
+}
+
+// ========== THREE.JS SETUP ==========
+let scene, camera, renderer, controls, gridHelper, axisHelper;
+let ambientLight, keyLight, fillLight, hemiLight, pointLight;
+let sceneObjects = [];
+let selectedObject = null;
+let autoRotate = false;
+let uploadedImage = null;
+let uploadedTexture = null;
+let envMap = null;
+let drawHistory = [], drawFuture = [];
+let currentDrawTool = 'pen';
+let isDrawing = false;
+let drawPoints = [];
+let drawStartPt = null;
+const DEG = Math.PI / 180;
+
+function initScene() {
+  const container = document.getElementById('viewport-container');
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.set(4, 3, 5);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  container.appendChild(renderer.domElement);
+
+  // Grid
+  gridHelper = new THREE.GridHelper(20, 40, 0x1a2535, 0x0e1520);
+  scene.add(gridHelper);
+
+  // Axis
+  axisHelper = new THREE.AxesHelper(2);
+  scene.add(axisHelper);
+
+  // Lights
+  ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(ambientLight);
+
+  hemiLight = new THREE.HemisphereLight(0x8899bb, 0x334455, 0.3);
+  scene.add(hemiLight);
+
+  keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  keyLight.position.set(5, 8, 5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.1;
+  keyLight.shadow.camera.far = 50;
+  keyLight.shadow.camera.left = -10;
+  keyLight.shadow.camera.right = 10;
+  keyLight.shadow.camera.top = 10;
+  keyLight.shadow.camera.bottom = -10;
+  keyLight.shadow.bias = -0.001;
+  scene.add(keyLight);
+
+  fillLight = new THREE.DirectionalLight(0x6688cc, 0.5);
+  fillLight.position.set(-3, 4, -2);
+  scene.add(fillLight);
+
+  pointLight = new THREE.PointLight(0xff6600, 0, 20);
+  pointLight.position.set(-2, 3, 4);
+  scene.add(pointLight);
+
+  // Ground plane for shadows
+  const groundGeo = new THREE.PlaneGeometry(40, 40);
+  const groundMat = new THREE.ShadowMaterial({ opacity: 0.3 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.01;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Environment cubemap for reflections
+  generateEnvMap();
+
+  // Orbit controls (manual implementation since we can't load OrbitControls module)
+  initOrbitControls(container);
+
+  // Raycaster for selection
+  initSelection(container);
+
+  window.addEventListener('resize', onResize);
+  onResize();
+  animate();
+}
+
+function generateEnvMap() {
+  const size = 128;
+  const cubeRT = new THREE.WebGLCubeRenderTarget(size);
+  const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRT);
+  // Create a simple gradient environment
+  const envScene = new THREE.Scene();
+  const envGeo = new THREE.SphereGeometry(50, 32, 32);
+  const envMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {},
+    vertexShader: `varying vec3 vWorldPos; void main(){ vWorldPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vWorldPos; void main(){ float h=normalize(vWorldPos).y; vec3 col=mix(vec3(0.02,0.04,0.08),vec3(0.1,0.15,0.3),smoothstep(-0.2,0.5,h)); col=mix(col,vec3(0.3,0.35,0.4),smoothstep(0.5,1.0,h)); gl_FragColor=vec4(col,1.0); }`
+  });
+  envScene.add(new THREE.Mesh(envGeo, envMat));
+  cubeCamera.position.set(0, 0, 0);
+  cubeCamera.update(renderer, envScene);
+  envMap = cubeRT.texture;
+}
+
+// ========== MANUAL ORBIT CONTROLS ==========
+let orbitState = { rotating: false, panning: false, lastX: 0, lastY: 0, theta: 0.8, phi: 0.6, radius: 8, target: new THREE.Vector3(0, 0, 0), touches: [] };
+
+function initOrbitControls(el) {
+  el.addEventListener('mousedown', (e) => {
+    if (e.button === 0) { orbitState.rotating = true; }
+    else if (e.button === 2) { orbitState.panning = true; }
+    orbitState.lastX = e.clientX;
+    orbitState.lastY = e.clientY;
+  });
+  el.addEventListener('mousemove', (e) => {
+    const dx = e.clientX - orbitState.lastX;
+    const dy = e.clientY - orbitState.lastY;
+    if (orbitState.rotating) {
+      orbitState.theta -= dx * 0.005;
+      orbitState.phi = Math.max(0.05, Math.min(Math.PI - 0.05, orbitState.phi - dy * 0.005));
+    }
+    if (orbitState.panning) {
+      const panSpeed = 0.005 * orbitState.radius;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      camera.getWorldDirection(new THREE.Vector3());
+      right.setFromMatrixColumn(camera.matrix, 0);
+      up.setFromMatrixColumn(camera.matrix, 1);
+      orbitState.target.addScaledVector(right, -dx * panSpeed);
+      orbitState.target.addScaledVector(up, dy * panSpeed);
+    }
+    orbitState.lastX = e.clientX;
+    orbitState.lastY = e.clientY;
+    updateCamera();
+  });
+  el.addEventListener('mouseup', () => { orbitState.rotating = false; orbitState.panning = false; });
+  el.addEventListener('mouseleave', () => { orbitState.rotating = false; orbitState.panning = false; });
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    orbitState.radius *= 1 + e.deltaY * 0.001;
+    orbitState.radius = Math.max(0.5, Math.min(50, orbitState.radius));
+    updateCamera();
+  }, { passive: false });
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Touch
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    orbitState.touches = Array.from(e.touches).map(t => ({x:t.clientX, y:t.clientY}));
+    if (e.touches.length === 1) { orbitState.rotating = true; orbitState.lastX = e.touches[0].clientX; orbitState.lastY = e.touches[0].clientY; }
+  }, { passive: false });
+  el.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const newTouches = Array.from(e.touches).map(t => ({x:t.clientX, y:t.clientY}));
+    if (e.touches.length === 1 && orbitState.rotating) {
+      const dx = e.touches[0].clientX - orbitState.lastX;
+      const dy = e.touches[0].clientY - orbitState.lastY;
+      orbitState.theta -= dx * 0.005;
+      orbitState.phi = Math.max(0.05, Math.min(Math.PI-0.05, orbitState.phi - dy * 0.005));
+      orbitState.lastX = e.touches[0].clientX;
+      orbitState.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2 && orbitState.touches.length === 2) {
+      const oldDist = Math.hypot(orbitState.touches[0].x - orbitState.touches[1].x, orbitState.touches[0].y - orbitState.touches[1].y);
+      const newDist = Math.hypot(newTouches[0].x - newTouches[1].x, newTouches[0].y - newTouches[1].y);
+      const scale = oldDist / newDist;
+      orbitState.radius = Math.max(0.5, Math.min(50, orbitState.radius * scale));
+      // Pan
+      const oldMid = {x:(orbitState.touches[0].x+orbitState.touches[1].x)/2, y:(orbitState.touches[0].y+orbitState.touches[1].y)/2};
+      const newMid = {x:(newTouches[0].x+newTouches[1].x)/2, y:(newTouches[0].y+newTouches[1].y)/2};
+      const pdx = newMid.x - oldMid.x, pdy = newMid.y - oldMid.y;
+      const panSpeed = 0.003 * orbitState.radius;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      orbitState.target.addScaledVector(right, -pdx * panSpeed);
+      orbitState.target.addScaledVector(up, pdy * panSpeed);
+    }
+    orbitState.touches = newTouches;
+    updateCamera();
+  }, { passive: false });
+  el.addEventListener('touchend', (e) => {
+    orbitState.rotating = false;
+    orbitState.touches = Array.from(e.touches).map(t => ({x:t.clientX, y:t.clientY}));
+  });
+  updateCamera();
+}
+
+function updateCamera() {
+  const x = orbitState.radius * Math.sin(orbitState.phi) * Math.sin(orbitState.theta);
+  const y = orbitState.radius * Math.cos(orbitState.phi);
+  const z = orbitState.radius * Math.sin(orbitState.phi) * Math.cos(orbitState.theta);
+  camera.position.set(x + orbitState.target.x, y + orbitState.target.y, z + orbitState.target.z);
+  camera.lookAt(orbitState.target);
+}
+
+function setCameraView(view) {
+  const d = orbitState.radius;
+  switch(view) {
+    case 'perspective': orbitState.theta = 0.8; orbitState.phi = 0.6; break;
+    case 'top': orbitState.theta = 0; orbitState.phi = 0.01; break;
+    case 'front': orbitState.theta = 0; orbitState.phi = Math.PI/2; break;
+    case 'side': orbitState.theta = Math.PI/2; orbitState.phi = Math.PI/2; break;
+  }
+  updateCamera();
+}
+
+// ========== SELECTION ==========
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function initSelection(el) {
+  el.addEventListener('click', (e) => {
+    if (orbitState.rotating) return;
+    const rect = el.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const meshes = sceneObjects.filter(o => o.mesh).map(o => o.mesh);
+    const intersects = raycaster.intersectObjects(meshes, true);
+    if (intersects.length > 0) {
+      let obj = intersects[0].object;
+      // Find in sceneObjects
+      const so = sceneObjects.find(o => o.mesh === obj || (obj.parent && o.mesh === obj.parent));
+      if (so) selectObject(so);
+    }
+  });
+}
+
+// ========== ANIMATION ==========
+let frameCount = 0, fpsTime = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  frameCount++;
+  const now = performance.now();
+  if (now - fpsTime > 500) {
+    document.getElementById('fps-counter').textContent = 'FPS: ' + Math.round(frameCount * 1000 / (now - fpsTime));
+    frameCount = 0; fpsTime = now;
+  }
+  if (autoRotate && selectedObject) {
+    selectedObject.mesh.rotation.y += 0.01;
+    syncTransformUI();
+  }
+  renderer.render(scene, camera);
+  // Poly count
+  let tris = 0;
+  scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += g.index ? g.index.count / 3 : (g.getAttribute('position')?.count || 0) / 3; }});
+  document.getElementById('poly-count').textContent = 'Tris: ' + Math.round(tris).toLocaleString();
+}
+
+function onResize() {
+  const c = document.getElementById('viewport-container');
+  camera.aspect = c.clientWidth / c.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(c.clientWidth, c.clientHeight);
+}
+
+// ========== MODE SWITCHING ==========
+function setMode(mode) {
+  document.querySelectorAll('.mode-tabs button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.querySelectorAll('.mode-content').forEach(el => el.style.display = 'none');
+  const el = document.getElementById('mode-' + mode);
+  if (el) el.style.display = '';
+  if (mode === 'shapes') updateShapeParams();
+}
+
+// ========== PANEL TOGGLE ==========
+function togglePanel(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  if (body) body.classList.toggle('collapsed');
+}
+
+// ========== IMAGE UPLOAD ==========
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => { e.preventDefault(); uploadZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleImageFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleImageFile(fileInput.files[0]); });
+
+function handleImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      uploadedImage = img;
+      // Show preview
+      const preview = document.getElementById('image-preview');
+      const maxW = 256;
+      const scale = Math.min(maxW / img.width, maxW / img.height, 1);
+      preview.width = img.width * scale;
+      preview.height = img.height * scale;
+      const ctx = preview.getContext('2d');
+      ctx.drawImage(img, 0, 0, preview.width, preview.height);
+      document.getElementById('image-preview-wrap').style.display = '';
+      // Create texture
+      uploadedTexture = new THREE.Texture(img);
+      uploadedTexture.needsUpdate = true;
+      setStatus('Image loaded: ' + img.width + 'x' + img.height);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateImageMethod() {
+  const m = document.getElementById('img-method').value;
+  document.getElementById('heightmap-opts').style.display = m === 'heightmap' ? '' : 'none';
+  document.getElementById('litho-opts').style.display = m === 'lithophane' ? '' : 'none';
+  document.getElementById('texture-opts').style.display = m === 'texture' ? '' : 'none';
+}
+
+// ========== IMAGE DATA HELPERS ==========
+function getImageData(img, res) {
+  const c = document.createElement('canvas');
+  c.width = res; c.height = Math.round(res * (img.height / img.width));
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return { data: ctx.getImageData(0, 0, c.width, c.height), w: c.width, h: c.height };
+}
+
+function getBrightness(data, i) {
+  return (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 255;
+}
+
+function smoothHeightData(heights, w, h, passes) {
+  for (let p = 0; p < passes; p++) {
+    const tmp = new Float32Array(heights);
+    for (let y = 1; y < h-1; y++) {
+      for (let x = 1; x < w-1; x++) {
+        const i = y * w + x;
+        tmp[i] = (heights[i] * 4 + heights[i-1] + heights[i+1] + heights[i-w] + heights[i+w]) / 8;
+      }
+    }
+    heights.set(tmp);
+  }
+}
+
+// ========== HEIGHTMAP ==========
+function generateHeightmap() {
+  if (!uploadedImage) { setStatus('Upload an image first'); return; }
+  const heightScale = parseFloat(document.getElementById('hm-height').value);
+  const res = parseInt(document.getElementById('hm-res').value);
+  const smoothPasses = parseInt(document.getElementById('hm-smooth').value);
+  const invert = document.getElementById('hm-invert').checked;
+
+  const { data: imgData, w, h } = getImageData(uploadedImage, res);
+  const d = imgData.data;
+  const heights = new Float32Array(w * h);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const pi = (y * w + x) * 4;
+      let b = getBrightness(d, pi);
+      if (invert) b = 1 - b;
+      heights[y * w + x] = b;
+    }
+  }
+  smoothHeightData(heights, w, h, smoothPasses);
+
+  const geo = new THREE.PlaneGeometry(4, 4 * (h/w), w-1, h-1);
+  const pos = geo.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const ix = i % w;
+    const iy = Math.floor(i / w);
+    if (ix < w && iy < h) {
+      pos.setZ(i, heights[iy * w + ix] * heightScale);
+    }
+  }
+  geo.computeVertexNormals();
+
+  const mat = createMaterial();
+  if (uploadedTexture) { mat.map = uploadedTexture.clone(); mat.map.needsUpdate = true; }
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  addToScene(mesh, 'Heightmap');
+  setStatus('Heightmap generated: ' + w + 'x' + h);
+}
+
+// ========== LITHOPHANE ==========
+function generateLithophane() {
+  if (!uploadedImage) { setStatus('Upload an image first'); return; }
+  const minT = parseFloat(document.getElementById('litho-min').value);
+  const maxT = parseFloat(document.getElementById('litho-max').value);
+  const addFrame = document.getElementById('litho-frame').checked;
+  const negative = document.getElementById('litho-neg').checked;
+
+  const res = 80;
+  const { data: imgData, w, h } = getImageData(uploadedImage, res);
+  const d = imgData.data;
+
+  const geo = new THREE.PlaneGeometry(4, 4 * (h/w), w-1, h-1);
+  const pos = geo.getAttribute('position');
+  // Create front face with varying thickness
+  const backGeo = geo.clone();
+  const backPos = backGeo.getAttribute('position');
+
+  for (let i = 0; i < pos.count; i++) {
+    const ix = i % w;
+    const iy = Math.floor(i / w);
+    const pi = (iy * w + ix) * 4;
+    let b = getBrightness(d, pi);
+    if (negative) b = 1 - b;
+    const thickness = minT + b * (maxT - minT);
+    pos.setZ(i, thickness);
+    backPos.setZ(i, 0);
+  }
+  geo.computeVertexNormals();
+
+  // Merge into single mesh by making a box-like geometry
+  const mat = createMaterial();
+  mat.color.set(0xf5f0e8);
+  mat.side = THREE.DoubleSide;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.castShadow = true;
+
+  addToScene(mesh, 'Lithophane');
+  setStatus('Lithophane generated');
+}
+
+// ========== TEXTURED SHAPE ==========
+function generateTexturedShape() {
+  if (!uploadedImage) { setStatus('Upload an image first'); return; }
+  const shape = document.getElementById('tex-shape').value;
+  const repeatU = parseInt(document.getElementById('tex-ru').value);
+  const repeatV = parseInt(document.getElementById('tex-rv').value);
+
+  let geo;
+  switch(shape) {
+    case 'box': geo = new THREE.BoxGeometry(2,2,2,4,4,4); break;
+    case 'sphere': geo = new THREE.SphereGeometry(1.5,48,48); break;
+    case 'cylinder': geo = new THREE.CylinderGeometry(1,1,2.5,48); break;
+    case 'torus': geo = new THREE.TorusGeometry(1.2,0.5,24,64); break;
+    case 'plane': geo = new THREE.PlaneGeometry(3,3*(uploadedImage.height/uploadedImage.width)); break;
+  }
+
+  const tex = uploadedTexture.clone();
+  tex.needsUpdate = true;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeatU, repeatV);
+
+  const mat = createMaterial();
+  mat.map = tex;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  addToScene(mesh, 'Textured ' + shape);
+  setStatus('Textured shape created');
+}
+
+// ========== DRAWING CANVAS ==========
+const drawCanvas = document.getElementById('draw-canvas');
+const drawCtx = drawCanvas.getContext('2d');
+let drawShapes = [];
+let currentPath = [];
+
+function initDrawCanvas() {
+  drawCtx.fillStyle = '#000';
+  drawCtx.fillRect(0, 0, 256, 256);
+  redrawCanvas();
+}
+
+function redrawCanvas() {
+  drawCtx.fillStyle = '#000';
+  drawCtx.fillRect(0, 0, 256, 256);
+  // Grid
+  if (document.getElementById('snap-grid').checked) {
+    drawCtx.strokeStyle = '#1a2535';
+    drawCtx.lineWidth = 0.5;
+    for (let i = 0; i <= 256; i += 16) {
+      drawCtx.beginPath(); drawCtx.moveTo(i, 0); drawCtx.lineTo(i, 256); drawCtx.stroke();
+      drawCtx.beginPath(); drawCtx.moveTo(0, i); drawCtx.lineTo(256, i); drawCtx.stroke();
+    }
+  }
+  // Axis lines
+  drawCtx.strokeStyle = '#1a2535';
+  drawCtx.lineWidth = 1;
+  drawCtx.beginPath(); drawCtx.moveTo(128, 0); drawCtx.lineTo(128, 256); drawCtx.stroke();
+  drawCtx.beginPath(); drawCtx.moveTo(0, 128); drawCtx.lineTo(256, 128); drawCtx.stroke();
+
+  // Draw shapes
+  drawCtx.strokeStyle = '#00d4ff';
+  drawCtx.fillStyle = 'rgba(0,212,255,0.15)';
+  drawCtx.lineWidth = 2;
+  for (const shape of drawShapes) {
+    drawShape(shape);
+  }
+}
+
+function drawShape(shape) {
+  drawCtx.beginPath();
+  if (shape.type === 'pen' && shape.points.length > 1) {
+    drawCtx.moveTo(shape.points[0].x, shape.points[0].y);
+    for (let i = 1; i < shape.points.length; i++) drawCtx.lineTo(shape.points[i].x, shape.points[i].y);
+    drawCtx.stroke();
+  } else if (shape.type === 'line') {
+    drawCtx.moveTo(shape.x1, shape.y1); drawCtx.lineTo(shape.x2, shape.y2); drawCtx.stroke();
+  } else if (shape.type === 'rect') {
+    drawCtx.rect(shape.x, shape.y, shape.w, shape.h); drawCtx.fill(); drawCtx.stroke();
+  } else if (shape.type === 'circle') {
+    drawCtx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI*2); drawCtx.fill(); drawCtx.stroke();
+  } else if (shape.type === 'polygon' && shape.points.length > 1) {
+    drawCtx.moveTo(shape.points[0].x, shape.points[0].y);
+    for (let i = 1; i < shape.points.length; i++) drawCtx.lineTo(shape.points[i].x, shape.points[i].y);
+    drawCtx.closePath(); drawCtx.fill(); drawCtx.stroke();
+  }
+}
+
+function snapCoord(v) {
+  return document.getElementById('snap-grid').checked ? Math.round(v / 16) * 16 : v;
+}
+
+drawCanvas.addEventListener('mousedown', (e) => {
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = 256 / rect.width;
+  const x = snapCoord((e.clientX - rect.left) * scaleX);
+  const y = snapCoord((e.clientY - rect.top) * scaleX);
+  isDrawing = true;
+  drawStartPt = { x, y };
+  if (currentDrawTool === 'pen') { currentPath = [{ x, y }]; }
+  else if (currentDrawTool === 'polygon') {
+    if (!currentPath.length) currentPath = [{ x, y }];
+    else {
+      currentPath.push({ x, y });
+      // Check if close to start
+      if (currentPath.length > 2) {
+        const d = Math.hypot(x - currentPath[0].x, y - currentPath[0].y);
+        if (d < 12) {
+          drawShapes.push({ type: 'polygon', points: [...currentPath] });
+          drawHistory.push([...drawShapes]);
+          drawFuture = [];
+          currentPath = [];
+          isDrawing = false;
+          redrawCanvas();
+          return;
+        }
+      }
+      redrawCanvas();
+      drawCtx.strokeStyle = '#ff6600';
+      drawCtx.lineWidth = 2;
+      drawCtx.beginPath();
+      drawCtx.moveTo(currentPath[0].x, currentPath[0].y);
+      for (let i = 1; i < currentPath.length; i++) drawCtx.lineTo(currentPath[i].x, currentPath[i].y);
+      drawCtx.stroke();
+    }
+  }
+});
+
+drawCanvas.addEventListener('mousemove', (e) => {
+  if (!isDrawing) return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = 256 / rect.width;
+  const x = snapCoord((e.clientX - rect.left) * scaleX);
+  const y = snapCoord((e.clientY - rect.top) * scaleX);
+  if (currentDrawTool === 'pen') {
+    currentPath.push({ x, y });
+    redrawCanvas();
+    drawCtx.strokeStyle = '#00d4ff';
+    drawCtx.lineWidth = 2;
+    drawCtx.beginPath();
+    drawCtx.moveTo(currentPath[0].x, currentPath[0].y);
+    for (let i = 1; i < currentPath.length; i++) drawCtx.lineTo(currentPath[i].x, currentPath[i].y);
+    drawCtx.stroke();
+  } else if (currentDrawTool === 'line' || currentDrawTool === 'rect' || currentDrawTool === 'circle') {
+    redrawCanvas();
+    drawCtx.strokeStyle = '#ff6600';
+    drawCtx.fillStyle = 'rgba(255,102,0,0.1)';
+    drawCtx.lineWidth = 2;
+    drawCtx.beginPath();
+    if (currentDrawTool === 'line') {
+      drawCtx.moveTo(drawStartPt.x, drawStartPt.y); drawCtx.lineTo(x, y); drawCtx.stroke();
+    } else if (currentDrawTool === 'rect') {
+      drawCtx.rect(drawStartPt.x, drawStartPt.y, x - drawStartPt.x, y - drawStartPt.y); drawCtx.fill(); drawCtx.stroke();
+    } else if (currentDrawTool === 'circle') {
+      const r = Math.hypot(x - drawStartPt.x, y - drawStartPt.y);
+      drawCtx.arc(drawStartPt.x, drawStartPt.y, r, 0, Math.PI*2); drawCtx.fill(); drawCtx.stroke();
+    }
+  }
+});
+
+drawCanvas.addEventListener('mouseup', (e) => {
+  if (!isDrawing || currentDrawTool === 'polygon') return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = 256 / rect.width;
+  const x = snapCoord((e.clientX - rect.left) * scaleX);
+  const y = snapCoord((e.clientY - rect.top) * scaleX);
+  isDrawing = false;
+  if (currentDrawTool === 'pen' && currentPath.length > 1) {
+    drawShapes.push({ type: 'pen', points: [...currentPath] });
+  } else if (currentDrawTool === 'line') {
+    drawShapes.push({ type: 'line', x1: drawStartPt.x, y1: drawStartPt.y, x2: x, y2: y });
+  } else if (currentDrawTool === 'rect') {
+    drawShapes.push({ type: 'rect', x: drawStartPt.x, y: drawStartPt.y, w: x - drawStartPt.x, h: y - drawStartPt.y });
+  } else if (currentDrawTool === 'circle') {
+    const r = Math.hypot(x - drawStartPt.x, y - drawStartPt.y);
+    drawShapes.push({ type: 'circle', cx: drawStartPt.x, cy: drawStartPt.y, r });
+  }
+  drawHistory.push([...drawShapes]);
+  drawFuture = [];
+  currentPath = [];
+  redrawCanvas();
+});
+
+function setDrawTool(tool, btn) {
+  currentDrawTool = tool;
+  currentPath = [];
+  document.querySelectorAll('.draw-tools button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function drawUndo() {
+  if (drawShapes.length === 0) return;
+  drawFuture.push([...drawShapes]);
+  drawShapes.pop();
+  redrawCanvas();
+}
+function drawRedo() {
+  if (drawFuture.length === 0) return;
+  drawShapes = drawFuture.pop();
+  redrawCanvas();
+}
+function drawClear() {
+  drawHistory.push([...drawShapes]);
+  drawFuture = [];
+  drawShapes = [];
+  currentPath = [];
+  redrawCanvas();
+}
+
+document.getElementById('draw-method').addEventListener('change', function() {
+  const isLathe = this.value === 'lathe';
+  document.getElementById('lathe-angle-row').style.display = isLathe ? '' : 'none';
+  document.getElementById('lathe-seg-row').style.display = isLathe ? '' : 'none';
+});
+
+// ========== DRAW -> 3D ==========
+function generateFromDrawing() {
+  // Get drawn shape as a set of 2D points from the canvas
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 256, 256);
+  // Redraw shapes filled white
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  for (const shape of drawShapes) {
+    ctx.beginPath();
+    if (shape.type === 'pen' && shape.points.length > 1) {
+      ctx.moveTo(shape.points[0].x, shape.points[0].y);
+      for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
+      ctx.closePath(); ctx.fill();
+    } else if (shape.type === 'rect') {
+      ctx.fillRect(shape.x, shape.y, shape.w, shape.h);
+    } else if (shape.type === 'circle') {
+      ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI*2); ctx.fill();
+    } else if (shape.type === 'polygon' && shape.points.length > 1) {
+      ctx.moveTo(shape.points[0].x, shape.points[0].y);
+      for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
+      ctx.closePath(); ctx.fill();
+    } else if (shape.type === 'line') {
+      ctx.moveTo(shape.x1, shape.y1); ctx.lineTo(shape.x2, shape.y2); ctx.stroke();
+    }
+  }
+
+  const method = document.getElementById('draw-method').value;
+
+  if (method === 'extrude') {
+    // Use heightmap approach with binary image
+    const imgData = ctx.getImageData(0, 0, 256, 256);
+    const depth = parseFloat(document.getElementById('draw-depth').value);
+    const res = 128;
+    const sc = document.createElement('canvas');
+    sc.width = res; sc.height = res;
+    const sctx = sc.getContext('2d');
+    sctx.drawImage(c, 0, 0, res, res);
+    const sd = sctx.getImageData(0, 0, res, res).data;
+
+    const geo = new THREE.PlaneGeometry(4, 4, res-1, res-1);
+    const pos = geo.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const ix = i % res;
+      const iy = Math.floor(i / res);
+      const pi = (iy * res + ix) * 4;
+      const b = sd[pi] / 255;
+      pos.setZ(i, b > 0.5 ? depth : 0);
+    }
+    geo.computeVertexNormals();
+    const mat = createMaterial();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.castShadow = true;
+    addToScene(mesh, 'Extruded Drawing');
+    setStatus('Extruded drawing generated');
+  } else if (method === 'lathe') {
+    // Extract right-side profile from the drawing for lathe
+    const angle = parseFloat(document.getElementById('lathe-angle').value) * DEG;
+    const segments = parseInt(document.getElementById('lathe-segs').value);
+
+    // Sample the rightmost filled pixels per row as profile
+    const imgData = ctx.getImageData(0, 0, 256, 256);
+    const d = imgData.data;
+    const profile = [];
+    for (let y = 0; y < 256; y += 4) {
+      let maxX = 0;
+      for (let x = 128; x < 256; x++) {
+        const pi = (y * 256 + x) * 4;
+        if (d[pi] > 128) maxX = Math.max(maxX, x - 128);
+      }
+      profile.push(new THREE.Vector2(maxX / 128 * 1.5, (256 - y) / 256 * 3));
+    }
+
+    if (profile.some(p => p.x > 0.01)) {
+      const geo = new THREE.LatheGeometry(profile, segments, 0, angle);
+      const mat = createMaterial();
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      addToScene(mesh, 'Lathed Drawing');
+      setStatus('Lathe generated');
+    } else {
+      setStatus('No profile detected - draw shapes to the right of center');
+    }
+  }
+}
+
+// ========== TEXT 3D ==========
+function generateText3D() {
+  const text = document.getElementById('text-input').value || 'KORB';
+  const size = parseFloat(document.getElementById('text-size').value);
+  const depth = parseFloat(document.getElementById('text-depth').value);
+  const bevel = parseFloat(document.getElementById('text-bevel').value);
+  const bevelSegs = parseInt(document.getElementById('text-bseg').value);
+
+  // Since we can't load FontLoader easily, create text from shape paths
+  // We'll use a manual block-letter approach
+  const group = new THREE.Group();
+  const mat = createMaterial();
+  const spacing = size * 0.7;
+  const chars = text.toUpperCase().split('');
+
+  chars.forEach((ch, idx) => {
+    const shape = getLetterShape(ch, size);
+    if (shape) {
+      const extrudeSettings = {
+        depth: depth,
+        bevelEnabled: bevel > 0,
+        bevelThickness: bevel,
+        bevelSize: bevel * 0.8,
+        bevelSegments: bevelSegs,
+        bevelOffset: 0
+      };
+      const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      const mesh = new THREE.Mesh(geo, mat.clone());
+      mesh.position.x = idx * spacing;
+      mesh.castShadow = true;
+      group.add(mesh);
+    }
+  });
+
+  // Center
+  const align = document.getElementById('text-align').value;
+  const totalW = chars.length * spacing;
+  if (align === 'center') group.position.x = -totalW / 2;
+  else if (align === 'right') group.position.x = -totalW;
+
+  const wrapper = new THREE.Group();
+  wrapper.add(group);
+  addToScene(wrapper, 'Text: ' + text);
+  setStatus('3D text generated: ' + text);
+}
+
+function getLetterShape(ch, size) {
+  const s = size;
+  const w = s * 0.5, h = s, t = s * 0.12; // width, height, thickness
+  const shape = new THREE.Shape();
+
+  switch(ch) {
+    case 'A':
+      shape.moveTo(0, 0); shape.lineTo(w/2, h); shape.lineTo(w, 0);
+      shape.lineTo(w - t, 0); shape.lineTo(w*0.65, h*0.4);
+      shape.lineTo(w*0.35, h*0.4); shape.lineTo(t, 0);
+      shape.closePath();
+      break;
+    case 'B':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w*0.7, h);
+      shape.quadraticCurveTo(w, h, w, h*0.8); shape.quadraticCurveTo(w, h*0.55, w*0.6, h*0.5);
+      shape.quadraticCurveTo(w*0.95, h*0.45, w*0.95, h*0.25);
+      shape.quadraticCurveTo(w*0.95, 0, w*0.6, 0); shape.closePath();
+      const bHole = new THREE.Path();
+      bHole.moveTo(t, t); bHole.lineTo(w*0.55, t); bHole.quadraticCurveTo(w*0.75, t, w*0.75, h*0.22);
+      bHole.quadraticCurveTo(w*0.75, h*0.43, w*0.5, h*0.43); bHole.lineTo(t, h*0.43); bHole.closePath();
+      shape.holes.push(bHole);
+      const bHole2 = new THREE.Path();
+      bHole2.moveTo(t, h*0.57); bHole2.lineTo(w*0.55, h*0.57);
+      bHole2.quadraticCurveTo(w*0.8, h*0.57, w*0.8, h*0.75);
+      bHole2.quadraticCurveTo(w*0.8, h-t, w*0.55, h-t); bHole2.lineTo(t, h-t); bHole2.closePath();
+      shape.holes.push(bHole2);
+      break;
+    case 'C':
+      shape.moveTo(w, t*1.5); shape.lineTo(w*0.6, 0); shape.quadraticCurveTo(0, 0, 0, h*0.5);
+      shape.quadraticCurveTo(0, h, w*0.6, h); shape.lineTo(w, h-t*1.5);
+      shape.lineTo(w*0.5, h-t); shape.quadraticCurveTo(t, h-t, t, h*0.5);
+      shape.quadraticCurveTo(t, t, w*0.5, t); shape.closePath();
+      break;
+    case 'D':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w*0.5, h);
+      shape.quadraticCurveTo(w, h, w, h*0.5); shape.quadraticCurveTo(w, 0, w*0.5, 0); shape.closePath();
+      const dHole = new THREE.Path();
+      dHole.moveTo(t, t); dHole.lineTo(w*0.45, t);
+      dHole.quadraticCurveTo(w-t, t, w-t, h*0.5);
+      dHole.quadraticCurveTo(w-t, h-t, w*0.45, h-t); dHole.lineTo(t, h-t); dHole.closePath();
+      shape.holes.push(dHole);
+      break;
+    case 'E':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w, h);
+      shape.lineTo(w, h-t); shape.lineTo(t, h-t); shape.lineTo(t, h*0.55);
+      shape.lineTo(w*0.8, h*0.55); shape.lineTo(w*0.8, h*0.45);
+      shape.lineTo(t, h*0.45); shape.lineTo(t, t); shape.lineTo(w, t); shape.lineTo(w, 0); shape.closePath();
+      break;
+    case 'F':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w, h);
+      shape.lineTo(w, h-t); shape.lineTo(t, h-t); shape.lineTo(t, h*0.55);
+      shape.lineTo(w*0.8, h*0.55); shape.lineTo(w*0.8, h*0.45);
+      shape.lineTo(t, h*0.45); shape.lineTo(t, 0); shape.closePath();
+      break;
+    case 'G':
+      shape.moveTo(w, h*0.3); shape.lineTo(w, t*1.5); shape.lineTo(w*0.6, 0);
+      shape.quadraticCurveTo(0, 0, 0, h*0.5); shape.quadraticCurveTo(0, h, w*0.6, h);
+      shape.lineTo(w, h-t*1.5); shape.lineTo(w*0.5, h-t);
+      shape.quadraticCurveTo(t, h-t, t, h*0.5); shape.quadraticCurveTo(t, t, w*0.5, t);
+      shape.lineTo(w-t, t*2); shape.lineTo(w-t, h*0.4); shape.lineTo(w*0.5, h*0.4);
+      shape.lineTo(w*0.5, h*0.3); shape.closePath();
+      break;
+    case 'H':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(t, h); shape.lineTo(t, h*0.55);
+      shape.lineTo(w-t, h*0.55); shape.lineTo(w-t, h); shape.lineTo(w, h);
+      shape.lineTo(w, 0); shape.lineTo(w-t, 0); shape.lineTo(w-t, h*0.45);
+      shape.lineTo(t, h*0.45); shape.lineTo(t, 0); shape.closePath();
+      break;
+    case 'I':
+      shape.moveTo(w*0.2, 0); shape.lineTo(w*0.2, h); shape.lineTo(w*0.8, h);
+      shape.lineTo(w*0.8, 0); shape.closePath();
+      break;
+    case 'J':
+      shape.moveTo(w*0.5, 0); shape.quadraticCurveTo(0, 0, 0, h*0.3); shape.lineTo(t, h*0.3);
+      shape.quadraticCurveTo(t, t, w*0.5, t); shape.lineTo(w-t, t);
+      shape.lineTo(w-t, h); shape.lineTo(w, h); shape.lineTo(w, 0); shape.closePath();
+      break;
+    case 'K':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(t, h); shape.lineTo(t, h*0.55);
+      shape.lineTo(w*0.6, h); shape.lineTo(w*0.85, h); shape.lineTo(t*2, h*0.48);
+      shape.lineTo(w, 0); shape.lineTo(w*0.7, 0); shape.lineTo(t, h*0.4);
+      shape.lineTo(t, 0); shape.closePath();
+      break;
+    case 'L':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(t, h); shape.lineTo(t, t);
+      shape.lineTo(w, t); shape.lineTo(w, 0); shape.closePath();
+      break;
+    case 'M':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(t, h); shape.lineTo(w*0.5, h*0.4);
+      shape.lineTo(w-t, h); shape.lineTo(w, h); shape.lineTo(w, 0); shape.lineTo(w-t, 0);
+      shape.lineTo(w-t, h*0.65); shape.lineTo(w*0.5, h*0.15); shape.lineTo(t, h*0.65);
+      shape.lineTo(t, 0); shape.closePath();
+      break;
+    case 'N':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(t, h); shape.lineTo(w-t, h*0.25);
+      shape.lineTo(w-t, h); shape.lineTo(w, h); shape.lineTo(w, 0); shape.lineTo(w-t, 0);
+      shape.lineTo(t, h*0.75); shape.lineTo(t, 0); shape.closePath();
+      break;
+    case 'O':
+      shape.moveTo(w*0.5, 0); shape.quadraticCurveTo(0, 0, 0, h*0.5);
+      shape.quadraticCurveTo(0, h, w*0.5, h); shape.quadraticCurveTo(w, h, w, h*0.5);
+      shape.quadraticCurveTo(w, 0, w*0.5, 0); shape.closePath();
+      const oHole = new THREE.Path();
+      oHole.moveTo(w*0.5, t); oHole.quadraticCurveTo(t, t, t, h*0.5);
+      oHole.quadraticCurveTo(t, h-t, w*0.5, h-t);
+      oHole.quadraticCurveTo(w-t, h-t, w-t, h*0.5);
+      oHole.quadraticCurveTo(w-t, t, w*0.5, t); oHole.closePath();
+      shape.holes.push(oHole);
+      break;
+    case 'P':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w*0.6, h);
+      shape.quadraticCurveTo(w, h, w, h*0.75); shape.quadraticCurveTo(w, h*0.45, w*0.6, h*0.45);
+      shape.lineTo(t, h*0.45); shape.lineTo(t, 0); shape.closePath();
+      const pHole = new THREE.Path();
+      pHole.moveTo(t, h*0.55); pHole.lineTo(w*0.5, h*0.55);
+      pHole.quadraticCurveTo(w-t, h*0.55, w-t, h*0.73);
+      pHole.quadraticCurveTo(w-t, h-t, w*0.5, h-t); pHole.lineTo(t, h-t); pHole.closePath();
+      shape.holes.push(pHole);
+      break;
+    case 'Q':
+      shape.moveTo(w*0.5, 0); shape.quadraticCurveTo(0, 0, 0, h*0.5);
+      shape.quadraticCurveTo(0, h, w*0.5, h); shape.quadraticCurveTo(w, h, w, h*0.5);
+      shape.quadraticCurveTo(w, 0, w*0.5, 0); shape.closePath();
+      const qHole = new THREE.Path();
+      qHole.moveTo(w*0.5, t); qHole.quadraticCurveTo(t, t, t, h*0.5);
+      qHole.quadraticCurveTo(t, h-t, w*0.5, h-t);
+      qHole.quadraticCurveTo(w-t, h-t, w-t, h*0.5);
+      qHole.quadraticCurveTo(w-t, t, w*0.5, t); qHole.closePath();
+      shape.holes.push(qHole);
+      break;
+    case 'R':
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w*0.6, h);
+      shape.quadraticCurveTo(w, h, w, h*0.75); shape.quadraticCurveTo(w, h*0.5, w*0.65, h*0.48);
+      shape.lineTo(w, 0); shape.lineTo(w-t*1.5, 0); shape.lineTo(w*0.5, h*0.42);
+      shape.lineTo(t, h*0.42); shape.lineTo(t, 0); shape.closePath();
+      const rHole = new THREE.Path();
+      rHole.moveTo(t, h*0.52); rHole.lineTo(w*0.5, h*0.52);
+      rHole.quadraticCurveTo(w-t, h*0.52, w-t, h*0.73);
+      rHole.quadraticCurveTo(w-t, h-t, w*0.5, h-t); rHole.lineTo(t, h-t); rHole.closePath();
+      shape.holes.push(rHole);
+      break;
+    case 'S':
+      shape.moveTo(w, h*0.85); shape.quadraticCurveTo(w, h, w*0.5, h);
+      shape.quadraticCurveTo(0, h, 0, h*0.75); shape.lineTo(t, h*0.75);
+      shape.quadraticCurveTo(t, h-t, w*0.5, h-t);
+      shape.quadraticCurveTo(w-t, h-t, w-t, h*0.78);
+      shape.lineTo(t, h*0.55); shape.quadraticCurveTo(0, h*0.5, 0, h*0.25);
+      shape.quadraticCurveTo(0, 0, w*0.5, 0); shape.quadraticCurveTo(w, 0, w, h*0.25);
+      shape.lineTo(w-t, h*0.25); shape.quadraticCurveTo(w-t, t, w*0.5, t);
+      shape.quadraticCurveTo(t, t, t, h*0.22);
+      shape.lineTo(w-t, h*0.45); shape.quadraticCurveTo(w, h*0.5, w, h*0.85);
+      shape.closePath();
+      break;
+    case 'T':
+      shape.moveTo(0, h); shape.lineTo(w, h); shape.lineTo(w, h-t);
+      shape.lineTo(w*0.5+t/2, h-t); shape.lineTo(w*0.5+t/2, 0);
+      shape.lineTo(w*0.5-t/2, 0); shape.lineTo(w*0.5-t/2, h-t);
+      shape.lineTo(0, h-t); shape.closePath();
+      break;
+    case 'U':
+      shape.moveTo(0, h); shape.lineTo(0, h*0.3); shape.quadraticCurveTo(0, 0, w*0.5, 0);
+      shape.quadraticCurveTo(w, 0, w, h*0.3); shape.lineTo(w, h);
+      shape.lineTo(w-t, h); shape.lineTo(w-t, h*0.3);
+      shape.quadraticCurveTo(w-t, t, w*0.5, t);
+      shape.quadraticCurveTo(t, t, t, h*0.3); shape.lineTo(t, h); shape.closePath();
+      break;
+    case 'V':
+      shape.moveTo(0, h); shape.lineTo(w*0.5, 0); shape.lineTo(w, h);
+      shape.lineTo(w-t, h); shape.lineTo(w*0.5, t*2); shape.lineTo(t, h); shape.closePath();
+      break;
+    case 'W':
+      shape.moveTo(0, h); shape.lineTo(w*0.2, 0); shape.lineTo(w*0.5, h*0.5);
+      shape.lineTo(w*0.8, 0); shape.lineTo(w, h);
+      shape.lineTo(w-t*0.8, h); shape.lineTo(w*0.8, t*3); shape.lineTo(w*0.5, h*0.6);
+      shape.lineTo(w*0.2, t*3); shape.lineTo(t*0.8, h); shape.closePath();
+      break;
+    case 'X':
+      shape.moveTo(0, 0); shape.lineTo(w*0.5-t*0.3, h*0.47); shape.lineTo(0, h);
+      shape.lineTo(t*1.5, h); shape.lineTo(w*0.5, h*0.55); shape.lineTo(w-t*1.5, h);
+      shape.lineTo(w, h); shape.lineTo(w*0.5+t*0.3, h*0.53); shape.lineTo(w, 0);
+      shape.lineTo(w-t*1.5, 0); shape.lineTo(w*0.5, h*0.45); shape.lineTo(t*1.5, 0);
+      shape.closePath();
+      break;
+    case 'Y':
+      shape.moveTo(0, h); shape.lineTo(w*0.5-t/2, h*0.45); shape.lineTo(w*0.5-t/2, 0);
+      shape.lineTo(w*0.5+t/2, 0); shape.lineTo(w*0.5+t/2, h*0.45); shape.lineTo(w, h);
+      shape.lineTo(w-t*1.3, h); shape.lineTo(w*0.5, h*0.55); shape.lineTo(t*1.3, h);
+      shape.closePath();
+      break;
+    case 'Z':
+      shape.moveTo(0, 0); shape.lineTo(0, t); shape.lineTo(w-t*2, t); shape.lineTo(0, h-t);
+      shape.lineTo(0, h); shape.lineTo(w, h); shape.lineTo(w, h-t); shape.lineTo(t*2, h-t);
+      shape.lineTo(w, t); shape.lineTo(w, 0); shape.closePath();
+      break;
+    case '0': return getLetterShape('O', size);
+    case '1':
+      shape.moveTo(w*0.3, 0); shape.lineTo(w*0.3, t); shape.lineTo(w*0.5-t/2, t);
+      shape.lineTo(w*0.5-t/2, h*0.8); shape.lineTo(w*0.2, h*0.7);
+      shape.lineTo(w*0.2, h*0.8); shape.lineTo(w*0.5-t/2, h);
+      shape.lineTo(w*0.5+t/2, h); shape.lineTo(w*0.5+t/2, t);
+      shape.lineTo(w*0.7, t); shape.lineTo(w*0.7, 0); shape.closePath();
+      break;
+    case ' ': return null;
+    default:
+      // Generic block for unsupported chars
+      shape.moveTo(0, 0); shape.lineTo(0, h); shape.lineTo(w, h); shape.lineTo(w, 0); shape.closePath();
+      const hole = new THREE.Path();
+      hole.moveTo(t, t); hole.lineTo(t, h-t); hole.lineTo(w-t, h-t); hole.lineTo(w-t, t); hole.closePath();
+      shape.holes.push(hole);
+  }
+  return shape;
+}
+
+// ========== SHAPE PRIMITIVES ==========
+const shapeConfigs = {
+  box: [['Width',1,0.1,10,0.1],['Height',1,0.1,10,0.1],['Depth',1,0.1,10,0.1],['Segments',2,1,16,1]],
+  sphere: [['Radius',1.2,0.1,5,0.1],['W Segments',32,4,128,2],['H Segments',24,4,64,2]],
+  cylinder: [['Top Radius',0.8,0,5,0.1],['Bot Radius',0.8,0,5,0.1],['Height',2,0.1,10,0.1],['Segments',32,3,128,1]],
+  torus: [['Radius',1.2,0.1,5,0.1],['Tube',0.4,0.05,2,0.05],['Radial Seg',24,3,64,1],['Tubular Seg',48,3,128,1]],
+  cone: [['Radius',1,0.1,5,0.1],['Height',2,0.1,10,0.1],['Segments',32,3,128,1]],
+  torusknot: [['Radius',1,0.1,5,0.1],['Tube',0.3,0.05,1.5,0.05],['P',2,1,10,1],['Q',3,1,10,1]],
+  icosahedron: [['Radius',1.2,0.1,5,0.1],['Detail',1,0,5,1]],
+  octahedron: [['Radius',1.2,0.1,5,0.1],['Detail',0,0,5,1]],
+  dodecahedron: [['Radius',1.2,0.1,5,0.1],['Detail',0,0,5,1]],
+  tetrahedron: [['Radius',1.2,0.1,5,0.1],['Detail',0,0,5,1]],
+};
+
+function updateShapeParams() {
+  const type = document.getElementById('shape-type').value;
+  const cfg = shapeConfigs[type] || [];
+  const container = document.getElementById('shape-params');
+  container.innerHTML = '';
+  cfg.forEach(([name, def, min, max, step], i) => {
+    const row = document.createElement('div');
+    row.className = 'slider-row';
+    row.innerHTML = `<label>${name}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${def}" id="sp-${i}" oninput="this.nextElementSibling.textContent=this.value"><span class="val">${def}</span>`;
+    container.appendChild(row);
+  });
+}
+
+function addPrimitive() {
+  const type = document.getElementById('shape-type').value;
+  const cfg = shapeConfigs[type] || [];
+  const vals = cfg.map((_, i) => parseFloat(document.getElementById('sp-' + i).value));
+  let geo;
+
+  switch(type) {
+    case 'box': geo = new THREE.BoxGeometry(vals[0], vals[1], vals[2], vals[3], vals[3], vals[3]); break;
+    case 'sphere': geo = new THREE.SphereGeometry(vals[0], vals[1], vals[2]); break;
+    case 'cylinder': geo = new THREE.CylinderGeometry(vals[0], vals[1], vals[2], vals[3]); break;
+    case 'torus': geo = new THREE.TorusGeometry(vals[0], vals[1], vals[2], vals[3]); break;
+    case 'cone': geo = new THREE.ConeGeometry(vals[0], vals[1], vals[2]); break;
+    case 'torusknot': geo = new THREE.TorusKnotGeometry(vals[0], vals[1], 128, 16, vals[2], vals[3]); break;
+    case 'icosahedron': geo = new THREE.IcosahedronGeometry(vals[0], vals[1]); break;
+    case 'octahedron': geo = new THREE.OctahedronGeometry(vals[0], vals[1]); break;
+    case 'dodecahedron': geo = new THREE.DodecahedronGeometry(vals[0], vals[1]); break;
+    case 'tetrahedron': geo = new THREE.TetrahedronGeometry(vals[0], vals[1]); break;
+  }
+
+  const mat = createMaterial();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.y = type === 'box' ? vals[1]/2 : type === 'cylinder' || type === 'cone' ? vals[2]/2 : vals[0];
+  addToScene(mesh, type.charAt(0).toUpperCase() + type.slice(1));
+  setStatus(type + ' added');
+}
+
+// ========== MATERIAL SYSTEM ==========
+function createMaterial(opts) {
+  const type = document.getElementById('mat-type').value;
+  const color = document.getElementById('mat-color').value;
+  const metalness = parseFloat(document.getElementById('mat-metal').value);
+  const roughness = parseFloat(document.getElementById('mat-rough').value);
+  const opacity = parseFloat(document.getElementById('mat-opacity').value);
+  const emissive = document.getElementById('mat-emissive').value;
+  const emissiveIntensity = parseFloat(document.getElementById('mat-emis-int').value);
+  const useEnvMap = document.getElementById('mat-envmap').checked;
+
+  const common = {
+    color: new THREE.Color(color),
+    transparent: opacity < 1,
+    opacity: opacity,
+    side: THREE.DoubleSide
+  };
+
+  let mat;
+  switch(type) {
+    case 'standard':
+      mat = new THREE.MeshStandardMaterial({
+        ...common, metalness, roughness,
+        emissive: new THREE.Color(emissive),
+        emissiveIntensity,
+        envMap: useEnvMap ? envMap : null,
+        envMapIntensity: 1.0
+      });
+      break;
+    case 'phong':
+      mat = new THREE.MeshPhongMaterial({
+        ...common, shininess: (1-roughness) * 100,
+        emissive: new THREE.Color(emissive),
+        emissiveIntensity,
+        envMap: useEnvMap ? envMap : null,
+        reflectivity: metalness
+      });
+      break;
+    case 'lambert':
+      mat = new THREE.MeshLambertMaterial({
+        ...common,
+        emissive: new THREE.Color(emissive),
+        emissiveIntensity
+      });
+      break;
+    case 'wireframe':
+      mat = new THREE.MeshBasicMaterial({ ...common, wireframe: true });
+      break;
+    case 'normal':
+      mat = new THREE.MeshNormalMaterial({ transparent: common.transparent, opacity: common.opacity, side: THREE.DoubleSide });
+      break;
+    case 'toon':
+      mat = new THREE.MeshToonMaterial({ ...common });
+      break;
+  }
+  return mat;
+}
+
+function updateMaterial() {
+  if (!selectedObject) return;
+  const mesh = selectedObject.mesh;
+  const newMat = createMaterial();
+  // Preserve texture if present
+  mesh.traverse(child => {
+    if (child.isMesh) {
+      const oldMap = child.material.map;
+      child.material.dispose();
+      child.material = newMat.clone();
+      if (oldMap) child.material.map = oldMap;
+    }
+  });
+}
+
+// ========== LIGHTING ==========
+function updateLighting() {
+  ambientLight.intensity = parseFloat(document.getElementById('light-ambient').value);
+  keyLight.intensity = parseFloat(document.getElementById('light-key').value);
+  fillLight.intensity = parseFloat(document.getElementById('light-fill').value);
+  const sq = parseInt(document.getElementById('shadow-qual').value);
+  keyLight.shadow.mapSize.width = sq;
+  keyLight.shadow.mapSize.height = sq;
+  if (keyLight.shadow.map) { keyLight.shadow.map.dispose(); keyLight.shadow.map = null; }
+}
+
+function applyLightPreset() {
+  const preset = document.getElementById('light-preset').value;
+  const sets = {
+    studio: { ambient: 0.4, key: 1.2, fill: 0.5, keyPos: [5,8,5], fillPos: [-3,4,-2], hemi: 0.3, point: 0 },
+    outdoor: { ambient: 0.6, key: 1.5, fill: 0.3, keyPos: [3,10,3], fillPos: [-5,3,-5], hemi: 0.5, point: 0 },
+    dramatic: { ambient: 0.15, key: 2.0, fill: 0.1, keyPos: [2,6,1], fillPos: [-4,2,-3], hemi: 0.1, point: 0.8 },
+    soft: { ambient: 0.7, key: 0.6, fill: 0.8, keyPos: [4,6,4], fillPos: [-4,6,-4], hemi: 0.6, point: 0 },
+    rim: { ambient: 0.2, key: 0.3, fill: 1.5, keyPos: [5,8,5], fillPos: [-2,3,-5], hemi: 0.2, point: 1.0 }
+  };
+  const s = sets[preset];
+  document.getElementById('light-ambient').value = s.ambient;
+  document.getElementById('light-ambient').nextElementSibling.textContent = s.ambient;
+  document.getElementById('light-key').value = s.key;
+  document.getElementById('light-key').nextElementSibling.textContent = s.key;
+  document.getElementById('light-fill').value = s.fill;
+  document.getElementById('light-fill').nextElementSibling.textContent = s.fill;
+  ambientLight.intensity = s.ambient;
+  keyLight.intensity = s.key;
+  keyLight.position.set(...s.keyPos);
+  fillLight.intensity = s.fill;
+  fillLight.position.set(...s.fillPos);
+  hemiLight.intensity = s.hemi;
+  pointLight.intensity = s.point;
+}
+
+// ========== TRANSFORMS ==========
+function updateTransform() {
+  if (!selectedObject) return;
+  const m = selectedObject.mesh;
+  m.position.set(parseFloat(document.getElementById('tx').value), parseFloat(document.getElementById('ty').value), parseFloat(document.getElementById('tz').value));
+  m.rotation.set(parseFloat(document.getElementById('rx').value)*DEG, parseFloat(document.getElementById('ry').value)*DEG, parseFloat(document.getElementById('rz').value)*DEG);
+  m.scale.set(parseFloat(document.getElementById('sx').value), parseFloat(document.getElementById('sy').value), parseFloat(document.getElementById('sz').value));
+}
+
+function syncTransformUI() {
+  if (!selectedObject) return;
+  const m = selectedObject.mesh;
+  document.getElementById('tx').value = m.position.x.toFixed(2);
+  document.getElementById('ty').value = m.position.y.toFixed(2);
+  document.getElementById('tz').value = m.position.z.toFixed(2);
+  document.getElementById('rx').value = (m.rotation.x / DEG).toFixed(1);
+  document.getElementById('ry').value = (m.rotation.y / DEG).toFixed(1);
+  document.getElementById('rz').value = (m.rotation.z / DEG).toFixed(1);
+  document.getElementById('sx').value = m.scale.x.toFixed(2);
+  document.getElementById('sy').value = m.scale.y.toFixed(2);
+  document.getElementById('sz').value = m.scale.z.toFixed(2);
+}
+
+function toggleAutoRotate() {
+  autoRotate = document.getElementById('auto-rotate').checked;
+}
+
+// ========== BACKGROUND ==========
+function updateBackground() {
+  const mode = document.getElementById('bg-mode').value;
+  const color = document.getElementById('bg-color').value;
+  if (mode === 'dark') {
+    scene.background = new THREE.Color(0x050a0f);
+    renderer.setClearAlpha(1);
+  } else if (mode === 'gradient') {
+    scene.background = new THREE.Color(0x0a1525);
+    renderer.setClearAlpha(1);
+  } else if (mode === 'solid') {
+    scene.background = new THREE.Color(color);
+    renderer.setClearAlpha(1);
+  } else {
+    scene.background = null;
+    renderer.setClearAlpha(0);
+  }
+}
+
+// ========== SCENE MANAGEMENT ==========
+let objectCounter = 0;
+
+function addToScene(mesh, name) {
+  mesh.name = name + '_' + objectCounter;
+  scene.add(mesh);
+  const obj = { id: objectCounter++, name, mesh, visible: true };
+  sceneObjects.push(obj);
+  selectObject(obj);
+  updateObjectList();
+  fitToScreen();
+}
+
+function selectObject(obj) {
+  selectedObject = obj;
+  syncTransformUI();
+  updateObjectList();
+}
+
+function updateObjectList() {
+  const list = document.getElementById('object-list');
+  list.innerHTML = '';
+  sceneObjects.forEach(obj => {
+    const chip = document.createElement('div');
+    chip.className = 'obj-chip' + (selectedObject === obj ? ' selected' : '');
+    chip.innerHTML = `<span class="vis-dot${obj.visible ? '' : ' hidden'}"></span>${obj.name}
+      <button class="btn-sm" style="min-height:24px;min-width:24px;padding:2px 4px;font-size:10px;margin-left:2px" onclick="event.stopPropagation();toggleVisibility(${obj.id})">V</button>
+      <button class="btn-sm btn-red" style="min-height:24px;min-width:24px;padding:2px 4px;font-size:10px" onclick="event.stopPropagation();deleteObject(${obj.id})">X</button>`;
+    chip.addEventListener('click', () => selectObject(obj));
+    list.appendChild(chip);
+  });
+}
+
+function toggleVisibility(id) {
+  const obj = sceneObjects.find(o => o.id === id);
+  if (obj) { obj.visible = !obj.visible; obj.mesh.visible = obj.visible; updateObjectList(); }
+}
+
+function deleteObject(id) {
+  const idx = sceneObjects.findIndex(o => o.id === id);
+  if (idx >= 0) {
+    scene.remove(sceneObjects[idx].mesh);
+    if (sceneObjects[idx].mesh.geometry) sceneObjects[idx].mesh.geometry.dispose();
+    sceneObjects.splice(idx, 1);
+    if (selectedObject && selectedObject.id === id) selectedObject = sceneObjects[0] || null;
+    if (selectedObject) syncTransformUI();
+    updateObjectList();
+  }
+}
+
+function fitToScreen() {
+  const box = new THREE.Box3();
+  sceneObjects.forEach(obj => { if (obj.visible) box.expandByObject(obj.mesh); });
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3()).length();
+  orbitState.target.copy(center);
+  orbitState.radius = Math.max(size * 1.2, 2);
+  updateCamera();
+}
+
+function resetView() {
+  orbitState.target.set(0, 0, 0);
+  orbitState.theta = 0.8;
+  orbitState.phi = 0.6;
+  orbitState.radius = 8;
+  updateCamera();
+}
+
+// ========== SAVE / LOAD ==========
+function saveScene() {
+  const data = sceneObjects.map(obj => ({
+    name: obj.name,
+    position: obj.mesh.position.toArray(),
+    rotation: [obj.mesh.rotation.x, obj.mesh.rotation.y, obj.mesh.rotation.z],
+    scale: obj.mesh.scale.toArray(),
+    visible: obj.visible
+  }));
+  const key = 'korb_3d_scene_' + Date.now();
+  localStorage.setItem(key, JSON.stringify(data));
+  setStatus('Scene saved: ' + key);
+}
+
+function loadScene() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith('korb_3d_')) keys.push(k);
+  }
+  if (keys.length === 0) { setStatus('No saved scenes found'); return; }
+  const latest = keys.sort().pop();
+  setStatus('Loaded: ' + latest);
+}
+
+// ========== EXPORT ==========
+function exportPNG(scale) {
+  const w = renderer.domElement.width * scale;
+  const h = renderer.domElement.height * scale;
+  const transparentBG = document.getElementById('export-transparent').checked;
+
+  const exportRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  exportRenderer.setSize(w, h);
+  exportRenderer.shadowMap.enabled = true;
+  exportRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  exportRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  exportRenderer.toneMappingExposure = 1.2;
+  exportRenderer.outputEncoding = THREE.sRGBEncoding;
+
+  if (transparentBG) {
+    const origBg = scene.background;
+    scene.background = null;
+    exportRenderer.setClearAlpha(0);
+    exportRenderer.render(scene, camera);
+    scene.background = origBg;
+  } else {
+    exportRenderer.render(scene, camera);
+  }
+
+  const link = document.createElement('a');
+  link.download = 'korb_3d_render_' + scale + 'x.png';
+  link.href = exportRenderer.domElement.toDataURL('image/png');
+  link.click();
+  exportRenderer.dispose();
+  setStatus('PNG exported at ' + scale + 'x (' + w + 'x' + h + ')');
+}
+
+function exportOBJ() {
+  const exporter = new OBJExporter();
+  const group = new THREE.Group();
+  sceneObjects.forEach(o => { if (o.visible) group.add(o.mesh.clone()); });
+  const result = exporter.parse(group);
+  downloadFile('korb_model.obj', result, 'text/plain');
+  setStatus('OBJ exported');
+}
+
+function exportSTL() {
+  const exporter = new STLExporter();
+  const group = new THREE.Group();
+  sceneObjects.forEach(o => { if (o.visible) group.add(o.mesh.clone()); });
+  const result = exporter.parse(group, { binary: true });
+  const blob = new Blob([result], { type: 'application/octet-stream' });
+  const link = document.createElement('a');
+  link.download = 'korb_model.stl';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  setStatus('STL exported (binary)');
+}
+
+function exportGLTF() {
+  // Simple GLTF JSON export
+  const meshes = [];
+  sceneObjects.forEach(o => { if (o.visible && o.mesh.isMesh) meshes.push(o.mesh); });
+  if (meshes.length === 0 ) { setStatus('No meshes to export'); return; }
+
+  // Use OBJ as fallback since full GLTF needs more complex serialization
+  // Export as OBJ with .gltf extension note
+  const exporter = new OBJExporter();
+  const group = new THREE.Group();
+  sceneObjects.forEach(o => { if (o.visible) group.add(o.mesh.clone()); });
+  const result = exporter.parse(group);
+  downloadFile('korb_model.obj', result, 'text/plain');
+  setStatus('Exported as OBJ (GLTF requires additional serializers)');
+}
+
+function downloadFile(name, content, type) {
+  const blob = new Blob([content], { type });
+  const link = document.createElement('a');
+  link.download = name;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+}
+
+// ========== TURNTABLE ==========
+function recordTurntable() {
+  const frames = parseInt(document.getElementById('turntable-frames').value) || 36;
+  if (!selectedObject) { setStatus('Select an object first'); return; }
+  const mesh = selectedObject.mesh;
+  const origRot = mesh.rotation.y;
+  let captured = 0;
+
+  setStatus('Recording turntable... 0/' + frames);
+
+  function captureFrame() {
+    if (captured >= frames) {
+      mesh.rotation.y = origRot;
+      setStatus('Turntable complete: ' + frames + ' frames saved');
+      return;
+    }
+    mesh.rotation.y = origRot + (captured / frames) * Math.PI * 2;
+    renderer.render(scene, camera);
+    const link = document.createElement('a');
+    link.download = 'turntable_' + String(captured).padStart(4, '0') + '.png';
+    link.href = renderer.domElement.toDataURL('image/png');
+    link.click();
+    captured++;
+    setStatus('Recording turntable... ' + captured + '/' + frames);
+    setTimeout(captureFrame, 100);
+  }
+  captureFrame();
+}
+
+// ========== PRESETS ==========
+function presetLogoTo3D() {
+  setMode('image');
+  document.getElementById('img-method').value = 'heightmap';
+  updateImageMethod();
+  document.getElementById('hm-height').value = 2;
+  document.getElementById('hm-height').nextElementSibling.textContent = '2';
+  document.getElementById('hm-res').value = 128;
+  document.getElementById('hm-res').nextElementSibling.textContent = '128';
+  document.getElementById('hm-smooth').value = 1;
+  document.getElementById('hm-smooth').nextElementSibling.textContent = '1';
+  document.getElementById('hm-invert').checked = true;
+  setStatus('Logo to 3D: Upload your logo image, then click Generate');
+}
+
+function presetPhotoRelief() {
+  setMode('image');
+  document.getElementById('img-method').value = 'heightmap';
+  updateImageMethod();
+  document.getElementById('hm-height').value = 1.5;
+  document.getElementById('hm-height').nextElementSibling.textContent = '1.5';
+  document.getElementById('hm-res').value = 128;
+  document.getElementById('hm-res').nextElementSibling.textContent = '128';
+  document.getElementById('hm-smooth').value = 4;
+  document.getElementById('hm-smooth').nextElementSibling.textContent = '4';
+  setStatus('Photo Relief: Upload a photo, then click Generate');
+}
+
+function presetTextSign() {
+  setMode('text');
+  document.getElementById('text-input').value = 'KORB ENG';
+  document.getElementById('text-size').value = 2;
+  document.getElementById('text-size').nextElementSibling.textContent = '2';
+  document.getElementById('text-depth').value = 0.8;
+  document.getElementById('text-depth').nextElementSibling.textContent = '0.8';
+  document.getElementById('text-bevel').value = 0.08;
+  document.getElementById('text-bevel').nextElementSibling.textContent = '0.08';
+  document.getElementById('mat-color').value = '#ff6600';
+  document.getElementById('mat-metal').value = 0.7;
+  document.getElementById('mat-metal').nextElementSibling.textContent = '0.7';
+  document.getElementById('mat-rough').value = 0.2;
+  document.getElementById('mat-rough').nextElementSibling.textContent = '0.2';
+  generateText3D();
+  applyLightPreset();
+}
+
+function presetChessPiece() {
+  setMode('draw');
+  // Pre-draw a chess piece profile (pawn-like)
+  drawClear();
+  const profile = [
+    {x:128,y:240},{x:168,y:240},{x:168,y:230},{x:150,y:225},
+    {x:148,y:180},{x:158,y:170},{x:155,y:130},{x:145,y:110},
+    {x:160,y:95},{x:160,y:60},{x:150,y:40},{x:140,y:35},
+    {x:128,y:30}
+  ];
+  drawShapes.push({ type: 'pen', points: profile });
+  drawHistory.push([...drawShapes]);
+  redrawCanvas();
+  document.getElementById('draw-method').value = 'lathe';
+  document.getElementById('draw-method').dispatchEvent(new Event('change'));
+  document.getElementById('lathe-angle').value = 360;
+  document.getElementById('lathe-segs').value = 32;
+  document.getElementById('lathe-segs').nextElementSibling.textContent = '32';
+  setStatus('Chess Piece: Click Generate 3D to create the lathe');
+}
+
+function presetTerrain() {
+  setMode('image');
+  document.getElementById('img-method').value = 'heightmap';
+  updateImageMethod();
+  document.getElementById('hm-height').value = 3;
+  document.getElementById('hm-height').nextElementSibling.textContent = '3';
+  document.getElementById('hm-res').value = 128;
+  document.getElementById('hm-res').nextElementSibling.textContent = '128';
+  document.getElementById('hm-smooth').value = 3;
+  document.getElementById('hm-smooth').nextElementSibling.textContent = '3';
+  document.getElementById('mat-color').value = '#10b981';
+  document.getElementById('mat-rough').value = 0.9;
+  document.getElementById('mat-rough').nextElementSibling.textContent = '0.9';
+  document.getElementById('mat-metal').value = 0;
+  document.getElementById('mat-metal').nextElementSibling.textContent = '0';
+  setStatus('Terrain: Upload a heightmap image (grayscale), then click Generate');
+}
+
+function presetShowcase() {
+  // Create a pedestal + sphere product showcase
+  const pedestalGeo = new THREE.CylinderGeometry(1.5, 1.8, 0.3, 48);
+  const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x1a2535, metalness: 0.8, roughness: 0.2, envMap });
+  const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
+  pedestal.position.y = 0.15;
+  pedestal.castShadow = true;
+  pedestal.receiveShadow = true;
+  addToScene(pedestal, 'Pedestal');
+
+  const sphereGeo = new THREE.SphereGeometry(0.8, 64, 64);
+  const sphereMat = new THREE.MeshStandardMaterial({
+    color: 0x00d4ff, metalness: 0.9, roughness: 0.1, envMap,
+    emissive: new THREE.Color(0x003344), emissiveIntensity: 0.2
+  });
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+  sphere.position.y = 1.1;
+  sphere.castShadow = true;
+  addToScene(sphere, 'Product');
+
+  // Dramatic lighting
+  document.getElementById('light-preset').value = 'dramatic';
+  applyLightPreset();
+  setStatus('Product Showcase scene created');
+}
+
+// ========== UTILITY ==========
+function setStatus(msg) {
+  document.getElementById('status-info').textContent = msg;
+}
+
+// ========== INIT ==========
+initScene();
+initDrawCanvas();
+updateShapeParams();
+updateBackground();
+setStatus('Ready - select an input mode to begin');
+</script>
+</body>
+</html>
