@@ -683,37 +683,39 @@ async function handlePDF(file) {
 function analyzeContract() {
   const text = document.getElementById('contractText').value.trim();
   if (!text) { showToast('Please provide contract text first.'); return; }
-  state.contractText = text;
+  // Limit contract text to prevent regex performance issues
+  const safeText = text.length > 500000 ? text.substring(0, 500000) : text;
+  state.contractText = safeText;
 
   const sections = {};
-  const lower = text.toLowerCase();
+  const lower = safeText.toLowerCase();
 
   // Scope of Work
   const scopePatterns = [/scope\s+of\s+work[:\s]*([\s\S]{0,1500}?)(?=\n\s*\n|\d+\.\s|article|section)/i, /scope[:\s]*([\s\S]{0,1000}?)(?=\n\s*\n)/i];
-  for (const p of scopePatterns) { const m = text.match(p); if (m) { sections.scope = m[0].substring(0, 800); break; } }
-  if (!sections.scope && lower.includes('scope')) sections.scope = extractAround(text, 'scope', 600);
+  for (const p of scopePatterns) { const m = safeText.match(p); if (m) { sections.scope = m[0].substring(0, 800); break; } }
+  if (!sections.scope && lower.includes('scope')) sections.scope = extractAround(safeText, 'scope', 600);
 
   // Change Order Procedures
   const coPatterns = [/change\s+order[s]?\s*(procedure|process|provision)?[:\s]*([\s\S]{0,1200}?)(?=\n\s*\n|\d+\.\s|article|section)/i];
-  for (const p of coPatterns) { const m = text.match(p); if (m) { sections.changeOrder = m[0].substring(0, 800); break; } }
-  if (!sections.changeOrder && lower.includes('change')) sections.changeOrder = extractAround(text, 'change order', 600);
+  for (const p of coPatterns) { const m = safeText.match(p); if (m) { sections.changeOrder = m[0].substring(0, 800); break; } }
+  if (!sections.changeOrder && lower.includes('change')) sections.changeOrder = extractAround(safeText, 'change order', 600);
 
   // Payment Terms
   const payPatterns = [/payment\s*(terms|schedule|provisions)?[:\s]*([\s\S]{0,1200}?)(?=\n\s*\n|\d+\.\s|article|section)/i];
-  for (const p of payPatterns) { const m = text.match(p); if (m) { sections.payment = m[0].substring(0, 800); break; } }
-  if (!sections.payment && lower.includes('payment')) sections.payment = extractAround(text, 'payment', 600);
+  for (const p of payPatterns) { const m = safeText.match(p); if (m) { sections.payment = m[0].substring(0, 800); break; } }
+  if (!sections.payment && lower.includes('payment')) sections.payment = extractAround(safeText, 'payment', 600);
 
   // Timeline / Milestones
   const timePatterns = [/(timeline|milestone|schedule|duration|completion\s+date)[:\s]*([\s\S]{0,1000}?)(?=\n\s*\n|\d+\.\s|article|section)/i];
-  for (const p of timePatterns) { const m = text.match(p); if (m) { sections.timeline = m[0].substring(0, 800); break; } }
+  for (const p of timePatterns) { const m = safeText.match(p); if (m) { sections.timeline = m[0].substring(0, 800); break; } }
 
   // Dispute Resolution
   const dispPatterns = [/dispute\s*(resolution|procedure)?[:\s]*([\s\S]{0,1000}?)(?=\n\s*\n|\d+\.\s|article|section)/i];
-  for (const p of dispPatterns) { const m = text.match(p); if (m) { sections.dispute = m[0].substring(0, 800); break; } }
+  for (const p of dispPatterns) { const m = safeText.match(p); if (m) { sections.dispute = m[0].substring(0, 800); break; } }
 
   // Limitation of Liability
   const liabPatterns = [/(limitation\s+of\s+liability|liability\s+cap|limit\s+of\s+liability)[:\s]*([\s\S]{0,1000}?)(?=\n\s*\n|\d+\.\s|article|section)/i];
-  for (const p of liabPatterns) { const m = text.match(p); if (m) { sections.liability = m[0].substring(0, 800); break; } }
+  for (const p of liabPatterns) { const m = safeText.match(p); if (m) { sections.liability = m[0].substring(0, 800); break; } }
 
   state.contractSections = sections;
   saveState();
@@ -852,12 +854,12 @@ function renderIncidents() {
   }
   noInc.style.display = 'none';
 
-  const totalCost = filtered.reduce((s, i) => s + i.costImpact, 0);
-  const totalDays = filtered.reduce((s, i) => s + i.scheduleImpact, 0);
+  const totalCost = filtered.reduce((s, i) => s + (i.costImpact || 0), 0);
+  const totalDays = filtered.reduce((s, i) => s + (i.scheduleImpact || 0), 0);
   totalsEl.innerHTML = `Showing ${filtered.length} incident(s) | Total Cost: $${fmtNum(totalCost)} | Total Schedule: ${totalDays} days`;
 
   container.innerHTML = filtered.map(inc => {
-    const priBadge = `badge-${inc.priority.toLowerCase()}`;
+    const priBadge = `badge-${(inc.priority || 'medium').toLowerCase()}`;
     return `<div class="incident-item">
       <div class="top-row">
         <span style="font-size:0.75rem;color:var(--dim)">${inc.date} &mdash; #${inc.id}</span>
@@ -896,9 +898,10 @@ function runAnalysis() {
   el.style.display = 'block';
   acts.style.display = 'flex';
 
-  const p = state.project;
-  const totalCost = state.incidents.reduce((s, i) => s + i.costImpact, 0);
-  const totalDays = state.incidents.reduce((s, i) => s + i.scheduleImpact, 0);
+  try {
+  const p = state.project || {};
+  const totalCost = state.incidents.reduce((s, i) => s + (i.costImpact || 0), 0);
+  const totalDays = state.incidents.reduce((s, i) => s + (i.scheduleImpact || 0), 0);
   const contractVal = p.value || 0;
   const creepPct = contractVal > 0 ? (totalCost / contractVal) * 100 : 0;
   const undocumented = state.incidents.filter(i => i.documented === 'no');
@@ -931,7 +934,7 @@ function runAnalysis() {
   html += `<div class="rec-card ${undocumented.length > 0 ? 'warn' : 'success'}">
     <h4>Documentation Assessment</h4>`;
   if (undocumented.length === 0) {
-    html += `<p style="color:var(--green)">All incidents are documented in writing. You are in a strong position. The documentation supports formal change orders for any outstanding items.</p>`;
+    html += `<p style="color:var(--green)">All incidents are documented in writing. You are in a strong position. The documentation supports formal change orders for any outstanding items.</p></div>`;
   } else {
     html += `<p style="color:var(--orange)"><strong>${undocumented.length} incident(s) lack written documentation.</strong></p>
     <p>Priority: Document these immediately. For each undocumented item, send a written summary to ${p.otherRole || 'the other party'} via email requesting acknowledgment. Use this format:</p>
@@ -945,7 +948,7 @@ function runAnalysis() {
 
   // 3. Change Order Status
   if (noCO.length > 0) {
-    const noCOCost = noCO.reduce((s, i) => s + i.costImpact, 0);
+    const noCOCost = noCO.reduce((s, i) => s + (i.costImpact || 0), 0);
     html += `<div class="rec-card warn">
       <h4>Change Order Status</h4>
       <p><strong>${noCO.length} incident(s) totaling $${fmtNum(noCOCost)} do not have change orders issued.</strong></p>
@@ -1023,19 +1026,25 @@ function runAnalysis() {
     <h4>Incident-Level Recommendations</h4>`;
   state.incidents.forEach(inc => {
     let advice = '';
+    const desc = inc.description || '';
+    const cat = inc.category || '';
     if (inc.documented === 'no') advice += '<span style="color:var(--red)">URGENT: Document in writing immediately.</span> ';
-    if (inc.changeOrder === 'no' && inc.costImpact > 0) advice += 'Issue a change order request. ';
+    if (inc.changeOrder === 'no' && (inc.costImpact || 0) > 0) advice += 'Issue a change order request. ';
     if (inc.priority === 'Critical') advice += 'Escalate to project leadership. ';
-    if (inc.category === 'Differing Site Conditions') advice += 'Verify notice requirements under your DSC clause. ';
-    if (inc.category === 'Regulatory Change') advice += 'Both parties typically share regulatory risk &mdash; review your contract for allocation. ';
-    if (inc.category === 'Design Modification') advice += 'Track design changes back to the responsible party per contract. ';
-    if (inc.category === 'Omission in Original Scope') advice += 'Review whether this was foreseeable from the bid documents. ';
+    if (cat === 'Differing Site Conditions') advice += 'Verify notice requirements under your DSC clause. ';
+    if (cat === 'Regulatory Change') advice += 'Both parties typically share regulatory risk &mdash; review your contract for allocation. ';
+    if (cat === 'Design Modification') advice += 'Track design changes back to the responsible party per contract. ';
+    if (cat === 'Omission in Original Scope') advice += 'Review whether this was foreseeable from the bid documents. ';
     if (!advice) advice = 'Documented and change-ordered &mdash; monitor status.';
-    html += `<p style="margin-bottom:8px"><strong>#${inc.id} &mdash; ${escHtml(inc.description.substring(0,60))}${inc.description.length > 60 ? '...' : ''}:</strong><br>${advice}</p>`;
+    html += `<p style="margin-bottom:8px"><strong>#${inc.id || '?'} &mdash; ${escHtml(desc.substring(0,60))}${desc.length > 60 ? '...' : ''}:</strong><br>${advice}</p>`;
   });
   html += `</div>`;
 
   el.innerHTML = html;
+  } catch(e) {
+    console.error('Analysis error:', e);
+    el.innerHTML = '<div class="rec-card danger"><h4>Analysis Error</h4><p>An error occurred generating the analysis. Try removing the most recent incident and re-running. Error: ' + (e.message || e) + '</p></div>';
+  }
 }
 
 /* ============================== TEMPLATES ============================== */
@@ -1104,8 +1113,8 @@ function generateActionItems() {
   // Clear auto-generated, keep custom
   state.actions = state.actions.filter(a => a.source !== 'auto');
 
-  const p = state.project;
-  const totalCost = state.incidents.reduce((s, i) => s + i.costImpact, 0);
+  const p = state.project || {};
+  const totalCost = state.incidents.reduce((s, i) => s + (i.costImpact || 0), 0);
   const creepPct = p.value > 0 ? (totalCost / p.value) * 100 : 0;
   const undocumented = state.incidents.filter(i => i.documented === 'no');
   const noCO = state.incidents.filter(i => i.changeOrder === 'no');
@@ -1245,9 +1254,10 @@ function renderActions() {
 
 /* ============================== DASHBOARD ============================== */
 function refreshDashboard() {
+  try {
   const p = state.project;
-  const totalCost = state.incidents.reduce((s, i) => s + i.costImpact, 0);
-  const totalDays = state.incidents.reduce((s, i) => s + i.scheduleImpact, 0);
+  const totalCost = state.incidents.reduce((s, i) => s + (i.costImpact || 0), 0);
+  const totalDays = state.incidents.reduce((s, i) => s + (i.scheduleImpact || 0), 0);
   const contractVal = p.value || 0;
   const creepPct = contractVal > 0 ? (totalCost / contractVal) * 100 : 0;
 
@@ -1281,12 +1291,15 @@ function refreshDashboard() {
   drawTimelineChart();
   drawCategoryChart();
   drawPriorityChart();
+  } catch(e) { console.error('Dashboard error:', e); }
 }
 
 function drawTimelineChart() {
   const canvas = document.getElementById('timelineChart');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  canvas.width = canvas.offsetWidth * 2;
+  try {
+  canvas.width = Math.max(canvas.offsetWidth * 2, 200);
   canvas.height = 400;
   ctx.scale(2, 2);
   const W = canvas.offsetWidth;
@@ -1363,6 +1376,7 @@ function drawTimelineChart() {
     ctx.fillText(label, 0, 0);
     ctx.restore();
   });
+  } catch(e) { console.warn('Timeline chart error:', e); }
 }
 
 function drawCategoryChart() {
@@ -1403,9 +1417,9 @@ function drawPriorityChart() {
 
 /* ============================== EXPORTS ============================== */
 function exportReport() {
-  const p = state.project;
-  const totalCost = state.incidents.reduce((s, i) => s + i.costImpact, 0);
-  const totalDays = state.incidents.reduce((s, i) => s + i.scheduleImpact, 0);
+  const p = state.project || {};
+  const totalCost = state.incidents.reduce((s, i) => s + (i.costImpact || 0), 0);
+  const totalDays = state.incidents.reduce((s, i) => s + (i.scheduleImpact || 0), 0);
   const creepPct = p.value > 0 ? (totalCost / p.value * 100).toFixed(1) : 'N/A';
 
   let report = `SCOPE CREEP REPORT\nGenerated: ${new Date().toLocaleDateString()}\nPrepared by: Korb Engineering Scope Creep Guidance Counselor\n`;

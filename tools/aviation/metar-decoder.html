@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>METAR/TAF Decoder - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;--text:#e2e8f0;--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;--blue:#3b82f6;--font:'JetBrains Mono',monospace}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;line-height:1.5}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{width:28px;height:28px;flex-shrink:0}
+.brand-text{font-weight:600;font-size:.85rem;color:var(--cyan);letter-spacing:.5px;text-transform:uppercase}
+.tool-title{font-size:1.1rem;font-weight:700;color:var(--text)}
+.container{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+.card h2{font-size:.95rem;color:var(--cyan);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.card h3{font-size:.85rem;color:var(--orange);margin-bottom:8px;font-weight:600}
+label{display:block;font-size:.75rem;color:#8899aa;margin-bottom:4px;font-weight:500;text-transform:uppercase;letter-spacing:.3px}
+input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-family:var(--font);font-size:16px;min-height:44px;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+textarea{resize:vertical;min-height:80px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 20px;border:none;border-radius:6px;font-family:var(--font);font-size:.8rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s;text-transform:uppercase;letter-spacing:.5px}
+.btn:active{transform:scale(.97)}
+.btn-cyan{background:var(--cyan);color:#050a0f}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-sm{min-height:36px;padding:6px 14px;font-size:.7rem}
+.row{display:grid;gap:12px}
+.row-2{grid-template-columns:1fr 1fr}
+.row-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:600px){.row-2,.row-3{grid-template-columns:1fr}}
+.flex-wrap{display:flex;flex-wrap:wrap;gap:8px}
+.badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:.5px}
+.badge-vfr{background:rgba(16,185,129,.2);color:var(--green);border:1px solid var(--green)}
+.badge-mvfr{background:rgba(59,130,246,.2);color:var(--blue);border:1px solid var(--blue)}
+.badge-ifr{background:rgba(255,102,0,.2);color:var(--orange);border:1px solid var(--orange)}
+.badge-lifr{background:rgba(239,68,68,.2);color:var(--red);border:1px solid var(--red)}
+.decoded-section{margin-bottom:12px;padding:12px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--cyan)}
+.decoded-section .field-label{font-size:.7rem;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:2px}
+.decoded-section .field-value{font-size:.9rem;color:var(--text)}
+.decoded-section .field-raw{font-size:.75rem;color:#667788;margin-top:2px}
+.taf-period{border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--surface)}
+.taf-period .period-header{font-size:.8rem;font-weight:700;color:var(--orange);margin-bottom:8px}
+.timeline{display:flex;overflow-x:auto;gap:4px;padding:8px 0}
+.timeline-block{flex:0 0 auto;min-width:80px;padding:8px;border-radius:6px;text-align:center;font-size:.7rem}
+.history-item{padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;cursor:pointer;font-size:.75rem;color:#8899aa;transition:border-color .2s}
+.history-item:hover{border-color:var(--cyan);color:var(--text)}
+.wind-diagram{display:flex;align-items:center;justify-content:center;margin:12px 0}
+.hidden{display:none!important}
+@media print{body{background:#fff;color:#000}header{background:#eee}.card{background:#fff;border-color:#ccc}.decoded-section{background:#f5f5f5;border-left-color:#0066aa}.badge{border-width:2px}}
+</style>
+</head>
+<body>
+<header>
+<div class="brand">
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="90" height="90" rx="12" stroke="#00d4ff" stroke-width="4"/><text x="50" y="62" text-anchor="middle" fill="#00d4ff" font-family="monospace" font-size="36" font-weight="700">KE</text></svg>
+<div><div class="brand-text">Korb Engineering</div><div class="tool-title">METAR/TAF Decoder</div></div>
+</div>
+<div class="flex-wrap">
+<button class="btn btn-ghost btn-sm" onclick="clearAll()">Clear</button>
+<button class="btn btn-ghost btn-sm" onclick="showHistory()">History</button>
+</div>
+</header>
+
+<div class="container">
+<div class="card">
+<h2>Input METAR or TAF</h2>
+<textarea id="metarInput" placeholder="Paste METAR or TAF here, e.g.: KJFK 031856Z 18015G25KT 150V210 10SM FEW040 SCT250 28/18 A2992 RMK AO2 SLP132 T02830178" rows="3"></textarea>
+<div class="flex-wrap" style="margin-top:8px">
+<button class="btn btn-cyan" onclick="decode()">Decode</button>
+<button class="btn btn-ghost btn-sm" onclick="loadSample('metar')">Sample METAR</button>
+<button class="btn btn-ghost btn-sm" onclick="loadSample('taf')">Sample TAF</button>
+</div>
+</div>
+
+<div id="flightCatCard" class="card hidden">
+<div class="flex-wrap" style="align-items:center">
+<span style="font-size:.8rem;font-weight:600;color:#8899aa">FLIGHT CATEGORY:</span>
+<span id="flightCatBadge" class="badge"></span>
+<span id="rawMetar" style="font-size:.75rem;color:#667788;margin-left:8px"></span>
+</div>
+</div>
+
+<div id="decodedOutput" class="card hidden">
+<h2>Decoded Report</h2>
+<div id="decodedContent"></div>
+</div>
+
+<div id="tafTimeline" class="card hidden">
+<h2>TAF Timeline</h2>
+<div id="timelineContent"></div>
+</div>
+
+<!-- Wind Component Calculator -->
+<div class="card">
+<h2>Wind Component Calculator</h2>
+<div class="row row-3">
+<div><label>Runway Heading</label><input type="number" id="rwyHdg" min="1" max="360" placeholder="e.g. 180"></div>
+<div><label>Wind Dir (auto from METAR)</label><input type="number" id="windDirInput" min="0" max="360"></div>
+<div><label>Wind Speed (kt)</label><input type="number" id="windSpdInput" min="0"></div>
+</div>
+<button class="btn btn-cyan btn-sm" style="margin-top:8px" onclick="calcWind()">Calculate</button>
+<div id="windResult" style="margin-top:8px"></div>
+</div>
+
+<!-- Density Altitude -->
+<div class="card">
+<h2>Density Altitude (from METAR)</h2>
+<div class="row row-3">
+<div><label>Field Elevation (ft)</label><input type="number" id="fieldElev" placeholder="e.g. 100"></div>
+<div><label>Temp (&deg;C, auto)</label><input type="number" id="daTemp" step="0.1"></div>
+<div><label>Altimeter (inHg, auto)</label><input type="number" id="daAlt" step="0.01"></div>
+</div>
+<button class="btn btn-cyan btn-sm" style="margin-top:8px" onclick="calcDensityAlt()">Calculate</button>
+<div id="daResult" style="margin-top:8px"></div>
+</div>
+
+<!-- History -->
+<div id="historyCard" class="card hidden">
+<h2>Decode History</h2>
+<div id="historyList"></div>
+</div>
+</div>
+
+<script>
+const WX_PHENOMENA = {
+  MI:'Shallow',DI:'Low Drifting',BC:'Patches',DR:'Drifting',BL:'Blowing',SH:'Showers',TS:'Thunderstorm',FZ:'Freezing',PR:'Partial',
+  RA:'Rain',SN:'Snow',DZ:'Drizzle',SG:'Snow Grains',IC:'Ice Crystals',PL:'Ice Pellets',GR:'Hail',GS:'Small Hail/Snow Pellets',UP:'Unknown Precipitation',
+  BR:'Mist',FG:'Fog',FU:'Smoke',VA:'Volcanic Ash',DU:'Widespread Dust',SA:'Sand',HZ:'Haze',PY:'Spray',
+  PO:'Dust/Sand Whirls',SQ:'Squall',FC:'Funnel Cloud/Tornado',SS:'Sandstorm',DS:'Duststorm'
+};
+
+const CLOUD_TYPES = {FEW:'Few',SCT:'Scattered',BKN:'Broken',OVC:'Overcast',VV:'Vertical Visibility'};
+
+function loadSample(type) {
+  if (type === 'metar') {
+    document.getElementById('metarInput').value = 'KJFK 031856Z 18015G25KT 150V210 3SM +RA BR BKN015 OVC040CB 22/20 A2985 RMK AO2 SLP108 T02220200 PK WND 18030/1830';
+  } else {
+    document.getElementById('metarInput').value = 'TAF KJFK 031730Z 0318/0424 18012G22KT P6SM SCT040 BKN080\n FM032200 20015G28KT 3SM +TSRA BKN020CB OVC050\n TEMPO 0400/0406 1SM +RA BR OVC010\n BECMG 0406/0408 32010KT P6SM SCT030\n PROB30 0412/0416 2SM BR BKN015';
+  }
+  decode();
+}
+
+function decode() {
+  const raw = document.getElementById('metarInput').value.trim();
+  if (!raw) return;
+  saveToHistory(raw);
+
+  const isTAF = /^TAF\b/i.test(raw);
+  if (isTAF) {
+    decodeTAF(raw);
+  } else {
+    const result = decodeMetar(raw);
+    renderMetar(result, raw);
+  }
+}
+
+function decodeMetar(raw) {
+  const r = {};
+  let s = raw.replace(/\s+/g, ' ').trim();
+
+  // Remove METAR/SPECI prefix
+  s = s.replace(/^(METAR|SPECI)\s+/i, '');
+
+  // Station
+  const stMatch = s.match(/^([A-Z][A-Z0-9]{3})\s/);
+  if (stMatch) { r.station = stMatch[1]; s = s.slice(stMatch[0].length); }
+
+  // Date/time
+  const dtMatch = s.match(/^(\d{2})(\d{2})(\d{2})Z\s/);
+  if (dtMatch) { r.day = dtMatch[1]; r.hour = dtMatch[2]; r.minute = dtMatch[3]; r.time = `Day ${dtMatch[1]}, ${dtMatch[2]}:${dtMatch[3]} UTC`; s = s.slice(dtMatch[0].length); }
+
+  // AUTO/COR
+  const acMatch = s.match(/^(AUTO|COR)\s/);
+  if (acMatch) { r.modifier = acMatch[1]; s = s.slice(acMatch[0].length); }
+
+  // Wind
+  const wMatch = s.match(/^(VRB|\d{3})(\d{2,3})(G(\d{2,3}))?KT\s/);
+  if (wMatch) {
+    r.windDir = wMatch[1]; r.windSpeed = parseInt(wMatch[2]); r.windGust = wMatch[4] ? parseInt(wMatch[4]) : null;
+    r.windText = `${wMatch[1]}° at ${wMatch[2]} kt${wMatch[4] ? ', gusting ' + wMatch[4] + ' kt' : ''}`;
+    r.windRaw = wMatch[0].trim();
+    s = s.slice(wMatch[0].length);
+  }
+
+  // Variable wind
+  const vwMatch = s.match(/^(\d{3})V(\d{3})\s/);
+  if (vwMatch) { r.windVariable = `${vwMatch[1]}° to ${vwMatch[2]}°`; r.windVarRaw = vwMatch[0].trim(); s = s.slice(vwMatch[0].length); }
+
+  // Visibility
+  const visMatch = s.match(/^(M?(\d+\s)?(\d\/\d+|\d+))SM\s/);
+  if (visMatch) {
+    let vis = visMatch[1].replace('M', '<');
+    if (vis.includes(' ')) { const parts = vis.split(' '); vis = parseInt(parts[0]) + eval(parts[1]); }
+    else if (vis.includes('/')) { vis = eval(vis.replace('<','')); }
+    r.visibility = vis; r.visText = visMatch[1] + ' SM'; r.visRaw = visMatch[0].trim();
+    s = s.slice(visMatch[0].length);
+  } else {
+    const visM = s.match(/^(\d{4})\s/);
+    if (visM) { r.visibility = parseInt(visM[1]); r.visText = visM[1] + ' meters'; r.visRaw = visM[0].trim(); s = s.slice(visM[0].length); }
+  }
+
+  // RVR
+  const rvrMatch = s.match(/^(R\d{2}[LCR]?\/[PM]?\d{4}(V[PM]?\d{4})?FT)\s/);
+  if (rvrMatch) { r.rvr = rvrMatch[1]; s = s.slice(rvrMatch[0].length); }
+
+  // Weather phenomena
+  r.weather = [];
+  let wxLoop = true;
+  while (wxLoop) {
+    const wxMatch = s.match(/^([+-]?VC)?(MI|DI|BC|DR|BL|SH|TS|FZ|PR)?(RA|SN|DZ|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+\s/);
+    if (wxMatch) {
+      const code = wxMatch[0].trim();
+      let desc = '';
+      const intensity = code.startsWith('+') ? 'Heavy ' : code.startsWith('-') ? 'Light ' : code.startsWith('VC') ? 'In Vicinity ' : '';
+      const clean = code.replace(/^[+-]|^VC/, '');
+      for (let i = 0; i < clean.length; i += 2) {
+        const tok = clean.substring(i, i + 2);
+        if (WX_PHENOMENA[tok]) desc += WX_PHENOMENA[tok] + ' ';
+      }
+      r.weather.push({ code, description: intensity + desc.trim() });
+      s = s.slice(wxMatch[0].length);
+    } else { wxLoop = false; }
+  }
+
+  // Clouds
+  r.clouds = [];
+  let cloudLoop = true;
+  while (cloudLoop) {
+    const cMatch = s.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?\s/);
+    if (cMatch) {
+      const alt = parseInt(cMatch[2]) * 100;
+      const type = cMatch[3] || '';
+      r.clouds.push({ cover: cMatch[1], altitude: alt, type, text: `${CLOUD_TYPES[cMatch[1]]} at ${alt.toLocaleString()} ft AGL${type ? ' (' + type + ')' : ''}`, raw: cMatch[0].trim() });
+      s = s.slice(cMatch[0].length);
+    } else if (s.match(/^(CLR|SKC|NCD|NSC)\s/)) {
+      const m = s.match(/^(CLR|SKC|NCD|NSC)\s/);
+      r.clouds.push({ cover: m[1], altitude: Infinity, type: '', text: m[1] === 'CLR' ? 'Clear below 12,000' : 'Sky Clear', raw: m[0].trim() });
+      s = s.slice(m[0].length);
+    } else { cloudLoop = false; }
+  }
+
+  // Temp/Dewpoint
+  const tMatch = s.match(/^(M?\d{2})\/(M?\d{2})\s/);
+  if (tMatch) {
+    r.temp = parseTemp(tMatch[1]); r.dewpoint = parseTemp(tMatch[2]);
+    r.tempText = `${r.temp}°C / ${r.dewpoint}°C (Spread: ${r.temp - r.dewpoint}°C)`;
+    r.tempRaw = tMatch[0].trim();
+    s = s.slice(tMatch[0].length);
+  }
+
+  // Altimeter
+  const altMatch = s.match(/^A(\d{4})\s?/);
+  if (altMatch) { r.altimeter = parseInt(altMatch[1]) / 100; r.altText = `${r.altimeter.toFixed(2)} inHg`; r.altRaw = altMatch[0].trim(); s = s.slice(altMatch[0].length); }
+  const qMatch = s.match(/^Q(\d{4})\s?/);
+  if (qMatch) { r.altimeter = parseInt(qMatch[1]) / 100; r.altimeterHpa = parseInt(qMatch[1]); r.altText = `${parseInt(qMatch[1])} hPa`; r.altRaw = qMatch[0].trim(); s = s.slice(qMatch[0].length); }
+
+  // Remarks
+  const rmkIdx = s.indexOf('RMK');
+  if (rmkIdx >= 0) {
+    r.remarks = parseRemarks(s.slice(rmkIdx + 4).trim());
+    r.remarksRaw = s.slice(rmkIdx).trim();
+  }
+
+  // Flight category
+  r.flightCategory = calcFlightCategory(r);
+
+  // Set wind inputs
+  if (r.windDir && r.windDir !== 'VRB') {
+    document.getElementById('windDirInput').value = parseInt(r.windDir);
+    document.getElementById('windSpdInput').value = r.windSpeed;
+  }
+  if (r.temp !== undefined) document.getElementById('daTemp').value = r.temp;
+  if (r.altimeter) document.getElementById('daAlt').value = r.altimeter;
+
+  return r;
+}
+
+function parseTemp(s) {
+  return s.startsWith('M') ? -parseInt(s.slice(1)) : parseInt(s);
+}
+
+function parseRemarks(s) {
+  const remarks = [];
+  if (/AO[12]/.test(s)) remarks.push(s.includes('AO2') ? 'Automated station with precipitation discriminator (AO2)' : 'Automated station without precip discriminator (AO1)');
+  const slp = s.match(/SLP(\d{3})/);
+  if (slp) { const p = parseInt(slp[1]); remarks.push(`Sea Level Pressure: ${(p >= 500 ? 9 : 10) + (p/10).toFixed(1)} hPa`); }
+  const tgroup = s.match(/T(\d)(\d{3})(\d)(\d{3})/);
+  if (tgroup) {
+    const t = (tgroup[1]==='1'?-1:1) * parseInt(tgroup[2]) / 10;
+    const d = (tgroup[3]==='1'?-1:1) * parseInt(tgroup[4]) / 10;
+    remarks.push(`Precise Temp: ${t.toFixed(1)}°C / Dewpoint: ${d.toFixed(1)}°C`);
+  }
+  const pkwnd = s.match(/PK WND (\d{3})(\d{2,3})\/(\d{2,4})/);
+  if (pkwnd) remarks.push(`Peak Wind: ${pkwnd[1]}° at ${pkwnd[2]} kt at :${pkwnd[3]}`);
+  const precip = s.match(/P(\d{4})/);
+  if (precip) remarks.push(`Hourly Precipitation: ${(parseInt(precip[1])/100).toFixed(2)} in`);
+  if (s.includes('$')) remarks.push('Station requires maintenance ($)');
+  if (remarks.length === 0 && s.length > 0) remarks.push('Raw: ' + s);
+  return remarks;
+}
+
+function calcFlightCategory(r) {
+  let ceiling = Infinity;
+  r.clouds.forEach(c => {
+    if ((c.cover === 'BKN' || c.cover === 'OVC' || c.cover === 'VV') && c.altitude < ceiling) ceiling = c.altitude;
+  });
+  let vis = typeof r.visibility === 'number' ? r.visibility : parseFloat(r.visibility) || 10;
+
+  if (ceiling < 500 || vis < 1) return 'LIFR';
+  if (ceiling < 1000 || vis < 3) return 'IFR';
+  if (ceiling <= 3000 || vis <= 5) return 'MVFR';
+  return 'VFR';
+}
+
+function renderMetar(r, raw) {
+  document.getElementById('flightCatCard').classList.remove('hidden');
+  document.getElementById('decodedOutput').classList.remove('hidden');
+  document.getElementById('tafTimeline').classList.add('hidden');
+
+  const catClass = { VFR: 'badge-vfr', MVFR: 'badge-mvfr', IFR: 'badge-ifr', LIFR: 'badge-lifr' };
+  document.getElementById('flightCatBadge').className = 'badge ' + (catClass[r.flightCategory] || 'badge-vfr');
+  document.getElementById('flightCatBadge').textContent = r.flightCategory;
+  document.getElementById('rawMetar').textContent = raw;
+
+  let html = '';
+  const sec = (label, value, rawVal) => `<div class="decoded-section"><div class="field-label">${label}</div><div class="field-value">${value}</div>${rawVal ? '<div class="field-raw">' + rawVal + '</div>' : ''}</div>`;
+
+  if (r.station) html += sec('Station', r.station);
+  if (r.time) html += sec('Date/Time', r.time, `${r.day}${r.hour}${r.minute}Z`);
+  if (r.modifier) html += sec('Report Type', r.modifier === 'AUTO' ? 'Automated Report' : 'Corrected Report', r.modifier);
+  if (r.windText) html += sec('Wind', r.windText + (r.windVariable ? ' (Variable ' + r.windVariable + ')' : ''), r.windRaw + (r.windVarRaw ? ' ' + r.windVarRaw : ''));
+  if (r.visText) html += sec('Visibility', r.visText, r.visRaw);
+  if (r.rvr) html += sec('Runway Visual Range', r.rvr);
+
+  if (r.weather.length) {
+    const wxHtml = r.weather.map(w => `<span style="margin-right:12px"><strong>${w.code}</strong> - ${w.description}</span>`).join('');
+    html += sec('Weather', wxHtml);
+  }
+
+  if (r.clouds.length) {
+    const clHtml = r.clouds.map(c => `<div>${c.text}</div>`).join('');
+    html += sec('Clouds', clHtml, r.clouds.map(c => c.raw).join(' '));
+  }
+
+  if (r.tempText) html += sec('Temperature / Dewpoint', r.tempText, r.tempRaw);
+  if (r.altText) html += sec('Altimeter', r.altText, r.altRaw);
+
+  if (r.remarks && r.remarks.length) {
+    const rmkHtml = r.remarks.map(rm => `<div>${rm}</div>`).join('');
+    html += sec('Remarks', rmkHtml, r.remarksRaw);
+  }
+
+  document.getElementById('decodedContent').innerHTML = html;
+}
+
+function decodeTAF(raw) {
+  document.getElementById('flightCatCard').classList.remove('hidden');
+  document.getElementById('decodedOutput').classList.remove('hidden');
+  document.getElementById('tafTimeline').classList.remove('hidden');
+
+  const lines = raw.replace(/\n\s+/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
+  let headerLine = lines[0].replace(/^TAF\s+(AMD\s+)?/i, '');
+  const headerResult = decodeMetar(headerLine + ' ');
+
+  document.getElementById('flightCatBadge').className = 'badge badge-vfr';
+  document.getElementById('flightCatBadge').textContent = 'TAF';
+  document.getElementById('rawMetar').textContent = raw.split('\n')[0];
+
+  // Parse validity
+  const validMatch = headerLine.match(/(\d{4})\/(\d{4})/);
+  let validText = '';
+  if (validMatch) validText = `From day ${validMatch[1].slice(0,2)} ${validMatch[1].slice(2)}Z to day ${validMatch[2].slice(0,2)} ${validMatch[2].slice(2)}Z`;
+
+  let mainHtml = `<div class="decoded-section"><div class="field-label">TAF Validity</div><div class="field-value">${validText}</div></div>`;
+  if (headerResult.station) mainHtml += `<div class="decoded-section"><div class="field-label">Station</div><div class="field-value">${headerResult.station}</div></div>`;
+
+  // Base forecast from header
+  mainHtml += '<h3 style="margin-top:12px">Base Forecast</h3>';
+  if (headerResult.windText) mainHtml += `<div class="decoded-section"><div class="field-label">Wind</div><div class="field-value">${headerResult.windText}</div></div>`;
+  if (headerResult.visText) mainHtml += `<div class="decoded-section"><div class="field-label">Visibility</div><div class="field-value">${headerResult.visText}</div></div>`;
+  if (headerResult.clouds.length) mainHtml += `<div class="decoded-section"><div class="field-label">Clouds</div><div class="field-value">${headerResult.clouds.map(c=>c.text).join('<br>')}</div></div>`;
+
+  // Parse change groups
+  const groups = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    const fmMatch = line.match(/^FM(\d{6})\s(.*)/);
+    const tempoMatch = line.match(/^TEMPO\s+(\d{4})\/(\d{4})\s(.*)/);
+    const becmgMatch = line.match(/^BECMG\s+(\d{4})\/(\d{4})\s(.*)/);
+    const probMatch = line.match(/^PROB(\d{2})\s+(\d{4})\/(\d{4})\s(.*)/);
+
+    if (fmMatch) {
+      const t = fmMatch[1];
+      groups.push({ type: 'FM', time: `Day ${t.slice(0,2)} ${t.slice(2,4)}:${t.slice(4)}Z`, body: fmMatch[2], color: 'var(--cyan)' });
+    } else if (tempoMatch) {
+      groups.push({ type: 'TEMPO', time: `${tempoMatch[1].slice(0,2)}/${tempoMatch[1].slice(2)}Z - ${tempoMatch[2].slice(0,2)}/${tempoMatch[2].slice(2)}Z`, body: tempoMatch[3], color: 'var(--orange)' });
+    } else if (becmgMatch) {
+      groups.push({ type: 'BECMG', time: `${becmgMatch[1].slice(0,2)}/${becmgMatch[1].slice(2)}Z - ${becmgMatch[2].slice(0,2)}/${becmgMatch[2].slice(2)}Z`, body: becmgMatch[3], color: 'var(--green)' });
+    } else if (probMatch) {
+      groups.push({ type: `PROB${probMatch[1]}`, time: `${probMatch[2].slice(0,2)}/${probMatch[2].slice(2)}Z - ${probMatch[3].slice(0,2)}/${probMatch[3].slice(2)}Z`, body: probMatch[4], color: '#a78bfa' });
+    }
+  }
+
+  if (groups.length) {
+    mainHtml += '<h3 style="margin-top:16px">Change Groups</h3>';
+    groups.forEach(g => {
+      const decoded = decodeMetar(g.body + ' ');
+      let details = '';
+      if (decoded.windText) details += `Wind: ${decoded.windText}<br>`;
+      if (decoded.visText) details += `Visibility: ${decoded.visText}<br>`;
+      if (decoded.weather.length) details += `Weather: ${decoded.weather.map(w=>w.description).join(', ')}<br>`;
+      if (decoded.clouds.length) details += `Clouds: ${decoded.clouds.map(c=>c.text).join(', ')}<br>`;
+      mainHtml += `<div class="taf-period"><div class="period-header" style="color:${g.color}">${g.type} - ${g.time}</div><div style="font-size:.85rem">${details || g.body}</div></div>`;
+    });
+  }
+
+  document.getElementById('decodedContent').innerHTML = mainHtml;
+
+  // Timeline
+  let tlHtml = '<div class="timeline">';
+  tlHtml += `<div class="timeline-block" style="background:rgba(0,212,255,.1);border:1px solid var(--cyan)"><strong>BASE</strong><br>${validText.split(' to ')[0]||''}</div>`;
+  groups.forEach(g => {
+    tlHtml += `<div class="timeline-block" style="background:rgba(255,255,255,.05);border:1px solid ${g.color}"><strong style="color:${g.color}">${g.type}</strong><br>${g.time}</div>`;
+  });
+  tlHtml += '</div>';
+  document.getElementById('timelineContent').innerHTML = tlHtml;
+}
+
+function calcWind() {
+  const rwy = parseFloat(document.getElementById('rwyHdg').value);
+  const dir = parseFloat(document.getElementById('windDirInput').value);
+  const spd = parseFloat(document.getElementById('windSpdInput').value);
+  if (isNaN(rwy) || isNaN(dir) || isNaN(spd)) { document.getElementById('windResult').innerHTML = '<span style="color:var(--red)">Enter runway heading, wind direction, and speed.</span>'; return; }
+  const angle = (dir - rwy) * Math.PI / 180;
+  const headwind = Math.cos(angle) * spd;
+  const crosswind = Math.sin(angle) * spd;
+  const hwLabel = headwind >= 0 ? 'Headwind' : 'Tailwind';
+  const xwLabel = crosswind >= 0 ? 'Right Crosswind' : 'Left Crosswind';
+  document.getElementById('windResult').innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+      <div class="decoded-section" style="flex:1;min-width:150px"><div class="field-label">${hwLabel}</div><div class="field-value" style="font-size:1.2rem;color:${headwind>=0?'var(--green)':'var(--red)'}">${Math.abs(headwind).toFixed(1)} kt</div></div>
+      <div class="decoded-section" style="flex:1;min-width:150px"><div class="field-label">${xwLabel}</div><div class="field-value" style="font-size:1.2rem;color:var(--orange)">${Math.abs(crosswind).toFixed(1)} kt</div></div>
+    </div>`;
+}
+
+function calcDensityAlt() {
+  const elev = parseFloat(document.getElementById('fieldElev').value);
+  const temp = parseFloat(document.getElementById('daTemp').value);
+  const alt = parseFloat(document.getElementById('daAlt').value);
+  if (isNaN(elev) || isNaN(temp) || isNaN(alt)) { document.getElementById('daResult').innerHTML = '<span style="color:var(--red)">Enter field elevation, temperature, and altimeter.</span>'; return; }
+  const pressAlt = elev + (29.92 - alt) * 1000;
+  const stdTemp = 15 - (pressAlt / 1000) * 1.98;
+  const densityAlt = pressAlt + 120 * (temp - stdTemp);
+  const color = densityAlt > elev + 2000 ? 'var(--red)' : densityAlt > elev + 1000 ? 'var(--orange)' : 'var(--green)';
+  document.getElementById('daResult').innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+      <div class="decoded-section" style="flex:1;min-width:150px"><div class="field-label">Pressure Altitude</div><div class="field-value">${pressAlt.toFixed(0)} ft</div></div>
+      <div class="decoded-section" style="flex:1;min-width:150px"><div class="field-label">Std Temp at Altitude</div><div class="field-value">${stdTemp.toFixed(1)}°C</div></div>
+      <div class="decoded-section" style="flex:1;min-width:150px"><div class="field-label">Density Altitude</div><div class="field-value" style="font-size:1.2rem;color:${color}">${densityAlt.toFixed(0)} ft</div></div>
+    </div>`;
+}
+
+// History
+function saveToHistory(raw) {
+  let hist = JSON.parse(localStorage.getItem('korb_metar_history') || '[]');
+  hist.unshift({ text: raw, time: new Date().toISOString() });
+  if (hist.length > 10) hist = hist.slice(0, 10);
+  localStorage.setItem('korb_metar_history', JSON.stringify(hist));
+}
+
+function showHistory() {
+  const card = document.getElementById('historyCard');
+  card.classList.toggle('hidden');
+  const hist = JSON.parse(localStorage.getItem('korb_metar_history') || '[]');
+  if (!hist.length) { document.getElementById('historyList').innerHTML = '<p style="font-size:.8rem;color:#8899aa">No history yet.</p>'; return; }
+  document.getElementById('historyList').innerHTML = hist.map((h, i) =>
+    `<div class="history-item" onclick="document.getElementById('metarInput').value='${h.text.replace(/'/g,"\\'")}';decode()">
+      <span style="color:var(--cyan);font-size:.65rem">${new Date(h.time).toLocaleString()}</span><br>${h.text.substring(0, 80)}${h.text.length > 80 ? '...' : ''}
+    </div>`
+  ).join('');
+}
+
+function clearAll() {
+  document.getElementById('metarInput').value = '';
+  document.getElementById('flightCatCard').classList.add('hidden');
+  document.getElementById('decodedOutput').classList.add('hidden');
+  document.getElementById('tafTimeline').classList.add('hidden');
+  document.getElementById('windResult').innerHTML = '';
+  document.getElementById('daResult').innerHTML = '';
+}
+</script>
+</body>
+</html>

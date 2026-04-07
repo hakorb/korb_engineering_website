@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Airport Noise Contour Planner | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;--text:#e2e8f0;--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;--dim:#64748b;--yellow:#eab308}
+html{font-size:16px}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand-icon{width:36px;height:36px;background:var(--cyan);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--bg);font-size:14px}
+.brand-title{font-size:18px;font-weight:600;color:var(--cyan)}
+.brand-name{font-size:13px;color:var(--dim);font-weight:300}
+main{max-width:1400px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:1fr;gap:20px}
+@media(min-width:1000px){.grid{grid-template-columns:400px 1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px}
+.card h2{font-size:15px;font-weight:600;color:var(--cyan);margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:8px}
+label{display:block;font-size:13px;color:var(--dim);margin-bottom:4px;font-weight:400}
+input,select,button{font-family:'JetBrains Mono',monospace;font-size:16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:10px 14px;width:100%;min-height:44px;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:var(--cyan)}
+button{background:var(--cyan);color:var(--bg);font-weight:600;cursor:pointer;border:none;text-align:center}
+button:hover{opacity:.9}
+button.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+button.danger{background:var(--red);color:#fff}
+.mb{margin-bottom:14px}
+.row{display:flex;gap:12px;margin-bottom:14px}
+.row>div{flex:1}
+canvas{width:100%;border-radius:8px;background:var(--surface2);display:block}
+.fleet-item{display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:8px}
+.fleet-item select,.fleet-item input{min-height:38px;font-size:14px;padding:6px 8px}
+.fleet-item .remove-btn{width:38px;min-width:38px;min-height:38px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+.slider-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.slider-row input[type=range]{flex:1;min-height:44px;background:transparent;-webkit-appearance:none;appearance:none}
+.slider-row input[type=range]::-webkit-slider-track{height:6px;background:var(--border);border-radius:3px}
+.slider-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--cyan);cursor:pointer;margin-top:-7px}
+.slider-val{min-width:50px;text-align:right;font-weight:600;color:var(--cyan)}
+.compat-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
+.compat-table th,.compat-table td{padding:8px 6px;border:1px solid var(--border);text-align:center}
+.compat-table th{background:var(--surface2);color:var(--cyan);font-weight:600}
+.compat-yes{color:var(--green)}
+.compat-no{color:var(--red);font-weight:600}
+.compat-cond{color:var(--yellow)}
+.contour-dims{margin-top:12px}
+.contour-dim{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.contour-dim:last-child{border:none}
+.recommendations{margin-top:12px}
+.rec-item{padding:8px 12px;background:var(--surface2);border-left:3px solid var(--cyan);margin-bottom:8px;border-radius:0 6px 6px 0;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+<div class="brand-icon">KE</div>
+<div>
+<div class="brand-title">Airport Noise Contour Planner</div>
+<div class="brand-name">Korb Engineering</div>
+</div>
+</header>
+<main>
+<div class="grid">
+<div>
+<div class="card">
+<h2>Runway Parameters</h2>
+<div class="mb">
+<label>Runway Length (ft)</label>
+<input type="number" id="rwyLength" min="1000" max="20000" step="100" value="8000">
+</div>
+<div class="mb">
+<label>Runway Heading (degrees)</label>
+<input type="number" id="rwyHeading" min="1" max="360" step="1" value="270">
+</div>
+<div class="slider-row">
+<label style="min-width:120px">Daily Ops</label>
+<input type="range" id="dailyOps" min="10" max="1000" step="10" value="200">
+<span class="slider-val" id="dailyOpsVal">200</span>
+</div>
+<div class="row">
+<div>
+<label>Departures %</label>
+<input type="number" id="depPct" min="0" max="100" step="5" value="50">
+</div>
+<div>
+<label>Arrivals %</label>
+<input type="number" id="arrPct" min="0" max="100" step="5" value="50">
+</div>
+</div>
+</div>
+
+<div class="card" style="margin-top:20px">
+<h2>Fleet Mix</h2>
+<div id="fleetList"></div>
+<button class="secondary" onclick="addFleetItem()" style="margin-top:8px">+ Add Aircraft Type</button>
+</div>
+
+<div class="card" style="margin-top:20px">
+<h2>Actions</h2>
+<button onclick="generateContours()" style="margin-bottom:8px">Generate Contours</button>
+<button class="secondary" onclick="exportReport()">Export Report to Clipboard</button>
+</div>
+</div>
+
+<div>
+<div class="card">
+<h2>Noise Contour Visualization</h2>
+<canvas id="noiseCanvas" width="800" height="600"></canvas>
+<div class="contour-dims" id="contourDims"></div>
+</div>
+
+<div class="card" style="margin-top:20px">
+<h2>Land Use Compatibility (FAR Part 150)</h2>
+<div style="overflow-x:auto">
+<table class="compat-table" id="compatTable">
+<thead>
+<tr><th>Land Use</th><th>&lt;65 DNL</th><th>65-70 DNL</th><th>70-75 DNL</th><th>75-80 DNL</th><th>&gt;80 DNL</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+<div class="card" style="margin-top:20px">
+<h2>Noise Mitigation Recommendations</h2>
+<div id="recommendations"></div>
+</div>
+</div>
+</div>
+</main>
+<script>
+const AIRCRAFT_DB={
+  'B737-800':{name:'Boeing 737-800',noise:85,category:'Large Jet'},
+  'B737-MAX':{name:'Boeing 737 MAX',noise:82,category:'Large Jet'},
+  'A320':{name:'Airbus A320',noise:83,category:'Large Jet'},
+  'A320neo':{name:'Airbus A320neo',noise:80,category:'Large Jet'},
+  'B757':{name:'Boeing 757-200',noise:88,category:'Large Jet'},
+  'B767':{name:'Boeing 767-300',noise:90,category:'Heavy Jet'},
+  'B777':{name:'Boeing 777-200',noise:92,category:'Heavy Jet'},
+  'B787':{name:'Boeing 787-9',noise:84,category:'Heavy Jet'},
+  'A330':{name:'Airbus A330-300',noise:89,category:'Heavy Jet'},
+  'A350':{name:'Airbus A350-900',noise:83,category:'Heavy Jet'},
+  'CRJ-200':{name:'CRJ-200',noise:80,category:'Regional Jet'},
+  'CRJ-700':{name:'CRJ-700',noise:78,category:'Regional Jet'},
+  'CRJ-900':{name:'CRJ-900',noise:79,category:'Regional Jet'},
+  'ERJ-145':{name:'ERJ-145',noise:78,category:'Regional Jet'},
+  'ERJ-175':{name:'ERJ-175',noise:77,category:'Regional Jet'},
+  'E190':{name:'Embraer E190',noise:79,category:'Regional Jet'},
+  'ATR-72':{name:'ATR 72',noise:76,category:'Turboprop'},
+  'Q400':{name:'Dash 8 Q400',noise:77,category:'Turboprop'},
+  'GA-Piston':{name:'GA Piston (C172/PA28)',noise:75,category:'General Aviation'},
+  'GA-TurboProp':{name:'GA Turboprop (King Air)',noise:78,category:'General Aviation'},
+  'GA-Jet':{name:'GA Jet (Citation/Lear)',noise:82,category:'Business Jet'},
+  'GA-LargeJet':{name:'GA Large Jet (GV/Global)',noise:84,category:'Business Jet'},
+};
+
+let fleetItems=[];
+let contourData=null;
+
+function addFleetItem(type='B737-800',pct=30){
+  const id='fleet_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
+  fleetItems.push({id,type,pct});
+  renderFleet();
+}
+
+function removeFleetItem(id){
+  fleetItems=fleetItems.filter(f=>f.id!==id);
+  renderFleet();
+}
+
+function renderFleet(){
+  const container=document.getElementById('fleetList');
+  container.innerHTML='';
+  fleetItems.forEach(item=>{
+    const div=document.createElement('div');
+    div.className='fleet-item';
+    const sel=document.createElement('select');
+    sel.style.flex='2';
+    Object.entries(AIRCRAFT_DB).forEach(([k,v])=>{
+      const opt=document.createElement('option');
+      opt.value=k;opt.textContent=v.name+' ('+v.noise+' dB)';
+      if(k===item.type) opt.selected=true;
+      sel.appendChild(opt);
+    });
+    sel.onchange=()=>{item.type=sel.value;saveState();};
+    const inp=document.createElement('input');
+    inp.type='number';inp.min=1;inp.max=100;inp.value=item.pct;
+    inp.style.flex='1';inp.placeholder='%';
+    inp.onchange=()=>{item.pct=parseInt(inp.value)||0;saveState();};
+    const btn=document.createElement('button');
+    btn.className='remove-btn';btn.textContent='X';
+    btn.onclick=()=>removeFleetItem(item.id);
+    div.appendChild(sel);div.appendChild(inp);div.appendChild(btn);
+    container.appendChild(div);
+  });
+  saveState();
+}
+
+document.getElementById('dailyOps').addEventListener('input',function(){
+  document.getElementById('dailyOpsVal').textContent=this.value;
+});
+
+// Simplified INM-based noise contour model
+// DNL = SEL + 10*log10(N) - 49.4 (for a single flight event repeated N times per day)
+// We compute equivalent noise per operation weighted by fleet mix, then derive contour extents
+
+function computeDNL(){
+  const dailyOps=parseInt(document.getElementById('dailyOps').value)||200;
+  const depPct=(parseInt(document.getElementById('depPct').value)||50)/100;
+  const arrPct=(parseInt(document.getElementById('arrPct').value)||50)/100;
+
+  // Weighted average SEL (Sound Exposure Level) from fleet mix
+  // SEL is approximately noise level + 10*log10(exposure_time) ≈ noise + 7 for typical flyover
+  let totalPct=0;
+  let weightedSEL=0;
+  fleetItems.forEach(item=>{
+    const ac=AIRCRAFT_DB[item.type];
+    if(!ac) return;
+    const pct=item.pct/100;
+    totalPct+=pct;
+    const sel=ac.noise+7; // approximate SEL from Lmax
+    weightedSEL+=pct*Math.pow(10,sel/10);
+  });
+
+  if(totalPct===0) return null;
+  const avgSEL=10*Math.log10(weightedSEL/totalPct);
+  const N=dailyOps;
+
+  // DNL at reference distance (1000ft from runway centerline)
+  const dnlRef=avgSEL+10*Math.log10(N)-49.4;
+
+  // Contour extents: distance where DNL drops to threshold
+  // Sound attenuates roughly 6dB per doubling of distance (inverse square)
+  // Plus atmospheric absorption ~1dB per 1000ft at typical frequencies
+  function distanceForDNL(targetDNL){
+    const delta=dnlRef-targetDNL;
+    if(delta<=0) return 0;
+    // distance = refDist * 10^(delta/20) with atmospheric correction
+    const refDist=1000; // feet
+    let dist=refDist*Math.pow(10,delta/20);
+    return dist;
+  }
+
+  // Departure contours are elongated (3:1 to 5:1 length:width ratio)
+  // Arrival contours are elongated (2:1 to 3:1)
+  const rwyLen=parseInt(document.getElementById('rwyLength').value)||8000;
+
+  const contours=[65,70,75].map(dnl=>{
+    const lateralDist=distanceForDNL(dnl);
+    if(lateralDist<=0) return null;
+    // Departure extends further due to climb gradient and thrust
+    const depExtent=lateralDist*3.5*depPct+rwyLen;
+    // Arrival extends due to approach path
+    const arrExtent=lateralDist*2.5*arrPct+rwyLen*0.5;
+    return {
+      dnl,
+      lateral:Math.round(lateralDist),
+      depExtent:Math.round(depExtent),
+      arrExtent:Math.round(arrExtent),
+      totalLength:Math.round(depExtent+arrExtent),
+      totalWidth:Math.round(lateralDist*2)
+    };
+  }).filter(c=>c!==null);
+
+  return {dnlRef:Math.round(dnlRef*10)/10,contours,dailyOps:N};
+}
+
+function generateContours(){
+  contourData=computeDNL();
+  if(!contourData||contourData.contours.length===0){
+    alert('Add aircraft to fleet mix first.');
+    return;
+  }
+  drawContours();
+  updateContourDims();
+  updateCompatTable();
+  updateRecommendations();
+  saveState();
+}
+
+function drawContours(){
+  if(!contourData) return;
+  const canvas=document.getElementById('noiseCanvas');
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;
+  canvas.height=(rect.width*0.65)*dpr;
+  canvas.style.height=(rect.width*0.65)+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  const W=rect.width;
+  const H=rect.width*0.65;
+
+  ctx.fillStyle='#0a1018';
+  ctx.fillRect(0,0,W,H);
+
+  const rwyHeading=parseInt(document.getElementById('rwyHeading').value)||270;
+  const rwyLen=parseInt(document.getElementById('rwyLength').value)||8000;
+
+  // Find max extent for scaling
+  let maxExtent=10000;
+  contourData.contours.forEach(c=>{
+    maxExtent=Math.max(maxExtent,c.depExtent,c.arrExtent,c.lateral*2);
+  });
+
+  const scale=Math.min((W-80)/(maxExtent*2.2),(H-80)/(maxExtent*1.2));
+  const cx=W/2,cy=H/2;
+
+  // Rotation angle (runway heading, 0=north, canvas 0=right)
+  const rotRad=(rwyHeading-90)*Math.PI/180;
+
+  function rotPoint(x,y){
+    const rx=x*Math.cos(rotRad)-y*Math.sin(rotRad);
+    const ry=x*Math.sin(rotRad)+y*Math.cos(rotRad);
+    return [cx+rx,cy+ry];
+  }
+
+  // Grid
+  ctx.strokeStyle='#1a2535';
+  ctx.lineWidth=0.5;
+  const gridStep=5000;
+  for(let g=-maxExtent*2;g<=maxExtent*2;g+=gridStep){
+    const gs=g*scale;
+    ctx.beginPath();ctx.moveTo(cx+gs,0);ctx.lineTo(cx+gs,H);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,cy+gs);ctx.lineTo(W,cy+gs);ctx.stroke();
+  }
+
+  // Draw contours (largest first)
+  const colors={65:'rgba(16,185,129,0.2)',70:'rgba(234,179,8,0.25)',75:'rgba(239,68,68,0.3)'};
+  const strokeColors={65:'#10b981',70:'#eab308',75:'#ef4444'};
+
+  const sorted=[...contourData.contours].sort((a,b)=>a.dnl-b.dnl);
+  sorted.forEach(c=>{
+    const lx=c.lateral*scale;
+    const depX=c.depExtent*scale;
+    const arrX=c.arrExtent*scale;
+
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.rotate(rotRad);
+
+    // Draw elliptical contour (departure side extends further)
+    ctx.fillStyle=colors[c.dnl]||'rgba(255,255,255,0.1)';
+    ctx.strokeStyle=strokeColors[c.dnl]||'#fff';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    // Right half (departure side in runway coords)
+    ctx.ellipse(0,0,depX,lx,0,-Math.PI/2,Math.PI/2);
+    // Left half (arrival side)
+    ctx.ellipse(0,0,arrX,lx,0,Math.PI/2,3*Math.PI/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle=strokeColors[c.dnl];
+    ctx.font='bold 12px JetBrains Mono';
+    ctx.textAlign='center';
+    ctx.fillText(c.dnl+' DNL',0,-(lx+14));
+
+    ctx.restore();
+  });
+
+  // Draw runway
+  const rwyHalfLen=(rwyLen/2)*scale;
+  const rwyWidth=4;
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(rotRad);
+  ctx.fillStyle='#e2e8f0';
+  ctx.fillRect(-rwyHalfLen,-rwyWidth,rwyHalfLen*2,rwyWidth*2);
+  // Centerline dashes
+  ctx.strokeStyle='#050a0f';
+  ctx.lineWidth=1;
+  ctx.setLineDash([8,6]);
+  ctx.beginPath();
+  ctx.moveTo(-rwyHalfLen,0);
+  ctx.lineTo(rwyHalfLen,0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Runway numbers
+  const rwyNum1=Math.round(rwyHeading/10);
+  const rwyNum2=Math.round(((rwyHeading+180)%360)/10);
+  ctx.fillStyle='#00d4ff';
+  ctx.font='bold 11px JetBrains Mono';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(String(rwyNum1).padStart(2,'0'),rwyHalfLen+20,0);
+  ctx.fillText(String(rwyNum2).padStart(2,'0'),-rwyHalfLen-20,0);
+  ctx.restore();
+
+  // Legend
+  ctx.font='11px JetBrains Mono';
+  ctx.textAlign='left';
+  let ly=20;
+  [{dnl:65,c:'#10b981'},{dnl:70,c:'#eab308'},{dnl:75,c:'#ef4444'}].forEach(l=>{
+    ctx.fillStyle=l.c;
+    ctx.fillRect(10,ly,14,14);
+    ctx.fillStyle='#e2e8f0';
+    ctx.fillText(l.dnl+' DNL',30,ly+11);
+    ly+=20;
+  });
+
+  // Scale bar
+  const scaleBarFt=5000;
+  const scaleBarPx=scaleBarFt*scale;
+  ctx.strokeStyle='#e2e8f0';
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(W-20-scaleBarPx,H-20);
+  ctx.lineTo(W-20,H-20);
+  ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W-20-scaleBarPx,H-25);ctx.lineTo(W-20-scaleBarPx,H-15);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W-20,H-25);ctx.lineTo(W-20,H-15);ctx.stroke();
+  ctx.fillStyle='#e2e8f0';
+  ctx.font='10px JetBrains Mono';
+  ctx.textAlign='center';
+  ctx.fillText(scaleBarFt.toLocaleString()+' ft',W-20-scaleBarPx/2,H-8);
+}
+
+function updateContourDims(){
+  const div=document.getElementById('contourDims');
+  if(!contourData){div.innerHTML='';return;}
+  let html='<h3 style="font-size:14px;color:var(--cyan);margin-bottom:8px">Contour Dimensions</h3>';
+  html+=`<div class="contour-dim"><span style="color:var(--dim)">Reference DNL at 1000ft</span><span style="font-weight:600">${contourData.dnlRef} dB</span></div>`;
+  contourData.contours.forEach(c=>{
+    const color=c.dnl===65?'var(--green)':c.dnl===70?'var(--yellow)':'var(--red)';
+    html+=`<div class="contour-dim"><span style="color:${color};font-weight:600">${c.dnl} DNL Contour</span><span></span></div>`;
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Total length</span><span>${c.totalLength.toLocaleString()} ft (${(c.totalLength/5280).toFixed(2)} mi)</span></div>`;
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Total width</span><span>${c.totalWidth.toLocaleString()} ft (${(c.totalWidth/5280).toFixed(2)} mi)</span></div>`;
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Departure extent</span><span>${c.depExtent.toLocaleString()} ft</span></div>`;
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Arrival extent</span><span>${c.arrExtent.toLocaleString()} ft</span></div>`;
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Lateral extent</span><span>${c.lateral.toLocaleString()} ft</span></div>`;
+    const acres=Math.round(Math.PI*c.totalLength/2*c.totalWidth/2/43560);
+    html+=`<div class="contour-dim"><span style="color:var(--dim);padding-left:12px">Approx. area</span><span>${acres.toLocaleString()} acres</span></div>`;
+  });
+  div.innerHTML=html;
+}
+
+function updateCompatTable(){
+  // FAR Part 150 Land Use Compatibility
+  const uses=[
+    {name:'Residential',compat:['Y','N*','N','N','N']},
+    {name:'Schools',compat:['Y','N*','N','N','N']},
+    {name:'Hospitals/Nursing',compat:['Y','N','N','N','N']},
+    {name:'Churches/Auditoriums',compat:['Y','N*','N','N','N']},
+    {name:'Parks/Recreation',compat:['Y','Y','Y*','N','N']},
+    {name:'Office Buildings',compat:['Y','Y','Y*','N*','N']},
+    {name:'Retail Commercial',compat:['Y','Y','Y','Y*','N']},
+    {name:'Light Industrial',compat:['Y','Y','Y','Y','Y*']},
+    {name:'Heavy Industrial',compat:['Y','Y','Y','Y','Y']},
+    {name:'Agriculture',compat:['Y','Y','Y','Y','Y']},
+    {name:'Transportation',compat:['Y','Y','Y','Y','Y']},
+    {name:'Hotels/Motels',compat:['Y','N*','N','N','N']},
+  ];
+
+  const tbody=document.querySelector('#compatTable tbody');
+  tbody.innerHTML='';
+  uses.forEach(u=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="text-align:left;font-weight:500">${u.name}</td>`+
+      u.compat.map(c=>{
+        const cls=c==='Y'?'compat-yes':c==='N'?'compat-no':'compat-cond';
+        return `<td class="${cls}">${c}</td>`;
+      }).join('');
+    tbody.appendChild(tr);
+  });
+}
+
+function updateRecommendations(){
+  const div=document.getElementById('recommendations');
+  if(!contourData){div.innerHTML='';return;}
+  const maxDNL=contourData.dnlRef;
+  let recs=[];
+
+  recs.push('Establish noise monitoring stations at 65 DNL contour boundary for ongoing compliance verification.');
+
+  if(maxDNL>70){
+    recs.push('Consider Noise Compatibility Program (NCP) under FAR Part 150 for areas within 70+ DNL contours.');
+    recs.push('Implement sound insulation programs for residences within 70 DNL contour.');
+    recs.push('Coordinate with local planning agencies to restrict new residential development within 65+ DNL contours.');
+  }
+  if(maxDNL>75){
+    recs.push('Evaluate preferential runway use programs to shift operations away from noise-sensitive areas.');
+    recs.push('Consider nighttime curfew or voluntary noise abatement procedures between 10 PM and 7 AM.');
+    recs.push('Implement continuous descent approaches (CDA) to reduce arrival noise exposure.');
+  }
+  if(maxDNL>80){
+    recs.push('Acquire land or development rights within 75+ DNL contour for compatible land use conversion.');
+    recs.push('Evaluate noise barriers and berms along the runway perimeter for ground-level noise reduction.');
+  }
+
+  recs.push('Encourage fleet modernization toward Stage 5 / Chapter 14 compliant aircraft for lower noise footprint.');
+  recs.push('Review and update Airport Layout Plan (ALP) noise contours per FAA AC 150/5020-1 guidelines.');
+
+  div.innerHTML=recs.map(r=>`<div class="rec-item">${r}</div>`).join('');
+}
+
+function exportReport(){
+  if(!contourData){alert('Generate contours first.');return;}
+  let report='KORB ENGINEERING - AIRPORT NOISE CONTOUR REPORT\n';
+  report+='='.repeat(50)+'\n';
+  report+=`Date: ${new Date().toLocaleDateString()}\n`;
+  report+=`Runway Length: ${document.getElementById('rwyLength').value} ft\n`;
+  report+=`Runway Heading: ${document.getElementById('rwyHeading').value}°\n`;
+  report+=`Daily Operations: ${contourData.dailyOps}\n`;
+  report+=`Reference DNL at 1000ft: ${contourData.dnlRef} dB\n\n`;
+
+  report+='FLEET MIX\n'+'-'.repeat(30)+'\n';
+  fleetItems.forEach(item=>{
+    const ac=AIRCRAFT_DB[item.type];
+    report+=`  ${ac.name}: ${item.pct}% (${ac.noise} dB)\n`;
+  });
+
+  report+='\nCONTOUR DIMENSIONS\n'+'-'.repeat(30)+'\n';
+  contourData.contours.forEach(c=>{
+    report+=`\n  ${c.dnl} DNL Contour:\n`;
+    report+=`    Total Length: ${c.totalLength.toLocaleString()} ft (${(c.totalLength/5280).toFixed(2)} mi)\n`;
+    report+=`    Total Width: ${c.totalWidth.toLocaleString()} ft (${(c.totalWidth/5280).toFixed(2)} mi)\n`;
+    report+=`    Departure Extent: ${c.depExtent.toLocaleString()} ft\n`;
+    report+=`    Arrival Extent: ${c.arrExtent.toLocaleString()} ft\n`;
+    report+=`    Lateral Extent: ${c.lateral.toLocaleString()} ft\n`;
+  });
+
+  report+='\nLAND USE COMPATIBILITY (FAR Part 150)\n'+'-'.repeat(30)+'\n';
+  report+='Y=Compatible, N=Incompatible, *=Conditional\n';
+
+  navigator.clipboard.writeText(report).then(()=>alert('Report copied to clipboard.'));
+}
+
+function saveState(){
+  const data={
+    rwyLength:document.getElementById('rwyLength').value,
+    rwyHeading:document.getElementById('rwyHeading').value,
+    dailyOps:document.getElementById('dailyOps').value,
+    depPct:document.getElementById('depPct').value,
+    arrPct:document.getElementById('arrPct').value,
+    fleetItems:fleetItems.map(f=>({type:f.type,pct:f.pct}))
+  };
+  localStorage.setItem('korb_noise_settings',JSON.stringify(data));
+}
+
+function loadState(){
+  try{
+    const data=JSON.parse(localStorage.getItem('korb_noise_settings'));
+    if(!data) return false;
+    document.getElementById('rwyLength').value=data.rwyLength||8000;
+    document.getElementById('rwyHeading').value=data.rwyHeading||270;
+    document.getElementById('dailyOps').value=data.dailyOps||200;
+    document.getElementById('dailyOpsVal').textContent=data.dailyOps||200;
+    document.getElementById('depPct').value=data.depPct||50;
+    document.getElementById('arrPct').value=data.arrPct||50;
+    if(data.fleetItems&&data.fleetItems.length>0){
+      data.fleetItems.forEach(f=>addFleetItem(f.type,f.pct));
+      return true;
+    }
+    return false;
+  }catch(e){return false;}
+}
+
+window.addEventListener('load',()=>{
+  updateCompatTable();
+  if(!loadState()){
+    addFleetItem('B737-800',30);
+    addFleetItem('A320',25);
+    addFleetItem('CRJ-900',20);
+    addFleetItem('ERJ-175',15);
+    addFleetItem('GA-Piston',10);
+  }
+  generateContours();
+});
+
+['rwyLength','rwyHeading','depPct','arrPct'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',generateContours);
+});
+document.getElementById('dailyOps').addEventListener('input',function(){
+  document.getElementById('dailyOpsVal').textContent=this.value;
+  generateContours();
+});
+
+window.addEventListener('resize',()=>{if(contourData) drawContours();});
+</script>
+</body>
+</html>

@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DXF Viewer - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --text:#e2e8f0;--text-dim:#8892a2;--cyan:#00d4ff;--orange:#ff6600;
+  --green:#10b981;--red:#ef4444;--font:'JetBrains Mono',monospace;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+input,select,button{font-family:var(--font);font-size:16px;color:var(--text)}
+input,select{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 10px;min-height:44px;outline:none}
+input:focus,select:focus{border-color:var(--cyan)}
+button{min-height:44px;min-width:44px;padding:8px 14px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:.8rem;transition:all .15s}
+.btn{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.active{background:rgba(0,212,255,.15);border-color:var(--cyan);color:var(--cyan)}
+.btn-primary{background:var(--cyan);color:var(--bg)}
+.btn-danger{background:var(--red);color:#fff}
+
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px;margin-right:auto}
+.brand svg{width:28px;height:28px}
+.brand h1{font-size:.95rem;color:var(--cyan);font-weight:700}
+.brand span{font-size:.65rem;color:var(--text-dim);font-weight:300;margin-left:4px}
+
+.toolbar{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.toolbar .sep{width:1px;height:28px;background:var(--border);margin:0 4px}
+
+.main{flex:1;display:flex;overflow:hidden;position:relative}
+
+.sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar.hidden{display:none}
+.sidebar h3{font-size:.75rem;color:var(--cyan);padding:10px 12px 6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.layer-list{flex:1;overflow-y:auto;padding:0 8px 8px}
+.layer-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:.75rem;transition:background .15s}
+.layer-item:hover{background:var(--surface2)}
+.layer-item .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
+.layer-item input[type="checkbox"]{width:16px;height:16px;accent-color:var(--cyan)}
+.layer-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer-item .count{color:var(--text-dim);font-size:.65rem}
+
+.entity-info{background:var(--surface);border-top:1px solid var(--border);padding:10px 12px;max-height:200px;overflow-y:auto}
+.entity-info h3{padding:0;margin-bottom:6px}
+.entity-info table{width:100%;font-size:.7rem}
+.entity-info td{padding:2px 4px}
+.entity-info td:first-child{color:var(--text-dim);width:80px}
+
+.canvas-container{flex:1;position:relative;overflow:hidden;background:#080e14}
+canvas{display:block;width:100%;height:100%}
+
+.drop-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,10,15,.95);z-index:50;transition:opacity .3s}
+.drop-zone.hidden{opacity:0;pointer-events:none}
+.drop-zone.drag-over{border:3px dashed var(--cyan)}
+.drop-icon{width:80px;height:80px;border:2px dashed var(--border);border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:2rem;color:var(--cyan)}
+.drop-zone p{color:var(--text-dim);font-size:.85rem;margin:4px 0}
+.drop-zone .or{margin:12px 0;color:var(--text-dim);font-size:.75rem}
+
+.status-bar{background:var(--surface);border-top:1px solid var(--border);padding:4px 12px;display:flex;gap:16px;font-size:.7rem;color:var(--text-dim);flex-shrink:0;flex-wrap:wrap}
+.status-bar .val{color:var(--cyan);font-weight:600}
+
+.coord-display{position:absolute;bottom:40px;right:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.7rem;color:var(--cyan);pointer-events:none;z-index:10}
+
+.measure-result{position:absolute;top:50px;right:12px;background:var(--surface);border:1px solid var(--cyan);border-radius:8px;padding:12px 16px;z-index:10;font-size:.8rem}
+.measure-result .val{color:var(--cyan);font-weight:700;font-size:1.1rem}
+.measure-result .dismiss{cursor:pointer;color:var(--text-dim);font-size:.7rem;margin-top:6px;text-decoration:underline}
+
+.toast{position:fixed;bottom:60px;right:16px;background:var(--green);color:#fff;padding:10px 16px;border-radius:6px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:768px){
+  .sidebar{width:200px}
+  header{padding:6px 10px}
+}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="5" fill="#00d4ff" opacity=".15"/><path d="M6 22V6h10l6 6v10H6z" stroke="#00d4ff" stroke-width="1.5" stroke-linejoin="round"/><path d="M16 6v6h6" stroke="#00d4ff" stroke-width="1.5"/></svg>
+    <h1>DXF Viewer <span>Korb Engineering</span></h1>
+  </div>
+  <div class="toolbar">
+    <button class="btn" id="btnOpen" title="Open File">Open</button>
+    <div class="sep"></div>
+    <button class="btn" id="btnFit" title="Fit to View">Fit</button>
+    <button class="btn" id="btnZoomIn" title="Zoom In">+</button>
+    <button class="btn" id="btnZoomOut" title="Zoom Out">-</button>
+    <div class="sep"></div>
+    <button class="btn" id="btnGrid" title="Toggle Grid">Grid</button>
+    <button class="btn" id="btnLayers" title="Toggle Layers Panel">Layers</button>
+    <div class="sep"></div>
+    <button class="btn" id="btnMeasure" title="Measure Tool">Measure</button>
+    <button class="btn" id="btnSelect" title="Select/Info Tool">Select</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar" id="sidebar">
+    <h3>Layers</h3>
+    <div class="layer-list" id="layerList"></div>
+    <div class="entity-info hidden" id="entityInfo">
+      <h3 style="color:var(--orange);font-size:.75rem">Entity Info</h3>
+      <table id="entityInfoTable"></table>
+    </div>
+  </div>
+
+  <div class="canvas-container" id="canvasContainer">
+    <canvas id="canvas"></canvas>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">DXF</div>
+      <p>Drag & drop a .dxf file here</p>
+      <div class="or">or</div>
+      <button class="btn-primary" id="btnFilePicker" style="padding:10px 24px">Choose File</button>
+      <input type="file" id="fileInput" accept=".dxf" style="display:none">
+    </div>
+    <div class="coord-display" id="coordDisplay">X: 0.000 &nbsp; Y: 0.000</div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span>File: <span class="val" id="stFile">No file loaded</span></span>
+  <span>Entities: <span class="val" id="stEntities">0</span></span>
+  <span>Layers: <span class="val" id="stLayers">0</span></span>
+  <span>Zoom: <span class="val" id="stZoom">100%</span></span>
+  <span>Visible: <span class="val" id="stVisible">0</span></span>
+</div>
+
+<script>
+// ============ STATE ============
+const state = {
+  entities: [],
+  layers: {},
+  blocks: {},
+  fileName: '',
+  // View transform
+  panX: 0, panY: 0, zoom: 1,
+  canvasW: 0, canvasH: 0,
+  bounds: { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  // Tools
+  tool: 'pan', // 'pan', 'measure', 'select'
+  measureStart: null,
+  measureEnd: null,
+  showGrid: false,
+  mouseWorld: { x: 0, y: 0 },
+  isDragging: false, dragStart: null,
+  selectedEntity: null
+};
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// ============ DXF PARSER ============
+function parseDXF(text) {
+  const lines = text.split(/\r?\n/);
+  const pairs = [];
+  for (let i = 0; i < lines.length - 1; i += 2) {
+    pairs.push({ code: parseInt(lines[i].trim()), value: lines[i + 1].trim() });
+  }
+
+  state.entities = [];
+  state.layers = { '0': { name: '0', color: '#ffffff', visible: true } };
+  state.blocks = {};
+  state.bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+  let section = '', inBlock = false, blockName = '', blockEntities = [];
+  let i = 0;
+
+  function readEntity(start) {
+    const ent = { type: pairs[start].value, props: {} };
+    let j = start + 1;
+    while (j < pairs.length && !(pairs[j].code === 0)) {
+      const c = pairs[j].code, v = pairs[j].value;
+      // Collect all code-value pairs
+      if (!ent.props[c]) ent.props[c] = v;
+      else {
+        if (!Array.isArray(ent.props[c])) ent.props[c] = [ent.props[c]];
+        ent.props[c].push(v);
+      }
+      j++;
+    }
+    return { ent, nextIdx: j };
+  }
+
+  while (i < pairs.length) {
+    const { code, value } = pairs[i];
+    if (code === 0 && value === 'SECTION') {
+      i++;
+      if (i < pairs.length && pairs[i].code === 2) section = pairs[i].value;
+      i++; continue;
+    }
+    if (code === 0 && value === 'ENDSEC') { section = ''; i++; continue; }
+
+    // TABLES section - layers
+    if (section === 'TABLES' && code === 0 && value === 'LAYER') {
+      const { ent, nextIdx } = readEntity(i);
+      const name = ent.props[2] || '0';
+      const colorIdx = parseInt(ent.props[62]) || 7;
+      state.layers[name] = { name, color: aciToHex(colorIdx), visible: true };
+      i = nextIdx; continue;
+    }
+
+    // BLOCKS section
+    if (section === 'BLOCKS') {
+      if (code === 0 && value === 'BLOCK') {
+        const { ent, nextIdx } = readEntity(i);
+        inBlock = true;
+        blockName = ent.props[2] || '';
+        blockEntities = [];
+        i = nextIdx; continue;
+      }
+      if (code === 0 && value === 'ENDBLK') {
+        state.blocks[blockName] = blockEntities;
+        inBlock = false; i++; continue;
+      }
+      if (inBlock && code === 0) {
+        const { ent, nextIdx } = readEntity(i);
+        const parsed = parseEntity(ent);
+        if (parsed) blockEntities.push(parsed);
+        i = nextIdx; continue;
+      }
+    }
+
+    // ENTITIES section
+    if (section === 'ENTITIES' && code === 0) {
+      const entityTypes = ['LINE','CIRCLE','ARC','POLYLINE','LWPOLYLINE','TEXT','MTEXT','INSERT','DIMENSION','ELLIPSE','SPLINE','POINT','SOLID','3DFACE'];
+      if (entityTypes.includes(value)) {
+        const { ent, nextIdx } = readEntity(i);
+        const parsed = parseEntity(ent);
+        if (parsed) {
+          state.entities.push(parsed);
+          updateBounds(parsed);
+        }
+        // Handle POLYLINE vertices
+        if (value === 'POLYLINE') {
+          const verts = [];
+          let k = nextIdx;
+          while (k < pairs.length) {
+            if (pairs[k].code === 0 && pairs[k].value === 'VERTEX') {
+              const { ent: ve, nextIdx: ni } = readEntity(k);
+              verts.push({ x: parseFloat(ve.props[10]) || 0, y: parseFloat(ve.props[20]) || 0 });
+              k = ni;
+            } else if (pairs[k].code === 0 && pairs[k].value === 'SEQEND') {
+              k++; break;
+            } else { k++; }
+          }
+          if (parsed && verts.length) { parsed.vertices = verts; verts.forEach(v => expandBounds(v.x, v.y)); }
+          i = k; continue;
+        }
+        i = nextIdx; continue;
+      }
+    }
+    i++;
+  }
+
+  // Ensure layer '0' exists
+  if (!state.layers['0']) state.layers['0'] = { name: '0', color: '#ffffff', visible: true };
+}
+
+function parseEntity(ent) {
+  const p = ent.props;
+  const layer = p[8] || '0';
+  const colorIdx = parseInt(p[62]) || null;
+  const base = { type: ent.type, layer, colorIdx };
+
+  if (!state.layers[layer]) state.layers[layer] = { name: layer, color: '#ffffff', visible: true };
+
+  switch (ent.type) {
+    case 'LINE':
+      return { ...base, x1: f(p[10]), y1: f(p[20]), x2: f(p[11]), y2: f(p[21]) };
+    case 'CIRCLE':
+      return { ...base, cx: f(p[10]), cy: f(p[20]), r: f(p[40]) };
+    case 'ARC':
+      return { ...base, cx: f(p[10]), cy: f(p[20]), r: f(p[40]), startAngle: f(p[50]), endAngle: f(p[51]) };
+    case 'ELLIPSE':
+      return { ...base, cx: f(p[10]), cy: f(p[20]), mx: f(p[11]), my: f(p[21]), ratio: f(p[40]) || 1, startParam: f(p[41]) || 0, endParam: f(p[42]) || Math.PI * 2 };
+    case 'LWPOLYLINE': {
+      const n = parseInt(p[90]) || 0;
+      const xs = Array.isArray(p[10]) ? p[10].map(Number) : [f(p[10])];
+      const ys = Array.isArray(p[20]) ? p[20].map(Number) : [f(p[20])];
+      const vertices = xs.map((x, i) => ({ x, y: ys[i] || 0 }));
+      const closed = (parseInt(p[70]) || 0) & 1;
+      return { ...base, vertices, closed: !!closed };
+    }
+    case 'POLYLINE':
+      return { ...base, vertices: [], closed: !!((parseInt(p[70]) || 0) & 1) };
+    case 'TEXT':
+    case 'MTEXT':
+      return { ...base, x: f(p[10]), y: f(p[20]), text: p[1] || '', height: f(p[40]) || 2.5, rotation: f(p[50]) || 0 };
+    case 'INSERT': {
+      const blockName = p[2] || '';
+      return { ...base, blockName, x: f(p[10]), y: f(p[20]), scaleX: f(p[41]) || 1, scaleY: f(p[42]) || 1, rotation: f(p[50]) || 0 };
+    }
+    case 'DIMENSION':
+      return { ...base, x1: f(p[13]) || f(p[10]), y1: f(p[23]) || f(p[20]), x2: f(p[14]) || f(p[11]), y2: f(p[24]) || f(p[21]), text: p[1] || '' };
+    case 'SPLINE': {
+      const xs = Array.isArray(p[10]) ? p[10].map(Number) : [f(p[10])];
+      const ys = Array.isArray(p[20]) ? p[20].map(Number) : [f(p[20])];
+      return { ...base, controlPoints: xs.map((x, i) => ({ x, y: ys[i] || 0 })) };
+    }
+    case 'POINT':
+      return { ...base, x: f(p[10]), y: f(p[20]) };
+    default:
+      return null;
+  }
+}
+
+function f(v) { return parseFloat(v) || 0; }
+
+function expandBounds(x, y) {
+  if (x < state.bounds.minX) state.bounds.minX = x;
+  if (x > state.bounds.maxX) state.bounds.maxX = x;
+  if (y < state.bounds.minY) state.bounds.minY = y;
+  if (y > state.bounds.maxY) state.bounds.maxY = y;
+}
+
+function updateBounds(ent) {
+  switch (ent.type) {
+    case 'LINE':
+      expandBounds(ent.x1, ent.y1); expandBounds(ent.x2, ent.y2); break;
+    case 'CIRCLE':
+      expandBounds(ent.cx - ent.r, ent.cy - ent.r); expandBounds(ent.cx + ent.r, ent.cy + ent.r); break;
+    case 'ARC':
+      expandBounds(ent.cx - ent.r, ent.cy - ent.r); expandBounds(ent.cx + ent.r, ent.cy + ent.r); break;
+    case 'ELLIPSE':
+      const mr = Math.max(Math.sqrt(ent.mx*ent.mx+ent.my*ent.my), Math.sqrt(ent.mx*ent.mx+ent.my*ent.my)*ent.ratio);
+      expandBounds(ent.cx - mr, ent.cy - mr); expandBounds(ent.cx + mr, ent.cy + mr); break;
+    case 'LWPOLYLINE': case 'POLYLINE':
+      (ent.vertices || []).forEach(v => expandBounds(v.x, v.y)); break;
+    case 'TEXT': case 'MTEXT':
+      expandBounds(ent.x, ent.y); expandBounds(ent.x + (ent.text.length * ent.height * 0.6), ent.y + ent.height); break;
+    case 'INSERT':
+      expandBounds(ent.x, ent.y); break;
+    case 'DIMENSION':
+      expandBounds(ent.x1, ent.y1); expandBounds(ent.x2, ent.y2); break;
+    case 'SPLINE':
+      (ent.controlPoints || []).forEach(v => expandBounds(v.x, v.y)); break;
+    case 'POINT':
+      expandBounds(ent.x, ent.y); break;
+  }
+}
+
+// ACI color index to hex
+const ACI_COLORS = ['#000000','#ff0000','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ffffff','#808080','#c0c0c0',
+  '#ff0000','#ff7f7f','#a50000','#a55252','#7f0000','#7f3f3f','#4c0000','#4c2626','#260000','#261313',
+  '#ff3f00','#ff9f7f','#a52900','#a56752','#7f1f00','#7f4f3f','#4c1300','#4c2f26','#260900','#261713',
+  '#ff7f00','#ffbf7f','#a55200','#a57c52','#7f3f00','#7f5f3f','#4c2600','#4c3926','#261300','#261c13'];
+function aciToHex(idx) {
+  if (idx < 0) idx = 7;
+  if (idx < ACI_COLORS.length) return ACI_COLORS[idx];
+  // Generate based on index
+  const h = ((idx * 137.508) % 360);
+  return `hsl(${h}, 70%, 60%)`;
+}
+
+// ============ RENDERING ============
+function resizeCanvas() {
+  const cont = document.getElementById('canvasContainer');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cont.clientWidth * dpr;
+  canvas.height = cont.clientHeight * dpr;
+  state.canvasW = cont.clientWidth;
+  state.canvasH = cont.clientHeight;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  render();
+}
+
+function worldToScreen(x, y) {
+  return {
+    x: (x - state.panX) * state.zoom + state.canvasW / 2,
+    y: state.canvasH / 2 - (y - state.panY) * state.zoom
+  };
+}
+
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - state.canvasW / 2) / state.zoom + state.panX,
+    y: (state.canvasH / 2 - sy) / state.zoom + state.panY
+  };
+}
+
+function isVisible(ent) {
+  const layer = state.layers[ent.layer];
+  if (layer && !layer.visible) return false;
+  return true;
+}
+
+function getEntityColor(ent) {
+  if (ent.colorIdx) return aciToHex(ent.colorIdx);
+  const layer = state.layers[ent.layer];
+  return layer ? layer.color : '#ffffff';
+}
+
+function render() {
+  ctx.clearRect(0, 0, state.canvasW, state.canvasH);
+  ctx.fillStyle = '#080e14';
+  ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+
+  // Grid
+  if (state.showGrid) renderGrid();
+
+  // Entities
+  let visibleCount = 0;
+  ctx.lineWidth = 1;
+  state.entities.forEach(ent => {
+    if (!isVisible(ent)) return;
+    visibleCount++;
+    const color = getEntityColor(ent);
+    const isSelected = ent === state.selectedEntity;
+    ctx.strokeStyle = isSelected ? '#ff6600' : color;
+    ctx.fillStyle = isSelected ? '#ff6600' : color;
+    ctx.lineWidth = isSelected ? 2 : 1;
+    drawEntity(ent);
+  });
+
+  // Measure line
+  if (state.measureStart && state.measureEnd) {
+    const s1 = worldToScreen(state.measureStart.x, state.measureStart.y);
+    const s2 = worldToScreen(state.measureEnd.x, state.measureEnd.y);
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.stroke();
+    ctx.setLineDash([]);
+    // Points
+    [s1, s2].forEach(p => {
+      ctx.fillStyle = '#ff6600';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  document.getElementById('stVisible').textContent = visibleCount;
+  document.getElementById('stZoom').textContent = (state.zoom * 100).toFixed(0) + '%';
+}
+
+function drawEntity(ent) {
+  switch (ent.type) {
+    case 'LINE': {
+      const p1 = worldToScreen(ent.x1, ent.y1);
+      const p2 = worldToScreen(ent.x2, ent.y2);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      break;
+    }
+    case 'CIRCLE': {
+      const c = worldToScreen(ent.cx, ent.cy);
+      const r = ent.r * state.zoom;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'ARC': {
+      const c = worldToScreen(ent.cx, ent.cy);
+      const r = ent.r * state.zoom;
+      const sa = -ent.endAngle * Math.PI / 180;
+      const ea = -ent.startAngle * Math.PI / 180;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, sa, ea); ctx.stroke();
+      break;
+    }
+    case 'ELLIPSE': {
+      const c = worldToScreen(ent.cx, ent.cy);
+      const majorLen = Math.sqrt(ent.mx * ent.mx + ent.my * ent.my) * state.zoom;
+      const minorLen = majorLen * ent.ratio;
+      const rot = Math.atan2(ent.my, ent.mx);
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, majorLen, minorLen, -rot, ent.startParam, ent.endParam);
+      ctx.stroke();
+      break;
+    }
+    case 'LWPOLYLINE': case 'POLYLINE': {
+      const verts = ent.vertices || [];
+      if (verts.length < 2) break;
+      ctx.beginPath();
+      const p0 = worldToScreen(verts[0].x, verts[0].y);
+      ctx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < verts.length; i++) {
+        const p = worldToScreen(verts[i].x, verts[i].y);
+        ctx.lineTo(p.x, p.y);
+      }
+      if (ent.closed) ctx.closePath();
+      ctx.stroke();
+      break;
+    }
+    case 'TEXT': case 'MTEXT': {
+      const p = worldToScreen(ent.x, ent.y);
+      const h = Math.max(ent.height * state.zoom, 8);
+      ctx.font = `${Math.min(h, 40)}px JetBrains Mono`;
+      ctx.textBaseline = 'bottom';
+      let text = ent.text.replace(/\\P/g, '\n').replace(/\\[A-Za-z][^;]*;/g, '').replace(/[{}]/g, '');
+      ctx.fillText(text, p.x, p.y);
+      break;
+    }
+    case 'INSERT': {
+      const block = state.blocks[ent.blockName];
+      if (!block) break;
+      ctx.save();
+      const p = worldToScreen(ent.x, ent.y);
+      ctx.translate(p.x, p.y);
+      ctx.scale(ent.scaleX, -ent.scaleY);
+      if (ent.rotation) ctx.rotate(-ent.rotation * Math.PI / 180);
+      ctx.translate(-p.x, -p.y);
+      block.forEach(bEnt => {
+        ctx.strokeStyle = getEntityColor(bEnt);
+        ctx.fillStyle = getEntityColor(bEnt);
+        drawEntity(bEnt);
+      });
+      ctx.restore();
+      break;
+    }
+    case 'DIMENSION': {
+      const p1 = worldToScreen(ent.x1, ent.y1);
+      const p2 = worldToScreen(ent.x2, ent.y2);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      // Dim text
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      if (ent.text) {
+        ctx.font = '10px JetBrains Mono';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(ent.text, mx, my - 4);
+      }
+      break;
+    }
+    case 'SPLINE': {
+      const pts = ent.controlPoints || [];
+      if (pts.length < 2) break;
+      ctx.beginPath();
+      const p0 = worldToScreen(pts[0].x, pts[0].y);
+      ctx.moveTo(p0.x, p0.y);
+      if (pts.length === 2) {
+        const p1 = worldToScreen(pts[1].x, pts[1].y);
+        ctx.lineTo(p1.x, p1.y);
+      } else {
+        // Catmull-Rom approximation
+        for (let i = 0; i < pts.length - 1; i++) {
+          const sp = worldToScreen(pts[i].x, pts[i].y);
+          const ep = worldToScreen(pts[i + 1].x, pts[i + 1].y);
+          if (i + 2 < pts.length) {
+            const np = worldToScreen(pts[i + 2].x, pts[i + 2].y);
+            const cpx = ep.x + (ep.x - sp.x) * 0.15;
+            const cpy = ep.y + (ep.y - sp.y) * 0.15;
+            ctx.quadraticCurveTo(ep.x, ep.y, (ep.x + np.x) / 2, (ep.y + np.y) / 2);
+          } else {
+            ctx.lineTo(ep.x, ep.y);
+          }
+        }
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'POINT': {
+      const p = worldToScreen(ent.x, ent.y);
+      ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+      break;
+    }
+  }
+}
+
+function renderGrid() {
+  const { minX, minY, maxX, maxY } = state.bounds;
+  if (!isFinite(minX)) return;
+  const range = Math.max(maxX - minX, maxY - minY);
+  let step = Math.pow(10, Math.floor(Math.log10(range / 10)));
+  if (step * state.zoom < 20) step *= 5;
+  if (step * state.zoom < 10) step *= 2;
+
+  ctx.strokeStyle = 'rgba(26,37,53,0.5)';
+  ctx.lineWidth = 0.5;
+  const tl = screenToWorld(0, 0);
+  const br = screenToWorld(state.canvasW, state.canvasH);
+  const startX = Math.floor(Math.min(tl.x, br.x) / step) * step;
+  const endX = Math.ceil(Math.max(tl.x, br.x) / step) * step;
+  const startY = Math.floor(Math.min(tl.y, br.y) / step) * step;
+  const endY = Math.ceil(Math.max(tl.y, br.y) / step) * step;
+
+  for (let x = startX; x <= endX; x += step) {
+    const s = worldToScreen(x, 0);
+    ctx.beginPath(); ctx.moveTo(s.x, 0); ctx.lineTo(s.x, state.canvasH); ctx.stroke();
+  }
+  for (let y = startY; y <= endY; y += step) {
+    const s = worldToScreen(0, y);
+    ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(state.canvasW, s.y); ctx.stroke();
+  }
+
+  // Origin axes
+  const o = worldToScreen(0, 0);
+  ctx.strokeStyle = 'rgba(0,212,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, state.canvasH); ctx.stroke();
+  ctx.strokeStyle = 'rgba(16,185,129,0.2)';
+  ctx.beginPath(); ctx.moveTo(0, o.y); ctx.lineTo(state.canvasW, o.y); ctx.stroke();
+}
+
+function fitToView() {
+  const { minX, minY, maxX, maxY } = state.bounds;
+  if (!isFinite(minX)) return;
+  const w = maxX - minX || 1;
+  const h = maxY - minY || 1;
+  const margin = 0.9;
+  state.zoom = Math.min(state.canvasW / w, state.canvasH / h) * margin;
+  state.panX = (minX + maxX) / 2;
+  state.panY = (minY + maxY) / 2;
+  render();
+}
+
+// ============ LAYERS UI ============
+function renderLayerList() {
+  const el = document.getElementById('layerList');
+  const names = Object.keys(state.layers).sort();
+  el.innerHTML = names.map(name => {
+    const l = state.layers[name];
+    const count = state.entities.filter(e => e.layer === name).length;
+    return `<div class="layer-item">
+      <input type="checkbox" ${l.visible ? 'checked' : ''} onchange="toggleLayer('${name.replace(/'/g,"\\'")}', this.checked)">
+      <div class="swatch" style="background:${l.color}"></div>
+      <span class="name">${name}</span>
+      <span class="count">${count}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('stLayers').textContent = names.length;
+}
+
+function toggleLayer(name, visible) {
+  if (state.layers[name]) { state.layers[name].visible = visible; render(); }
+}
+
+// ============ ENTITY SELECT ============
+function selectEntityAt(sx, sy) {
+  const w = screenToWorld(sx, sy);
+  let closest = null, minDist = 10 / state.zoom;
+
+  for (const ent of state.entities) {
+    if (!isVisible(ent)) continue;
+    const d = distToEntity(w.x, w.y, ent);
+    if (d < minDist) { minDist = d; closest = ent; }
+  }
+
+  state.selectedEntity = closest;
+  const infoPanel = document.getElementById('entityInfo');
+  const infoTable = document.getElementById('entityInfoTable');
+
+  if (closest) {
+    infoPanel.classList.remove('hidden');
+    let rows = `<tr><td>Type</td><td style="color:var(--cyan)">${closest.type}</td></tr>`;
+    rows += `<tr><td>Layer</td><td>${closest.layer}</td></tr>`;
+    rows += `<tr><td>Color</td><td><span style="color:${getEntityColor(closest)}">${getEntityColor(closest)}</span></td></tr>`;
+    switch (closest.type) {
+      case 'LINE': rows += `<tr><td>Start</td><td>${closest.x1.toFixed(3)}, ${closest.y1.toFixed(3)}</td></tr><tr><td>End</td><td>${closest.x2.toFixed(3)}, ${closest.y2.toFixed(3)}</td></tr><tr><td>Length</td><td style="color:var(--orange)">${Math.sqrt((closest.x2-closest.x1)**2+(closest.y2-closest.y1)**2).toFixed(3)}</td></tr>`; break;
+      case 'CIRCLE': rows += `<tr><td>Center</td><td>${closest.cx.toFixed(3)}, ${closest.cy.toFixed(3)}</td></tr><tr><td>Radius</td><td style="color:var(--orange)">${closest.r.toFixed(3)}</td></tr>`; break;
+      case 'ARC': rows += `<tr><td>Center</td><td>${closest.cx.toFixed(3)}, ${closest.cy.toFixed(3)}</td></tr><tr><td>Radius</td><td>${closest.r.toFixed(3)}</td></tr><tr><td>Angles</td><td>${closest.startAngle.toFixed(1)}&deg; - ${closest.endAngle.toFixed(1)}&deg;</td></tr>`; break;
+      case 'TEXT': case 'MTEXT': rows += `<tr><td>Position</td><td>${closest.x.toFixed(3)}, ${closest.y.toFixed(3)}</td></tr><tr><td>Text</td><td style="color:var(--orange)">${closest.text}</td></tr><tr><td>Height</td><td>${closest.height.toFixed(3)}</td></tr>`; break;
+      case 'LWPOLYLINE': case 'POLYLINE': rows += `<tr><td>Vertices</td><td>${(closest.vertices||[]).length}</td></tr><tr><td>Closed</td><td>${closest.closed?'Yes':'No'}</td></tr>`; break;
+    }
+    infoTable.innerHTML = rows;
+  } else {
+    infoPanel.classList.add('hidden');
+  }
+  render();
+}
+
+function distToEntity(wx, wy, ent) {
+  switch (ent.type) {
+    case 'LINE': return distToSegment(wx, wy, ent.x1, ent.y1, ent.x2, ent.y2);
+    case 'CIRCLE': return Math.abs(Math.sqrt((wx-ent.cx)**2+(wy-ent.cy)**2) - ent.r);
+    case 'ARC': {
+      const d = Math.sqrt((wx-ent.cx)**2+(wy-ent.cy)**2);
+      const a = (Math.atan2(wy-ent.cy, wx-ent.cx) * 180 / Math.PI + 360) % 360;
+      let sa = ent.startAngle % 360, ea = ent.endAngle % 360;
+      if (sa < 0) sa += 360; if (ea < 0) ea += 360;
+      const inArc = sa < ea ? (a >= sa && a <= ea) : (a >= sa || a <= ea);
+      return inArc ? Math.abs(d - ent.r) : Infinity;
+    }
+    case 'TEXT': case 'MTEXT': return Math.sqrt((wx-ent.x)**2+(wy-ent.y)**2);
+    case 'LWPOLYLINE': case 'POLYLINE': {
+      let min = Infinity;
+      const v = ent.vertices || [];
+      for (let i = 0; i < v.length - 1; i++) min = Math.min(min, distToSegment(wx, wy, v[i].x, v[i].y, v[i+1].x, v[i+1].y));
+      if (ent.closed && v.length > 2) min = Math.min(min, distToSegment(wx, wy, v[v.length-1].x, v[v.length-1].y, v[0].x, v[0].y));
+      return min;
+    }
+    case 'POINT': return Math.sqrt((wx-ent.x)**2+(wy-ent.y)**2);
+    default: return Infinity;
+  }
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.sqrt((px-x1)**2+(py-y1)**2);
+  let t = ((px-x1)*dx+(py-y1)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = x1 + t * dx, cy = y1 + t * dy;
+  return Math.sqrt((px-cx)**2+(py-cy)**2);
+}
+
+// ============ FILE LOADING ============
+function loadFile(file) {
+  if (!file.name.toLowerCase().endsWith('.dxf')) { showToast('Please select a .dxf file'); return; }
+  state.fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      parseDXF(e.target.result);
+      document.getElementById('dropZone').classList.add('hidden');
+      document.getElementById('stFile').textContent = file.name;
+      document.getElementById('stEntities').textContent = state.entities.length;
+      renderLayerList();
+      fitToView();
+      showToast(`Loaded ${state.entities.length} entities from ${file.name}`);
+    } catch(err) {
+      showToast('Error parsing DXF: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============ EVENT HANDLERS ============
+const container = document.getElementById('canvasContainer');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+// Drag & drop
+container.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+container.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+container.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+document.getElementById('btnFilePicker').addEventListener('click', () => fileInput.click());
+document.getElementById('btnOpen').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files.length) loadFile(e.target.files[0]); });
+
+// Pan & zoom
+let pinchDist = 0;
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+
+  if (state.tool === 'measure') {
+    const w = screenToWorld(sx, sy);
+    if (!state.measureStart) {
+      state.measureStart = w;
+      state.measureEnd = null;
+      removeMeasureResult();
+    } else {
+      state.measureEnd = w;
+      showMeasureResult();
+      state.measureStart = null;
+    }
+    render();
+    return;
+  }
+  if (state.tool === 'select') {
+    selectEntityAt(sx, sy);
+    return;
+  }
+  state.isDragging = true;
+  state.dragStart = { x: e.clientX, y: e.clientY, panX: state.panX, panY: state.panY };
+});
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  state.mouseWorld = screenToWorld(sx, sy);
+  document.getElementById('coordDisplay').innerHTML = `X: ${state.mouseWorld.x.toFixed(3)} &nbsp; Y: ${state.mouseWorld.y.toFixed(3)}`;
+
+  if (state.isDragging && state.dragStart) {
+    const dx = (e.clientX - state.dragStart.x) / state.zoom;
+    const dy = (e.clientY - state.dragStart.y) / state.zoom;
+    state.panX = state.dragStart.panX - dx;
+    state.panY = state.dragStart.panY + dy;
+    render();
+  }
+
+  if (state.tool === 'measure' && state.measureStart && !state.measureEnd) {
+    // Live preview
+    const w = screenToWorld(sx, sy);
+    state.measureEnd = w;
+    render();
+    state.measureEnd = null;
+  }
+});
+canvas.addEventListener('mouseup', () => { state.isDragging = false; state.dragStart = null; });
+canvas.addEventListener('mouseleave', () => { state.isDragging = false; });
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const before = screenToWorld(sx, sy);
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  state.zoom *= factor;
+  state.zoom = Math.max(0.001, Math.min(100000, state.zoom));
+  const after = screenToWorld(sx, sy);
+  state.panX -= (after.x - before.x);
+  state.panY -= (after.y - before.y);
+  render();
+}, { passive: false });
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    state.isDragging = true;
+    state.dragStart = { x: t.clientX, y: t.clientY, panX: state.panX, panY: state.panY };
+  } else if (e.touches.length === 2) {
+    state.isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchDist = Math.sqrt(dx * dx + dy * dy);
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && state.isDragging && state.dragStart) {
+    const t = e.touches[0];
+    const dx = (t.clientX - state.dragStart.x) / state.zoom;
+    const dy = (t.clientY - state.dragStart.y) / state.zoom;
+    state.panX = state.dragStart.panX - dx;
+    state.panY = state.dragStart.panY + dy;
+    render();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx * dx + dy * dy);
+    if (pinchDist > 0) {
+      state.zoom *= newDist / pinchDist;
+      state.zoom = Math.max(0.001, Math.min(100000, state.zoom));
+      render();
+    }
+    pinchDist = newDist;
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { state.isDragging = false; pinchDist = 0; });
+
+// Toolbar buttons
+document.getElementById('btnFit').addEventListener('click', fitToView);
+document.getElementById('btnZoomIn').addEventListener('click', () => { state.zoom *= 1.3; render(); });
+document.getElementById('btnZoomOut').addEventListener('click', () => { state.zoom /= 1.3; render(); });
+document.getElementById('btnGrid').addEventListener('click', function() {
+  state.showGrid = !state.showGrid;
+  this.classList.toggle('active', state.showGrid);
+  render();
+});
+document.getElementById('btnLayers').addEventListener('click', function() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('hidden');
+  this.classList.toggle('active', !sb.classList.contains('hidden'));
+  resizeCanvas();
+});
+document.getElementById('btnMeasure').addEventListener('click', function() {
+  state.tool = state.tool === 'measure' ? 'pan' : 'measure';
+  state.measureStart = null; state.measureEnd = null;
+  removeMeasureResult();
+  document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+  if (state.tool === 'measure') this.classList.add('active');
+  canvas.style.cursor = state.tool === 'measure' ? 'crosshair' : 'grab';
+  render();
+});
+document.getElementById('btnSelect').addEventListener('click', function() {
+  state.tool = state.tool === 'select' ? 'pan' : 'select';
+  document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+  if (state.tool === 'select') this.classList.add('active');
+  canvas.style.cursor = state.tool === 'select' ? 'pointer' : 'grab';
+});
+
+function showMeasureResult() {
+  removeMeasureResult();
+  if (!state.measureStart || !state.measureEnd) return;
+  const dx = state.measureEnd.x - state.measureStart.x;
+  const dy = state.measureEnd.y - state.measureStart.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const div = document.createElement('div');
+  div.className = 'measure-result';
+  div.id = 'measureResult';
+  div.innerHTML = `
+    <div>Distance: <span class="val">${dist.toFixed(4)}</span></div>
+    <div style="font-size:.7rem;color:var(--text-dim);margin-top:4px">
+      dX: ${dx.toFixed(4)} &nbsp; dY: ${dy.toFixed(4)}<br>
+      Angle: ${angle.toFixed(2)}&deg;
+    </div>
+    <div class="dismiss" onclick="removeMeasureResult();state.measureStart=null;state.measureEnd=null;render();">Dismiss</div>`;
+  container.appendChild(div);
+}
+
+function removeMeasureResult() {
+  const el = document.getElementById('measureResult');
+  if (el) el.remove();
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Init
+window.addEventListener('resize', resizeCanvas);
+document.getElementById('btnLayers').classList.add('active');
+resizeCanvas();
+</script>
+</body>
+</html>

@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spreadsheet - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;--border-light:#243040;--text:#e2e8f0;--text-dim:#8892a0;--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;--font:'JetBrains Mono',monospace}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+input,select,button{font-family:var(--font);font-size:14px;color:var(--text);border:1px solid var(--border);background:var(--surface);border-radius:4px;padding:5px 8px;outline:none}
+input:focus,select:focus{border-color:var(--cyan)}
+button{cursor:pointer;min-height:36px;min-width:36px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+button:hover{border-color:var(--cyan);color:var(--cyan)}
+button.active{background:var(--cyan);color:#050a0f;border-color:var(--cyan)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%238892a0'%3E%3Cpath d='M5 7L0 2h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:22px}
+
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:8px}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:28px;height:28px;border:2px solid var(--cyan);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--cyan);font-size:14px}
+.logo-text{font-weight:700;font-size:15px}.logo-text span{color:var(--cyan)}
+.logo-sub{font-size:10px;color:var(--text-dim)}
+.header-actions{display:flex;gap:4px;flex-wrap:wrap}
+
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex-shrink:0}
+.toolbar .sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+.formula-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cell-ref{width:70px;text-align:center;font-weight:600;color:var(--cyan);background:var(--surface2)}
+.formula-input{flex:1;font-size:14px;background:var(--surface2);padding:6px 10px}
+
+.grid-container{flex:1;overflow:auto;position:relative}
+.grid-container::-webkit-scrollbar{width:10px;height:10px}
+.grid-container::-webkit-scrollbar-track{background:var(--surface)}
+.grid-container::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px}
+.grid-container::-webkit-scrollbar-thumb:hover{background:var(--border-light)}
+
+table{border-collapse:collapse;table-layout:fixed}
+table th,table td{border:1px solid var(--border);padding:0;height:28px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+table th{background:var(--surface2);color:var(--text-dim);font-weight:500;font-size:12px;text-align:center;position:sticky;user-select:none}
+thead th{top:0;z-index:10}
+.row-header{position:sticky;left:0;z-index:5;width:50px;min-width:50px;background:var(--surface2);text-align:center;font-size:12px;color:var(--text-dim)}
+.corner{position:sticky;left:0;top:0;z-index:20;background:var(--surface2)}
+th.col-header{min-width:100px;position:relative;cursor:pointer}
+th.col-header:hover{background:var(--border)}
+th.col-header .resize-handle{position:absolute;right:-2px;top:0;bottom:0;width:5px;cursor:col-resize;z-index:1}
+td{cursor:cell;font-size:13px;padding:0 6px;color:var(--text);background:var(--bg)}
+td.selected{outline:2px solid var(--cyan);outline-offset:-1px;z-index:2;position:relative}
+td.in-range{background:rgba(0,212,255,.06)}
+td.editing{padding:0}
+td.editing input{width:100%;height:100%;border:none;background:var(--surface);color:var(--text);padding:0 6px;font-size:13px;outline:none;font-family:var(--font)}
+td.frozen-row{background:var(--surface2);font-weight:600}
+td.error{color:var(--red)}
+
+.sheet-tabs{background:var(--surface);border-top:1px solid var(--border);padding:4px 12px;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.sheet-tab{padding:6px 16px;border:1px solid var(--border);border-radius:4px 4px 0 0;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-dim);min-height:32px;display:flex;align-items:center;transition:all .15s}
+.sheet-tab:hover{color:var(--text)}
+.sheet-tab.active{background:var(--cyan);color:#050a0f;border-color:var(--cyan)}
+.sheet-tab-add{min-width:32px;justify-content:center;font-size:16px}
+
+.filter-row{display:none}
+.filter-row.active{display:table-row}
+.filter-row input{width:100%;height:24px;border:none;background:var(--surface);color:var(--text);padding:0 4px;font-size:12px;font-family:var(--font)}
+
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(5,10,15,.85);z-index:1000;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;max-width:400px;width:90%}
+.modal h3{color:var(--cyan);margin-bottom:16px}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+
+@media(max-width:768px){
+  header{padding:8px 12px}
+  .toolbar{padding:4px 8px;gap:3px}
+  .toolbar button{min-height:32px;min-width:32px;font-size:12px;padding:4px 6px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">K</div>
+    <div><div class="logo-text">Korb <span>Engineering</span></div><div class="logo-sub">Spreadsheet Tool</div></div>
+  </div>
+  <div class="header-actions">
+    <button onclick="saveSheet()">Save</button>
+    <button onclick="showLoadModal()">Load</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <button onclick="document.getElementById('csvImport').click()">Import CSV</button>
+    <input type="file" id="csvImport" accept=".csv" style="display:none" onchange="importCSV(event)">
+  </div>
+</header>
+
+<div class="toolbar">
+  <button id="btnBold" onclick="toggleFormat('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+  <button id="btnItalic" onclick="toggleFormat('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+  <div class="sep"></div>
+  <button onclick="setAlign('left')" title="Align Left">L</button>
+  <button onclick="setAlign('center')" title="Align Center">C</button>
+  <button onclick="setAlign('right')" title="Align Right">R</button>
+  <div class="sep"></div>
+  <select id="numFormat" onchange="setNumFormat(this.value)" title="Number Format" style="width:100px">
+    <option value="auto">Auto</option>
+    <option value="number">Number</option>
+    <option value="currency">Currency $</option>
+    <option value="percent">Percent %</option>
+  </select>
+  <select id="decimalPlaces" onchange="setDecimals(+this.value)" title="Decimal Places" style="width:60px">
+    <option value="0">0</option>
+    <option value="1">1</option>
+    <option value="2" selected>2</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+  </select>
+  <div class="sep"></div>
+  <label style="font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px">BG: <input type="color" id="bgColor" value="#050a0f" onchange="setBgColor(this.value)" style="width:32px;height:28px;padding:1px;cursor:pointer"></label>
+  <div class="sep"></div>
+  <button id="btnFreeze" onclick="toggleFreezeRow()" title="Freeze Header Row">Freeze</button>
+  <button id="btnFilter" onclick="toggleFilter()" title="Toggle Filters">Filter</button>
+  <div class="sep"></div>
+  <button onclick="sortColumn('asc')" title="Sort A-Z">A&darr;</button>
+  <button onclick="sortColumn('desc')" title="Sort Z-A">Z&darr;</button>
+</div>
+
+<div class="formula-bar">
+  <input class="cell-ref" id="cellRef" readonly value="A1">
+  <span style="color:var(--text-dim);font-size:14px">fx</span>
+  <input class="formula-input" id="formulaInput" placeholder="Enter value or formula (=SUM(A1:A10))" onkeydown="onFormulaKey(event)" oninput="onFormulaInput()">
+</div>
+
+<div class="grid-container" id="gridContainer">
+  <table id="grid"></table>
+</div>
+
+<div class="sheet-tabs" id="sheetTabs"></div>
+
+<!-- Load Modal -->
+<div class="modal-overlay" id="loadModal">
+  <div class="modal">
+    <h3>Load Spreadsheet</h3>
+    <div id="loadList"></div>
+    <div class="modal-actions"><button onclick="closeLoadModal()">Close</button></div>
+  </div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const COLS = 26;
+const ROWS = 100;
+
+// ===== STATE =====
+let sheets = [
+  { name: 'Sheet1', data: {}, colWidths: {}, formats: {} },
+  { name: 'Sheet2', data: {}, colWidths: {}, formats: {} },
+  { name: 'Sheet3', data: {}, colWidths: {}, formats: {} }
+];
+let activeSheet = 0;
+let curRow = 0, curCol = 0;
+let selStart = null, selEnd = null; // {r,c}
+let editing = false;
+let freezeRow = false;
+let filterActive = false;
+let filterValues = {};
+let hiddenRows = new Set();
+
+// ===== HELPERS =====
+function colName(c) { return String.fromCharCode(65 + c); }
+function cellKey(r, c) { return colName(c) + (r + 1); }
+function parseRef(ref) {
+  const m = ref.match(/^([A-Z])(\d+)$/);
+  if (!m) return null;
+  return { c: m[1].charCodeAt(0) - 65, r: parseInt(m[2]) - 1 };
+}
+
+function getData() { return sheets[activeSheet].data; }
+function getFormat(r, c) { return sheets[activeSheet].formats[cellKey(r, c)] || {}; }
+function setFormatProp(r, c, prop, val) {
+  const key = cellKey(r, c);
+  if (!sheets[activeSheet].formats[key]) sheets[activeSheet].formats[key] = {};
+  sheets[activeSheet].formats[key][prop] = val;
+}
+
+function getCellRaw(r, c) { return getData()[cellKey(r, c)] || ''; }
+function setCellRaw(r, c, val) {
+  const key = cellKey(r, c);
+  if (val === '' || val === undefined) delete getData()[key];
+  else getData()[key] = val;
+}
+
+// ===== FORMULA ENGINE =====
+let computing = new Set();
+
+function evalCell(r, c) {
+  const raw = getCellRaw(r, c);
+  if (typeof raw !== 'string' || !raw.startsWith('=')) return raw;
+  const key = cellKey(r, c);
+  if (computing.has(key)) return '#CIRC!';
+  computing.add(key);
+  try {
+    const result = evalFormula(raw.slice(1));
+    computing.delete(key);
+    return result;
+  } catch (e) {
+    computing.delete(key);
+    return '#ERR!';
+  }
+}
+
+function evalFormula(expr) {
+  // Replace cell ranges first (e.g., A1:A10)
+  expr = expr.replace(/([A-Z])(\d+):([A-Z])(\d+)/g, (_, c1, r1, c2, r2) => {
+    const col1 = c1.charCodeAt(0) - 65, col2 = c2.charCodeAt(0) - 65;
+    const row1 = parseInt(r1) - 1, row2 = parseInt(r2) - 1;
+    const vals = [];
+    for (let r = Math.min(row1, row2); r <= Math.max(row1, row2); r++) {
+      for (let c = Math.min(col1, col2); c <= Math.max(col1, col2); c++) {
+        const v = evalCell(r, c);
+        vals.push(v === '' || v === undefined ? 0 : isNaN(+v) ? v : +v);
+      }
+    }
+    return '[' + vals.map(v => typeof v === 'string' ? JSON.stringify(v) : v).join(',') + ']';
+  });
+
+  // Replace cell references (e.g., A1)
+  expr = expr.replace(/\b([A-Z])(\d+)\b/g, (_, col, row) => {
+    const c = col.charCodeAt(0) - 65;
+    const r = parseInt(row) - 1;
+    const v = evalCell(r, c);
+    if (v === '' || v === undefined) return '0';
+    if (typeof v === 'string' && isNaN(+v)) return JSON.stringify(v);
+    return +v;
+  });
+
+  // Replace functions
+  expr = expr.replace(/SUM\((\[[^\]]*\])\)/gi, (_, arr) => {
+    const a = JSON.parse(arr);
+    return a.reduce((s, v) => s + (isNaN(+v) ? 0 : +v), 0);
+  });
+  expr = expr.replace(/(AVG|AVERAGE)\((\[[^\]]*\])\)/gi, (_, fn, arr) => {
+    const a = JSON.parse(arr).filter(v => !isNaN(+v) && v !== '');
+    return a.length ? a.reduce((s, v) => s + +v, 0) / a.length : 0;
+  });
+  expr = expr.replace(/MIN\((\[[^\]]*\])\)/gi, (_, arr) => {
+    const a = JSON.parse(arr).filter(v => !isNaN(+v)).map(Number);
+    return a.length ? Math.min(...a) : 0;
+  });
+  expr = expr.replace(/MAX\((\[[^\]]*\])\)/gi, (_, arr) => {
+    const a = JSON.parse(arr).filter(v => !isNaN(+v)).map(Number);
+    return a.length ? Math.max(...a) : 0;
+  });
+  expr = expr.replace(/COUNT\((\[[^\]]*\])\)/gi, (_, arr) => {
+    return JSON.parse(arr).filter(v => v !== '' && v !== 0 && v !== '0').length;
+  });
+  expr = expr.replace(/IF\(([^,]+),([^,]+),([^)]+)\)/gi, (_, cond, t, f) => {
+    try { return Function('"use strict"; return (' + cond + ') ? (' + t + ') : (' + f + ')')(); }
+    catch(e) { return '#ERR!'; }
+  });
+  expr = expr.replace(/ABS\(([^)]+)\)/gi, (_, v) => Math.abs(eval(v)));
+  expr = expr.replace(/ROUND\(([^,]+),([^)]+)\)/gi, (_, v, d) => {
+    const val = eval(v), dec = eval(d);
+    return +(Math.round(val + 'e' + dec) + 'e-' + dec);
+  });
+  expr = expr.replace(/SQRT\(([^)]+)\)/gi, (_, v) => Math.sqrt(eval(v)));
+
+  // Evaluate
+  try {
+    const result = Function('"use strict"; return (' + expr + ')')();
+    return result;
+  } catch(e) {
+    return '#ERR!';
+  }
+}
+
+// ===== DISPLAY VALUE =====
+function displayValue(r, c) {
+  const val = evalCell(r, c);
+  if (val === '' || val === undefined || val === null) return '';
+  if (typeof val === 'string' && (val.startsWith('#') || isNaN(+val))) return val;
+  const fmt = getFormat(r, c);
+  const num = +val;
+  if (isNaN(num)) return String(val);
+  const dec = fmt.decimals !== undefined ? fmt.decimals : 2;
+  switch (fmt.numFormat) {
+    case 'currency': return '$' + num.toFixed(dec);
+    case 'percent': return (num * 100).toFixed(dec) + '%';
+    case 'number': return num.toFixed(dec);
+    default: return Number.isInteger(num) ? String(num) : num.toFixed(dec);
+  }
+}
+
+// ===== BUILD TABLE =====
+function buildGrid() {
+  const table = document.getElementById('grid');
+  const sheet = sheets[activeSheet];
+  let html = '<thead><tr><th class="corner"></th>';
+  for (let c = 0; c < COLS; c++) {
+    const w = sheet.colWidths[c] || 100;
+    html += `<th class="col-header" data-col="${c}" style="width:${w}px;min-width:${w}px" onclick="selectColumn(${c})">${colName(c)}<div class="resize-handle" onmousedown="startColResize(event,${c})"></div></th>`;
+  }
+  html += '</tr>';
+  // Filter row
+  html += '<tr class="filter-row' + (filterActive ? ' active' : '') + '" id="filterRow">';
+  html += '<th class="row-header" style="font-size:10px">Filter</th>';
+  for (let c = 0; c < COLS; c++) {
+    html += `<th style="padding:2px"><input data-filter-col="${c}" oninput="applyFilters()" placeholder="..." style="font-size:11px"></th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (let r = 0; r < ROWS; r++) {
+    html += `<tr data-row="${r}"${hiddenRows.has(r) ? ' style="display:none"' : ''}>`;
+    html += `<th class="row-header" onclick="selectRow(${r})">${r + 1}</th>`;
+    for (let c = 0; c < COLS; c++) {
+      const val = displayValue(r, c);
+      const fmt = getFormat(r, c);
+      const classes = [];
+      if (freezeRow && r === 0) classes.push('frozen-row');
+      if (typeof val === 'string' && val.startsWith('#')) classes.push('error');
+      let style = '';
+      if (fmt.bold) style += 'font-weight:700;';
+      if (fmt.italic) style += 'font-style:italic;';
+      if (fmt.align) style += 'text-align:' + fmt.align + ';';
+      if (fmt.bgColor && fmt.bgColor !== '#050a0f') style += 'background:' + fmt.bgColor + ';';
+      html += `<td data-r="${r}" data-c="${c}" class="${classes.join(' ')}" style="${style}" onmousedown="onCellMouseDown(event,${r},${c})" onmouseover="onCellMouseOver(event,${r},${c})" ondblclick="startEdit(${r},${c})">${esc(String(val))}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody>';
+  table.innerHTML = html;
+  highlightSelection();
+}
+
+function refreshCell(r, c) {
+  const td = document.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+  if (!td) return;
+  const val = displayValue(r, c);
+  const fmt = getFormat(r, c);
+  td.textContent = String(val);
+  td.classList.toggle('error', typeof val === 'string' && val.startsWith('#'));
+  td.classList.toggle('frozen-row', freezeRow && r === 0);
+  let style = '';
+  if (fmt.bold) style += 'font-weight:700;';
+  if (fmt.italic) style += 'font-style:italic;';
+  if (fmt.align) style += 'text-align:' + fmt.align + ';';
+  if (fmt.bgColor && fmt.bgColor !== '#050a0f') style += 'background:' + fmt.bgColor + ';';
+  td.style.cssText = style;
+}
+
+function refreshAll() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (getCellRaw(r, c) !== '') refreshCell(r, c);
+    }
+  }
+  // Also refresh cells that depend on others (re-eval formulas)
+  const data = getData();
+  Object.keys(data).forEach(key => {
+    const ref = parseRef(key);
+    if (ref) refreshCell(ref.r, ref.c);
+  });
+}
+
+// ===== SELECTION =====
+function highlightSelection() {
+  document.querySelectorAll('td.selected, td.in-range').forEach(td => {
+    td.classList.remove('selected', 'in-range');
+  });
+  const cur = document.querySelector(`td[data-r="${curRow}"][data-c="${curCol}"]`);
+  if (cur) cur.classList.add('selected');
+
+  if (selStart && selEnd) {
+    const r1 = Math.min(selStart.r, selEnd.r), r2 = Math.max(selStart.r, selEnd.r);
+    const c1 = Math.min(selStart.c, selEnd.c), c2 = Math.max(selStart.c, selEnd.c);
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        const td = document.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+        if (td) td.classList.add('in-range');
+      }
+    }
+  }
+
+  document.getElementById('cellRef').value = cellKey(curRow, curCol);
+  if (!editing) {
+    document.getElementById('formulaInput').value = getCellRaw(curRow, curCol);
+  }
+  updateToolbarState();
+}
+
+function updateToolbarState() {
+  const fmt = getFormat(curRow, curCol);
+  document.getElementById('btnBold').classList.toggle('active', !!fmt.bold);
+  document.getElementById('btnItalic').classList.toggle('active', !!fmt.italic);
+  document.getElementById('numFormat').value = fmt.numFormat || 'auto';
+  document.getElementById('decimalPlaces').value = fmt.decimals !== undefined ? fmt.decimals : 2;
+  document.getElementById('bgColor').value = fmt.bgColor || '#050a0f';
+  document.getElementById('btnFreeze').classList.toggle('active', freezeRow);
+  document.getElementById('btnFilter').classList.toggle('active', filterActive);
+}
+
+let mouseSelecting = false;
+
+function onCellMouseDown(e, r, c) {
+  if (editing) finishEdit();
+  if (e.shiftKey) {
+    selEnd = { r, c };
+  } else if (e.ctrlKey || e.metaKey) {
+    // Multi-select - just move cursor
+    curRow = r; curCol = c;
+    selStart = { r, c }; selEnd = { r, c };
+  } else {
+    curRow = r; curCol = c;
+    selStart = { r, c }; selEnd = { r, c };
+    mouseSelecting = true;
+  }
+  highlightSelection();
+}
+
+function onCellMouseOver(e, r, c) {
+  if (mouseSelecting) {
+    selEnd = { r, c };
+    highlightSelection();
+  }
+}
+
+document.addEventListener('mouseup', () => { mouseSelecting = false; });
+
+function selectRow(r) {
+  if (editing) finishEdit();
+  curRow = r; curCol = 0;
+  selStart = { r, c: 0 }; selEnd = { r, c: COLS - 1 };
+  highlightSelection();
+}
+
+function selectColumn(c) {
+  if (editing) finishEdit();
+  curRow = 0; curCol = c;
+  selStart = { r: 0, c }; selEnd = { r: ROWS - 1, c };
+  highlightSelection();
+}
+
+// ===== EDITING =====
+function startEdit(r, c) {
+  curRow = r; curCol = c;
+  editing = true;
+  const td = document.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+  if (!td) return;
+  td.classList.add('editing');
+  const raw = getCellRaw(r, c);
+  td.innerHTML = `<input type="text" value="${esc(String(raw))}" onkeydown="onEditKey(event,${r},${c})" onblur="finishEdit()">`;
+  const inp = td.querySelector('input');
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+  document.getElementById('formulaInput').value = raw;
+}
+
+function finishEdit() {
+  if (!editing) return;
+  const td = document.querySelector(`td[data-r="${curRow}"][data-c="${curCol}"]`);
+  if (!td) { editing = false; return; }
+  const inp = td.querySelector('input');
+  if (inp) {
+    setCellRaw(curRow, curCol, inp.value);
+  }
+  editing = false;
+  td.classList.remove('editing');
+  computing.clear();
+  refreshAll();
+  highlightSelection();
+}
+
+function onEditKey(e, r, c) {
+  if (e.key === 'Enter') { e.preventDefault(); finishEdit(); moveCursor(1, 0); }
+  else if (e.key === 'Tab') { e.preventDefault(); finishEdit(); moveCursor(0, e.shiftKey ? -1 : 1); }
+  else if (e.key === 'Escape') { editing = false; buildGrid(); highlightSelection(); }
+}
+
+function onFormulaKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    setCellRaw(curRow, curCol, document.getElementById('formulaInput').value);
+    computing.clear();
+    refreshAll();
+    highlightSelection();
+    moveCursor(1, 0);
+  } else if (e.key === 'Escape') {
+    document.getElementById('formulaInput').value = getCellRaw(curRow, curCol);
+    document.getElementById('formulaInput').blur();
+  }
+}
+
+function onFormulaInput() {
+  // Live update while typing in formula bar
+}
+
+function moveCursor(dr, dc) {
+  if (editing) finishEdit();
+  curRow = Math.max(0, Math.min(ROWS - 1, curRow + dr));
+  curCol = Math.max(0, Math.min(COLS - 1, curCol + dc));
+  selStart = { r: curRow, c: curCol };
+  selEnd = { r: curRow, c: curCol };
+  highlightSelection();
+  scrollToCell(curRow, curCol);
+}
+
+function scrollToCell(r, c) {
+  const td = document.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+  if (td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target !== document.getElementById('formulaInput') && !e.target.closest('.formula-bar')) return;
+  if (document.querySelector('.modal-overlay.open')) return;
+
+  const inFormula = document.activeElement === document.getElementById('formulaInput');
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleFormat('bold'); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); toggleFormat('italic'); return; }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    e.preventDefault(); doCopy(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    e.preventDefault(); doPaste(); return;
+  }
+
+  if (inFormula) return;
+
+  if (editing) return;
+
+  switch (e.key) {
+    case 'ArrowUp': e.preventDefault(); moveCursor(-1, 0); break;
+    case 'ArrowDown': e.preventDefault(); moveCursor(1, 0); break;
+    case 'ArrowLeft': e.preventDefault(); moveCursor(0, -1); break;
+    case 'ArrowRight': e.preventDefault(); moveCursor(0, 1); break;
+    case 'Tab': e.preventDefault(); moveCursor(0, e.shiftKey ? -1 : 1); break;
+    case 'Enter': e.preventDefault(); startEdit(curRow, curCol); break;
+    case 'Delete': case 'Backspace':
+      e.preventDefault();
+      forEachSelected((r, c) => setCellRaw(r, c, ''));
+      computing.clear(); refreshAll(); highlightSelection();
+      break;
+    case 'F2': e.preventDefault(); startEdit(curRow, curCol); break;
+    default:
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        startEdit(curRow, curCol);
+        // Replace cell content with the key
+        setTimeout(() => {
+          const td = document.querySelector(`td[data-r="${curRow}"][data-c="${curCol}"]`);
+          const inp = td?.querySelector('input');
+          if (inp) { inp.value = e.key; inp.setSelectionRange(1, 1); }
+        }, 0);
+      }
+  }
+});
+
+// ===== ITERATE SELECTED =====
+function forEachSelected(fn) {
+  if (!selStart || !selEnd) { fn(curRow, curCol); return; }
+  const r1 = Math.min(selStart.r, selEnd.r), r2 = Math.max(selStart.r, selEnd.r);
+  const c1 = Math.min(selStart.c, selEnd.c), c2 = Math.max(selStart.c, selEnd.c);
+  for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) fn(r, c);
+}
+
+// ===== FORMAT TOOLS =====
+function toggleFormat(prop) {
+  const cur = getFormat(curRow, curCol)[prop];
+  forEachSelected((r, c) => setFormatProp(r, c, prop, !cur));
+  forEachSelected((r, c) => refreshCell(r, c));
+  updateToolbarState();
+}
+
+function setAlign(align) {
+  forEachSelected((r, c) => setFormatProp(r, c, 'align', align));
+  forEachSelected((r, c) => refreshCell(r, c));
+}
+
+function setNumFormat(fmt) {
+  forEachSelected((r, c) => setFormatProp(r, c, 'numFormat', fmt));
+  forEachSelected((r, c) => refreshCell(r, c));
+}
+
+function setDecimals(d) {
+  forEachSelected((r, c) => setFormatProp(r, c, 'decimals', d));
+  forEachSelected((r, c) => refreshCell(r, c));
+}
+
+function setBgColor(color) {
+  forEachSelected((r, c) => setFormatProp(r, c, 'bgColor', color));
+  forEachSelected((r, c) => refreshCell(r, c));
+}
+
+function toggleFreezeRow() {
+  freezeRow = !freezeRow;
+  buildGrid();
+  highlightSelection();
+}
+
+function toggleFilter() {
+  filterActive = !filterActive;
+  const row = document.getElementById('filterRow');
+  if (row) row.classList.toggle('active', filterActive);
+  if (!filterActive) {
+    hiddenRows.clear();
+    document.querySelectorAll('tbody tr').forEach(tr => tr.style.display = '');
+  }
+  updateToolbarState();
+}
+
+function applyFilters() {
+  hiddenRows.clear();
+  const inputs = document.querySelectorAll('[data-filter-col]');
+  const filters = {};
+  inputs.forEach(inp => {
+    if (inp.value.trim()) filters[inp.dataset.filterCol] = inp.value.trim().toLowerCase();
+  });
+
+  for (let r = 0; r < ROWS; r++) {
+    let visible = true;
+    for (const [col, val] of Object.entries(filters)) {
+      const cv = String(displayValue(r, +col)).toLowerCase();
+      if (!cv.includes(val)) { visible = false; break; }
+    }
+    const tr = document.querySelector(`tr[data-row="${r}"]`);
+    if (tr) tr.style.display = visible ? '' : 'none';
+    if (!visible) hiddenRows.add(r);
+  }
+}
+
+// ===== SORT =====
+function sortColumn(dir) {
+  const c = curCol;
+  // Gather row data
+  const rowData = [];
+  for (let r = (freezeRow ? 1 : 0); r < ROWS; r++) {
+    const val = evalCell(r, c);
+    rowData.push({ r, val, num: isNaN(+val) ? null : +val });
+  }
+  rowData.sort((a, b) => {
+    const av = a.num !== null ? a.num : String(a.val).toLowerCase();
+    const bv = b.num !== null ? b.num : String(b.val).toLowerCase();
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Reorder all columns' data according to sort
+  const sheet = sheets[activeSheet];
+  const origData = { ...sheet.data };
+  const origFormats = { ...sheet.formats };
+  const startRow = freezeRow ? 1 : 0;
+
+  rowData.forEach((rd, i) => {
+    const newR = startRow + i;
+    const oldR = rd.r;
+    for (let col = 0; col < COLS; col++) {
+      const oldKey = cellKey(oldR, col);
+      const newKey = cellKey(newR, col);
+      if (origData[oldKey] !== undefined) sheet.data[newKey] = origData[oldKey];
+      else delete sheet.data[newKey];
+      if (origFormats[oldKey]) sheet.formats[newKey] = origFormats[oldKey];
+      else delete sheet.formats[newKey];
+    }
+  });
+
+  buildGrid();
+  highlightSelection();
+  showToast('Sorted ' + (dir === 'asc' ? 'ascending' : 'descending'));
+}
+
+// ===== COPY/PASTE =====
+let clipboard = [];
+
+function doCopy() {
+  clipboard = [];
+  if (!selStart || !selEnd) {
+    clipboard = [[getCellRaw(curRow, curCol)]];
+  } else {
+    const r1 = Math.min(selStart.r, selEnd.r), r2 = Math.max(selStart.r, selEnd.r);
+    const c1 = Math.min(selStart.c, selEnd.c), c2 = Math.max(selStart.c, selEnd.c);
+    for (let r = r1; r <= r2; r++) {
+      const row = [];
+      for (let c = c1; c <= c2; c++) row.push(getCellRaw(r, c));
+      clipboard.push(row);
+    }
+  }
+  // Also copy to system clipboard as text
+  const text = clipboard.map(row => row.join('\t')).join('\n');
+  navigator.clipboard.writeText(text).catch(() => {});
+  showToast('Copied');
+}
+
+function doPaste() {
+  navigator.clipboard.readText().then(text => {
+    if (!text) return;
+    const rows = text.split('\n').map(r => r.split('\t'));
+    rows.forEach((row, ri) => {
+      row.forEach((val, ci) => {
+        const r = curRow + ri, c = curCol + ci;
+        if (r < ROWS && c < COLS) setCellRaw(r, c, val);
+      });
+    });
+    computing.clear();
+    refreshAll();
+    highlightSelection();
+    showToast('Pasted');
+  }).catch(() => {
+    // Fallback to internal clipboard
+    if (!clipboard.length) return;
+    clipboard.forEach((row, ri) => {
+      row.forEach((val, ci) => {
+        const r = curRow + ri, c = curCol + ci;
+        if (r < ROWS && c < COLS) setCellRaw(r, c, val);
+      });
+    });
+    computing.clear();
+    refreshAll();
+    highlightSelection();
+  });
+}
+
+// ===== COLUMN RESIZE =====
+function startColResize(e, col) {
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX;
+  const sheet = sheets[activeSheet];
+  const startW = sheet.colWidths[col] || 100;
+  function onMove(e) {
+    const w = Math.max(40, startW + (e.clientX - startX));
+    sheet.colWidths[col] = w;
+    const th = document.querySelector(`th[data-col="${col}"]`);
+    if (th) { th.style.width = w + 'px'; th.style.minWidth = w + 'px'; }
+    // Update td widths
+    document.querySelectorAll(`td[data-c="${col}"]`).forEach(td => {
+      td.style.width = w + 'px'; td.style.minWidth = w + 'px';
+    });
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ===== SHEET TABS =====
+function renderTabs() {
+  const tabs = document.getElementById('sheetTabs');
+  tabs.innerHTML = sheets.map((s, i) => `
+    <div class="sheet-tab ${i === activeSheet ? 'active' : ''}" onclick="switchSheet(${i})" ondblclick="renameSheet(${i})">${esc(s.name)}</div>
+  `).join('') + '<div class="sheet-tab sheet-tab-add" onclick="addSheet()">+</div>';
+}
+
+function switchSheet(i) {
+  if (editing) finishEdit();
+  activeSheet = i;
+  renderTabs();
+  buildGrid();
+  highlightSelection();
+}
+
+function addSheet() {
+  sheets.push({ name: 'Sheet' + (sheets.length + 1), data: {}, colWidths: {}, formats: {} });
+  switchSheet(sheets.length - 1);
+}
+
+function renameSheet(i) {
+  const name = prompt('Sheet name:', sheets[i].name);
+  if (name && name.trim()) {
+    sheets[i].name = name.trim();
+    renderTabs();
+  }
+}
+
+// ===== SAVE / LOAD =====
+function saveSheet() {
+  const name = prompt('Save as:', 'My Spreadsheet');
+  if (!name) return;
+  const key = 'korb_sheet_' + Date.now();
+  localStorage.setItem(key, JSON.stringify({ name, sheets, activeSheet }));
+  showToast('Saved');
+}
+
+function showLoadModal() {
+  const saves = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith('korb_sheet_')) {
+      try {
+        const d = JSON.parse(localStorage.getItem(key));
+        saves.push({ key, name: d.name || 'Untitled', sheets: (d.sheets || []).length });
+      } catch(e) {}
+    }
+  }
+  const list = document.getElementById('loadList');
+  if (!saves.length) {
+    list.innerHTML = '<p style="color:var(--text-dim)">No saved spreadsheets</p>';
+  } else {
+    list.innerHTML = saves.map(s => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:8px">
+        <div style="cursor:pointer;flex:1" onclick="loadSheet('${s.key}')">
+          <strong>${esc(s.name)}</strong>
+          <small style="color:var(--text-dim);display:block">${s.sheets} sheets</small>
+        </div>
+        <button onclick="deleteSheet('${s.key}')" style="color:var(--red);border-color:var(--red);min-width:36px">&times;</button>
+      </div>
+    `).join('');
+  }
+  document.getElementById('loadModal').classList.add('open');
+}
+
+function closeLoadModal() { document.getElementById('loadModal').classList.remove('open'); }
+
+function loadSheet(key) {
+  const d = JSON.parse(localStorage.getItem(key));
+  sheets = d.sheets || [{ name: 'Sheet1', data: {}, colWidths: {}, formats: {} }];
+  activeSheet = d.activeSheet || 0;
+  closeLoadModal();
+  renderTabs();
+  buildGrid();
+  highlightSelection();
+  showToast('Loaded');
+}
+
+function deleteSheet(key) {
+  if (!confirm('Delete?')) return;
+  localStorage.removeItem(key);
+  showLoadModal();
+}
+
+// ===== CSV EXPORT/IMPORT =====
+function exportCSV() {
+  let csv = '';
+  const data = getData();
+  // Find bounds
+  let maxR = 0, maxC = 0;
+  Object.keys(data).forEach(key => {
+    const ref = parseRef(key);
+    if (ref) { maxR = Math.max(maxR, ref.r); maxC = Math.max(maxC, ref.c); }
+  });
+  for (let r = 0; r <= maxR; r++) {
+    const row = [];
+    for (let c = 0; c <= maxC; c++) {
+      let val = String(displayValue(r, c));
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        val = '"' + val.replace(/"/g, '""') + '"';
+      }
+      row.push(val);
+    }
+    csv += row.join(',') + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'korb-spreadsheet.csv';
+  link.click();
+  showToast('CSV exported');
+}
+
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const rows = parseCSV(text);
+    sheets[activeSheet].data = {};
+    rows.forEach((row, r) => {
+      row.forEach((val, c) => {
+        if (c < COLS && r < ROWS && val !== '') {
+          setCellRaw(r, c, val);
+        }
+      });
+    });
+    buildGrid();
+    highlightSelection();
+    showToast('CSV imported');
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let inQuote = false;
+  let cell = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') inQuote = false;
+      else cell += ch;
+    } else {
+      if (ch === '"') inQuote = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || (ch === '\r' && text[i + 1] === '\n')) {
+        if (ch === '\r') i++;
+        row.push(cell); cell = '';
+        rows.push(row); row = [];
+      } else cell += ch;
+    }
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// ===== UTILS =====
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, { position:'fixed',bottom:'50px',left:'50%',transform:'translateX(-50%)',background:'#10b981',color:'#fff',padding:'8px 20px',borderRadius:'6px',fontFamily:"'JetBrains Mono',monospace",fontSize:'13px',fontWeight:'600',zIndex:'9999',transition:'opacity .3s' });
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2000);
+}
+
+// ===== INIT =====
+renderTabs();
+buildGrid();
+highlightSelection();
+</script>
+</body>
+</html>

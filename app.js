@@ -37,51 +37,83 @@ const SECTIONS = {
     </svg>`,
     tools: [
       { name: 'ADA Compliance Checker', file: './tools/aviation/ada-compliance-checker.html' },
+      { name: 'Aircraft Maintenance Calculator', file: './tools/aviation/aircraft-maintenance-calculator.html' },
+      { name: "Airport Manager's Friend", file: './tools/aviation/airport-managers-friend.html' },
+      { name: 'AirNav Explorer', file: './tools/aviation/airnav-explorer.html' },
       { name: 'ALP Guidance', file: './tools/aviation/alp-tracker.html' },
+      { name: 'Altitude Calculator', file: './tools/aviation/altitude-calculator.html' },
+      { name: 'Aviation Fuel Pricing', file: './tools/aviation/aviation-fuel-pricing.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
+      { name: 'BuildBook Project', file: './tools/aviation/buildbook-project.html' },
       { name: 'Bulk Photo Timestamp', file: './tools/civil/bulk-field-photos-timestamp-tool.html' },
       { name: 'Capital Improvement Planner (CIP)', file: './tools/civil/capital-planning.html' },
       { name: 'Compliance Checklist', file: './tools/civil/compliance-checklist.html' },
       { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
       { name: 'Contract Simplifier', file: './tools/civil/contract-simplifier.html' },
+      { name: 'Critical Path Method', file: './tools/aviation/critical-path-method.html' },
       { name: 'Daily Field Report', file: './tools/civil/DailyFieldReport.html' },
+      { name: 'DXF Viewer', file: './tools/aviation/dxf-viewer.html' },
+      { name: 'E6B Calculator', file: './tools/aviation/e6b-calculator.html' },
       { name: 'Earned Value Mgmt', file: './tools/civil/earned-value-mgmt.html' },
       { name: 'Erosion Control', file: './tools/civil/erosion-control.html' },
       { name: 'Facility Evaluation Tool', file: './tools/civil/ETAM_Engineering_Evaluation_Tool.html' },
+      { name: 'Flight Time Logger', file: './tools/aviation/flight-time-logger.html' },
       { name: 'Front End Documents', file: './tools/civil/front-end-documents.html' },
+      { name: '360° Photo Stitcher', file: './tools/aviation/360-photo-stitcher.html' },
+      { name: 'DBE Participation Calculator', file: './tools/aviation/dbe-calculator.html' },
+      { name: 'Design Aircraft Repository', file: './tools/aviation/design-aircraft-repository.html' },
+      { name: 'Fuel Burn Calculator', file: './tools/aviation/fuel-burn-calculator.html' },
       { name: 'Fuel Station Designer', file: './tools/aviation/fuel-station-designer.html' },
       { name: 'Gantt Project', file: './tools/civil/gantt-project.html' },
+      { name: 'Geotech Investigation RFP', file: './tools/aviation/geotech-rfp-tool.html' },
       { name: 'Geospatial Tools', file: './tools/civil/geospatial-tools.html' },
       { name: 'Graphing Calculator', file: './tools/aviation/1980s-calculator.html' },
       { name: 'Hangar Door Selector', file: './tools/aviation/hangar-door-selector.html' },
+      { name: 'Holding Pattern Calculator', file: './tools/aviation/holding-pattern-calculator.html' },
       { name: 'Kanban Board', file: './tools/misc/kanban-board.html' },
       { name: 'Legal Advisor', file: './tools/misc/legal-advisor.html' },
+      { name: 'Measurement & Annotation', file: './tools/aviation/measurement-annotation-tool.html' },
       { name: 'Meeting Recorder', file: './tools/civil/meeting.html' },
+      { name: 'Metal Building Selector', file: './tools/aviation/metal-building-selector.html' },
+      { name: 'METAR/TAF Decoder', file: './tools/aviation/metar-decoder.html' },
       { name: 'Megger Test Report', file: './tools/aviation/megger-test-report.html' },
       { name: 'Morse Machine', file: './tools/aviation/korb_morse_machine.html' },
+      { name: 'Noise Contour Planner', file: './tools/aviation/noise-contour-planner.html' },
+      { name: 'NPV/IRR Calculator', file: './tools/aviation/npv-irr-calculator.html' },
+      { name: 'Omni Calculator', file: './tools/aviation/omni-calculator.html' },
       { name: 'Online Bidder', file: './tools/civil/bid-express.html' },
       { name: 'OpenProject', file: './tools/civil/openproject.html' },
       { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
       { name: 'Pavement Management Plan', file: './tools/aviation/pavement-management-plan.html' },
       { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
       { name: 'Performance Spec', file: './tools/aviation/performance-spec-tool.html' },
+      { name: 'PERT Calculator', file: './tools/aviation/pert-calculator.html' },
       { name: 'Pomodoro Timer', file: './tools/misc/pomodoro-timer.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
+      { name: 'Construction Commander', file: './tools/aviation/procore-project-manager.html' },
       { name: 'Proposal Scope & Fee Generator', file: './tools/aviation/proposal-scope-fee.html' },
       { name: 'Punch List', file: './tools/aviation/punch-list.html' },
       { name: 'PWL Calculator', file: './tools/civil/pwl-calculator.html' },
       { name: 'QA/QC Checklist', file: './tools/hk/super-secret-access/qaqc-checklist.html' },
       { name: 'QR Generator', file: './tools/misc/qr-generator.html' },
       { name: 'Relationship Tracker', file: './tools/hk/relationship-tracker.html' },
+      { name: 'Resource Leveling', file: './tools/aviation/resource-leveling.html' },
       { name: 'RFP Response Generator', file: './tools/civil/rfp-response-generator.html' },
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
+      { name: 'ROI Calculator', file: './tools/aviation/roi-calculator.html' },
+      { name: 'Survey Proposal Generator', file: './tools/aviation/survey-proposal-tool.html' },
+      { name: 'SWOT Analysis', file: './tools/aviation/swot-analysis.html' },
       { name: 'Scope Creep Counselor', file: './tools/civil/scope-creep-counselor.html' },
       { name: 'Scope Gap Detector', file: './tools/civil/scope-gap-detector.html' },
       { name: 'Sociopath Identifier', file: './tools/aviation/sociopath-identifier.html' },
       { name: 'Submittal Review', file: './tools/civil/submittal-review.html' },
       { name: 'Taiga Scrum Config', file: './tools/civil/korb-taiga-config.html' },
+      { name: 'Takeoff/Landing Distance', file: './tools/aviation/takeoff-landing-calculator.html' },
+      { name: 'Time-Distance-Speed Calculator', file: './tools/aviation/time-distance-speed-calculator.html' },
       { name: 'Unit Converter', file: './tools/civil/engineering-unit-converter.html' },
       { name: 'Video Conference', file: './tools/misc/video-conferencing.html' },
+      { name: 'Weight & Balance', file: './tools/aviation/weight-balance-calculator.html' },
+      { name: 'Wind Correction Calculator', file: './tools/aviation/wind-correction-calculator.html' },
       { name: 'Wind Rose Generator', file: './tools/aviation/wind-rose-generator.html' }
     ]
   },
@@ -97,6 +129,8 @@ const SECTIONS = {
       { name: 'Decision Journal', file: './tools/hk/decision-journal.html' },
       { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
       { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
+      { name: 'Earthwork & Grading Calculator', file: './tools/civil/earthwork-grading-calculator.html' },
+      { name: 'Eisenhower Priority Matrix', file: './tools/civil/eisenhower-matrix.html' },
       { name: 'EPANet Water', file: './tools/civil/epanet-water.html' },
       { name: 'File Share', file: './tools/civil/file-share-tool.html' },
       { name: 'Financial Planner', file: './tools/hk/financial-planner.html' },
@@ -105,10 +139,12 @@ const SECTIONS = {
       { name: 'HEC-HMS', file: './tools/civil/hec-hms.html' },
       { name: 'HEC-RAS Open', file: './tools/civil/HECRASOpen.html' },
       { name: 'Korb Dossier', file: './tools/hk/korb-dossier.html' },
+      { name: 'Invoice Generator', file: './tools/civil/invoice-generator.html' },
       { name: 'KPI Watchdog', file: './tools/civil/kpi-watchdog.html' },
       { name: 'LaTeX Editor', file: './tools/civil/harrison-latex-editor.html' },
       { name: 'Logo Overlay', file: './tools/civil/korb-logo-overlay.html' },
       { name: 'Meeting Adversary', file: './tools/hk/meeting-adversary.html' },
+      { name: 'Meeting Minutes', file: './tools/civil/meeting-minutes.html' },
       { name: 'Negotiation Simulator', file: './tools/hk/negotiation-simulator.html' },
       { name: 'OpenFOAM CFD', file: './tools/civil/openfoam-cfd.html' },
       { name: 'PCI Inspector', file: './tools/civil/pci-inspector.html' },
@@ -119,10 +155,16 @@ const SECTIONS = {
       { name: 'Scenario Modeler', file: './tools/hk/scenario-modeler.html' },
       { name: 'Shopping Decision Engine', file: './tools/hk/shopping-decision-engine.html' },
       { name: 'Smart Home', file: './tools/hk/smart-home-automation.html' },
+      { name: 'Soil Classification Tool', file: './tools/civil/soil-classification-tool.html' },
       { name: 'Spreadsheet Interpreter', file: './tools/civil/spreadsheet-interpreter.html' },
+      { name: 'Stakeholder Matrix', file: './tools/civil/stakeholder-matrix.html' },
+      { name: 'Stormwater Drainage Calculator', file: './tools/civil/stormwater-drainage-calculator.html' },
+      { name: 'Structural Steel Calculator', file: './tools/civil/structural-steel-calculator.html' },
+      { name: 'Survey Coordinate Converter', file: './tools/civil/survey-coordinate-converter.html' },
       { name: 'Trend Synthesis', file: './tools/civil/trend-synthesis.html' },
       { name: 'TXT to HTML', file: './tools/civil/TXT_2_HTML_tool.html' },
-      { name: 'Unstructured Data Miner', file: './tools/civil/unstructured-data-miner.html' }
+      { name: 'Unstructured Data Miner', file: './tools/civil/unstructured-data-miner.html' },
+      { name: 'WBS Builder', file: './tools/civil/wbs-builder.html' }
     ]
   },
   hk: {
@@ -141,7 +183,8 @@ const SECTIONS = {
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
-      { name: 'Travel Planner', file: './tools/hk/travel-planner.html' }
+      { name: 'Travel Planner', file: './tools/hk/travel-planner.html' },
+      { name: 'Video Player', file: './tools/hk/video-player.html' }
     ]
   },
   misc: {
@@ -162,28 +205,39 @@ const SECTIONS = {
       { name: 'Audiobook Player', file: './tools/misc/audiobook-player.html' },
       { name: 'ASL Learning Tool', file: './tools/misc/asl-learning-tool.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
+      { name: 'Battleship', file: './tools/misc/battleship.html' },
       { name: "Boston Lee's ASL", file: './tools/misc/boston-lees-asl.html' },
       { name: 'Chess', file: './tools/misc/chess.html' },
+      { name: 'Chinese Checkers', file: './tools/misc/chinese-checkers.html' },
+      { name: 'Clock & Stopwatch', file: './tools/misc/clock-stopwatch.html' },
       { name: 'Color Palette', file: './tools/misc/color-palette.html' },
+      { name: 'Connect Four', file: './tools/misc/connect-four.html' },
       { name: 'Crossword', file: './tools/misc/crossword.html' },
       { name: 'Dev Toolkit', file: './tools/misc/dev-toolkit.html' },
+      { name: 'DFW Events & Deals', file: './tools/misc/dfw-events.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
       { name: 'Dungeon Quest', file: './tools/misc/dungeon-quest.html' },
       { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
-      { name: 'F-Zero Lite', file: './tools/aviation/F_Zero_Lite.html' },
       { name: 'File Converter', file: './tools/misc/file-converter.html' },
+      { name: 'Flowchart Maker', file: './tools/misc/flowchart-maker.html' },
+      { name: 'Frogger', file: './tools/misc/frogger.html' },
       { name: 'Frisco Weather', file: './tools/misc/frisco-weather.html' },
       { name: 'Guitar Tuner', file: './tools/misc/guitar-tuner.html' },
       { name: 'Habit Tracker', file: './tools/misc/habit-tracker.html' },
       { name: "Harrison's Blog", file: './tools/misc/harrisons-blog.html' },
+      { name: 'Home Improvements Guide', file: './tools/misc/home-improvements.html' },
+      { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
+      { name: 'Korb Farm Collective', file: './tools/misc/korb-farm-collective.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
       { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
       { name: 'Leadership Forge', file: './tools/misc/leadership-principles.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
+      { name: "Mary Kay's Recipes", file: './tools/misc/mary-kays-recipes.html' },
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
+      { name: 'Mexican Grocery Guide', file: './tools/misc/mexican-grocery-guide.html' },
       { name: 'Metronome', file: './tools/misc/metronome.html' },
       { name: 'Minesweeper', file: './tools/misc/minesweeper.html' },
       { name: 'Music Library', file: './tools/misc/music-library.html' },
@@ -191,8 +245,10 @@ const SECTIONS = {
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
       { name: 'Painting Studio', file: './tools/misc/painting-studio.html' },
+      { name: 'Paper.io', file: './tools/misc/paper-io.html' },
       { name: 'Password Forge', file: './tools/misc/password-forge.html' },
       { name: 'Pixel Art Editor', file: './tools/misc/pixel-art-editor.html' },
+      { name: 'Pong', file: './tools/misc/pong.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
       { name: 'Scandinavian Interior Design', file: './tools/misc/scandinavian-interior-design.html' },
       { name: 'Screen Recorder', file: './tools/misc/screen-recorder.html' },
@@ -200,10 +256,12 @@ const SECTIONS = {
       { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
       { name: 'Soundboard', file: './tools/misc/soundboard.html' },
       { name: 'Speak & Spell', file: './tools/misc/speak-and-spell.html' },
+      { name: 'Spreadsheet Tool', file: './tools/misc/spreadsheet-tool.html' },
       { name: 'Star Fox Lite', file: './tools/aviation/Star_Fox_Lite.html' },
       { name: 'Sudoku', file: './tools/misc/sudoku.html' },
       { name: 'Tanks', file: './tools/misc/tanks.html' },
       { name: 'Tetris', file: './tools/misc/tetris.html' },
+      { name: 'Tic Tac Toe', file: './tools/misc/tic-tac-toe.html' },
       { name: 'The Void', file: './tools/misc/the-void.html' },
       { name: 'Text to Speech', file: './tools/misc/text-to-speech.html' },
       { name: 'Typing Test', file: './tools/misc/typing-test.html' },
@@ -252,25 +310,6 @@ function findToolBySlug(sec, slug) {
 }
 
 
-// --- VFD Character Animation ---
-function vfdAnimate(element, text, delay = 40) {
-  element.innerHTML = '';
-  [...text].forEach((char, i) => {
-    const span = document.createElement('span');
-    span.className = 'vfd-char';
-    span.textContent = char === ' ' ? '\u00A0' : char;
-    span.style.animationDelay = `${i * delay}ms`;
-    element.appendChild(span);
-  });
-}
-
-function addCursor(element) {
-  const cursor = document.createElement('span');
-  cursor.className = 'vfd-cursor';
-  cursor.setAttribute('aria-hidden', 'true');
-  element.appendChild(cursor);
-}
-
 
 // --- Render Views ---
 const main = document.getElementById('mainContent');
@@ -283,14 +322,14 @@ const ARROW_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const SEARCH_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
 const CLEAR_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-// Build flat search index of all tools (excluding locked section internals)
-function buildSearchIndex() {
+// Build flat search index once (cached)
+const _searchIndex = (() => {
   const index = [];
   const sectionLabels = { aviation: 'Aviation', civil: 'Civil', misc: 'Misc', hk: 'HK' };
   for (const [key, sec] of Object.entries(SECTIONS)) {
-    if (sec.locked) continue; // skip locked sections entirely
+    if (sec.locked) continue;
     for (const tool of sec.tools) {
-      if (tool.type === 'folder') continue; // skip folders
+      if (tool.type === 'folder') continue;
       index.push({
         name: tool.name,
         section: key,
@@ -301,14 +340,12 @@ function buildSearchIndex() {
     }
   }
   return index;
-}
+})();
 
 function fuzzyMatch(query, text) {
   const q = query.toLowerCase();
   const t = text.toLowerCase();
-  // Exact substring match scores highest
   if (t.includes(q)) return 2;
-  // Fuzzy: all query chars appear in order
   let qi = 0;
   for (let i = 0; i < t.length && qi < q.length; i++) {
     if (t[i] === q[qi]) qi++;
@@ -318,7 +355,7 @@ function fuzzyMatch(query, text) {
 
 function searchTools(query) {
   if (!query.trim()) return [];
-  const index = buildSearchIndex();
+  const index = _searchIndex;
   const results = [];
   for (const item of index) {
     const score = fuzzyMatch(query, item.name);
@@ -329,6 +366,62 @@ function searchTools(query) {
   return results;
 }
 
+
+// --- Shared Helpers ---
+function ensureStatusVisible() {
+  let el = document.getElementById('homeStatus');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'homeStatus';
+    el.className = 'home-status';
+    el.innerHTML = '<span class="status-dot"></span><span class="vfd-label">Online</span>';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+}
+
+// Section search bar HTML template
+const SECTION_SEARCH_HTML = `<div class="section-search-wrap">
+  <div class="section-search-bar">
+    <span class="search-icon">${SEARCH_SVG}</span>
+    <input type="text" class="section-search-input" id="sectionSearch" placeholder="Search this folder..." autocomplete="off" spellcheck="false" inputmode="search">
+    <button class="search-clear" id="sectionSearchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+  </div>
+</div>`;
+
+function initSectionSearch() {
+  const input = document.getElementById('sectionSearch');
+  const clear = document.getElementById('sectionSearchClear');
+  const empty = document.getElementById('sectionSearchEmpty');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase().trim();
+    clear.style.display = q ? 'flex' : 'none';
+    let visibleCount = 0;
+    main.querySelectorAll('.tool-grid-card').forEach(card => {
+      const name = card.querySelector('.tool-grid-name').textContent.toLowerCase();
+      const match = !q || name.includes(q) || fuzzyMatch(q, name) > 0;
+      card.style.display = match ? '' : 'none';
+      if (match) visibleCount++;
+    });
+    empty.style.display = visibleCount === 0 ? 'block' : 'none';
+  });
+
+  clear.addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      input.blur();
+    }
+  });
+}
 
 function renderHome() {
   const lockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
@@ -347,23 +440,14 @@ function renderHome() {
       </a>`;
   }).join('');
 
-  // Show floating status on home screen
-  let homeStatus = document.getElementById('homeStatus');
-  if (!homeStatus) {
-    homeStatus = document.createElement('div');
-    homeStatus.id = 'homeStatus';
-    homeStatus.className = 'home-status';
-    homeStatus.innerHTML = '<span class="status-dot"></span><span class="vfd-label">Online</span>';
-    document.body.appendChild(homeStatus);
-  }
-  homeStatus.style.display = 'flex';
+  ensureStatusVisible();
 
   main.innerHTML = `
     <section class="landing">
       <div class="search-bar-wrap">
         <div class="search-bar">
           <span class="search-icon">${SEARCH_SVG}</span>
-          <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false">
+          <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false" inputmode="search">
           <button class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
         </div>
         <div class="search-results" id="searchResults"></div>
@@ -480,9 +564,7 @@ function renderSection(key) {
   const sec = SECTIONS[key];
   if (!sec) { renderHome(); return; }
 
-  // Hide home-screen floating status
-  const hs = document.getElementById('homeStatus');
-  if (hs) hs.style.display = 'none';
+  ensureStatusVisible();
 
   // If locked, show password gate
   if (sec.locked && !sec._unlocked) {
@@ -497,8 +579,6 @@ function renderSection(key) {
   }
 
   // Empty section
-  const aboutBtn = '';
-
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
@@ -507,7 +587,6 @@ function renderSection(key) {
       <div class="empty-section reveal">
         <div class="empty-icon">${sec.icon}</div>
       </div>
-      ${aboutBtn}
     </section>
   `;
   initReveal();
@@ -546,10 +625,14 @@ function renderToolGrid(key, sec) {
         <a href="#" class="back-link reveal">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
+        ${SECTION_SEARCH_HTML}
         <div class="tool-grid">${cards}</div>
+        <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>
       </div>
     </section>
   `;
+
+  initSectionSearch();
 
   main.querySelectorAll('.tool-grid-card').forEach(card => {
     card.addEventListener('click', (e) => {
@@ -645,7 +728,9 @@ function renderSubfolderGrid(sectionKey, sec, folder) {
         <a href="#" class="back-link reveal" id="subfolderBack">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
+        ${SECTION_SEARCH_HTML}
         <div class="tool-grid">${cards}</div>
+        <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>
       </div>
     </section>
   `;
@@ -654,6 +739,8 @@ function renderSubfolderGrid(sectionKey, sec, folder) {
     e.preventDefault();
     renderSection(sectionKey);
   });
+
+  initSectionSearch();
 
   main.querySelectorAll('.tool-grid-card').forEach(card => {
     card.addEventListener('click', (e) => {
@@ -751,7 +838,7 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, sectionKey)}
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
 
@@ -768,6 +855,13 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
 }
 
 
+// DNA helix loading animation SVG-free markup
+const HELIX_LOADER_HTML = `<div class="helix-loader" id="helixLoader">
+  <div class="strand strand-a"><div class="node"></div><div class="node"></div><div class="node"></div><div class="node"></div></div>
+  <div class="strand strand-b"><div class="node"></div><div class="node"></div><div class="node"></div><div class="node"></div></div>
+  <div class="strand"><div class="rung"></div><div class="rung"></div><div class="rung"></div><div class="rung"></div></div>
+</div>`;
+
 function renderToolEmbed(key, sec, tool) {
   const hs = document.getElementById('homeStatus');
   if (hs) hs.style.display = 'none';
@@ -775,12 +869,24 @@ function renderToolEmbed(key, sec, tool) {
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
         <button type="button" class="back-link tool-back-btn" aria-label="Back to section">${BACK_SVG}</button>
+        ${HELIX_LOADER_HTML}
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, key)}
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads" allow="geolocation; microphone; camera; clipboard-write" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
+
+  // Fade out helix loader when iframe finishes loading
+  const iframe = main.querySelector('.tool-iframe');
+  const loader = document.getElementById('helixLoader');
+  if (iframe && loader) {
+    iframe.addEventListener('load', () => {
+      loader.classList.add('done');
+    });
+    // Safety timeout — hide loader after 12s even if load event doesn't fire
+    setTimeout(() => { if (loader) loader.classList.add('done'); }, 12000);
+  }
 
   // Use button + JS navigation to reliably exit iframe context
   main.querySelector('.tool-back-btn').addEventListener('click', (e) => {
@@ -798,21 +904,11 @@ function renderToolEmbed(key, sec, tool) {
 
 
 // --- About Page ---
-let aboutAudioEl = null;
-
-function stopAboutAudio() {
-  if (aboutAudioEl) {
-    aboutAudioEl.pause();
-    aboutAudioEl.currentTime = 0;
-    aboutAudioEl = null;
-  }
-}
-
 function renderAboutPage() {
-  const nameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);margin-top:10px;text-align:center;text-shadow:0 0 12px rgba(0,212,255,0.4);';
+  const nameStyle = 'font-family:var(--font-mono);font-size:var(--text-sm);letter-spacing:0.12em;color:var(--vfd-cyan);margin-top:10px;text-align:center;text-shadow:0 0 12px rgba(0,212,255,0.4);';
 
   const companyEntryStyle = 'margin-bottom:28px;';
-  const companyNameStyle = 'font-family:Cinzel,\"Palatino Linotype\",\"Book Antiqua\",Palatino,Georgia,serif;font-size:var(--text-base);letter-spacing:0.08em;color:var(--vfd-cyan);margin:0;text-shadow:0 0 12px rgba(0,212,255,0.4);';
+  const companyNameStyle = 'font-family:var(--font-mono);font-size:var(--text-base);letter-spacing:0.08em;color:var(--vfd-cyan);margin:0;text-shadow:0 0 12px rgba(0,212,255,0.4);';
   const companyDatesStyle = 'color:#ff6600;font-size:var(--text-sm);margin-left:6px;text-shadow:0 0 6px rgba(255,102,0,0.3);';
   const companyDetailStyle = 'color:rgba(0,212,255,0.6);font-size:var(--text-xs);letter-spacing:0.04em;margin:4px 0 0;line-height:1.7;';
 
@@ -842,7 +938,7 @@ function renderAboutPage() {
         </div>
 
         <div id="company-history" style="max-width:640px;margin:48px auto 0;text-align:left;">
-          <h2 style="font-family:Cinzel,serif;font-size:var(--text-lg);letter-spacing:0.25em;color:var(--vfd-cyan);text-align:center;margin-bottom:32px;text-shadow:0 0 14px rgba(0,212,255,0.45);">KORB ENGINEERING</h2>
+          <h2 style="font-family:var(--font-mono);font-size:var(--text-lg);letter-spacing:0.25em;color:var(--vfd-cyan);text-align:center;margin-bottom:32px;text-shadow:0 0 14px rgba(0,212,255,0.45);">KORB ENGINEERING</h2>
 
           <div style="${companyEntryStyle}">
             <p style="${companyNameStyle}">Korb Engineering Company <span style="${companyDatesStyle}">1972 - 2014</span></p>
@@ -892,7 +988,7 @@ function renderAboutPage() {
   initReveal();
 
   // Audio removed — was auto-playing on iPhone and triggering reader mode
-  stopAboutAudio();
+
 
   // Names stay hidden until photo is visible
   function revealName(nameId) {
@@ -915,7 +1011,7 @@ function renderPasswordGate(key, sec) {
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
-        <a href="#" class="back-link">${BACK_SVG}</a>
+        <a href="#" class="back-link" id="gateBack">${BACK_SVG}</a>
       </div>
       <div class="password-gate">
         <div class="gate-box">
@@ -932,7 +1028,10 @@ function renderPasswordGate(key, sec) {
     </section>
   `;
 
-
+  document.getElementById('gateBack').addEventListener('click', (e) => {
+    e.preventDefault();
+    navigate('home');
+  });
 
   const form = document.getElementById('gateForm');
   const input = document.getElementById('gatePassword');
@@ -979,7 +1078,7 @@ function initReveal() {
 
 // --- Route Handler ---
 function handleRoute() {
-  stopAboutAudio();
+
   const route = getRoute();
   window.scrollTo(0, 0);
 
@@ -1029,6 +1128,7 @@ function handleRoute() {
 
 // --- Init ---
 window.addEventListener('hashchange', handleRoute);
+window.addEventListener('popstate', handleRoute);
 document.getElementById('homeLink').addEventListener('click', (e) => {
   e.preventDefault();
   navigate('home');

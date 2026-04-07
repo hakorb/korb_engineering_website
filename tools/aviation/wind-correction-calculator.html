@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wind Correction Calculator - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;--text:#e2e8f0;--text-dim:#8892a2;--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;--font:'JetBrains Mono',monospace}
+html{font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-size:1.1rem;font-weight:700;color:var(--cyan);letter-spacing:1px}
+.logo span{color:var(--orange)}
+header h1{font-size:1rem;font-weight:400;color:var(--text-dim)}
+main{max-width:900px;margin:0 auto;padding:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px}
+.card h2{font-size:.9rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+label{display:block;font-size:.75rem;font-weight:500;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+input,select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;color:var(--text);font-family:var(--font);font-size:16px;min-height:44px;transition:border-color .2s}
+input:focus,select:focus{outline:none;border-color:var(--cyan)}
+input::placeholder{color:var(--text-dim)}
+.input-group{position:relative}
+.input-suffix{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:.75rem;pointer-events:none}
+button{min-height:44px;padding:12px 24px;border:none;border-radius:6px;font-family:var(--font);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px}
+.btn-primary{background:var(--cyan);color:var(--bg)}
+.btn-primary:hover{background:#33ddff}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--cyan)}
+.btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.results{display:none}
+.results.active{display:block}
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.result-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:16px;text-align:center}
+.result-item .value{font-size:1.6rem;font-weight:700;color:var(--cyan)}
+.result-item .label{font-size:.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.result-item.warn .value{color:var(--orange)}
+.result-item.danger .value{color:var(--red)}
+.wind-components{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.component{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center}
+.component .val{font-size:1.2rem;font-weight:600}
+.component .lbl{font-size:.7rem;color:var(--text-dim);text-transform:uppercase;margin-top:2px}
+.headwind .val{color:var(--green)}
+.tailwind .val{color:var(--orange)}
+.crosswind .val{color:var(--cyan)}
+.diagram-container{display:flex;justify-content:center;padding:10px 0}
+svg text{font-family:var(--font)}
+.error{color:var(--red);font-size:.8rem;margin-top:8px;display:none}
+.error.show{display:block}
+footer{text-align:center;padding:20px;color:var(--text-dim);font-size:.7rem;border-top:1px solid var(--border);margin-top:40px}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">KORB<span>.</span>ENGINEERING</div>
+<h1>/ Wind Correction Calculator</h1>
+</header>
+<main>
+<div class="card">
+<h2>Flight Parameters</h2>
+<div class="form-grid">
+<div>
+<label for="trueCourse">True Course (deg)</label>
+<input type="number" id="trueCourse" min="0" max="360" step="1" placeholder="0 - 360">
+</div>
+<div>
+<label for="tas">True Airspeed (kts)</label>
+<input type="number" id="tas" min="1" max="999" step="1" placeholder="e.g. 120">
+</div>
+<div>
+<label for="windDir">Wind Direction (deg from)</label>
+<input type="number" id="windDir" min="0" max="360" step="1" placeholder="0 - 360">
+</div>
+<div>
+<label for="windSpd">Wind Speed (kts)</label>
+<input type="number" id="windSpd" min="0" max="200" step="1" placeholder="e.g. 15">
+</div>
+<div>
+<label for="magVar">Magnetic Variation</label>
+<div style="display:flex;gap:6px">
+<input type="number" id="magVar" min="0" max="90" step="0.1" placeholder="0" style="flex:1">
+<select id="magVarDir" style="width:80px;flex:none">
+<option value="W">West (-)</option>
+<option value="E">East (+)</option>
+</select>
+</div>
+</div>
+</div>
+<div class="btn-row">
+<button class="btn-primary" onclick="calculate()">Calculate</button>
+<button class="btn-secondary" onclick="clearForm()">Clear</button>
+</div>
+<div id="error" class="error"></div>
+</div>
+
+<div id="results" class="results">
+<div class="card">
+<h2>Results</h2>
+<div class="result-grid">
+<div class="result-item">
+<div class="value" id="rWCA">--</div>
+<div class="label">Wind Correction Angle</div>
+</div>
+<div class="result-item">
+<div class="value" id="rGS">--</div>
+<div class="label">Ground Speed (kts)</div>
+</div>
+<div class="result-item">
+<div class="value" id="rTH">--</div>
+<div class="label">True Heading</div>
+</div>
+<div class="result-item">
+<div class="value" id="rMH">--</div>
+<div class="label">Magnetic Heading</div>
+</div>
+</div>
+<div class="wind-components" id="windComponents"></div>
+</div>
+
+<div class="card">
+<h2>Wind Triangle Diagram</h2>
+<div class="diagram-container">
+<svg id="windTriangle" width="360" height="360" viewBox="0 0 360 360"></svg>
+</div>
+</div>
+</div>
+</main>
+<footer>&copy; Korb Engineering &mdash; Aviation Tools</footer>
+
+<script>
+const DEG=Math.PI/180, RAD=180/Math.PI;
+
+function normalize(deg){return((deg%360)+360)%360}
+
+function validate(){
+  const tc=document.getElementById('trueCourse').value;
+  const tas=document.getElementById('tas').value;
+  const wd=document.getElementById('windDir').value;
+  const ws=document.getElementById('windSpd').value;
+  const err=document.getElementById('error');
+  if(!tc&&tc!=='0'||!tas||!wd&&wd!=='0'||!ws&&ws!=='0'){
+    err.textContent='All flight parameters are required.';err.classList.add('show');return null;
+  }
+  const v={tc:parseFloat(tc),tas:parseFloat(tas),wd:parseFloat(wd),ws:parseFloat(ws)};
+  if(v.tas<=0){err.textContent='TAS must be greater than zero.';err.classList.add('show');return null;}
+  if(v.ws>v.tas){err.textContent='Warning: Wind speed exceeds TAS. Results may be inaccurate.';err.classList.add('show');}
+  else{err.classList.remove('show');}
+  return v;
+}
+
+function calculate(){
+  const v=validate();if(!v)return;
+  const{tc,tas,wd,ws}=v;
+  const magVar=parseFloat(document.getElementById('magVar').value)||0;
+  const magDir=document.getElementById('magVarDir').value;
+  const magOffset=magDir==='E'?magVar:-magVar;
+
+  // Wind angle relative to course
+  const windAngle=(wd-tc)*DEG;
+  // Headwind/crosswind components (relative to runway/course)
+  const headwind=ws*Math.cos(windAngle);
+  const crosswind=ws*Math.sin(windAngle);
+
+  // Wind correction angle via law of sines
+  const sinWCA=ws*Math.sin((wd-tc)*DEG)/tas;
+  const clampedSin=Math.max(-1,Math.min(1,sinWCA));
+  const wca=Math.asin(clampedSin)*RAD;
+
+  // True heading
+  const th=normalize(tc+wca);
+
+  // Ground speed
+  const gs=tas*Math.cos(wca*DEG)+ws*Math.cos((wd-tc)*DEG);
+
+  // Magnetic heading
+  const mh=normalize(th-magOffset);
+
+  // Display
+  document.getElementById('results').classList.add('active');
+  const wcaDir=wca>0?'R':wca<0?'L':'';
+  document.getElementById('rWCA').textContent=Math.abs(wca).toFixed(1)+'° '+wcaDir;
+  document.getElementById('rGS').textContent=Math.max(0,gs).toFixed(1);
+  document.getElementById('rTH').textContent=th.toFixed(1)+'°';
+  document.getElementById('rMH').textContent=mh.toFixed(1)+'°';
+
+  // Ground speed warning
+  const gsEl=document.getElementById('rGS').parentElement;
+  gsEl.className='result-item'+(gs<50?' warn':'');
+
+  // Wind components display
+  const compHTML=`
+    <div class="component ${headwind>=0?'headwind':'tailwind'}">
+      <div class="val">${Math.abs(headwind).toFixed(1)} kts</div>
+      <div class="lbl">${headwind>=0?'Headwind':'Tailwind'} Component</div>
+    </div>
+    <div class="component crosswind">
+      <div class="val">${Math.abs(crosswind).toFixed(1)} kts</div>
+      <div class="lbl">Crosswind ${crosswind>0?'(from Right)':crosswind<0?'(from Left)':''}</div>
+    </div>`;
+  document.getElementById('windComponents').innerHTML=compHTML;
+
+  drawTriangle(tc,tas,th,gs,wd,ws);
+}
+
+function drawTriangle(tc,tas,th,gs,wd,ws){
+  const svg=document.getElementById('windTriangle');
+  const cx=180,cy=180,scale=Math.min(140/Math.max(tas,gs,ws,1),2.5);
+  // Vectors: course/GS, heading/TAS, wind
+  // North is up (-Y)
+  function toXY(deg,len){return{x:cx+len*scale*Math.sin(deg*DEG),y:cy-len*scale*Math.cos(deg*DEG)};}
+
+  const pGS=toXY(tc,gs);
+  const pTAS=toXY(th,tas);
+  // Wind vector from heading endpoint back
+  // wind blows FROM windDir, so the vector points the direction wind goes TO
+  const windTo=normalize(wd+180);
+
+  let html=`
+  <!-- compass rose -->
+  <circle cx="${cx}" cy="${cy}" r="150" fill="none" stroke="#1a2535" stroke-width="1"/>
+  <line x1="${cx}" y1="${cy-155}" x2="${cx}" y2="${cy-145}" stroke="#8892a2" stroke-width="1.5"/>
+  <text x="${cx}" y="${cy-158}" text-anchor="middle" fill="#8892a2" font-size="10">N</text>
+  <line x1="${cx+155}" y1="${cy}" x2="${cx+145}" y2="${cy}" stroke="#8892a2" stroke-width="1.5"/>
+  <text x="${cx+162}" y="${cy+4}" text-anchor="middle" fill="#8892a2" font-size="10">E</text>
+  <line x1="${cx}" y1="${cy+155}" x2="${cx}" y2="${cy+145}" stroke="#8892a2" stroke-width="1.5"/>
+  <text x="${cx}" y="${cy+168}" text-anchor="middle" fill="#8892a2" font-size="10">S</text>
+  <line x1="${cx-155}" y1="${cy}" x2="${cx-145}" y2="${cy}" stroke="#8892a2" stroke-width="1.5"/>
+  <text x="${cx-162}" y="${cy+4}" text-anchor="middle" fill="#8892a2" font-size="10">W</text>`;
+
+  // Ground track (course + ground speed) - green
+  html+=`<line x1="${cx}" y1="${cy}" x2="${pGS.x}" y2="${pGS.y}" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrowG)"/>`;
+  // TAS vector (heading + TAS) - cyan
+  html+=`<line x1="${cx}" y1="${cy}" x2="${pTAS.x}" y2="${pTAS.y}" stroke="#00d4ff" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowC)"/>`;
+  // Wind vector from TAS endpoint to GS endpoint - orange
+  html+=`<line x1="${pTAS.x}" y1="${pTAS.y}" x2="${pGS.x}" y2="${pGS.y}" stroke="#ff6600" stroke-width="2" marker-end="url(#arrowO)"/>`;
+
+  // Labels
+  const midGS={x:(cx+pGS.x)/2+10,y:(cy+pGS.y)/2};
+  const midTAS={x:(cx+pTAS.x)/2-10,y:(cy+pTAS.y)/2};
+  html+=`<text x="${midGS.x}" y="${midGS.y}" fill="#10b981" font-size="9" font-weight="600">GS ${Math.max(0,gs).toFixed(0)}kts</text>`;
+  html+=`<text x="${midTAS.x}" y="${midTAS.y}" fill="#00d4ff" font-size="9" font-weight="600">TAS ${tas}kts</text>`;
+  html+=`<text x="${(pTAS.x+pGS.x)/2+8}" y="${(pTAS.y+pGS.y)/2-6}" fill="#ff6600" font-size="9" font-weight="600">Wind ${ws}kts</text>`;
+
+  // Defs
+  const defs=`<defs>
+    <marker id="arrowG" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="#10b981"/></marker>
+    <marker id="arrowC" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="#00d4ff"/></marker>
+    <marker id="arrowO" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,1 L7,4 L0,7 Z" fill="#ff6600"/></marker>
+  </defs>`;
+
+  // Legend
+  html+=`
+  <rect x="10" y="310" width="10" height="3" fill="#10b981"/>
+  <text x="25" y="314" fill="#8892a2" font-size="9">Ground Track</text>
+  <rect x="120" y="310" width="10" height="3" fill="#00d4ff"/>
+  <text x="135" y="314" fill="#8892a2" font-size="9">Heading/TAS</text>
+  <rect x="230" y="310" width="10" height="3" fill="#ff6600"/>
+  <text x="245" y="314" fill="#8892a2" font-size="9">Wind</text>`;
+
+  svg.innerHTML=defs+html;
+}
+
+function clearForm(){
+  document.querySelectorAll('input[type="number"]').forEach(i=>i.value='');
+  document.getElementById('results').classList.remove('active');
+  document.getElementById('error').classList.remove('show');
+}
+</script>
+</body>
+</html>

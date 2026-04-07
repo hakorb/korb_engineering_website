@@ -338,6 +338,39 @@ body {
   .controls-bar { display: none; }
 }
 
+/* AI Pro Guide toggle */
+.ai-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ai-toggle-btn {
+  background: #1a1a1a;
+  border: 2px solid #555;
+  color: #888;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+  text-align: center;
+  line-height: 1.5;
+}
+.ai-toggle-btn:hover {
+  border-color: #00d4ff;
+  color: #aaa;
+}
+.ai-toggle-btn.active {
+  background: rgba(0, 212, 255, 0.12);
+  border-color: #00d4ff;
+  color: #00d4ff;
+  text-shadow: 0 0 6px rgba(0, 212, 255, 0.4);
+}
+
 @media (max-height: 700px) {
   .title-bar { margin-bottom: 2px; }
   .title-text { font-size: 18px; }
@@ -385,6 +418,9 @@ body {
         <div class="panel-label">LINES</div>
         <div class="panel-value" id="linesDisplay">000</div>
       </div>
+      <div class="ai-toggle">
+        <div class="ai-toggle-btn" id="aiToggleBtn">AI PRO<br>GUIDE</div>
+      </div>
     </div>
   </div>
 
@@ -397,7 +433,7 @@ body {
   </div>
 
   <div class="controls-bar">
-    <span>&#9664;&#9654;</span> MOVE &nbsp; <span>&#9650;</span> ROTATE &nbsp; <span>&#9660;</span> SOFT DROP &nbsp; <span>SPACE</span> HARD DROP &nbsp; <span>P/ESC</span> PAUSE &nbsp; <span>M</span> MUSIC &nbsp; <span>G</span> GHOST &nbsp; <span>C</span> CRT
+    <span>&#9664;&#9654;</span> MOVE &nbsp; <span>&#9650;</span> ROTATE &nbsp; <span>&#9660;</span> SOFT DROP &nbsp; <span>SPACE</span> HARD DROP &nbsp; <span>P/ESC</span> PAUSE &nbsp; <span>M</span> MUSIC &nbsp; <span>G</span> GHOST &nbsp; <span>A</span> AI GUIDE &nbsp; <span>C</span> CRT
   </div>
   <div class="branding">KORB ENGINEERING</div>
 </div>
@@ -774,6 +810,8 @@ const AudioEngine = (() => {
   let highScore = parseInt(localStorage.getItem('tetris_high') || '0');
   let gameState = 'start'; // start, playing, paused, gameover, animating
   let showGhost = true;
+  let aiProGuide = false;
+  let aiBestMove = null; // {type, rotation, x, y}
   let selectedMusic = 'A';
 
   let current = null; // {type, rotation, x, y}
@@ -939,6 +977,112 @@ const AudioEngine = (() => {
     return gy;
   }
 
+  // ===================== AI PRO GUIDE =====================
+  function computeAIBest() {
+    if (!current) { aiBestMove = null; return; }
+    let bestScore = -Infinity;
+    let bestMove = null;
+
+    for (let rot = 0; rot < 4; rot++) {
+      const shape = getShape(current.type, rot);
+      const shapeW = shape[0].length;
+
+      for (let x = -2; x < COLS + 2; x++) {
+        // Drop from top to find landing y
+        let y = -2;
+        // First check if piece can even exist at this x,rot at some y
+        let valid = false;
+        while (y < ROWS) {
+          if (collides(current.type, rot, x, y + 1)) {
+            // Check current position is valid (not colliding)
+            if (!collides(current.type, rot, x, y)) {
+              valid = true;
+            }
+            break;
+          }
+          y++;
+        }
+        if (!valid) continue;
+
+        // Simulate placing piece on a copy of the board
+        const testBoard = board.map(row => row.slice());
+        for (let r = 0; r < shape.length; r++) {
+          for (let c = 0; c < shape[r].length; c++) {
+            if (shape[r][c]) {
+              const by = y + r;
+              const bx = x + c;
+              if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+                testBoard[by][bx] = '#fff';
+              }
+            }
+          }
+        }
+
+        const sc = evaluateBoard(testBoard);
+        if (sc > bestScore) {
+          bestScore = sc;
+          bestMove = { type: current.type, rotation: rot, x: x, y: y };
+        }
+      }
+    }
+    aiBestMove = bestMove;
+  }
+
+  function evaluateBoard(b) {
+    // Count complete lines
+    let completeLines = 0;
+    for (let r = 0; r < ROWS; r++) {
+      if (b[r].every(cell => cell !== null)) completeLines++;
+    }
+
+    // Column heights and holes
+    const colHeights = new Array(COLS).fill(0);
+    let holes = 0;
+
+    for (let c = 0; c < COLS; c++) {
+      let foundBlock = false;
+      for (let r = 0; r < ROWS; r++) {
+        if (b[r][c] !== null) {
+          if (!foundBlock) {
+            colHeights[c] = ROWS - r;
+            foundBlock = true;
+          }
+        } else if (foundBlock) {
+          holes++;
+        }
+      }
+    }
+
+    // Aggregate height
+    const aggregateHeight = colHeights.reduce((sum, h) => sum + h, 0);
+
+    // Bumpiness (sum of absolute differences between adjacent columns)
+    let bumpiness = 0;
+    for (let c = 0; c < COLS - 1; c++) {
+      bumpiness += Math.abs(colHeights[c] - colHeights[c + 1]);
+    }
+
+    // Wells (columns significantly lower than both neighbors)
+    let wells = 0;
+    for (let c = 0; c < COLS; c++) {
+      const left = c > 0 ? colHeights[c - 1] : ROWS;
+      const right = c < COLS - 1 ? colHeights[c + 1] : ROWS;
+      const depth = Math.min(left, right) - colHeights[c];
+      if (depth > 0) wells += depth;
+    }
+
+    // Max height penalty
+    const maxHeight = Math.max(...colHeights);
+
+    // Weighted scoring (tuned for skilled play)
+    return (completeLines * 760)
+         - (holes * 356)
+         - (aggregateHeight * 51)
+         - (bumpiness * 184)
+         - (wells * 80)
+         - (maxHeight * 30);
+  }
+
   function movePiece(dx, dy) {
     if (!current) return false;
     if (!collides(current.type, current.rotation, current.x + dx, current.y + dy)) {
@@ -1044,6 +1188,31 @@ const AudioEngine = (() => {
         }
         cx.globalAlpha = 1;
       }
+    }
+
+    // AI Pro Guide ghost piece
+    if (aiProGuide && aiBestMove && gameState === 'playing') {
+      const aiShape = getShape(aiBestMove.type, aiBestMove.rotation);
+      cx.globalAlpha = 0.25;
+      for (let r = 0; r < aiShape.length; r++) {
+        for (let c = 0; c < aiShape[r].length; c++) {
+          if (aiShape[r][c]) {
+            const py = (aiBestMove.y + r) * CELL;
+            const px = (aiBestMove.x + c) * CELL;
+            if (py >= 0) {
+              cx.fillStyle = '#00d4ff';
+              cx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+              cx.fillStyle = 'rgba(255,255,255,0.25)';
+              cx.fillRect(px + 1, py + 1, CELL - 2, 2);
+              cx.fillRect(px + 1, py + 1, 2, CELL - 2);
+              cx.fillStyle = 'rgba(0,0,0,0.25)';
+              cx.fillRect(px + 1, py + CELL - 3, CELL - 2, 2);
+              cx.fillRect(px + CELL - 3, py + 1, 2, CELL - 2);
+            }
+          }
+        }
+      }
+      cx.globalAlpha = 1;
     }
 
     // Current piece
@@ -1195,6 +1364,9 @@ const AudioEngine = (() => {
   }
 
   function render() {
+    if (aiProGuide && gameState === 'playing') {
+      computeAIBest();
+    }
     drawBoard();
     drawNext();
     drawStats();
@@ -1299,6 +1471,11 @@ const AudioEngine = (() => {
     if (e.key === 'g' || e.key === 'G') {
       showGhost = !showGhost;
     }
+    if (e.key === 'a' || e.key === 'A') {
+      aiProGuide = !aiProGuide;
+      if (!aiProGuide) aiBestMove = null;
+      document.getElementById('aiToggleBtn').classList.toggle('active', aiProGuide);
+    }
     if (e.key === 'c' || e.key === 'C') {
       document.getElementById('crtOverlay').classList.toggle('hidden');
     }
@@ -1387,6 +1564,13 @@ const AudioEngine = (() => {
       btn.classList.add('selected');
       selectedMusic = btn.dataset.music;
     });
+  });
+
+  // AI Pro Guide toggle button
+  document.getElementById('aiToggleBtn').addEventListener('click', () => {
+    aiProGuide = !aiProGuide;
+    if (!aiProGuide) aiBestMove = null;
+    document.getElementById('aiToggleBtn').classList.toggle('active', aiProGuide);
   });
 
   // Start screen also responds to click

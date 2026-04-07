@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Structural Steel Beam Calculator | Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+--text:#e2e8f0;--text-dim:#8892a2;--cyan:#00d4ff;--orange:#ff6600;
+--green:#10b981;--red:#ef4444;--font:'JetBrains Mono',monospace;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.6;min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{font-size:1.1rem;font-weight:700;color:var(--orange);letter-spacing:1px}
+.logo span{color:var(--cyan)}
+header h1{font-size:1rem;font-weight:400;color:var(--text-dim)}
+.container{max-width:960px;margin:0 auto;padding:20px}
+label{display:block;font-size:.8rem;color:var(--text-dim);margin:12px 0 4px;font-weight:500}
+input,select{width:100%;padding:10px 12px;min-height:44px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font);font-size:1rem}
+input:focus,select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+button{min-height:44px;padding:10px 20px;border:none;border-radius:6px;font-family:var(--font);font-size:.9rem;font-weight:600;cursor:pointer;transition:.2s}
+.btn-primary{background:var(--cyan);color:#050a0f}
+.btn-primary:hover{opacity:.85}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--cyan)}
+.btn-green{background:var(--green);color:#050a0f}
+.result-box{background:var(--surface);border:1px solid var(--green);border-radius:8px;padding:16px;margin:16px 0}
+.result-box h3{color:var(--green);font-size:.9rem;margin-bottom:8px}
+.result-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem;flex-wrap:wrap}
+.result-row:last-child{border-bottom:none}
+.result-label{color:var(--text-dim)}
+.result-value{color:var(--cyan);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:600px){.grid2,.grid3{grid-template-columns:1fr}}
+.actions{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin:16px 0}
+.section h2{color:var(--cyan);font-size:.95rem;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:.75rem;margin:8px 0}
+th,td{padding:6px;text-align:right;border:1px solid var(--border)}
+th{background:var(--surface2);color:var(--cyan);font-weight:600;position:sticky;top:0}
+td:first-child,th:first-child{text-align:left}
+.table-scroll{max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
+canvas{width:100%;max-width:100%;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.pass{color:var(--green);font-weight:700}
+.fail{color:var(--red);font-weight:700}
+.note{font-size:.75rem;color:var(--text-dim);margin:4px 0}
+.footer{text-align:center;padding:20px;color:var(--text-dim);font-size:.75rem;border-top:1px solid var(--border);margin-top:40px}
+.eq{font-size:.8rem;color:var(--text-dim);background:var(--surface2);padding:8px 12px;border-radius:6px;margin:8px 0;font-style:italic}
+.highlight-row{background:rgba(0,212,255,.08)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">KORB <span>ENGINEERING</span></div>
+  <h1>Structural Steel Beam Calculator</h1>
+</header>
+
+<div class="container">
+
+<!-- BEAM SECTION -->
+<div class="section">
+  <h2>Beam Selection</h2>
+  <div class="grid2">
+    <div>
+      <label>W-Shape</label>
+      <select id="beam-select" onchange="updateBeamProps()">
+        <option value="">-- Select W-Shape --</option>
+      </select>
+    </div>
+    <div>
+      <label>Steel Grade</label>
+      <select id="steel-grade" onchange="updateFy()">
+        <option value="50">A992 (Fy = 50 ksi)</option>
+        <option value="36">A36 (Fy = 36 ksi)</option>
+        <option value="65">A572 Gr.65 (Fy = 65 ksi)</option>
+      </select>
+    </div>
+  </div>
+  <div id="beam-props" class="note" style="margin-top:8px"></div>
+</div>
+
+<!-- LOADING -->
+<div class="section">
+  <h2>Loading Conditions</h2>
+  <label>Support Condition</label>
+  <select id="support-type" onchange="updateLoadOptions()">
+    <option value="simple">Simply Supported</option>
+    <option value="cantilever">Cantilever</option>
+    <option value="fixed">Fixed-Fixed</option>
+  </select>
+
+  <label>Load Type</label>
+  <select id="load-type">
+    <option value="uniform">Uniform Distributed Load</option>
+    <option value="point-center">Point Load at Center</option>
+    <option value="point-any">Point Load at Distance 'a'</option>
+    <option value="two-point">Two Equal Point Loads (symmetric)</option>
+  </select>
+
+  <div class="grid2">
+    <div><label>Span, L (ft)</label><input type="number" id="span" value="30" step="0.5" min="1"></div>
+    <div id="fy-group"><label>Fy (ksi)</label><input type="number" id="fy" value="50" step="1"></div>
+  </div>
+
+  <div id="load-inputs">
+    <div class="grid2">
+      <div id="w-input-wrap"><label>Uniform Load, w (k/ft)</label><input type="number" id="load-w" value="2.0" step="0.1"></div>
+      <div id="p-input-wrap" style="display:none"><label>Point Load, P (kips)</label><input type="number" id="load-p" value="20" step="0.5"></div>
+      <div id="a-input-wrap" style="display:none"><label>Distance 'a' from left (ft)</label><input type="number" id="load-a" value="10" step="0.5"></div>
+      <div id="d-input-wrap" style="display:none"><label>Distance from ends for two loads (ft)</label><input type="number" id="load-d" value="10" step="0.5"></div>
+    </div>
+  </div>
+
+  <label>Deflection Limit</label>
+  <select id="defl-limit">
+    <option value="240">L/240 (floor, total)</option>
+    <option value="360">L/360 (floor, live load)</option>
+    <option value="180">L/180 (roof, total)</option>
+    <option value="600">L/600 (sensitive)</option>
+  </select>
+</div>
+
+<div class="actions">
+  <button class="btn-primary" onclick="calcBeam()">Analyze Beam</button>
+  <button class="btn-green" onclick="selectOptimal()">Find Lightest Adequate W-Shape</button>
+  <button class="btn-secondary" onclick="saveSteel()">Save</button>
+  <button class="btn-secondary" onclick="exportSteel()">Copy to Clipboard</button>
+</div>
+
+<div id="results" class="result-box" style="display:none">
+  <h3>Analysis Results</h3>
+  <div id="results-body"></div>
+</div>
+
+<div id="eq-box" class="eq" style="display:none"></div>
+
+<canvas id="diagram" width="900" height="520" style="display:none;margin-top:16px"></canvas>
+
+<!-- BEAM DATABASE -->
+<div class="section">
+  <h2>AISC W-Shape Database</h2>
+  <div class="table-scroll">
+    <table id="beam-table">
+      <thead>
+        <tr><th>Shape</th><th>W (plf)</th><th>A (in2)</th><th>d (in)</th><th>bf (in)</th><th>tf (in)</th><th>tw (in)</th><th>Ix (in4)</th><th>Sx (in3)</th><th>Zx (in3)</th><th>Iy (in4)</th><th>Sy (in3)</th><th>Zy (in3)</th></tr>
+      </thead>
+      <tbody id="beam-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<div class="footer">
+  &copy; Korb Engineering &mdash; Structural Steel Beam Calculator &mdash; For preliminary estimation only. All designs must be verified by a licensed PE.
+</div>
+
+<script>
+// AISC W-Shape Database (common sizes)
+const DB = [
+  {name:"W8x10",w:10,A:2.96,d:7.89,bf:3.94,tf:0.205,tw:0.170,Ix:30.8,Sx:7.81,Zx:8.87,Iy:2.09,Sy:1.06,Zy:1.66},
+  {name:"W8x13",w:13,A:3.84,d:7.99,bf:4.00,tf:0.255,tw:0.230,Ix:39.6,Sx:9.91,Zx:11.4,Iy:2.73,Sy:1.37,Zy:2.15},
+  {name:"W8x18",w:18,A:5.26,d:8.14,bf:5.25,tf:0.308,tw:0.230,Ix:61.9,Sx:15.2,Zx:17.0,Iy:7.97,Sy:3.04,Zy:4.66},
+  {name:"W8x24",w:24,A:7.08,d:7.93,bf:6.50,tf:0.400,tw:0.245,Ix:82.7,Sx:20.9,Zx:23.1,Iy:18.3,Sy:5.63,Zy:8.57},
+  {name:"W8x31",w:31,A:9.13,d:8.00,bf:8.00,tf:0.435,tw:0.285,Ix:110,Sx:27.5,Zx:30.4,Iy:37.1,Sy:9.27,Zy:14.1},
+  {name:"W8x48",w:48,A:14.1,d:8.50,bf:8.11,tf:0.685,tw:0.400,Ix:184,Sx:43.2,Zx:49.0,Iy:60.9,Sy:15.0,Zy:22.9},
+  {name:"W10x12",w:12,A:3.54,d:9.87,bf:3.96,tf:0.190,tw:0.190,Ix:53.8,Sx:10.9,Zx:12.6,Iy:2.18,Sy:1.10,Zy:1.74},
+  {name:"W10x15",w:15,A:4.41,d:9.99,bf:4.00,tf:0.270,tw:0.230,Ix:68.9,Sx:13.8,Zx:16.0,Iy:2.89,Sy:1.45,Zy:2.30},
+  {name:"W10x22",w:22,A:6.49,d:10.2,bf:5.75,tf:0.360,tw:0.240,Ix:118,Sx:23.2,Zx:26.0,Iy:11.4,Sy:3.97,Zy:6.10},
+  {name:"W10x33",w:33,A:9.71,d:9.73,bf:7.96,tf:0.435,tw:0.290,Ix:171,Sx:35.0,Zx:38.8,Iy:36.6,Sy:9.20,Zy:14.0},
+  {name:"W10x49",w:49,A:14.4,d:10.0,bf:10.0,tf:0.560,tw:0.340,Ix:272,Sx:54.6,Zx:60.4,Iy:93.4,Sy:18.7,Zy:28.3},
+  {name:"W10x68",w:68,A:20.0,d:10.4,bf:10.1,tf:0.770,tw:0.470,Ix:394,Sx:75.7,Zx:85.3,Iy:134,Sy:26.4,Zy:40.1},
+  {name:"W12x14",w:14,A:4.16,d:11.9,bf:3.97,tf:0.225,tw:0.200,Ix:88.6,Sx:14.9,Zx:17.4,Iy:2.36,Sy:1.19,Zy:1.90},
+  {name:"W12x19",w:19,A:5.57,d:12.2,bf:4.01,tf:0.350,tw:0.235,Ix:130,Sx:21.3,Zx:24.7,Iy:3.76,Sy:1.88,Zy:2.98},
+  {name:"W12x26",w:26,A:7.65,d:12.2,bf:6.49,tf:0.380,tw:0.230,Ix:204,Sx:33.4,Zx:37.2,Iy:17.3,Sy:5.34,Zy:8.17},
+  {name:"W12x40",w:40,A:11.7,d:11.9,bf:8.01,tf:0.516,tw:0.294,Ix:310,Sx:51.9,Zx:57.5,Iy:44.1,Sy:11.0,Zy:16.8},
+  {name:"W12x50",w:50,A:14.6,d:12.2,bf:8.08,tf:0.641,tw:0.371,Ix:394,Sx:64.7,Zx:72.4,Iy:56.3,Sy:13.9,Zy:21.4},
+  {name:"W12x65",w:65,A:19.1,d:12.1,bf:12.0,tf:0.605,tw:0.390,Ix:533,Sx:87.9,Zx:96.8,Iy:174,Sy:29.1,Zy:44.1},
+  {name:"W12x87",w:87,A:25.6,d:12.5,bf:12.1,tf:0.810,tw:0.515,Ix:740,Sx:118,Zx:132,Iy:241,Sy:39.7,Zy:60.4},
+  {name:"W14x22",w:22,A:6.49,d:13.7,bf:5.00,tf:0.335,tw:0.230,Ix:199,Sx:29.0,Zx:33.2,Iy:7.00,Sy:2.80,Zy:4.39},
+  {name:"W14x30",w:30,A:8.85,d:13.8,bf:6.73,tf:0.385,tw:0.270,Ix:291,Sx:42.0,Zx:47.3,Iy:19.6,Sy:5.82,Zy:8.99},
+  {name:"W14x43",w:43,A:12.6,d:13.7,bf:8.00,tf:0.530,tw:0.305,Ix:428,Sx:62.7,Zx:69.6,Iy:45.2,Sy:11.3,Zy:17.3},
+  {name:"W14x53",w:53,A:15.6,d:13.9,bf:8.06,tf:0.660,tw:0.370,Ix:541,Sx:77.8,Zx:87.1,Iy:57.7,Sy:14.3,Zy:22.0},
+  {name:"W14x68",w:68,A:20.0,d:14.0,bf:10.0,tf:0.720,tw:0.415,Ix:722,Sx:103,Zx:115,Iy:121,Sy:24.2,Zy:36.9},
+  {name:"W14x90",w:90,A:26.5,d:14.0,bf:14.5,tf:0.710,tw:0.440,Ix:999,Sx:143,Zx:157,Iy:362,Sy:49.9,Zy:75.6},
+  {name:"W14x120",w:120,A:35.3,d:14.5,bf:14.7,tf:0.940,tw:0.590,Ix:1380,Sx:190,Zx:212,Iy:495,Sy:67.5,Zy:102},
+  {name:"W16x26",w:26,A:7.68,d:15.7,bf:5.50,tf:0.345,tw:0.250,Ix:301,Sx:38.4,Zx:44.2,Iy:9.59,Sy:3.49,Zy:5.48},
+  {name:"W16x36",w:36,A:10.6,d:15.9,bf:6.99,tf:0.430,tw:0.295,Ix:448,Sx:56.5,Zx:64.0,Iy:24.5,Sy:7.00,Zy:10.8},
+  {name:"W16x50",w:50,A:14.7,d:16.3,bf:7.07,tf:0.630,tw:0.380,Ix:659,Sx:81.0,Zx:92.0,Iy:37.2,Sy:10.5,Zy:16.3},
+  {name:"W16x67",w:67,A:19.7,d:16.3,bf:10.2,tf:0.665,tw:0.395,Ix:954,Sx:117,Zx:130,Iy:119,Sy:23.2,Zy:35.5},
+  {name:"W18x35",w:35,A:10.3,d:17.7,bf:6.00,tf:0.425,tw:0.300,Ix:510,Sx:57.6,Zx:66.5,Iy:15.3,Sy:5.12,Zy:8.06},
+  {name:"W18x50",w:50,A:14.7,d:18.0,bf:7.50,tf:0.570,tw:0.355,Ix:800,Sx:88.9,Zx:101,Iy:40.1,Sy:10.7,Zy:16.6},
+  {name:"W18x71",w:71,A:20.8,d:18.5,bf:7.64,tf:0.810,tw:0.495,Ix:1170,Sx:127,Zx:146,Iy:60.3,Sy:15.8,Zy:24.7},
+  {name:"W18x97",w:97,A:28.5,d:18.6,bf:11.1,tf:0.870,tw:0.535,Ix:1750,Sx:188,Zx:211,Iy:201,Sy:36.1,Zy:55.3},
+  {name:"W21x44",w:44,A:13.0,d:20.7,bf:6.50,tf:0.450,tw:0.350,Ix:843,Sx:81.6,Zx:95.4,Iy:20.7,Sy:6.36,Zy:10.2},
+  {name:"W21x62",w:62,A:18.3,d:21.0,bf:8.24,tf:0.615,tw:0.400,Ix:1330,Sx:127,Zx:144,Iy:57.5,Sy:14.0,Zy:21.7},
+  {name:"W21x83",w:83,A:24.3,d:21.4,bf:8.36,tf:0.835,tw:0.515,Ix:1830,Sx:171,Zx:196,Iy:81.4,Sy:19.5,Zy:30.5},
+  {name:"W24x55",w:55,A:16.2,d:23.6,bf:7.01,tf:0.505,tw:0.395,Ix:1350,Sx:114,Zx:134,Iy:29.1,Sy:8.30,Zy:13.3},
+  {name:"W24x68",w:68,A:20.1,d:23.7,bf:8.97,tf:0.585,tw:0.415,Ix:1830,Sx:154,Zx:177,Iy:70.4,Sy:15.7,Zy:24.5},
+  {name:"W24x84",w:84,A:24.7,d:24.1,bf:9.02,tf:0.770,tw:0.470,Ix:2370,Sx:196,Zx:224,Iy:94.4,Sy:20.9,Zy:32.6},
+  {name:"W24x104",w:104,A:30.6,d:24.1,bf:12.8,tf:0.750,tw:0.500,Ix:3100,Sx:258,Zx:289,Iy:259,Sy:40.7,Zy:62.4},
+  {name:"W27x84",w:84,A:24.8,d:26.7,bf:10.0,tf:0.640,tw:0.460,Ix:2850,Sx:213,Zx:244,Iy:106,Sy:21.2,Zy:33.2},
+  {name:"W27x114",w:114,A:33.5,d:27.3,bf:10.1,tf:0.930,tw:0.570,Ix:4090,Sx:299,Zx:343,Iy:159,Sy:31.5,Zy:49.3},
+  {name:"W30x90",w:90,A:26.4,d:29.5,bf:10.4,tf:0.610,tw:0.470,Ix:3610,Sx:245,Zx:283,Iy:115,Sy:22.1,Zy:34.7},
+  {name:"W30x116",w:116,A:34.2,d:30.0,bf:10.5,tf:0.850,tw:0.565,Ix:4930,Sx:329,Zx:378,Iy:164,Sy:31.3,Zy:49.2},
+  {name:"W33x118",w:118,A:34.7,d:32.9,bf:11.5,tf:0.740,tw:0.550,Ix:5900,Sx:359,Zx:415,Iy:187,Sy:32.6,Zy:51.3},
+  {name:"W33x152",w:152,A:44.8,d:33.5,bf:11.6,tf:1.06,tw:0.635,Ix:8160,Sx:487,Zx:559,Iy:273,Sy:47.2,Zy:74.0},
+  {name:"W36x135",w:135,A:39.7,d:35.6,bf:12.0,tf:0.790,tw:0.600,Ix:7800,Sx:439,Zx:509,Iy:225,Sy:37.7,Zy:59.7},
+  {name:"W36x194",w:194,A:57.0,d:36.5,bf:12.1,tf:1.26,tw:0.765,Ix:12100,Sx:664,Zx:767,Iy:375,Sy:61.9,Zy:97.7},
+  {name:"W36x300",w:300,A:88.3,d:36.7,bf:16.7,tf:1.68,tw:0.945,Ix:20300,Sx:1110,Zx:1260,Iy:1300,Sy:156,Zy:241},
+];
+
+// Populate table and select
+function initDB() {
+  const sel = document.getElementById('beam-select');
+  const tbody = document.getElementById('beam-tbody');
+  DB.forEach((b, i) => {
+    sel.innerHTML += `<option value="${i}">${b.name}</option>`;
+    tbody.innerHTML += `<tr><td>${b.name}</td><td>${b.w}</td><td>${b.A}</td><td>${b.d}</td><td>${b.bf}</td><td>${b.tf}</td><td>${b.tw}</td><td>${b.Ix}</td><td>${b.Sx}</td><td>${b.Zx}</td><td>${b.Iy}</td><td>${b.Sy}</td><td>${b.Zy}</td></tr>`;
+  });
+}
+initDB();
+
+function updateBeamProps() {
+  const i = document.getElementById('beam-select').value;
+  if (i === '') { document.getElementById('beam-props').textContent = ''; return; }
+  const b = DB[i];
+  document.getElementById('beam-props').textContent = `${b.name}: d=${b.d}", bf=${b.bf}", Ix=${b.Ix} in4, Sx=${b.Sx} in3, Zx=${b.Zx} in3, wt=${b.w} plf`;
+}
+
+function updateFy() {
+  document.getElementById('fy').value = document.getElementById('steel-grade').value;
+}
+
+function updateLoadOptions() {
+  const st = document.getElementById('support-type').value;
+  const lt = document.getElementById('load-type');
+  lt.innerHTML = '';
+  if (st === 'simple') {
+    lt.innerHTML = '<option value="uniform">Uniform Distributed Load</option><option value="point-center">Point Load at Center</option><option value="point-any">Point Load at Distance a</option><option value="two-point">Two Equal Point Loads (symmetric)</option>';
+  } else if (st === 'cantilever') {
+    lt.innerHTML = '<option value="uniform">Uniform Distributed Load</option><option value="point-end">Point Load at Free End</option><option value="point-any">Point Load at Distance a</option>';
+  } else {
+    lt.innerHTML = '<option value="uniform">Uniform Distributed Load</option>';
+  }
+  toggleLoadInputs();
+}
+
+document.getElementById('load-type').addEventListener('change', toggleLoadInputs);
+function toggleLoadInputs() {
+  const lt = document.getElementById('load-type').value;
+  document.getElementById('w-input-wrap').style.display = lt === 'uniform' ? '' : 'none';
+  document.getElementById('p-input-wrap').style.display = lt !== 'uniform' ? '' : 'none';
+  document.getElementById('a-input-wrap').style.display = lt === 'point-any' ? '' : 'none';
+  document.getElementById('d-input-wrap').style.display = lt === 'two-point' ? '' : 'none';
+}
+
+let lastResult = null;
+
+function calcBeam() {
+  const bi = document.getElementById('beam-select').value;
+  if (bi === '') return alert('Select a W-Shape first.');
+  const beam = DB[bi];
+  const L = parseFloat(document.getElementById('span').value);
+  const Fy = parseFloat(document.getElementById('fy').value);
+  const E = 29000; // ksi
+  const Lft = L; const Lin = L * 12;
+  const st = document.getElementById('support-type').value;
+  const lt = document.getElementById('load-type').value;
+
+  let Mmax, Vmax, dmax, eqM, eqV, eqD;
+  const I = beam.Ix;
+
+  if (st === 'simple') {
+    if (lt === 'uniform') {
+      const w = parseFloat(document.getElementById('load-w').value); // k/ft
+      const wIn = w / 12; // k/in
+      Mmax = w * L * L / 8; // k-ft
+      Vmax = w * L / 2;
+      dmax = (5 * wIn * Math.pow(Lin, 4)) / (384 * E * I);
+      eqM = 'M_max = wL\u00B2/8'; eqV = 'V_max = wL/2'; eqD = '\u03B4_max = 5wL\u2074/(384EI)';
+    } else if (lt === 'point-center') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      Mmax = P * L / 4;
+      Vmax = P / 2;
+      dmax = (P * Math.pow(Lin, 3)) / (48 * E * I);
+      eqM = 'M_max = PL/4'; eqV = 'V_max = P/2'; eqD = '\u03B4_max = PL\u00B3/(48EI)';
+    } else if (lt === 'point-any') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-a').value);
+      const b = L - a; const aIn = a * 12; const bIn = b * 12;
+      Mmax = P * a * b / L;
+      Vmax = Math.max(P * b / L, P * a / L);
+      dmax = (P * bIn * (Lin*Lin - bIn*bIn)) > 0 ? (P * bIn) / (6 * E * I * Lin) * Math.sqrt((Lin*Lin - bIn*bIn)*(Lin*Lin - bIn*bIn)/3) : 0;
+      // More accurate: delta_max for point load at a: at x = sqrt((L^2-b^2)/3)
+      const x0 = Math.sqrt((Lin*Lin - bIn*bIn) / 3);
+      if (x0 <= aIn) {
+        dmax = (P * bIn * x0) / (6 * E * I * Lin) * (Lin*Lin - bIn*bIn - x0*x0);
+      } else {
+        dmax = (P * Math.pow(Lin, 3)) / (48 * E * I); // fallback center approx
+      }
+      eqM = 'M_max = Pab/L'; eqV = 'V_max = max(Pb/L, Pa/L)'; eqD = '\u03B4_max by exact formula';
+    } else if (lt === 'two-point') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-d').value);
+      const aIn = a * 12;
+      Mmax = P * a;
+      Vmax = P;
+      dmax = (P * aIn) / (24 * E * I) * (3 * Lin * Lin - 4 * aIn * aIn);
+      eqM = 'M_max = Pa'; eqV = 'V_max = P'; eqD = '\u03B4_max = Pa(3L\u00B2-4a\u00B2)/(24EI)';
+    }
+  } else if (st === 'cantilever') {
+    if (lt === 'uniform') {
+      const w = parseFloat(document.getElementById('load-w').value);
+      const wIn = w / 12;
+      Mmax = w * L * L / 2;
+      Vmax = w * L;
+      dmax = (wIn * Math.pow(Lin, 4)) / (8 * E * I);
+      eqM = 'M_max = wL\u00B2/2'; eqV = 'V_max = wL'; eqD = '\u03B4_max = wL\u2074/(8EI)';
+    } else if (lt === 'point-end') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      Mmax = P * L;
+      Vmax = P;
+      dmax = (P * Math.pow(Lin, 3)) / (3 * E * I);
+      eqM = 'M_max = PL'; eqV = 'V_max = P'; eqD = '\u03B4_max = PL\u00B3/(3EI)';
+    } else if (lt === 'point-any') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-a').value); // from fixed end
+      const aIn = a * 12;
+      Mmax = P * a;
+      Vmax = P;
+      dmax = (P * aIn * aIn) / (6 * E * I) * (3 * Lin - aIn);
+      eqM = 'M_max = Pa (at fixed end)'; eqV = 'V_max = P'; eqD = '\u03B4_max = Pa\u00B2(3L-a)/(6EI)';
+    }
+  } else { // fixed-fixed uniform
+    const w = parseFloat(document.getElementById('load-w').value);
+    const wIn = w / 12;
+    Mmax = w * L * L / 12; // at supports; midspan = wL^2/24
+    Vmax = w * L / 2;
+    dmax = (wIn * Math.pow(Lin, 4)) / (384 * E * I);
+    eqM = 'M_max = wL\u00B2/12 (at supports)'; eqV = 'V_max = wL/2'; eqD = '\u03B4_max = wL\u2074/(384EI)';
+  }
+
+  // Stress checks
+  const Sx = beam.Sx;
+  const Zx = beam.Zx;
+  const fb = (Mmax * 12) / Sx; // ksi (M in k-ft, Sx in in3)
+  const Fb = 0.66 * Fy; // allowable bending (ASD)
+  const Aw = beam.d * beam.tw;
+  const fv = Vmax / Aw;
+  const Fv = 0.40 * Fy;
+  const bendUtil = fb / Fb;
+  const shearUtil = fv / Fv;
+
+  const deflLimit = parseFloat(document.getElementById('defl-limit').value);
+  const allowDefl = Lin / deflLimit;
+
+  const bendOk = bendUtil <= 1.0;
+  const shearOk = shearUtil <= 1.0;
+  const deflOk = dmax <= allowDefl;
+
+  lastResult = { beam: beam.name, L, Fy, st, lt, Mmax, Vmax, dmax, fb, Fb, fv, Fv, bendUtil, shearUtil, allowDefl, deflLimit, bendOk, shearOk, deflOk, eqM, eqV, eqD, I, E, Sx, Zx };
+
+  const body = document.getElementById('results-body');
+  body.innerHTML = `
+    <div class="result-row"><span class="result-label">Beam</span><span class="result-value">${beam.name} (${beam.w} plf)</span></div>
+    <div class="result-row"><span class="result-label">Span</span><span class="result-value">${L} ft</span></div>
+    <div class="result-row"><span class="result-label">Max Moment (M)</span><span class="result-value">${Mmax.toFixed(2)} k-ft</span></div>
+    <div class="result-row"><span class="result-label">Max Shear (V)</span><span class="result-value">${Vmax.toFixed(2)} kips</span></div>
+    <div class="result-row"><span class="result-label">Max Deflection (\u03B4)</span><span class="result-value">${dmax.toFixed(4)} in</span></div>
+    <div class="result-row"><span class="result-label">Allowable Deflection (L/${deflLimit})</span><span class="result-value">${allowDefl.toFixed(4)} in</span></div>
+    <div class="result-row"><span class="result-label">Bending Stress fb = M/Sx</span><span class="result-value">${fb.toFixed(2)} ksi</span></div>
+    <div class="result-row"><span class="result-label">Allowable Bending Fb = 0.66Fy</span><span class="result-value">${Fb.toFixed(1)} ksi</span></div>
+    <div class="result-row"><span class="result-label">Bending Utilization</span><span class="${bendOk?'pass':'fail'} result-value">${(bendUtil*100).toFixed(1)}% ${bendOk?'PASS':'FAIL'}</span></div>
+    <div class="result-row"><span class="result-label">Shear Stress fv = V/Aw</span><span class="result-value">${fv.toFixed(2)} ksi</span></div>
+    <div class="result-row"><span class="result-label">Allowable Shear Fv = 0.40Fy</span><span class="result-value">${Fv.toFixed(1)} ksi</span></div>
+    <div class="result-row"><span class="result-label">Shear Utilization</span><span class="${shearOk?'pass':'fail'} result-value">${(shearUtil*100).toFixed(1)}% ${shearOk?'PASS':'FAIL'}</span></div>
+    <div class="result-row"><span class="result-label">Deflection Check</span><span class="${deflOk?'pass':'fail'} result-value">${dmax.toFixed(4)} vs ${allowDefl.toFixed(4)} in ${deflOk?'PASS':'FAIL'}</span></div>
+  `;
+  document.getElementById('results').style.display = '';
+  document.getElementById('eq-box').style.display = '';
+  document.getElementById('eq-box').textContent = `Equations: ${eqM}  |  ${eqV}  |  ${eqD}`;
+
+  drawDiagrams();
+}
+
+function selectOptimal() {
+  const L = parseFloat(document.getElementById('span').value);
+  const Fy = parseFloat(document.getElementById('fy').value);
+  const E = 29000;
+  const Lin = L * 12;
+  const st = document.getElementById('support-type').value;
+  const lt = document.getElementById('load-type').value;
+  const deflLimit = parseFloat(document.getElementById('defl-limit').value);
+
+  let Mmax, Vmax, wIn, P, a;
+  if (lt === 'uniform' || lt === 'point-center' || lt === 'point-end') {
+    // compute demand
+  }
+
+  // We need to compute demand independent of beam
+  if (st === 'simple' && lt === 'uniform') {
+    const w = parseFloat(document.getElementById('load-w').value);
+    wIn = w / 12; Mmax = w*L*L/8; Vmax = w*L/2;
+  } else if (st === 'simple' && lt === 'point-center') {
+    P = parseFloat(document.getElementById('load-p').value);
+    Mmax = P*L/4; Vmax = P/2;
+  } else if (st === 'simple' && lt === 'point-any') {
+    P = parseFloat(document.getElementById('load-p').value);
+    a = parseFloat(document.getElementById('load-a').value);
+    Mmax = P*a*(L-a)/L; Vmax = Math.max(P*(L-a)/L, P*a/L);
+  } else if (st === 'simple' && lt === 'two-point') {
+    P = parseFloat(document.getElementById('load-p').value);
+    a = parseFloat(document.getElementById('load-d').value);
+    Mmax = P*a; Vmax = P;
+  } else if (st === 'cantilever' && lt === 'uniform') {
+    const w = parseFloat(document.getElementById('load-w').value);
+    wIn = w / 12; Mmax = w*L*L/2; Vmax = w*L;
+  } else if (st === 'cantilever' && lt === 'point-end') {
+    P = parseFloat(document.getElementById('load-p').value);
+    Mmax = P*L; Vmax = P;
+  } else if (st === 'cantilever' && lt === 'point-any') {
+    P = parseFloat(document.getElementById('load-p').value);
+    a = parseFloat(document.getElementById('load-a').value);
+    Mmax = P*a; Vmax = P;
+  } else {
+    const w = parseFloat(document.getElementById('load-w').value);
+    wIn = w / 12; Mmax = w*L*L/12; Vmax = w*L/2;
+  }
+
+  const Fb = 0.66 * Fy;
+  const SxReq = (Mmax * 12) / Fb;
+
+  // Deflection: need min Ix
+  // For simple uniform: d = 5wL^4/(384EI) <= L/dlim => I >= 5wL^4*dlim/(384EL)
+  // Generic: just check each beam
+  let best = null;
+  for (const beam of DB) {
+    if (beam.Sx < SxReq) continue;
+    const Aw = beam.d * beam.tw;
+    const fv = Vmax / Aw;
+    if (fv > 0.40 * Fy) continue;
+
+    // Deflection check per beam
+    let dmax;
+    const I = beam.Ix;
+    if (st === 'simple' && lt === 'uniform') {
+      dmax = (5 * wIn * Math.pow(Lin, 4)) / (384 * E * I);
+    } else if (st === 'simple' && lt === 'point-center') {
+      dmax = (P * Math.pow(Lin, 3)) / (48 * E * I);
+    } else if (st === 'simple' && lt === 'point-any') {
+      const aIn = a * 12; const bIn = (L-a)*12;
+      const x0 = Math.sqrt((Lin*Lin - bIn*bIn) / 3);
+      dmax = x0 <= aIn ? (P * bIn * x0) / (6 * E * I * Lin) * (Lin*Lin - bIn*bIn - x0*x0) : (P * Math.pow(Lin, 3)) / (48 * E * I);
+    } else if (st === 'simple' && lt === 'two-point') {
+      const aIn = a * 12;
+      dmax = (P * aIn) / (24 * E * I) * (3 * Lin * Lin - 4 * aIn * aIn);
+    } else if (st === 'cantilever' && lt === 'uniform') {
+      dmax = (wIn * Math.pow(Lin, 4)) / (8 * E * I);
+    } else if (st === 'cantilever' && lt === 'point-end') {
+      dmax = (P * Math.pow(Lin, 3)) / (3 * E * I);
+    } else if (st === 'cantilever' && lt === 'point-any') {
+      const aIn = a * 12;
+      dmax = (P * aIn * aIn) / (6 * E * I) * (3 * Lin - aIn);
+    } else {
+      dmax = (wIn * Math.pow(Lin, 4)) / (384 * E * I);
+    }
+
+    if (dmax > Lin / deflLimit) continue;
+
+    if (!best || beam.w < best.w) best = beam;
+  }
+
+  if (!best) {
+    alert('No adequate W-Shape found in database. Consider larger sections or reduced loads.');
+    return;
+  }
+
+  // Set selection
+  const sel = document.getElementById('beam-select');
+  for (let i = 0; i < DB.length; i++) {
+    if (DB[i].name === best.name) { sel.value = i; break; }
+  }
+  updateBeamProps();
+  alert(`Lightest adequate section: ${best.name} (${best.w} plf)\nSx = ${best.Sx} in3 >= ${SxReq.toFixed(1)} in3 required`);
+  calcBeam();
+}
+
+function drawDiagrams() {
+  if (!lastResult) return;
+  const canvas = document.getElementById('diagram');
+  canvas.style.display = '';
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { l: 70, r: 40, t: 20, b: 20 };
+  const pw = W - pad.l - pad.r;
+  const rowH = (H - pad.t - pad.b) / 4; // 4 rows: beam, V, M, deflection
+
+  const { st, lt, L, Mmax, Vmax, dmax } = lastResult;
+
+  function tx(frac) { return pad.l + frac * pw; }
+
+  // Draw beam row
+  const bY = pad.t + rowH / 2;
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(tx(0), bY); ctx.lineTo(tx(1), bY); ctx.stroke();
+
+  // Supports
+  ctx.fillStyle = '#ff6600'; ctx.lineWidth = 2; ctx.strokeStyle = '#ff6600';
+  if (st === 'simple' || st === 'fixed') {
+    // Pin left
+    ctx.beginPath(); ctx.moveTo(tx(0), bY); ctx.lineTo(tx(0) - 8, bY + 16); ctx.lineTo(tx(0) + 8, bY + 16); ctx.closePath(); ctx.fill();
+    // Roller right
+    ctx.beginPath(); ctx.arc(tx(1), bY + 14, 6, 0, Math.PI * 2); ctx.stroke();
+    if (st === 'fixed') {
+      // Fixed indicators
+      for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(tx(0) - 12, bY - 10 + i * 8); ctx.lineTo(tx(0), bY - 6 + i * 8); ctx.stroke(); }
+      for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(tx(1), bY - 6 + i * 8); ctx.lineTo(tx(1) + 12, bY - 10 + i * 8); ctx.stroke(); }
+    }
+  } else { // cantilever
+    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(tx(0) - 14, bY - 14 + i * 8); ctx.lineTo(tx(0), bY - 10 + i * 8); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(tx(0), bY - 16); ctx.lineTo(tx(0), bY + 16); ctx.stroke();
+  }
+
+  // Load arrows
+  ctx.fillStyle = '#00d4ff'; ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5;
+  ctx.font = '11px JetBrains Mono'; ctx.fillStyle = '#00d4ff';
+  if (lt === 'uniform') {
+    for (let i = 0; i <= 10; i++) {
+      const x = tx(i / 10);
+      ctx.beginPath(); ctx.moveTo(x, bY - 30); ctx.lineTo(x, bY - 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 3, bY - 10); ctx.lineTo(x, bY - 5); ctx.lineTo(x + 3, bY - 10); ctx.fill();
+    }
+    ctx.fillText('w', tx(0.5), bY - 34);
+  } else if (lt === 'point-center') {
+    const x = tx(0.5);
+    ctx.beginPath(); ctx.moveTo(x, bY - 40); ctx.lineTo(x, bY - 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 4, bY - 10); ctx.lineTo(x, bY - 5); ctx.lineTo(x + 4, bY - 10); ctx.fill();
+    ctx.fillText('P', x + 6, bY - 30);
+  } else if (lt === 'point-end') {
+    const x = tx(1);
+    ctx.beginPath(); ctx.moveTo(x, bY - 40); ctx.lineTo(x, bY - 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 4, bY - 10); ctx.lineTo(x, bY - 5); ctx.lineTo(x + 4, bY - 10); ctx.fill();
+    ctx.fillText('P', x + 6, bY - 30);
+  } else if (lt === 'point-any') {
+    const a = parseFloat(document.getElementById('load-a').value);
+    const frac = a / L;
+    const x = tx(frac);
+    ctx.beginPath(); ctx.moveTo(x, bY - 40); ctx.lineTo(x, bY - 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 4, bY - 10); ctx.lineTo(x, bY - 5); ctx.lineTo(x + 4, bY - 10); ctx.fill();
+    ctx.fillText('P', x + 6, bY - 30);
+  } else if (lt === 'two-point') {
+    const a = parseFloat(document.getElementById('load-d').value);
+    [a / L, 1 - a / L].forEach(frac => {
+      const x = tx(frac);
+      ctx.beginPath(); ctx.moveTo(x, bY - 40); ctx.lineTo(x, bY - 5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 4, bY - 10); ctx.lineTo(x, bY - 5); ctx.lineTo(x + 4, bY - 10); ctx.fill();
+    });
+    ctx.fillText('P', tx(a / L) + 6, bY - 30);
+    ctx.fillText('P', tx(1 - a / L) + 6, bY - 30);
+  }
+
+  // Generate V and M diagrams with 100 points
+  const N = 100;
+  const Vvals = [], Mvals = [], Dvals = [];
+  for (let i = 0; i <= N; i++) {
+    const x = (i / N) * L;
+    let v = 0, m = 0, d = 0;
+    if (st === 'simple' && lt === 'uniform') {
+      const w = parseFloat(document.getElementById('load-w').value);
+      const R = w * L / 2;
+      v = R - w * x;
+      m = R * x - w * x * x / 2;
+    } else if (st === 'simple' && lt === 'point-center') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      if (x <= L / 2) { v = P / 2; m = P * x / 2; }
+      else { v = -P / 2; m = P * (L - x) / 2; }
+    } else if (st === 'simple' && lt === 'point-any') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-a').value);
+      const b = L - a;
+      const Ra = P * b / L, Rb = P * a / L;
+      if (x <= a) { v = Ra; m = Ra * x; }
+      else { v = -Rb; m = Rb * (L - x); }
+    } else if (st === 'simple' && lt === 'two-point') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-d').value);
+      if (x <= a) { v = P; m = P * x; }
+      else if (x <= L - a) { v = 0; m = P * a; }
+      else { v = -P; m = P * (L - x); }
+    } else if (st === 'cantilever' && lt === 'uniform') {
+      const w = parseFloat(document.getElementById('load-w').value);
+      v = -w * (L - x);
+      m = -w * (L - x) * (L - x) / 2;
+    } else if (st === 'cantilever' && lt === 'point-end') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      v = -P; m = -P * (L - x);
+    } else if (st === 'cantilever' && lt === 'point-any') {
+      const P = parseFloat(document.getElementById('load-p').value);
+      const a = parseFloat(document.getElementById('load-a').value);
+      if (x <= a) { v = -P; m = -P * (a - x); }
+      else { v = 0; m = 0; }
+    } else if (st === 'fixed' && lt === 'uniform') {
+      const w = parseFloat(document.getElementById('load-w').value);
+      v = w * L / 2 - w * x;
+      m = w * L * x / 2 - w * x * x / 2 - w * L * L / 12;
+    }
+    Vvals.push(v);
+    Mvals.push(m);
+  }
+
+  // Draw Shear Diagram
+  const vY0 = pad.t + rowH + rowH / 2;
+  const maxV = Math.max(...Vvals.map(Math.abs), 0.01);
+  const vScale = (rowH * 0.4) / maxV;
+
+  ctx.fillStyle = '#8892a2'; ctx.font = '11px JetBrains Mono'; ctx.textAlign = 'right';
+  ctx.fillText('V (k)', pad.l - 8, vY0 + 4);
+  ctx.strokeStyle = '#1a2535'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(tx(0), vY0); ctx.lineTo(tx(1), vY0); ctx.stroke();
+
+  ctx.strokeStyle = '#ff6600'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const x = tx(i / N); const y = vY0 - Vvals[i] * vScale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.lineTo(tx(1), vY0); ctx.lineTo(tx(0), vY0);
+  ctx.fillStyle = 'rgba(255,102,0,0.1)'; ctx.fill();
+
+  // Draw Moment Diagram
+  const mY0 = pad.t + 2 * rowH + rowH / 2;
+  const maxM = Math.max(...Mvals.map(Math.abs), 0.01);
+  const mScale = (rowH * 0.4) / maxM;
+
+  ctx.fillStyle = '#8892a2'; ctx.textAlign = 'right';
+  ctx.fillText('M (k-ft)', pad.l - 8, mY0 + 4);
+  ctx.strokeStyle = '#1a2535'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(tx(0), mY0); ctx.lineTo(tx(1), mY0); ctx.stroke();
+
+  ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const x = tx(i / N); const y = mY0 - Mvals[i] * mScale;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.lineTo(tx(1), mY0); ctx.lineTo(tx(0), mY0);
+  ctx.fillStyle = 'rgba(0,212,255,0.1)'; ctx.fill();
+
+  // Deflection shape (qualitative)
+  const dY0 = pad.t + 3 * rowH + rowH / 2;
+  ctx.fillStyle = '#8892a2'; ctx.textAlign = 'right';
+  ctx.fillText('\u03B4', pad.l - 8, dY0 + 4);
+  ctx.strokeStyle = '#1a2535'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(tx(0), dY0); ctx.lineTo(tx(1), dY0); ctx.stroke();
+
+  // Approximate deflection shape from moment (proportional)
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const x = tx(i / N);
+    // Deflection shape roughly proportional to moment for simple beams
+    let dFrac = Mvals[i] / maxM;
+    if (st === 'cantilever') dFrac = -Math.abs(dFrac); // deflects down
+    const y = dY0 + dFrac * rowH * 0.35;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 11px JetBrains Mono'; ctx.textAlign = 'center';
+  ctx.fillText(`Vmax = ${Vmax.toFixed(2)} k`, tx(0.5), pad.t + rowH + 14);
+  ctx.fillText(`Mmax = ${Mmax.toFixed(2)} k-ft`, tx(0.5), pad.t + 2 * rowH + 14);
+  ctx.fillText(`\u03B4max = ${dmax.toFixed(4)} in`, tx(0.5), pad.t + 3 * rowH + 14);
+}
+
+function saveSteel() {
+  if (!lastResult) return alert('Run analysis first.');
+  const key = 'korb_steel_' + Date.now();
+  lastResult._date = new Date().toISOString();
+  localStorage.setItem(key, JSON.stringify(lastResult));
+  alert('Saved: ' + key);
+}
+
+function exportSteel() {
+  const el = document.getElementById('results');
+  if (!el || el.style.display === 'none') return alert('Run analysis first.');
+  const eq = document.getElementById('eq-box').textContent;
+  const text = 'Korb Engineering - Structural Steel Beam Calculator\n' + el.innerText + '\n' + eq;
+  navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+}
+</script>
+</body>
+</html>

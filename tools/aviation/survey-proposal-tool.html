@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survey Proposal Generator | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-primary: #050a0f;
+  --bg-secondary: #0a1018;
+  --bg-card: #0e1520;
+  --accent: #00d4ff;
+  --orange: #ff6600;
+  --border: #1a2535;
+  --text: #e2e8f0;
+  --text-dim: #8899aa;
+  --green: #10b981;
+  --red: #ef4444;
+}
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-primary);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* HEADER */
+header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+.ke-logo {
+  width: 44px; height: 44px;
+  border: 2px solid var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px; color: var(--accent);
+  flex-shrink: 0;
+}
+header h1 {
+  font-size: 16px; font-weight: 600; color: var(--accent);
+  letter-spacing: 2px;
+}
+header .subtitle {
+  font-size: 11px; color: var(--text-dim); letter-spacing: 1px;
+}
+
+/* STEP INDICATOR */
+.steps-bar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.step-item {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text-dim);
+  transition: color 0.3s;
+}
+.step-item.active { color: var(--accent); }
+.step-item.done { color: var(--green); }
+.step-num {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  flex-shrink: 0;
+}
+.step-item.done .step-num { background: var(--green); color: var(--bg-primary); border-color: var(--green); }
+.step-item.active .step-num { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+.step-arrow { color: var(--border); font-size: 14px; }
+
+/* LAYOUT */
+.app-layout {
+  display: flex;
+  height: calc(100vh - 100px);
+  overflow: hidden;
+}
+.canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sidebar {
+  width: 360px;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* TOOLBAR */
+.toolbar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tool-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: all 0.2s;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tool-btn:hover { border-color: var(--accent); color: var(--text); }
+.tool-btn.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); font-weight: 600; }
+.tool-btn.danger { border-color: var(--red); color: var(--red); }
+.tool-btn.danger:hover { background: var(--red); color: #fff; }
+.tool-separator { width: 1px; height: 28px; background: var(--border); margin: 0 4px; }
+.tool-info {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* CANVAS */
+.canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+  cursor: crosshair;
+}
+.canvas-wrapper canvas {
+  position: absolute;
+  top: 0; left: 0;
+}
+.upload-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--bg-primary);
+  z-index: 10;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.upload-overlay:hover { background: #0a1520; }
+.upload-overlay.hidden { display: none; }
+.upload-overlay.dragover { background: #0a1a28; border: 2px dashed var(--accent); }
+.upload-icon {
+  width: 80px; height: 80px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; color: var(--text-dim);
+}
+.upload-overlay h3 { font-size: 16px; color: var(--text); font-weight: 500; }
+.upload-overlay p { font-size: 12px; color: var(--text-dim); text-align: center; max-width: 300px; }
+.skip-link {
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 8px;
+}
+.skip-link:hover { color: #fff; }
+
+/* CALIBRATION OVERLAY */
+.calibration-bar {
+  display: none;
+  position: absolute;
+  bottom: 16px; left: 16px; right: 16px;
+  background: rgba(10,16,24,0.95);
+  border: 1px solid var(--orange);
+  border-radius: 6px;
+  padding: 12px 16px;
+  z-index: 20;
+  font-size: 12px;
+  color: var(--orange);
+  align-items: center;
+  gap: 12px;
+}
+.calibration-bar.visible { display: flex; flex-wrap: wrap; }
+.calibration-bar input {
+  width: 100px;
+  background: var(--bg-primary);
+  border: 1px solid var(--orange);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.calibration-bar button {
+  background: var(--orange);
+  border: none;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 36px;
+}
+
+/* AREA STATS */
+.area-stats {
+  background: rgba(10,16,24,0.9);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 14px;
+  position: absolute;
+  top: 16px; right: 16px;
+  z-index: 20;
+  font-size: 11px;
+  display: none;
+  min-width: 200px;
+}
+.area-stats.visible { display: block; }
+.area-stats .stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.area-stats .stat-row:last-child { border-bottom: none; }
+.area-stats .stat-label { color: var(--text-dim); }
+.area-stats .stat-value { color: var(--accent); font-weight: 600; }
+
+/* SIDEBAR SECTIONS */
+.sidebar-section {
+  border-bottom: 1px solid var(--border);
+  padding: 16px;
+}
+.sidebar-section h3 {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.field-group {
+  margin-bottom: 12px;
+}
+.field-group label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+.field-group input,
+.field-group select,
+.field-group textarea {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 16px;
+  transition: border-color 0.2s;
+  min-height: 44px;
+}
+.field-group input:focus,
+.field-group select:focus,
+.field-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.field-group textarea { resize: vertical; min-height: 60px; font-size: 13px; }
+.field-group select { cursor: pointer; }
+.field-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+/* CHECKBOXES */
+.checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  min-height: 44px;
+  padding: 4px 0;
+}
+.checkbox-item input[type="checkbox"] {
+  width: 20px; height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* BUTTONS */
+.btn-primary {
+  width: 100%;
+  background: var(--accent);
+  border: none;
+  color: var(--bg-primary);
+  padding: 14px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  min-height: 48px;
+  transition: all 0.2s;
+}
+.btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--text); }
+
+/* SAVE/LOAD */
+.save-load-row {
+  display: flex;
+  gap: 8px;
+}
+.save-load-row button {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: all 0.2s;
+}
+.save-load-row button:hover { border-color: var(--accent); color: var(--text); }
+
+.saved-projects {
+  margin-top: 10px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.saved-project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.saved-project-item:hover { background: var(--bg-secondary); }
+.saved-project-item .del-btn {
+  color: var(--red);
+  cursor: pointer;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ZOOM CONTROLS */
+.zoom-controls {
+  position: absolute;
+  bottom: 16px; right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 20;
+}
+.zoom-btn {
+  width: 44px; height: 44px;
+  background: rgba(10,16,24,0.9);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--green);
+  color: var(--bg-primary);
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .app-layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .canvas-area {
+    height: 55vh;
+    min-height: 350px;
+  }
+  .sidebar {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+@media (max-width: 600px) {
+  header { padding: 10px 12px; gap: 10px; }
+  header h1 { font-size: 13px; letter-spacing: 1px; }
+  .toolbar { padding: 6px 8px; gap: 4px; }
+  .tool-btn { padding: 6px 10px; font-size: 11px; }
+  .sidebar-section { padding: 12px; }
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="ke-logo">KE</div>
+  <div>
+    <h1>KORB ENGINEERING</h1>
+    <div class="subtitle">Survey Proposal Generator</div>
+  </div>
+</header>
+
+<div class="steps-bar">
+  <div class="step-item active" id="step1">
+    <div class="step-num">1</div>
+    <span>Upload Aerial</span>
+  </div>
+  <span class="step-arrow">&#9654;</span>
+  <div class="step-item" id="step2">
+    <div class="step-num">2</div>
+    <span>Define Survey Area</span>
+  </div>
+  <span class="step-arrow">&#9654;</span>
+  <div class="step-item" id="step3">
+    <div class="step-num">3</div>
+    <span>Generate RFP</span>
+  </div>
+</div>
+
+<div class="app-layout">
+  <!-- CANVAS AREA -->
+  <div class="canvas-area">
+    <div class="toolbar">
+      <button class="tool-btn" id="btnUpload" title="Upload aerial image">&#128247; Upload</button>
+      <div class="tool-separator"></div>
+      <button class="tool-btn" id="btnRect" title="Draw rectangle">&#9645; Rectangle</button>
+      <button class="tool-btn" id="btnPoly" title="Draw polygon">&#11040; Polygon</button>
+      <button class="tool-btn" id="btnCalibrate" title="Calibrate scale">&#128207; Calibrate</button>
+      <button class="tool-btn" id="btnPan" title="Pan view">&#9995; Pan</button>
+      <div class="tool-separator"></div>
+      <button class="tool-btn danger" id="btnClear" title="Clear drawing">&#10005; Clear</button>
+      <span class="tool-info" id="toolHint">Click Upload or drop an image to begin</span>
+    </div>
+
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <canvas id="mainCanvas"></canvas>
+      <div class="upload-overlay" id="uploadOverlay">
+        <div class="upload-icon">&#128506;</div>
+        <h3>Upload Aerial Image</h3>
+        <p>Drop a screenshot from Google Earth, satellite imagery, or any site aerial photo</p>
+        <p style="font-size:11px; color: var(--text-dim);">Supported: JPG, PNG, WebP</p>
+        <span class="skip-link" id="skipUpload">Skip -- use coordinate grid</span>
+      </div>
+
+      <div class="calibration-bar" id="calibrationBar">
+        <span>&#128207; Click two points on the image, then enter the known distance:</span>
+        <input type="number" id="calDistance" placeholder="Distance" min="0" step="any">
+        <select id="calUnit" style="width:60px; background:var(--bg-primary); border:1px solid var(--orange); color:var(--text); padding:6px; border-radius:4px; font-family:inherit; font-size:13px; min-height:36px;">
+          <option value="ft">ft</option>
+          <option value="m">m</option>
+        </select>
+        <button id="calApply">Apply Scale</button>
+        <button id="calCancel" style="background:transparent; border:1px solid var(--orange); color:var(--orange);">Cancel</button>
+        <span id="calStatus" style="font-size:11px; color:var(--text-dim); margin-left:auto;"></span>
+      </div>
+
+      <div class="area-stats" id="areaStats">
+        <div class="stat-row">
+          <span class="stat-label">Area</span>
+          <span class="stat-value" id="statArea">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Acres</span>
+          <span class="stat-value" id="statAcres">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Perimeter</span>
+          <span class="stat-value" id="statPerimeter">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Grid Points</span>
+          <span class="stat-value" id="statGridPts">--</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Scale</span>
+          <span class="stat-value" id="statScale">Not calibrated</span>
+        </div>
+      </div>
+
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomIn" title="Zoom in">+</button>
+        <button class="zoom-btn" id="zoomOut" title="Zoom out">-</button>
+        <button class="zoom-btn" id="zoomFit" title="Fit to view" style="font-size:14px;">&#8634;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Project Details</h3>
+      <div class="field-group">
+        <label>Project Name</label>
+        <input type="text" id="projName" placeholder="e.g., Runway 18-36 Extension">
+      </div>
+      <div class="field-group">
+        <label>Project Location / Address</label>
+        <input type="text" id="projLocation" placeholder="e.g., 1234 Airport Rd, Frisco, TX">
+      </div>
+      <div class="field-group">
+        <label>Client Name</label>
+        <input type="text" id="clientName" placeholder="e.g., City of Frisco">
+      </div>
+      <div class="field-group">
+        <label>Date</label>
+        <input type="date" id="projDate">
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Survey Specifications</h3>
+      <div class="field-group">
+        <label>Survey Type</label>
+        <input type="text" id="surveyType" value="Topographic Survey -- 25ft x 25ft Grid">
+      </div>
+      <div class="field-group">
+        <label>Contour Interval</label>
+        <select id="contourInterval">
+          <option value="0.5">0.5 ft</option>
+          <option value="1" selected>1 ft</option>
+          <option value="2">2 ft</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Datum</label>
+        <select id="datum">
+          <option value="NAD83/NAVD88">NAD83 / NAVD88</option>
+          <option value="NAD83">NAD83 (Horizontal only)</option>
+        </select>
+        <div class="field-note">Horizontal: NAD83, Vertical: NAVD88</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Additional Requirements</h3>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqBoundary">
+          Boundary survey included
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqSUE">
+          Utility locates (SUE Level B)
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqTree">
+          Tree survey (6"+ DBH)
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqCross">
+          Cross-sections at 50ft intervals
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqWetland">
+          Wetland flagging
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="reqAsBuilt">
+          As-built features
+        </label>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Notes</h3>
+      <div class="field-group">
+        <textarea id="projNotes" placeholder="Additional notes or special requirements..."></textarea>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <button class="btn-primary" id="btnGenerate">GENERATE RFP</button>
+      <div class="save-load-row" style="margin-top:12px;">
+        <button id="btnSave">&#128190; Save Project</button>
+        <button id="btnLoad">&#128194; Load Project</button>
+      </div>
+      <div class="saved-projects" id="savedProjects"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+<script>
+(function() {
+  'use strict';
+
+  // ====== STATE ======
+  const state = {
+    mode: 'none',         // none, rect, poly, calibrate, pan
+    image: null,           // loaded Image object
+    imageDataURL: null,    // for PDF
+    hasImage: false,
+    // Transform
+    offsetX: 0, offsetY: 0,
+    zoom: 1,
+    // Drawing
+    polygon: [],           // [{x,y},...] in image coordinates
+    isDrawing: false,
+    rectStart: null,
+    // Calibration
+    calPoints: [],         // [{x,y},{x,y}] in image coords
+    pixelsPerFoot: null,
+    calUnit: 'ft',
+    // Pan
+    panStart: null,
+    panOffsetStart: null,
+    // Polygon in-progress
+    polyPreview: null,
+  };
+
+  // ====== DOM ======
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrapper = document.getElementById('canvasWrapper');
+  const overlay = document.getElementById('uploadOverlay');
+  const fileInput = document.getElementById('fileInput');
+  const calBar = document.getElementById('calibrationBar');
+  const calDistance = document.getElementById('calDistance');
+  const calUnit = document.getElementById('calUnit');
+  const calStatus = document.getElementById('calStatus');
+  const areaStats = document.getElementById('areaStats');
+  const toolHint = document.getElementById('toolHint');
+  const toast = document.getElementById('toast');
+
+  // ====== INIT ======
+  function init() {
+    resizeCanvas();
+    setDate();
+    renderSavedProjects();
+    draw();
+    window.addEventListener('resize', () => { resizeCanvas(); draw(); });
+  }
+
+  function setDate() {
+    const d = new Date();
+    const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    document.getElementById('projDate').value = iso;
+  }
+
+  function resizeCanvas() {
+    canvas.width = wrapper.clientWidth;
+    canvas.height = wrapper.clientHeight;
+  }
+
+  function showToast(msg, color) {
+    toast.textContent = msg;
+    toast.style.background = color || 'var(--green)';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  function updateSteps() {
+    const s1 = document.getElementById('step1');
+    const s2 = document.getElementById('step2');
+    const s3 = document.getElementById('step3');
+    s1.className = 'step-item ' + (state.hasImage ? 'done' : 'active');
+    s2.className = 'step-item ' + (state.polygon.length >= 3 ? 'done' : (state.hasImage ? 'active' : ''));
+    s3.className = 'step-item ' + (state.polygon.length >= 3 ? 'active' : '');
+  }
+
+  // ====== IMAGE LOADING ======
+  function loadImage(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        state.image = img;
+        state.imageDataURL = e.target.result;
+        state.hasImage = true;
+        overlay.classList.add('hidden');
+        fitImage();
+        updateSteps();
+        setMode('rect');
+        toolHint.textContent = 'Select Rectangle or Polygon, then draw your survey area';
+        showToast('Image loaded -- draw your survey area');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function loadGridBackground() {
+    state.hasImage = true;
+    state.image = null;
+    overlay.classList.add('hidden');
+    state.offsetX = 0;
+    state.offsetY = 0;
+    state.zoom = 1;
+    updateSteps();
+    setMode('rect');
+    toolHint.textContent = 'Drawing on coordinate grid -- calibrate scale after drawing';
+    draw();
+    showToast('Using coordinate grid background');
+  }
+
+  function fitImage() {
+    if (!state.image) return;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = state.image.width, ih = state.image.height;
+    const scale = Math.min(cw / iw, ch / ih) * 0.9;
+    state.zoom = scale;
+    state.offsetX = (cw - iw * scale) / 2;
+    state.offsetY = (ch - ih * scale) / 2;
+    draw();
+  }
+
+  // ====== COORDINATE TRANSFORMS ======
+  function screenToImage(sx, sy) {
+    return {
+      x: (sx - state.offsetX) / state.zoom,
+      y: (sy - state.offsetY) / state.zoom
+    };
+  }
+
+  function imageToScreen(ix, iy) {
+    return {
+      x: ix * state.zoom + state.offsetX,
+      y: iy * state.zoom + state.offsetY
+    };
+  }
+
+  // ====== DRAWING ======
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Background
+    if (state.image) {
+      ctx.save();
+      ctx.translate(state.offsetX, state.offsetY);
+      ctx.scale(state.zoom, state.zoom);
+      ctx.drawImage(state.image, 0, 0);
+      ctx.restore();
+    } else if (state.hasImage) {
+      drawGrid();
+    }
+
+    // Polygon
+    if (state.polygon.length > 0) {
+      ctx.save();
+      const pts = state.polygon.map(p => imageToScreen(p.x, p.y));
+
+      // Fill
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0, 212, 255, 0.2)';
+      ctx.fill();
+
+      // Stroke
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Vertices
+      for (const p of pts) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#00d4ff';
+        ctx.fill();
+        ctx.strokeStyle = '#050a0f';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Dimensions along edges if calibrated
+      if (state.pixelsPerFoot) {
+        ctx.font = '11px JetBrains Mono';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        for (let i = 0; i < pts.length; i++) {
+          const a = state.polygon[i];
+          const b = state.polygon[(i + 1) % state.polygon.length];
+          const dist = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2) / state.pixelsPerFoot;
+          const sa = pts[i], sb = pts[(i + 1) % pts.length];
+          const mx = (sa.x + sb.x) / 2, my = (sa.y + sb.y) / 2;
+          ctx.save();
+          ctx.fillStyle = 'rgba(10,16,24,0.8)';
+          const text = dist.toFixed(0) + ' ft';
+          const tw = ctx.measureText(text).width + 8;
+          ctx.fillRect(mx - tw/2, my - 8, tw, 16);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(text, mx, my + 4);
+          ctx.restore();
+        }
+      }
+
+      ctx.restore();
+      updateAreaStats();
+    }
+
+    // Poly preview line
+    if (state.mode === 'poly' && state.isDrawing && state.polygon.length > 0 && state.polyPreview) {
+      const last = imageToScreen(state.polygon[state.polygon.length - 1].x, state.polygon[state.polygon.length - 1].y);
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(state.polyPreview.x, state.polyPreview.y);
+      ctx.strokeStyle = 'rgba(0, 212, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Calibration points
+    if (state.mode === 'calibrate' && state.calPoints.length > 0) {
+      ctx.save();
+      for (const p of state.calPoints) {
+        const sp = imageToScreen(p.x, p.y);
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff6600';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      if (state.calPoints.length === 2) {
+        const a = imageToScreen(state.calPoints[0].x, state.calPoints[0].y);
+        const b = imageToScreen(state.calPoints[1].x, state.calPoints[1].y);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
+    // Rectangle preview
+    if (state.mode === 'rect' && state.isDrawing && state.rectStart && state.polyPreview) {
+      const a = imageToScreen(state.rectStart.x, state.rectStart.y);
+      ctx.beginPath();
+      ctx.rect(a.x, a.y, state.polyPreview.x - a.x, state.polyPreview.y - a.y);
+      ctx.fillStyle = 'rgba(0, 212, 255, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 212, 255, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function drawGrid() {
+    const cw = canvas.width, ch = canvas.height;
+    ctx.save();
+    ctx.strokeStyle = '#1a2535';
+    ctx.lineWidth = 0.5;
+    const spacing = 40 * state.zoom;
+    const ox = state.offsetX % spacing;
+    const oy = state.offsetY % spacing;
+    for (let x = ox; x < cw; x += spacing) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, ch); ctx.stroke();
+    }
+    for (let y = oy; y < ch; y += spacing) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cw, y); ctx.stroke();
+    }
+    // Origin crosshair
+    const origin = imageToScreen(0, 0);
+    ctx.strokeStyle = '#2a3545';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(origin.x, 0); ctx.lineTo(origin.x, ch); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, origin.y); ctx.lineTo(cw, origin.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  function updateAreaStats() {
+    if (state.polygon.length < 3) {
+      areaStats.classList.remove('visible');
+      return;
+    }
+    areaStats.classList.add('visible');
+
+    // Pixel area (shoelace formula)
+    let pixelArea = 0;
+    const n = state.polygon.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pixelArea += state.polygon[i].x * state.polygon[j].y;
+      pixelArea -= state.polygon[j].x * state.polygon[i].y;
+    }
+    pixelArea = Math.abs(pixelArea) / 2;
+
+    // Perimeter in pixels
+    let pixelPerimeter = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      pixelPerimeter += Math.sqrt((state.polygon[j].x - state.polygon[i].x) ** 2 + (state.polygon[j].y - state.polygon[i].y) ** 2);
+    }
+
+    if (state.pixelsPerFoot) {
+      const ppf = state.pixelsPerFoot;
+      const sqft = pixelArea / (ppf * ppf);
+      const acres = sqft / 43560;
+      const perimFt = pixelPerimeter / ppf;
+      const gridPts = Math.ceil(sqft / 625);
+
+      document.getElementById('statArea').textContent = sqft.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' sf';
+      document.getElementById('statAcres').textContent = acres.toFixed(2);
+      document.getElementById('statPerimeter').textContent = perimFt.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' lf';
+      document.getElementById('statGridPts').textContent = gridPts.toLocaleString();
+      document.getElementById('statScale').textContent = (1/ppf).toFixed(2) + ' ft/px';
+    } else {
+      document.getElementById('statArea').textContent = pixelArea.toFixed(0) + ' px\u00B2';
+      document.getElementById('statAcres').textContent = '--';
+      document.getElementById('statPerimeter').textContent = pixelPerimeter.toFixed(0) + ' px';
+      document.getElementById('statGridPts').textContent = '--';
+      document.getElementById('statScale').textContent = 'Not calibrated';
+    }
+  }
+
+  // ====== MODE ======
+  function setMode(m) {
+    state.mode = m;
+    state.isDrawing = false;
+    state.rectStart = null;
+    state.polyPreview = null;
+    state.calPoints = [];
+
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    const map = { rect: 'btnRect', poly: 'btnPoly', calibrate: 'btnCalibrate', pan: 'btnPan' };
+    if (map[m]) document.getElementById(map[m]).classList.add('active');
+
+    calBar.classList.toggle('visible', m === 'calibrate');
+    if (m === 'calibrate') calStatus.textContent = 'Click first point...';
+
+    const cursorMap = { rect: 'crosshair', poly: 'crosshair', calibrate: 'crosshair', pan: 'grab', none: 'default' };
+    wrapper.style.cursor = cursorMap[m] || 'default';
+
+    const hints = {
+      rect: 'Click and drag to draw a rectangle',
+      poly: 'Click to add vertices, double-click or click first point to close',
+      calibrate: 'Click two known points, then enter the distance',
+      pan: 'Click and drag to pan the view',
+    };
+    if (hints[m]) toolHint.textContent = hints[m];
+  }
+
+  // ====== EVENT HANDLERS ======
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    if (e.touches) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  // Mouse events
+  canvas.addEventListener('mousedown', onDown);
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('mouseup', onUp);
+  canvas.addEventListener('dblclick', onDblClick);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+
+  // Touch events
+  canvas.addEventListener('touchstart', function(e) { e.preventDefault(); onDown(e); }, { passive: false });
+  canvas.addEventListener('touchmove', function(e) { e.preventDefault(); onMove(e); }, { passive: false });
+  canvas.addEventListener('touchend', function(e) { e.preventDefault(); onUp(e); }, { passive: false });
+
+  function onDown(e) {
+    const pos = getCanvasPos(e);
+
+    if (state.mode === 'pan') {
+      state.panStart = pos;
+      state.panOffsetStart = { x: state.offsetX, y: state.offsetY };
+      wrapper.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (state.mode === 'rect') {
+      state.polygon = [];
+      state.isDrawing = true;
+      state.rectStart = screenToImage(pos.x, pos.y);
+      return;
+    }
+
+    if (state.mode === 'poly') {
+      const imgPos = screenToImage(pos.x, pos.y);
+      if (!state.isDrawing) {
+        state.polygon = [imgPos];
+        state.isDrawing = true;
+      } else {
+        // Close if clicking near first point
+        if (state.polygon.length >= 3) {
+          const first = imageToScreen(state.polygon[0].x, state.polygon[0].y);
+          if (Math.sqrt((pos.x - first.x) ** 2 + (pos.y - first.y) ** 2) < 15) {
+            finishPolygon();
+            return;
+          }
+        }
+        state.polygon.push(imgPos);
+      }
+      draw();
+      return;
+    }
+
+    if (state.mode === 'calibrate') {
+      const imgPos = screenToImage(pos.x, pos.y);
+      if (state.calPoints.length < 2) {
+        state.calPoints.push(imgPos);
+        calStatus.textContent = state.calPoints.length === 1 ? 'Click second point...' : 'Enter distance and click Apply';
+        draw();
+      }
+    }
+  }
+
+  function onMove(e) {
+    const pos = getCanvasPos(e);
+
+    if (state.mode === 'pan' && state.panStart) {
+      state.offsetX = state.panOffsetStart.x + (pos.x - state.panStart.x);
+      state.offsetY = state.panOffsetStart.y + (pos.y - state.panStart.y);
+      draw();
+      return;
+    }
+
+    if (state.mode === 'rect' && state.isDrawing) {
+      state.polyPreview = pos;
+      draw();
+      return;
+    }
+
+    if (state.mode === 'poly' && state.isDrawing) {
+      state.polyPreview = pos;
+      draw();
+    }
+  }
+
+  function onUp(e) {
+    if (state.mode === 'pan' && state.panStart) {
+      state.panStart = null;
+      wrapper.style.cursor = 'grab';
+      return;
+    }
+
+    if (state.mode === 'rect' && state.isDrawing && state.rectStart) {
+      const pos = e.changedTouches ? { x: e.changedTouches[0].clientX - canvas.getBoundingClientRect().left, y: e.changedTouches[0].clientY - canvas.getBoundingClientRect().top } : getCanvasPos(e);
+      const end = screenToImage(pos.x, pos.y);
+      const s = state.rectStart;
+      // Only create if area is meaningful
+      if (Math.abs(end.x - s.x) > 5 && Math.abs(end.y - s.y) > 5) {
+        state.polygon = [
+          { x: s.x, y: s.y },
+          { x: end.x, y: s.y },
+          { x: end.x, y: end.y },
+          { x: s.x, y: end.y }
+        ];
+        finishPolygon();
+      }
+      state.isDrawing = false;
+      state.rectStart = null;
+      state.polyPreview = null;
+      draw();
+    }
+  }
+
+  function onDblClick(e) {
+    if (state.mode === 'poly' && state.isDrawing && state.polygon.length >= 3) {
+      // Remove the duplicate point from the second click of the double-click
+      finishPolygon();
+    }
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.max(0.05, Math.min(20, state.zoom * delta));
+    // Zoom toward cursor
+    state.offsetX = pos.x - (pos.x - state.offsetX) * (newZoom / state.zoom);
+    state.offsetY = pos.y - (pos.y - state.offsetY) * (newZoom / state.zoom);
+    state.zoom = newZoom;
+    draw();
+  }
+
+  function finishPolygon() {
+    state.isDrawing = false;
+    state.polyPreview = null;
+    updateSteps();
+    draw();
+    showToast('Survey area defined');
+    toolHint.textContent = 'Survey area set. Calibrate scale or generate RFP.';
+  }
+
+  // ====== TOOLBAR BUTTONS ======
+  document.getElementById('btnUpload').addEventListener('click', () => fileInput.click());
+  document.getElementById('btnRect').addEventListener('click', () => { if (state.hasImage) setMode('rect'); });
+  document.getElementById('btnPoly').addEventListener('click', () => { if (state.hasImage) setMode('poly'); });
+  document.getElementById('btnCalibrate').addEventListener('click', () => { if (state.hasImage) setMode('calibrate'); });
+  document.getElementById('btnPan').addEventListener('click', () => { if (state.hasImage) setMode('pan'); });
+  document.getElementById('btnClear').addEventListener('click', () => {
+    state.polygon = [];
+    state.isDrawing = false;
+    state.rectStart = null;
+    areaStats.classList.remove('visible');
+    updateSteps();
+    draw();
+    showToast('Drawing cleared', 'var(--red)');
+  });
+
+  // Upload overlay
+  overlay.addEventListener('click', (e) => { if (e.target !== document.getElementById('skipUpload')) fileInput.click(); });
+  document.getElementById('skipUpload').addEventListener('click', (e) => { e.stopPropagation(); loadGridBackground(); });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) loadImage(e.target.files[0]);
+  });
+
+  // Drag and drop
+  wrapper.addEventListener('dragover', (e) => { e.preventDefault(); overlay.classList.add('dragover'); });
+  wrapper.addEventListener('dragleave', () => overlay.classList.remove('dragover'));
+  wrapper.addEventListener('drop', (e) => {
+    e.preventDefault();
+    overlay.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
+  });
+
+  // Zoom buttons
+  document.getElementById('zoomIn').addEventListener('click', () => {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const newZoom = state.zoom * 1.25;
+    state.offsetX = cx - (cx - state.offsetX) * (newZoom / state.zoom);
+    state.offsetY = cy - (cy - state.offsetY) * (newZoom / state.zoom);
+    state.zoom = newZoom;
+    draw();
+  });
+  document.getElementById('zoomOut').addEventListener('click', () => {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const newZoom = state.zoom * 0.8;
+    state.offsetX = cx - (cx - state.offsetX) * (newZoom / state.zoom);
+    state.offsetY = cy - (cy - state.offsetY) * (newZoom / state.zoom);
+    state.zoom = newZoom;
+    draw();
+  });
+  document.getElementById('zoomFit').addEventListener('click', () => {
+    if (state.image) fitImage();
+    else { state.offsetX = 0; state.offsetY = 0; state.zoom = 1; draw(); }
+  });
+
+  // Calibration
+  document.getElementById('calApply').addEventListener('click', () => {
+    if (state.calPoints.length !== 2) { showToast('Click two points first', 'var(--red)'); return; }
+    const dist = parseFloat(calDistance.value);
+    if (!dist || dist <= 0) { showToast('Enter a valid distance', 'var(--red)'); return; }
+    const unit = calUnit.value;
+    const px = Math.sqrt((state.calPoints[1].x - state.calPoints[0].x) ** 2 + (state.calPoints[1].y - state.calPoints[0].y) ** 2);
+    let distFeet = dist;
+    if (unit === 'm') distFeet = dist * 3.28084;
+    state.pixelsPerFoot = px / distFeet;
+    state.calUnit = unit;
+    showToast('Scale calibrated: 1 px = ' + (1/state.pixelsPerFoot).toFixed(3) + ' ft');
+    setMode('none');
+    draw();
+  });
+
+  document.getElementById('calCancel').addEventListener('click', () => {
+    state.calPoints = [];
+    setMode('none');
+    draw();
+  });
+
+  // ====== SAVE / LOAD ======
+  function getProjectData() {
+    return {
+      name: document.getElementById('projName').value,
+      location: document.getElementById('projLocation').value,
+      client: document.getElementById('clientName').value,
+      date: document.getElementById('projDate').value,
+      surveyType: document.getElementById('surveyType').value,
+      contourInterval: document.getElementById('contourInterval').value,
+      datum: document.getElementById('datum').value,
+      reqBoundary: document.getElementById('reqBoundary').checked,
+      reqSUE: document.getElementById('reqSUE').checked,
+      reqTree: document.getElementById('reqTree').checked,
+      reqCross: document.getElementById('reqCross').checked,
+      reqWetland: document.getElementById('reqWetland').checked,
+      reqAsBuilt: document.getElementById('reqAsBuilt').checked,
+      notes: document.getElementById('projNotes').value,
+      polygon: state.polygon,
+      pixelsPerFoot: state.pixelsPerFoot,
+      imageDataURL: state.imageDataURL,
+      timestamp: Date.now()
+    };
+  }
+
+  function loadProjectData(data) {
+    document.getElementById('projName').value = data.name || '';
+    document.getElementById('projLocation').value = data.location || '';
+    document.getElementById('clientName').value = data.client || '';
+    document.getElementById('projDate').value = data.date || '';
+    document.getElementById('surveyType').value = data.surveyType || '';
+    document.getElementById('contourInterval').value = data.contourInterval || '1';
+    document.getElementById('datum').value = data.datum || 'NAD83/NAVD88';
+    document.getElementById('reqBoundary').checked = !!data.reqBoundary;
+    document.getElementById('reqSUE').checked = !!data.reqSUE;
+    document.getElementById('reqTree').checked = !!data.reqTree;
+    document.getElementById('reqCross').checked = !!data.reqCross;
+    document.getElementById('reqWetland').checked = !!data.reqWetland;
+    document.getElementById('reqAsBuilt').checked = !!data.reqAsBuilt;
+    document.getElementById('projNotes').value = data.notes || '';
+    state.polygon = data.polygon || [];
+    state.pixelsPerFoot = data.pixelsPerFoot || null;
+
+    if (data.imageDataURL) {
+      const img = new Image();
+      img.onload = function() {
+        state.image = img;
+        state.imageDataURL = data.imageDataURL;
+        state.hasImage = true;
+        overlay.classList.add('hidden');
+        fitImage();
+        updateSteps();
+      };
+      img.src = data.imageDataURL;
+    } else {
+      loadGridBackground();
+    }
+  }
+
+  document.getElementById('btnSave').addEventListener('click', () => {
+    const name = document.getElementById('projName').value.trim() || 'Untitled';
+    const key = 'korb_survey_' + name.replace(/\s+/g, '_').toLowerCase();
+    try {
+      localStorage.setItem(key, JSON.stringify(getProjectData()));
+      showToast('Project saved: ' + name);
+      renderSavedProjects();
+    } catch(e) {
+      showToast('Save failed (storage full?)', 'var(--red)');
+    }
+  });
+
+  document.getElementById('btnLoad').addEventListener('click', () => {
+    const el = document.getElementById('savedProjects');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    renderSavedProjects();
+  });
+
+  function renderSavedProjects() {
+    const container = document.getElementById('savedProjects');
+    container.innerHTML = '';
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('korb_survey_')) keys.push(k);
+    }
+    if (keys.length === 0) {
+      container.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:8px;">No saved projects</div>';
+      return;
+    }
+    keys.forEach(k => {
+      try {
+        const data = JSON.parse(localStorage.getItem(k));
+        const item = document.createElement('div');
+        item.className = 'saved-project-item';
+        const label = document.createElement('span');
+        label.textContent = data.name || k.replace('korb_survey_', '');
+        label.style.cursor = 'pointer';
+        label.addEventListener('click', () => {
+          loadProjectData(data);
+          showToast('Loaded: ' + (data.name || 'Project'));
+        });
+        const del = document.createElement('button');
+        del.className = 'del-btn';
+        del.textContent = '\u00D7';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          localStorage.removeItem(k);
+          renderSavedProjects();
+          showToast('Deleted', 'var(--red)');
+        });
+        item.appendChild(label);
+        item.appendChild(del);
+        container.appendChild(item);
+      } catch(e) {}
+    });
+  }
+
+  // ====== PDF GENERATION ======
+  document.getElementById('btnGenerate').addEventListener('click', generatePDF);
+
+  function generatePDF() {
+    const projName = document.getElementById('projName').value.trim() || 'Untitled Project';
+    const projLocation = document.getElementById('projLocation').value.trim() || 'Not specified';
+    const clientName = document.getElementById('clientName').value.trim() || 'Not specified';
+    const projDate = document.getElementById('projDate').value || new Date().toISOString().split('T')[0];
+    const surveyType = document.getElementById('surveyType').value.trim();
+    const contourInterval = document.getElementById('contourInterval').value;
+    const datum = document.getElementById('datum').value;
+    const notes = document.getElementById('projNotes').value.trim();
+
+    const reqs = [];
+    if (document.getElementById('reqBoundary').checked) reqs.push('boundary');
+    if (document.getElementById('reqSUE').checked) reqs.push('sue');
+    if (document.getElementById('reqTree').checked) reqs.push('tree');
+    if (document.getElementById('reqCross').checked) reqs.push('cross');
+    if (document.getElementById('reqWetland').checked) reqs.push('wetland');
+    if (document.getElementById('reqAsBuilt').checked) reqs.push('asbuilt');
+
+    // Calculate area
+    let sqft = 0, acres = 0, perimFt = 0, gridPts = 0;
+    if (state.polygon.length >= 3 && state.pixelsPerFoot) {
+      const ppf = state.pixelsPerFoot;
+      let pixelArea = 0;
+      const n = state.polygon.length;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        pixelArea += state.polygon[i].x * state.polygon[j].y;
+        pixelArea -= state.polygon[j].x * state.polygon[i].y;
+      }
+      pixelArea = Math.abs(pixelArea) / 2;
+      sqft = pixelArea / (ppf * ppf);
+      acres = sqft / 43560;
+      let pixelPerim = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        pixelPerim += Math.sqrt((state.polygon[j].x - state.polygon[i].x) ** 2 + (state.polygon[j].y - state.polygon[i].y) ** 2);
+      }
+      perimFt = pixelPerim / ppf;
+      gridPts = Math.ceil(sqft / 625);
+    }
+
+    const areaText = sqft > 0
+      ? sqft.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' square feet (' + acres.toFixed(2) + ' acres)'
+      : 'To be determined in the field';
+    const perimText = perimFt > 0
+      ? perimFt.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' linear feet'
+      : 'To be determined in the field';
+    const gridText = gridPts > 0 ? gridPts.toLocaleString() : 'TBD';
+
+    const datumH = datum.includes('NAD83') ? 'NAD83' : datum;
+    const datumV = datum.includes('NAVD88') ? 'NAVD88' : 'NAVD88';
+
+    const formatDate = (d) => {
+      const parts = d.split('-');
+      return parts[1] + '/' + parts[2] + '/' + parts[0];
+    };
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+    const W = 612, H = 792;
+    const ML = 54, MR = 54, MT = 54;
+    const CW = W - ML - MR; // content width
+    let pageNum = 0;
+
+    function addPageNumber() {
+      pageNum++;
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text('Page ' + pageNum, W / 2, H - 30, { align: 'center' });
+      pdf.text('Korb Engineering', ML, H - 30);
+      pdf.text(formatDate(projDate), W - MR, H - 30, { align: 'right' });
+      // Top rule
+      pdf.setDrawColor(0, 212, 255);
+      pdf.setLineWidth(2);
+      pdf.line(ML, 42, W - MR, 42);
+    }
+
+    // ====== PAGE 1 — COVER ======
+    addPageNumber();
+
+    pdf.setFontSize(11);
+    pdf.setTextColor(100);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('KORB ENGINEERING', W / 2, 80, { align: 'center' });
+
+    pdf.setDrawColor(180);
+    pdf.setLineWidth(0.5);
+    pdf.line(W / 2 - 80, 90, W / 2 + 80, 90);
+
+    pdf.setFontSize(28);
+    pdf.setTextColor(30);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('REQUEST FOR', W / 2, 180, { align: 'center' });
+    pdf.text('PROPOSAL', W / 2, 216, { align: 'center' });
+
+    pdf.setDrawColor(0, 180, 220);
+    pdf.setLineWidth(2);
+    pdf.line(W / 2 - 100, 232, W / 2 + 100, 232);
+
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(60);
+    pdf.text('Topographic Survey Services', W / 2, 270, { align: 'center' });
+
+    // Project info block
+    const infoY = 340;
+    pdf.setFontSize(11);
+    pdf.setTextColor(80);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Project:', ML + 60, infoY);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(projName, ML + 140, infoY);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Location:', ML + 60, infoY + 24);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(projLocation, ML + 140, infoY + 24);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Client:', ML + 60, infoY + 48);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(clientName, ML + 140, infoY + 48);
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Date:', ML + 60, infoY + 72);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(formatDate(projDate), ML + 140, infoY + 72);
+
+    // Bottom
+    pdf.setDrawColor(180);
+    pdf.setLineWidth(0.5);
+    pdf.line(ML, 600, W - MR, 600);
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text('Prepared by: Korb Engineering', W / 2, 620, { align: 'center' });
+    pdf.text('This document contains proprietary information.', W / 2, 636, { align: 'center' });
+
+    // ====== PAGE 2 — SCOPE OF WORK ======
+    pdf.addPage();
+    addPageNumber();
+
+    let y = 72;
+    function heading(text) {
+      pdf.setFontSize(14);
+      pdf.setTextColor(30);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(text, ML, y);
+      y += 6;
+      pdf.setDrawColor(0, 180, 220);
+      pdf.setLineWidth(1);
+      pdf.line(ML, y, ML + 160, y);
+      y += 18;
+    }
+
+    function subheading(text) {
+      pdf.setFontSize(11);
+      pdf.setTextColor(40);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(text, ML, y);
+      y += 16;
+    }
+
+    function para(text) {
+      pdf.setFontSize(10);
+      pdf.setTextColor(60);
+      pdf.setFont('helvetica', 'normal');
+      const lines = pdf.splitTextToSize(text, CW);
+      pdf.text(lines, ML, y);
+      y += lines.length * 14 + 6;
+    }
+
+    function bullet(text) {
+      pdf.setFontSize(10);
+      pdf.setTextColor(60);
+      pdf.setFont('helvetica', 'normal');
+      const lines = pdf.splitTextToSize(text, CW - 20);
+      pdf.text('\u2022', ML + 4, y);
+      pdf.text(lines, ML + 18, y);
+      y += lines.length * 14 + 4;
+    }
+
+    function checkPage(needed) {
+      if (y + needed > H - 60) {
+        pdf.addPage();
+        addPageNumber();
+        y = 72;
+      }
+    }
+
+    heading('SCOPE OF WORK');
+
+    para('Korb Engineering is soliciting proposals from qualified surveying firms for topographic survey services for the project described herein. The selected firm shall perform all work in accordance with the specifications outlined in this Request for Proposal (RFP) and in compliance with applicable state and local regulations.');
+
+    checkPage(80);
+    subheading('1. PROJECT DESCRIPTION');
+    para('Project: ' + projName);
+    para('Location: ' + projLocation);
+    para('Client: ' + clientName);
+    para('Survey Type: ' + surveyType);
+
+    checkPage(80);
+    subheading('2. SURVEY AREA');
+    para('The survey area encompasses approximately ' + areaText + ' with an approximate boundary perimeter of ' + perimText + '. The survey limits are defined in Exhibit A attached hereto. The surveyor shall establish and survey all features within the limits shown.');
+
+    checkPage(80);
+    subheading('3. TOPOGRAPHIC DATA COLLECTION');
+    para('Topographic data shall be collected on a 25-foot by 25-foot grid pattern throughout the survey area. Additional spot elevations shall be taken at all grade breaks, high/low points, drainage features, and other significant terrain changes. Contours shall be generated at a ' + contourInterval + '-foot interval.');
+
+    if (gridPts > 0) {
+      para('Estimated number of grid points: ' + gridText + ' (based on 25-foot grid spacing).');
+    }
+
+    checkPage(80);
+    subheading('4. DATUM AND COORDINATE SYSTEM');
+    para('All horizontal coordinates shall reference ' + datumH + ', State Plane Coordinate System, appropriate zone. All vertical data shall reference ' + datumV + ', utilizing published NGS benchmarks. The surveyor shall establish a minimum of two (2) project control points and two (2) benchmarks within or adjacent to the project area.');
+
+    checkPage(60);
+    subheading('5. ACCURACY REQUIREMENTS');
+    para('Horizontal accuracy: \u00B10.1 feet. Vertical accuracy: \u00B10.05 feet relative to published benchmarks. All work shall meet or exceed the standards set forth in the applicable state minimum technical standards for land surveying.');
+
+    // Additional requirements
+    if (reqs.length > 0) {
+      checkPage(40 + reqs.length * 40);
+      subheading('6. ADDITIONAL REQUIREMENTS');
+
+      if (reqs.includes('boundary')) {
+        bullet('Boundary Survey: The surveyor shall perform a boundary survey of the subject parcel in accordance with state minimum technical standards. The boundary survey shall include locating all property corners, setting any missing monuments, and resolving any boundary discrepancies. A legal description shall be provided.');
+      }
+      if (reqs.includes('sue')) {
+        bullet('Subsurface Utility Engineering (SUE Level B): The surveyor shall locate and identify all visible surface utility features and provide SUE Quality Level B designating services. All utilities shall be identified by type, size (where determinable), and material. Utility information shall be obtained from all available records and correlated with field observations.');
+      }
+      if (reqs.includes('tree')) {
+        bullet('Tree Survey: All trees with a diameter at breast height (DBH) of 6 inches or greater shall be located, tagged, and identified by species. The survey shall include trunk location, canopy drip line, and DBH measurement. A tree inventory table shall be provided.');
+      }
+      if (reqs.includes('cross')) {
+        bullet('Cross-Sections: Cross-sections shall be taken at 50-foot intervals along the primary alignment(s) as directed by Korb Engineering. Cross-section data shall extend a minimum of 50 feet beyond the survey limits or to the right-of-way line, whichever is greater.');
+      }
+      if (reqs.includes('wetland')) {
+        bullet('Wetland Flagging: The surveyor shall locate all wetland flags placed by the environmental consultant. Flag locations shall be surveyed with associated flag identification numbers and connected to form the delineation boundary.');
+      }
+      if (reqs.includes('asbuilt')) {
+        bullet('As-Built Features: All existing improvements within the survey area shall be located, including but not limited to: buildings, pavements, curbs, fences, walls, signs, light poles, fire hydrants, manholes, valve boxes, inlets, culverts, headwalls, guardrails, and other visible infrastructure.');
+      }
+    }
+
+    // Deliverables
+    const delSection = reqs.length > 0 ? '7' : '6';
+    checkPage(100);
+    subheading(delSection + '. DELIVERABLES');
+    para('The surveyor shall provide the following deliverables:');
+    bullet('AutoCAD Civil 3D drawing file (.dwg) compatible with version 2022 or later');
+    bullet('Digital Terrain Model (DTM/TIN surface) in Civil 3D format');
+    bullet('Point file in comma-separated value (.csv) format with Point Number, Northing, Easting, Elevation, and Description fields');
+    bullet('Contour map at the specified interval with spot elevations');
+    bullet('Survey report including project narrative, control data, equipment used, and field procedures');
+    bullet('Signed and sealed survey plat (if boundary survey is included)');
+    bullet('Digital photographs of control points and benchmarks');
+
+    // Timeline
+    const tlSection = parseInt(delSection) + 1;
+    checkPage(60);
+    subheading(tlSection + '. SCHEDULE');
+    para('Proposals shall include estimated field time, office processing time, and total delivery schedule from Notice to Proceed. The surveyor shall identify any potential schedule constraints or weather-related considerations.');
+
+    if (notes) {
+      const ntSection = parseInt(tlSection) + 1;
+      checkPage(60);
+      subheading(ntSection + '. ADDITIONAL NOTES');
+      para(notes);
+    }
+
+    // ====== PAGE 3 — PROPOSAL REQUIREMENTS ======
+    pdf.addPage();
+    addPageNumber();
+    y = 72;
+
+    heading('PROPOSAL REQUIREMENTS');
+
+    para('Interested firms shall submit proposals that include the following information:');
+
+    subheading('A. Firm Qualifications');
+    bullet('Brief history and description of the firm');
+    bullet('Relevant project experience, particularly with similar topographic survey projects');
+    bullet('Current state surveying license and registration information');
+    bullet('Professional liability insurance certificate (minimum $1,000,000 per occurrence)');
+
+    checkPage(80);
+    subheading('B. Project Team');
+    bullet('Identification of the project manager and lead field surveyor');
+    bullet('Resumes of key personnel who will be assigned to the project');
+    bullet('Description of survey equipment to be utilized');
+
+    checkPage(80);
+    subheading('C. Fee Proposal');
+    bullet('Lump sum fee for the base scope of work');
+    bullet('Unit prices for additional services, if applicable');
+    bullet('Itemized breakdown of field, office, and administrative costs');
+    bullet('Reimbursable expense schedule');
+
+    checkPage(80);
+    subheading('D. Schedule');
+    bullet('Proposed start date and completion date');
+    bullet('Estimated number of field days required');
+    bullet('Key milestones and interim deliverable dates');
+
+    checkPage(80);
+    subheading('E. References');
+    bullet('A minimum of three (3) references from similar projects completed within the past five (5) years');
+    bullet('Include project name, client contact information, project scope, and fee');
+
+    checkPage(120);
+    subheading('TERMS AND CONDITIONS');
+    para('1. Korb Engineering reserves the right to reject any or all proposals and to waive any informalities or irregularities in proposals received.');
+    para('2. The selected firm shall maintain professional liability insurance, general liability insurance, and workers\u2019 compensation insurance throughout the duration of the project.');
+    para('3. All survey data, field notes, and deliverables shall become the property of the client upon completion and payment.');
+    para('4. The surveyor shall be responsible for obtaining all necessary permits and access agreements required to perform the work.');
+    para('5. Any changes to the scope of work must be approved in writing by Korb Engineering prior to the work being performed.');
+    para('6. The selected firm shall comply with all applicable federal, state, and local laws, regulations, and ordinances.');
+
+    // ====== PAGE 4 — EXHIBIT A ======
+    pdf.addPage();
+    addPageNumber();
+
+    // Title
+    pdf.setFontSize(16);
+    pdf.setTextColor(30);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('EXHIBIT A \u2014 SURVEY AREA LIMITS', W / 2, 72, { align: 'center' });
+
+    pdf.setDrawColor(0, 180, 220);
+    pdf.setLineWidth(1.5);
+    pdf.line(ML, 80, W - MR, 80);
+
+    // Capture the canvas image
+    // Create a temporary canvas to render the exhibit
+    const exhibitCanvas = document.createElement('canvas');
+    const exW = 1200, exH = 800;
+    exhibitCanvas.width = exW;
+    exhibitCanvas.height = exH;
+    const exCtx = exhibitCanvas.getContext('2d');
+
+    // White background
+    exCtx.fillStyle = '#ffffff';
+    exCtx.fillRect(0, 0, exW, exH);
+
+    // Draw the image or grid
+    if (state.image) {
+      // Fit image into exhibit canvas
+      const iw = state.image.width, ih = state.image.height;
+      const scale = Math.min((exW - 40) / iw, (exH - 60) / ih);
+      const ox = (exW - iw * scale) / 2;
+      const oy = (exH - ih * scale) / 2;
+      exCtx.drawImage(state.image, ox, oy, iw * scale, ih * scale);
+
+      // Draw polygon overlay
+      if (state.polygon.length >= 3) {
+        exCtx.save();
+        exCtx.beginPath();
+        exCtx.moveTo(state.polygon[0].x * scale + ox, state.polygon[0].y * scale + oy);
+        for (let i = 1; i < state.polygon.length; i++) {
+          exCtx.lineTo(state.polygon[i].x * scale + ox, state.polygon[i].y * scale + oy);
+        }
+        exCtx.closePath();
+        exCtx.fillStyle = 'rgba(0, 200, 255, 0.25)';
+        exCtx.fill();
+        exCtx.strokeStyle = '#00b8e6';
+        exCtx.lineWidth = 3;
+        exCtx.stroke();
+
+        // Vertices
+        for (const p of state.polygon) {
+          exCtx.beginPath();
+          exCtx.arc(p.x * scale + ox, p.y * scale + oy, 5, 0, Math.PI * 2);
+          exCtx.fillStyle = '#00b8e6';
+          exCtx.fill();
+          exCtx.strokeStyle = '#fff';
+          exCtx.lineWidth = 1.5;
+          exCtx.stroke();
+        }
+
+        // Edge dimensions
+        if (state.pixelsPerFoot) {
+          exCtx.font = 'bold 12px sans-serif';
+          exCtx.textAlign = 'center';
+          for (let i = 0; i < state.polygon.length; i++) {
+            const a = state.polygon[i];
+            const b = state.polygon[(i + 1) % state.polygon.length];
+            const dist = Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2) / state.pixelsPerFoot;
+            const mx = ((a.x + b.x) / 2) * scale + ox;
+            const my = ((a.y + b.y) / 2) * scale + oy;
+            exCtx.fillStyle = 'rgba(255,255,255,0.85)';
+            const txt = dist.toFixed(0) + "'";
+            const tw = exCtx.measureText(txt).width + 10;
+            exCtx.fillRect(mx - tw/2, my - 9, tw, 18);
+            exCtx.fillStyle = '#000';
+            exCtx.fillText(txt, mx, my + 5);
+          }
+        }
+        exCtx.restore();
+      }
+    } else {
+      // Grid background
+      exCtx.strokeStyle = '#ddd';
+      exCtx.lineWidth = 0.5;
+      for (let x = 20; x < exW; x += 30) {
+        exCtx.beginPath(); exCtx.moveTo(x, 20); exCtx.lineTo(x, exH - 40); exCtx.stroke();
+      }
+      for (let yy = 20; yy < exH - 40; yy += 30) {
+        exCtx.beginPath(); exCtx.moveTo(20, yy); exCtx.lineTo(exW - 20, yy); exCtx.stroke();
+      }
+      // Polygon
+      if (state.polygon.length >= 3) {
+        const allX = state.polygon.map(p => p.x);
+        const allY = state.polygon.map(p => p.y);
+        const minX = Math.min(...allX), maxX = Math.max(...allX);
+        const minY = Math.min(...allY), maxY = Math.max(...allY);
+        const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
+        const sc = Math.min((exW - 100) / rangeX, (exH - 120) / rangeY) * 0.8;
+        const ox = (exW - rangeX * sc) / 2 - minX * sc;
+        const oy = (exH - rangeY * sc) / 2 - minY * sc;
+
+        exCtx.beginPath();
+        exCtx.moveTo(state.polygon[0].x * sc + ox, state.polygon[0].y * sc + oy);
+        for (let i = 1; i < state.polygon.length; i++) {
+          exCtx.lineTo(state.polygon[i].x * sc + ox, state.polygon[i].y * sc + oy);
+        }
+        exCtx.closePath();
+        exCtx.fillStyle = 'rgba(0, 200, 255, 0.2)';
+        exCtx.fill();
+        exCtx.strokeStyle = '#00b8e6';
+        exCtx.lineWidth = 3;
+        exCtx.stroke();
+
+        for (const p of state.polygon) {
+          exCtx.beginPath();
+          exCtx.arc(p.x * sc + ox, p.y * sc + oy, 5, 0, Math.PI * 2);
+          exCtx.fillStyle = '#00b8e6';
+          exCtx.fill();
+        }
+      }
+    }
+
+    // North arrow
+    exCtx.save();
+    exCtx.translate(exW - 50, 50);
+    exCtx.beginPath();
+    exCtx.moveTo(0, -20);
+    exCtx.lineTo(-8, 10);
+    exCtx.lineTo(0, 4);
+    exCtx.lineTo(8, 10);
+    exCtx.closePath();
+    exCtx.fillStyle = '#333';
+    exCtx.fill();
+    exCtx.font = 'bold 14px sans-serif';
+    exCtx.fillStyle = '#333';
+    exCtx.textAlign = 'center';
+    exCtx.fillText('N', 0, -26);
+    exCtx.restore();
+
+    // Scale bar
+    if (state.pixelsPerFoot) {
+      exCtx.save();
+      const barFt = 100;
+      let barScale;
+      if (state.image) {
+        const iw = state.image.width;
+        const fitScale = Math.min((exW - 40) / iw, (exH - 60) / state.image.height);
+        barScale = fitScale;
+      } else {
+        const allX = state.polygon.map(p => p.x);
+        const allY = state.polygon.map(p => p.y);
+        const minX = Math.min(...allX), maxX = Math.max(...allX);
+        const minY = Math.min(...allY), maxY = Math.max(...allY);
+        const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
+        barScale = Math.min((exW - 100) / rangeX, (exH - 120) / rangeY) * 0.8;
+      }
+      const barPx = barFt * state.pixelsPerFoot * barScale;
+      const bx = 40, by = exH - 50;
+      exCtx.fillStyle = '#333';
+      exCtx.fillRect(bx, by, barPx, 4);
+      exCtx.fillRect(bx, by - 4, 2, 12);
+      exCtx.fillRect(bx + barPx - 2, by - 4, 2, 12);
+      exCtx.font = '11px sans-serif';
+      exCtx.textAlign = 'left';
+      exCtx.fillText('0', bx, by + 18);
+      exCtx.textAlign = 'right';
+      exCtx.fillText(barFt + ' ft', bx + barPx, by + 18);
+      exCtx.restore();
+    }
+
+    // Legend
+    exCtx.save();
+    exCtx.fillStyle = 'rgba(255,255,255,0.9)';
+    exCtx.fillRect(20, exH - 100, 180, 40);
+    exCtx.strokeStyle = '#ccc';
+    exCtx.strokeRect(20, exH - 100, 180, 40);
+    exCtx.fillStyle = 'rgba(0, 200, 255, 0.3)';
+    exCtx.fillRect(30, exH - 90, 20, 20);
+    exCtx.strokeStyle = '#00b8e6';
+    exCtx.lineWidth = 2;
+    exCtx.strokeRect(30, exH - 90, 20, 20);
+    exCtx.font = '12px sans-serif';
+    exCtx.fillStyle = '#333';
+    exCtx.textAlign = 'left';
+    exCtx.fillText('Survey Limits', 60, exH - 76);
+    exCtx.restore();
+
+    // Convert to image and add to PDF
+    const exhibitDataURL = exhibitCanvas.toDataURL('image/jpeg', 0.92);
+    const imgW = CW;
+    const imgH = (exH / exW) * imgW;
+    const imgY = 95;
+    pdf.addImage(exhibitDataURL, 'JPEG', ML, imgY, imgW, imgH);
+
+    // Border around image
+    pdf.setDrawColor(150);
+    pdf.setLineWidth(0.5);
+    pdf.rect(ML, imgY, imgW, imgH);
+
+    // Info below image
+    let iy = imgY + imgH + 20;
+    pdf.setFontSize(10);
+    pdf.setTextColor(60);
+    pdf.setFont('helvetica', 'normal');
+
+    if (sqft > 0) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Survey Area: ', ML, iy);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(areaText, ML + 80, iy);
+      iy += 16;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Perimeter: ', ML, iy);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(perimText, ML + 80, iy);
+      iy += 16;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Grid Points: ', ML, iy);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Approx. ' + gridText + ' points (25 ft x 25 ft grid)', ML + 80, iy);
+      iy += 16;
+    }
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Datum: ', ML, iy);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('Horizontal: ' + datumH + '  |  Vertical: ' + datumV, ML + 80, iy);
+
+    // Save
+    const filename = projName.replace(/[^a-zA-Z0-9]/g, '_') + '_RFP.pdf';
+    pdf.save(filename);
+    showToast('RFP generated: ' + filename);
+  }
+
+  // ====== KEYBOARD SHORTCUTS ======
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    switch (e.key.toLowerCase()) {
+      case 'r': if (state.hasImage) setMode('rect'); break;
+      case 'p': if (state.hasImage) setMode('poly'); break;
+      case 'c': if (state.hasImage) setMode('calibrate'); break;
+      case ' ':
+        e.preventDefault();
+        if (state.hasImage) setMode('pan');
+        break;
+      case 'escape':
+        if (state.isDrawing && state.mode === 'poly') {
+          if (state.polygon.length >= 3) finishPolygon();
+          else { state.polygon = []; state.isDrawing = false; draw(); }
+        }
+        break;
+      case 'delete':
+      case 'backspace':
+        state.polygon = [];
+        state.isDrawing = false;
+        areaStats.classList.remove('visible');
+        updateSteps();
+        draw();
+        break;
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.key === ' ' && state.mode === 'pan') {
+      setMode('rect');
+    }
+  });
+
+  // Init
+  init();
+})();
+</script>
+</body>
+</html>

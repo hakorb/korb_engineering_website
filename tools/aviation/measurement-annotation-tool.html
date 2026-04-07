@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Measurement & Annotation Tool - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --text:#e2e8f0;--text-dim:#8892a2;--cyan:#00d4ff;--orange:#ff6600;
+  --green:#10b981;--red:#ef4444;--font:'JetBrains Mono',monospace;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+input,select,textarea,button{font-family:var(--font);font-size:16px;color:var(--text)}
+input,select,textarea{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 10px;min-height:44px;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--cyan)}
+button{min-height:44px;min-width:44px;padding:8px 12px;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:.75rem;transition:all .15s}
+.btn{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.active{background:rgba(0,212,255,.15);border-color:var(--cyan);color:var(--cyan)}
+.btn-primary{background:var(--cyan);color:var(--bg)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-success{background:var(--green);color:#fff}
+
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px;margin-right:auto}
+.brand svg{width:28px;height:28px}
+.brand h1{font-size:.9rem;color:var(--cyan);font-weight:700}
+.brand span{font-size:.65rem;color:var(--text-dim);font-weight:300;margin-left:4px}
+header .actions{display:flex;gap:4px;flex-wrap:wrap}
+
+.main{flex:1;display:flex;overflow:hidden}
+
+/* Left toolbar */
+.tool-rail{width:52px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:6px 4px;overflow-y:auto;flex-shrink:0}
+.tool-rail button{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-direction:column;gap:2px;line-height:1}
+.tool-rail button svg{width:18px;height:18px;flex-shrink:0}
+.tool-rail .sep{height:1px;background:var(--border);margin:4px 0}
+
+.canvas-area{flex:1;position:relative;overflow:hidden;background:#070c12}
+canvas{display:block}
+
+/* Right panel */
+.right-panel{width:280px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.right-panel.hidden{display:none}
+.panel-section{padding:10px 12px;border-bottom:1px solid var(--border)}
+.panel-section h3{font-size:.7rem;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
+label{display:block;font-size:.65rem;color:var(--text-dim);margin-bottom:3px;font-weight:500}
+.row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+
+.measurement-list{flex:1;overflow-y:auto;padding:8px}
+.meas-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:.75rem;cursor:pointer;transition:border-color .15s}
+.meas-item:hover{border-color:var(--cyan)}
+.meas-item .type{color:var(--cyan);font-weight:600;font-size:.65rem;text-transform:uppercase}
+.meas-item .value{color:var(--orange);font-weight:700;font-size:.9rem;margin:2px 0}
+.meas-item .detail{color:var(--text-dim);font-size:.65rem}
+.meas-item .actions-row{display:flex;gap:4px;margin-top:4px}
+.meas-item .actions-row button{min-height:28px;min-width:28px;font-size:.6rem;padding:4px 8px}
+
+.drop-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,10,15,.95);z-index:50;transition:opacity .3s}
+.drop-zone.hidden{opacity:0;pointer-events:none}
+.drop-zone.drag-over{border:3px dashed var(--cyan)}
+.drop-icon{width:80px;height:80px;border:2px dashed var(--border);border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--cyan)}
+.drop-zone p{color:var(--text-dim);font-size:.85rem}
+
+.calibration-bar{position:absolute;top:8px;left:60px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:.7rem;z-index:10;display:flex;align-items:center;gap:8px}
+.calibration-bar .scale-val{color:var(--cyan);font-weight:700}
+
+.coord-display{position:absolute;bottom:8px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.65rem;color:var(--cyan);z-index:10}
+
+.color-swatch{width:28px;height:28px;border-radius:4px;border:2px solid var(--border);cursor:pointer;flex-shrink:0}
+input[type="color"]{width:44px;height:44px;border:none;padding:0;cursor:pointer;background:transparent}
+
+.toast{position:fixed;bottom:16px;right:16px;background:var(--green);color:#fff;padding:10px 16px;border-radius:6px;font-size:.75rem;font-weight:600;z-index:9999;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:768px){
+  .right-panel{width:220px}
+  .tool-rail{width:44px}
+}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="5" fill="#00d4ff" opacity=".15"/><path d="M4 14h20M14 4v20" stroke="#00d4ff" stroke-width="1.5"/><circle cx="14" cy="14" r="8" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="3 2"/></svg>
+    <h1>Measure & Annotate <span>Korb Engineering</span></h1>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button class="btn" id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
+    <button class="btn" id="btnClear" title="Clear All">Clear</button>
+    <button class="btn-success" id="btnExport" title="Export as PNG">Export PNG</button>
+    <button class="btn" id="btnSave" title="Save to localStorage">Save</button>
+    <button class="btn" id="btnLoad" title="Load from localStorage">Load</button>
+    <button class="btn" id="btnPanel" title="Toggle Panel">Panel</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Tool Rail -->
+  <div class="tool-rail">
+    <button class="btn active" data-tool="pan" title="Pan"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2v14M2 9h14"/><path d="M6 5l3-3 3 3M6 13l3 3 3-3M5 6l-3 3 3 3M13 6l3 3-3 3"/></svg><span>Pan</span></button>
+    <div class="sep"></div>
+    <button class="btn" data-tool="setScale" title="Set Scale"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14h14M4 12v4M16 12v4"/><path d="M10 9l-4 3"/></svg><span>Scale</span></button>
+    <button class="btn" data-tool="linear" title="Linear Distance"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="15" x2="15" y2="3"/><circle cx="3" cy="15" r="1.5" fill="currentColor"/><circle cx="15" cy="3" r="1.5" fill="currentColor"/></svg><span>Line</span></button>
+    <button class="btn" data-tool="polyline" title="Polyline Path"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,15 6,6 12,10 16,3"/></svg><span>Path</span></button>
+    <button class="btn" data-tool="area" title="Area Polygon"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="3,14 5,4 13,3 16,10 10,15"/></svg><span>Area</span></button>
+    <button class="btn" data-tool="angle" title="Angle (3-point)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 15l7-12M3 15h13"/><path d="M8 15a5 5 0 01-1.5-4"/></svg><span>Angle</span></button>
+    <button class="btn" data-tool="circle3" title="Circle from 3 Points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="7"/><circle cx="5" cy="5" r="1" fill="currentColor"/><circle cx="14" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="15" r="1" fill="currentColor"/></svg><span>Circle</span></button>
+    <div class="sep"></div>
+    <button class="btn" data-tool="text" title="Text Label"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h10M9 4v12M6 16h6"/></svg><span>Text</span></button>
+    <button class="btn" data-tool="freehand" title="Freehand Draw"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 14c2-4 4-2 6-6s2-5 6-5"/></svg><span>Draw</span></button>
+    <button class="btn" data-tool="rect" title="Rectangle"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="12" height="8" rx="1"/></svg><span>Rect</span></button>
+    <button class="btn" data-tool="circleAnnot" title="Circle"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="9" r="7"/></svg><span>Circ</span></button>
+    <button class="btn" data-tool="arrow" title="Arrow"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="15" x2="15" y2="3"/><polyline points="10,3 15,3 15,8"/></svg><span>Arrow</span></button>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-area" id="canvasArea">
+    <canvas id="canvas"></canvas>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="32" height="32" rx="4"/><circle cx="20" cy="20" r="4"/><path d="M8 32l8-8 6 6 8-10 10 12"/></svg></div>
+      <p>Drag & drop an image (PNG, JPG) or PDF</p>
+      <div style="margin:10px 0;color:var(--text-dim);font-size:.75rem">or</div>
+      <button class="btn-primary" id="btnFilePicker" style="padding:10px 20px">Choose File</button>
+      <input type="file" id="fileInput" accept="image/*,.pdf" style="display:none">
+    </div>
+    <div class="calibration-bar hidden" id="calibrationBar">
+      Scale: <span class="scale-val" id="scaleDisplay">Not set</span>
+      <span style="color:var(--text-dim);margin-left:4px" id="scaleUnit">px/unit</span>
+    </div>
+    <div class="coord-display" id="coordDisplay">X: 0 Y: 0</div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel" id="rightPanel">
+    <div class="panel-section">
+      <h3>Tool Options</h3>
+      <div class="row">
+        <label style="width:50px;flex-shrink:0;margin:0">Color</label>
+        <input type="color" id="annotColor" value="#00d4ff">
+        <div class="color-swatch" id="colorPreview" style="background:#00d4ff"></div>
+      </div>
+      <div class="row">
+        <label style="width:50px;flex-shrink:0;margin:0">Width</label>
+        <input type="range" id="lineWidth" min="1" max="10" value="2" style="min-height:auto;flex:1">
+        <span id="lineWidthVal" style="font-size:.7rem;width:20px">2</span>
+      </div>
+      <div class="row" id="textInputRow" style="display:none">
+        <input type="text" id="textInput" placeholder="Enter label text..." style="flex:1">
+      </div>
+      <div id="scaleSetup" class="hidden">
+        <div style="font-size:.7rem;color:var(--orange);margin-bottom:6px">Click two known points, then enter the real-world distance.</div>
+        <div class="row">
+          <input type="number" id="scaleDistance" placeholder="Distance" style="flex:1" step="any">
+          <select id="scaleUnitSelect" style="width:80px">
+            <option value="ft">ft</option>
+            <option value="m">m</option>
+            <option value="in">in</option>
+            <option value="cm">cm</option>
+            <option value="mm">mm</option>
+            <option value="yd">yd</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btnApplyScale" style="width:100%;margin-top:4px;font-size:.75rem">Apply Scale</button>
+      </div>
+    </div>
+    <div class="panel-section" style="padding-bottom:4px">
+      <h3>Measurements & Annotations</h3>
+    </div>
+    <div class="measurement-list" id="measurementList">
+      <div style="padding:20px;text-align:center;color:var(--text-dim);font-size:.75rem">No measurements yet</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+const S = {
+  image: null, imageW: 0, imageH: 0,
+  panX: 0, panY: 0, zoom: 1,
+  canvasW: 0, canvasH: 0,
+  tool: 'pan',
+  color: '#00d4ff', lineWidth: 2,
+  // Scale: pixels per real unit
+  scale: null, scaleUnit: 'ft',
+  // Current drawing
+  points: [],
+  isDrawing: false,
+  freehandPoints: [],
+  // All items
+  items: [],
+  undoStack: [],
+  redoStack: [],
+  // Drag
+  isDragging: false, dragStart: null,
+  // Scale calibration
+  scalePoints: []
+};
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// ============ CANVAS SETUP ============
+function resizeCanvas() {
+  const area = document.getElementById('canvasArea');
+  const dpr = window.devicePixelRatio || 1;
+  S.canvasW = area.clientWidth;
+  S.canvasH = area.clientHeight;
+  canvas.width = S.canvasW * dpr;
+  canvas.height = S.canvasH * dpr;
+  canvas.style.width = S.canvasW + 'px';
+  canvas.style.height = S.canvasH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  render();
+}
+
+function imgToScreen(x, y) {
+  return { x: x * S.zoom + S.panX, y: y * S.zoom + S.panY };
+}
+function screenToImg(sx, sy) {
+  return { x: (sx - S.panX) / S.zoom, y: (sy - S.panY) / S.zoom };
+}
+
+function fitImage() {
+  if (!S.image) return;
+  const margin = 0.9;
+  S.zoom = Math.min(S.canvasW / S.imageW, S.canvasH / S.imageH) * margin;
+  S.panX = (S.canvasW - S.imageW * S.zoom) / 2;
+  S.panY = (S.canvasH - S.imageH * S.zoom) / 2;
+}
+
+// ============ RENDER ============
+function render() {
+  ctx.clearRect(0, 0, S.canvasW, S.canvasH);
+  ctx.fillStyle = '#070c12';
+  ctx.fillRect(0, 0, S.canvasW, S.canvasH);
+
+  if (S.image) {
+    ctx.drawImage(S.image, S.panX, S.panY, S.imageW * S.zoom, S.imageH * S.zoom);
+  }
+
+  // Draw all items
+  S.items.forEach(item => drawItem(item));
+
+  // Draw in-progress
+  drawInProgress();
+}
+
+function drawItem(item) {
+  ctx.strokeStyle = item.color || S.color;
+  ctx.fillStyle = item.color || S.color;
+  ctx.lineWidth = (item.lineWidth || 2);
+  ctx.setLineDash([]);
+
+  switch (item.type) {
+    case 'linear': {
+      const p1 = imgToScreen(item.p1.x, item.p1.y);
+      const p2 = imgToScreen(item.p2.x, item.p2.y);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      drawEndpoint(p1); drawEndpoint(p2);
+      drawMeasLabel(p1, p2, item.label);
+      break;
+    }
+    case 'polyline': {
+      const pts = item.points.map(p => imgToScreen(p.x, p.y));
+      if (pts.length < 2) break;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+      pts.forEach(p => drawEndpoint(p));
+      // Label at midpoint
+      const mid = pts[Math.floor(pts.length / 2)];
+      drawLabel(mid.x, mid.y - 12, item.label);
+      break;
+    }
+    case 'area': {
+      const pts = item.points.map(p => imgToScreen(p.x, p.y));
+      if (pts.length < 3) break;
+      ctx.globalAlpha = 0.15;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath(); ctx.stroke();
+      pts.forEach(p => drawEndpoint(p));
+      const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+      const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+      drawLabel(cx, cy, item.label);
+      break;
+    }
+    case 'angle': {
+      const pts = item.points.map(p => imgToScreen(p.x, p.y));
+      if (pts.length !== 3) break;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke();
+      pts.forEach(p => drawEndpoint(p));
+      // Draw arc
+      const a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x);
+      const a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x);
+      ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 25, a1, a2, angleCCW(a1, a2)); ctx.stroke();
+      drawLabel(pts[1].x + 15, pts[1].y - 15, item.label);
+      break;
+    }
+    case 'circle3': {
+      const pts = item.points.map(p => imgToScreen(p.x, p.y));
+      if (!item.center) break;
+      const c = imgToScreen(item.center.x, item.center.y);
+      const r = item.radius * S.zoom;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.stroke();
+      pts.forEach(p => drawEndpoint(p));
+      drawEndpoint(c, '#ff6600');
+      drawLabel(c.x, c.y - r - 12, item.label);
+      break;
+    }
+    case 'text': {
+      const p = imgToScreen(item.p.x, item.p.y);
+      ctx.font = `${Math.max(12, 14 * (item.lineWidth / 2))}px JetBrains Mono`;
+      ctx.fillText(item.text, p.x, p.y);
+      break;
+    }
+    case 'freehand': {
+      const pts = item.points.map(p => imgToScreen(p.x, p.y));
+      if (pts.length < 2) break;
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+      break;
+    }
+    case 'rect': {
+      const p1 = imgToScreen(item.p1.x, item.p1.y);
+      const p2 = imgToScreen(item.p2.x, item.p2.y);
+      ctx.strokeRect(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
+      break;
+    }
+    case 'circleAnnot': {
+      const p1 = imgToScreen(item.p1.x, item.p1.y);
+      const p2 = imgToScreen(item.p2.x, item.p2.y);
+      const r = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      ctx.beginPath(); ctx.arc(p1.x, p1.y, r, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'arrow': {
+      const p1 = imgToScreen(item.p1.x, item.p1.y);
+      const p2 = imgToScreen(item.p2.x, item.p2.y);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      // Arrowhead
+      const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const hl = 12;
+      ctx.beginPath();
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(p2.x - hl * Math.cos(angle - 0.4), p2.y - hl * Math.sin(angle - 0.4));
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(p2.x - hl * Math.cos(angle + 0.4), p2.y - hl * Math.sin(angle + 0.4));
+      ctx.stroke();
+      break;
+    }
+    case 'scaleRef': {
+      const p1 = imgToScreen(item.p1.x, item.p1.y);
+      const p2 = imgToScreen(item.p2.x, item.p2.y);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#10b981';
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      ctx.setLineDash([]);
+      drawEndpoint(p1, '#10b981'); drawEndpoint(p2, '#10b981');
+      drawLabel((p1.x + p2.x) / 2, (p1.y + p2.y) / 2 - 10, item.label, '#10b981');
+      break;
+    }
+  }
+}
+
+function drawInProgress() {
+  if (S.tool === 'setScale' && S.scalePoints.length === 1) {
+    // Show first point
+    const p = imgToScreen(S.scalePoints[0].x, S.scalePoints[0].y);
+    drawEndpoint(p, '#10b981');
+  }
+
+  if (['linear', 'rect', 'circleAnnot', 'arrow'].includes(S.tool) && S.points.length === 1) {
+    const p = imgToScreen(S.points[0].x, S.points[0].y);
+    drawEndpoint(p);
+  }
+
+  if (['polyline', 'area'].includes(S.tool) && S.points.length > 0) {
+    ctx.strokeStyle = S.color;
+    ctx.lineWidth = S.lineWidth;
+    const pts = S.points.map(p => imgToScreen(p.x, p.y));
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+    pts.forEach(p => drawEndpoint(p));
+  }
+
+  if (S.tool === 'angle' && S.points.length > 0) {
+    ctx.strokeStyle = S.color;
+    ctx.lineWidth = S.lineWidth;
+    const pts = S.points.map(p => imgToScreen(p.x, p.y));
+    if (pts.length >= 2) {
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y);
+      if (pts.length === 3) ctx.lineTo(pts[2].x, pts[2].y);
+      ctx.stroke();
+    }
+    pts.forEach(p => drawEndpoint(p));
+  }
+
+  if (S.tool === 'circle3' && S.points.length > 0) {
+    const pts = S.points.map(p => imgToScreen(p.x, p.y));
+    pts.forEach(p => drawEndpoint(p));
+  }
+
+  if (S.tool === 'freehand' && S.freehandPoints.length > 1) {
+    ctx.strokeStyle = S.color;
+    ctx.lineWidth = S.lineWidth;
+    const pts = S.freehandPoints.map(p => imgToScreen(p.x, p.y));
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+}
+
+function drawEndpoint(p, color) {
+  ctx.fillStyle = color || S.color;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawMeasLabel(p1, p2, text) {
+  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+  drawLabel(mx, my - 10, text);
+}
+
+function drawLabel(x, y, text, color) {
+  if (!text) return;
+  ctx.font = '11px JetBrains Mono';
+  const w = ctx.measureText(text).width + 10;
+  ctx.fillStyle = 'rgba(10,16,24,0.85)';
+  ctx.fillRect(x - w / 2, y - 14, w, 18);
+  ctx.fillStyle = color || '#ff6600';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y - 5);
+  ctx.textAlign = 'start';
+}
+
+function angleCCW(a1, a2) {
+  let diff = a2 - a1;
+  while (diff < 0) diff += Math.PI * 2;
+  return diff > Math.PI;
+}
+
+// ============ CALCULATIONS ============
+function pixelDist(p1, p2) {
+  return Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+}
+
+function realDist(p1, p2) {
+  const pd = pixelDist(p1, p2);
+  if (S.scale) return pd / S.scale;
+  return pd;
+}
+
+function formatDist(p1, p2) {
+  if (S.scale) {
+    return realDist(p1, p2).toFixed(2) + ' ' + S.scaleUnit;
+  }
+  return pixelDist(p1, p2).toFixed(1) + ' px';
+}
+
+function polylineLength(pts) {
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) total += pixelDist(pts[i], pts[i + 1]);
+  if (S.scale) return (total / S.scale).toFixed(2) + ' ' + S.scaleUnit;
+  return total.toFixed(1) + ' px';
+}
+
+function polygonArea(pts) {
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+  }
+  area = Math.abs(area) / 2;
+  if (S.scale) {
+    area /= (S.scale * S.scale);
+    return area.toFixed(2) + ' ' + S.scaleUnit + '\u00B2';
+  }
+  return area.toFixed(1) + ' px\u00B2';
+}
+
+function calcAngle(p1, vertex, p2) {
+  const a1 = Math.atan2(p1.y - vertex.y, p1.x - vertex.x);
+  const a2 = Math.atan2(p2.y - vertex.y, p2.x - vertex.x);
+  let diff = Math.abs(a1 - a2) * 180 / Math.PI;
+  if (diff > 180) diff = 360 - diff;
+  return diff;
+}
+
+function circumcircle(p1, p2, p3) {
+  const ax = p1.x, ay = p1.y, bx = p2.x, by = p2.y, cx = p3.x, cy = p3.y;
+  const D = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(D) < 1e-10) return null;
+  const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / D;
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / D;
+  const r = Math.sqrt((ax - ux) ** 2 + (ay - uy) ** 2);
+  return { x: ux, y: uy, r };
+}
+
+// ============ UNDO/REDO ============
+function pushUndo() {
+  S.undoStack.push(JSON.stringify(S.items));
+  S.redoStack = [];
+  if (S.undoStack.length > 100) S.undoStack.shift();
+}
+
+function undo() {
+  if (!S.undoStack.length) return;
+  S.redoStack.push(JSON.stringify(S.items));
+  S.items = JSON.parse(S.undoStack.pop());
+  renderMeasurementList();
+  render();
+}
+
+function redo() {
+  if (!S.redoStack.length) return;
+  S.undoStack.push(JSON.stringify(S.items));
+  S.items = JSON.parse(S.redoStack.pop());
+  renderMeasurementList();
+  render();
+}
+
+// ============ TOOL HANDLING ============
+function setTool(tool) {
+  S.tool = tool;
+  S.points = [];
+  S.freehandPoints = [];
+  S.isDrawing = false;
+  S.scalePoints = [];
+  document.querySelectorAll('.tool-rail button').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.tool-rail button[data-tool="${tool}"]`);
+  if (btn) btn.classList.add('active');
+
+  document.getElementById('textInputRow').style.display = tool === 'text' ? 'flex' : 'none';
+  const scaleSetup = document.getElementById('scaleSetup');
+  if (tool === 'setScale') { scaleSetup.classList.remove('hidden'); } else { scaleSetup.classList.add('hidden'); }
+
+  canvas.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
+  render();
+}
+
+function handleCanvasClick(sx, sy) {
+  const p = screenToImg(sx, sy);
+
+  switch (S.tool) {
+    case 'setScale':
+      S.scalePoints.push(p);
+      if (S.scalePoints.length === 2) {
+        // Show scale setup, wait for user to enter distance
+        render();
+      }
+      render();
+      break;
+
+    case 'linear':
+      S.points.push(p);
+      if (S.points.length === 2) {
+        const label = formatDist(S.points[0], S.points[1]);
+        pushUndo();
+        S.items.push({ type: 'linear', p1: S.points[0], p2: S.points[1], label, color: S.color, lineWidth: S.lineWidth });
+        S.points = [];
+        renderMeasurementList();
+      }
+      render();
+      break;
+
+    case 'polyline':
+      S.points.push(p);
+      render();
+      break;
+
+    case 'area':
+      S.points.push(p);
+      render();
+      break;
+
+    case 'angle':
+      S.points.push(p);
+      if (S.points.length === 3) {
+        const deg = calcAngle(S.points[0], S.points[1], S.points[2]);
+        const label = deg.toFixed(1) + '\u00B0';
+        pushUndo();
+        S.items.push({ type: 'angle', points: [...S.points], label, color: S.color, lineWidth: S.lineWidth });
+        S.points = [];
+        renderMeasurementList();
+      }
+      render();
+      break;
+
+    case 'circle3':
+      S.points.push(p);
+      if (S.points.length === 3) {
+        const cc = circumcircle(S.points[0], S.points[1], S.points[2]);
+        if (cc) {
+          let label;
+          if (S.scale) {
+            label = 'R=' + (cc.r / S.scale).toFixed(2) + ' ' + S.scaleUnit;
+          } else {
+            label = 'R=' + cc.r.toFixed(1) + ' px';
+          }
+          pushUndo();
+          S.items.push({ type: 'circle3', points: [...S.points], center: { x: cc.x, y: cc.y }, radius: cc.r, label, color: S.color, lineWidth: S.lineWidth });
+          renderMeasurementList();
+        }
+        S.points = [];
+      }
+      render();
+      break;
+
+    case 'text': {
+      const text = document.getElementById('textInput').value.trim();
+      if (!text) { showToast('Enter label text first'); return; }
+      pushUndo();
+      S.items.push({ type: 'text', p, text, color: S.color, lineWidth: S.lineWidth });
+      renderMeasurementList();
+      render();
+      break;
+    }
+
+    case 'rect':
+    case 'circleAnnot':
+    case 'arrow':
+      S.points.push(p);
+      if (S.points.length === 2) {
+        pushUndo();
+        S.items.push({ type: S.tool, p1: S.points[0], p2: S.points[1], color: S.color, lineWidth: S.lineWidth });
+        S.points = [];
+        renderMeasurementList();
+      }
+      render();
+      break;
+  }
+}
+
+function finishPolyline() {
+  if (S.tool === 'polyline' && S.points.length >= 2) {
+    const label = polylineLength(S.points);
+    pushUndo();
+    S.items.push({ type: 'polyline', points: [...S.points], label, color: S.color, lineWidth: S.lineWidth });
+    S.points = [];
+    renderMeasurementList();
+    render();
+  }
+}
+
+function finishArea() {
+  if (S.tool === 'area' && S.points.length >= 3) {
+    const areaLabel = polygonArea(S.points);
+    const perimPts = [...S.points, S.points[0]];
+    const perimLabel = polylineLength(perimPts);
+    const label = areaLabel + ' (P: ' + perimLabel + ')';
+    pushUndo();
+    S.items.push({ type: 'area', points: [...S.points], label, color: S.color, lineWidth: S.lineWidth });
+    S.points = [];
+    renderMeasurementList();
+    render();
+  }
+}
+
+// ============ SCALE ============
+document.getElementById('btnApplyScale').addEventListener('click', () => {
+  if (S.scalePoints.length < 2) { showToast('Click two points on the image first'); return; }
+  const dist = parseFloat(document.getElementById('scaleDistance').value);
+  if (!dist || dist <= 0) { showToast('Enter a valid distance'); return; }
+  const unit = document.getElementById('scaleUnitSelect').value;
+  const pd = pixelDist(S.scalePoints[0], S.scalePoints[1]);
+  S.scale = pd / dist;
+  S.scaleUnit = unit;
+
+  // Add scale reference line
+  pushUndo();
+  S.items.push({ type: 'scaleRef', p1: S.scalePoints[0], p2: S.scalePoints[1], label: dist.toFixed(2) + ' ' + unit, color: '#10b981', lineWidth: 1 });
+
+  document.getElementById('calibrationBar').classList.remove('hidden');
+  document.getElementById('scaleDisplay').textContent = (1 / S.scale * 100).toFixed(2) + ' ' + unit + '/100px';
+  document.getElementById('scaleUnit').textContent = unit;
+  S.scalePoints = [];
+  setTool('pan');
+
+  // Recalculate existing measurements
+  recalcMeasurements();
+  renderMeasurementList();
+  render();
+  showToast('Scale set: ' + dist + ' ' + unit);
+});
+
+function recalcMeasurements() {
+  S.items.forEach(item => {
+    switch (item.type) {
+      case 'linear':
+        item.label = formatDist(item.p1, item.p2);
+        break;
+      case 'polyline':
+        item.label = polylineLength(item.points);
+        break;
+      case 'area': {
+        const areaLabel = polygonArea(item.points);
+        const perimPts = [...item.points, item.points[0]];
+        item.label = areaLabel + ' (P: ' + polylineLength(perimPts) + ')';
+        break;
+      }
+      case 'circle3':
+        if (item.radius) {
+          item.label = S.scale ? 'R=' + (item.radius / S.scale).toFixed(2) + ' ' + S.scaleUnit : 'R=' + item.radius.toFixed(1) + ' px';
+        }
+        break;
+    }
+  });
+}
+
+// ============ MEASUREMENT LIST ============
+function renderMeasurementList() {
+  const el = document.getElementById('measurementList');
+  const measTypes = ['linear', 'polyline', 'area', 'angle', 'circle3', 'scaleRef'];
+  const allItems = S.items;
+  if (!allItems.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:.75rem">No measurements yet</div>';
+    return;
+  }
+  el.innerHTML = allItems.map((item, i) => {
+    const typeNames = { linear: 'Distance', polyline: 'Path', area: 'Area', angle: 'Angle', circle3: 'Circle', text: 'Text', freehand: 'Drawing', rect: 'Rectangle', circleAnnot: 'Circle', arrow: 'Arrow', scaleRef: 'Scale Ref' };
+    return `<div class="meas-item">
+      <div class="type">${typeNames[item.type] || item.type}</div>
+      <div class="value">${item.label || item.text || '--'}</div>
+      <div class="actions-row">
+        <button class="btn-danger" onclick="deleteItem(${i})">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function deleteItem(idx) {
+  pushUndo();
+  S.items.splice(idx, 1);
+  renderMeasurementList();
+  render();
+}
+
+// ============ FILE LOADING ============
+function loadFile(file) {
+  const dropZone = document.getElementById('dropZone');
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    showToast('PDF support requires a PDF.js library. Please use PNG/JPG for now.');
+    return;
+  }
+  if (!file.type.startsWith('image/')) { showToast('Unsupported file type'); return; }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      S.image = img;
+      S.imageW = img.width;
+      S.imageH = img.height;
+      dropZone.classList.add('hidden');
+      fitImage();
+      render();
+      showToast('Image loaded: ' + img.width + 'x' + img.height);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============ EVENTS ============
+const canvasArea = document.getElementById('canvasArea');
+const dropZoneEl = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+canvasArea.addEventListener('dragover', e => { e.preventDefault(); dropZoneEl.classList.add('drag-over'); });
+canvasArea.addEventListener('dragleave', () => dropZoneEl.classList.remove('drag-over'));
+canvasArea.addEventListener('drop', e => { e.preventDefault(); dropZoneEl.classList.remove('drag-over'); if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+document.getElementById('btnFilePicker').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files.length) loadFile(e.target.files[0]); });
+
+// Canvas mouse events
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+
+  if (S.tool === 'pan') {
+    S.isDragging = true;
+    S.dragStart = { x: e.clientX, y: e.clientY, panX: S.panX, panY: S.panY };
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (S.tool === 'freehand') {
+    S.isDrawing = true;
+    const p = screenToImg(sx, sy);
+    S.freehandPoints = [p];
+    return;
+  }
+
+  handleCanvasClick(sx, sy);
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const wp = screenToImg(sx, sy);
+  document.getElementById('coordDisplay').innerHTML = `X: ${wp.x.toFixed(1)} Y: ${wp.y.toFixed(1)}`;
+
+  if (S.isDragging && S.dragStart) {
+    S.panX = S.dragStart.panX + (e.clientX - S.dragStart.x);
+    S.panY = S.dragStart.panY + (e.clientY - S.dragStart.y);
+    render();
+    return;
+  }
+
+  if (S.isDrawing && S.tool === 'freehand') {
+    const p = screenToImg(sx, sy);
+    S.freehandPoints.push(p);
+    render();
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (S.isDragging) {
+    S.isDragging = false;
+    canvas.style.cursor = S.tool === 'pan' ? 'grab' : 'crosshair';
+    return;
+  }
+  if (S.isDrawing && S.tool === 'freehand' && S.freehandPoints.length > 1) {
+    pushUndo();
+    S.items.push({ type: 'freehand', points: [...S.freehandPoints], color: S.color, lineWidth: S.lineWidth });
+    S.freehandPoints = [];
+    S.isDrawing = false;
+    renderMeasurementList();
+    render();
+  }
+});
+
+// Double-click to finish polyline/area
+canvas.addEventListener('dblclick', e => {
+  e.preventDefault();
+  if (S.tool === 'polyline') finishPolyline();
+  if (S.tool === 'area') finishArea();
+});
+
+// Wheel zoom
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const before = screenToImg(sx, sy);
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  S.zoom *= factor;
+  S.zoom = Math.max(0.01, Math.min(100, S.zoom));
+  // Keep point under cursor fixed
+  S.panX = sx - before.x * S.zoom;
+  S.panY = sy - before.y * S.zoom;
+  render();
+}, { passive: false });
+
+// Touch support
+let pinchDist = 0;
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    if (S.tool === 'pan') {
+      S.isDragging = true;
+      S.dragStart = { x: t.clientX, y: t.clientY, panX: S.panX, panY: S.panY };
+    }
+  } else if (e.touches.length === 2) {
+    S.isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchDist = Math.sqrt(dx * dx + dy * dy);
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && S.isDragging && S.dragStart) {
+    const t = e.touches[0];
+    S.panX = S.dragStart.panX + (t.clientX - S.dragStart.x);
+    S.panY = S.dragStart.panY + (t.clientY - S.dragStart.y);
+    render();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const nd = Math.sqrt(dx * dx + dy * dy);
+    if (pinchDist > 0) { S.zoom *= nd / pinchDist; S.zoom = Math.max(0.01, Math.min(100, S.zoom)); render(); }
+    pinchDist = nd;
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { S.isDragging = false; pinchDist = 0; });
+
+// Tool rail
+document.querySelectorAll('.tool-rail button[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => setTool(btn.dataset.tool));
+});
+
+// Color & line width
+document.getElementById('annotColor').addEventListener('input', e => {
+  S.color = e.target.value;
+  document.getElementById('colorPreview').style.background = e.target.value;
+});
+document.getElementById('lineWidth').addEventListener('input', e => {
+  S.lineWidth = parseInt(e.target.value);
+  document.getElementById('lineWidthVal').textContent = e.target.value;
+});
+
+// Header actions
+document.getElementById('btnUndo').addEventListener('click', undo);
+document.getElementById('btnRedo').addEventListener('click', redo);
+document.getElementById('btnClear').addEventListener('click', () => {
+  if (!confirm('Clear all measurements and annotations?')) return;
+  pushUndo();
+  S.items = [];
+  renderMeasurementList();
+  render();
+});
+document.getElementById('btnPanel').addEventListener('click', () => {
+  document.getElementById('rightPanel').classList.toggle('hidden');
+  resizeCanvas();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'y') { e.preventDefault(); redo(); }
+  }
+  if (e.key === 'Escape') {
+    S.points = [];
+    S.freehandPoints = [];
+    S.scalePoints = [];
+    render();
+  }
+  if (e.key === 'Enter') {
+    if (S.tool === 'polyline') finishPolyline();
+    if (S.tool === 'area') finishArea();
+  }
+});
+
+// Export
+document.getElementById('btnExport').addEventListener('click', () => {
+  if (!S.image) { showToast('Load an image first'); return; }
+  const expCanvas = document.createElement('canvas');
+  expCanvas.width = S.imageW;
+  expCanvas.height = S.imageH;
+  const expCtx = expCanvas.getContext('2d');
+  expCtx.drawImage(S.image, 0, 0);
+
+  // Temporarily adjust state for export
+  const origZoom = S.zoom, origPanX = S.panX, origPanY = S.panY;
+  S.zoom = 1; S.panX = 0; S.panY = 0;
+
+  // Swap context
+  const origCtx = ctx;
+  // We'll manually draw on expCtx
+  S.items.forEach(item => {
+    expCtx.strokeStyle = item.color || S.color;
+    expCtx.fillStyle = item.color || S.color;
+    expCtx.lineWidth = item.lineWidth || 2;
+    expCtx.setLineDash([]);
+    drawItemToCtx(expCtx, item);
+  });
+
+  S.zoom = origZoom; S.panX = origPanX; S.panY = origPanY;
+
+  const link = document.createElement('a');
+  link.download = 'korb_annotated_export.png';
+  link.href = expCanvas.toDataURL('image/png');
+  link.click();
+  showToast('Exported as PNG');
+});
+
+function drawItemToCtx(c, item) {
+  // Simplified export drawing at 1:1 scale
+  c.strokeStyle = item.color || '#00d4ff';
+  c.fillStyle = item.color || '#00d4ff';
+  c.lineWidth = item.lineWidth || 2;
+
+  switch (item.type) {
+    case 'linear':
+      c.beginPath(); c.moveTo(item.p1.x, item.p1.y); c.lineTo(item.p2.x, item.p2.y); c.stroke();
+      if (item.label) { c.font = '14px JetBrains Mono'; c.fillStyle = '#ff6600'; c.fillText(item.label, (item.p1.x + item.p2.x) / 2 + 5, (item.p1.y + item.p2.y) / 2 - 8); c.fillStyle = item.color || '#00d4ff'; }
+      break;
+    case 'polyline':
+      if (!item.points || item.points.length < 2) break;
+      c.beginPath(); c.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) c.lineTo(item.points[i].x, item.points[i].y);
+      c.stroke();
+      break;
+    case 'area':
+      if (!item.points || item.points.length < 3) break;
+      c.globalAlpha = 0.15; c.beginPath(); c.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) c.lineTo(item.points[i].x, item.points[i].y);
+      c.closePath(); c.fill(); c.globalAlpha = 1;
+      c.beginPath(); c.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) c.lineTo(item.points[i].x, item.points[i].y);
+      c.closePath(); c.stroke();
+      break;
+    case 'angle':
+      if (!item.points || item.points.length !== 3) break;
+      c.beginPath(); c.moveTo(item.points[0].x, item.points[0].y); c.lineTo(item.points[1].x, item.points[1].y); c.lineTo(item.points[2].x, item.points[2].y); c.stroke();
+      break;
+    case 'circle3':
+      if (!item.center) break;
+      c.beginPath(); c.arc(item.center.x, item.center.y, item.radius, 0, Math.PI * 2); c.stroke();
+      break;
+    case 'text':
+      c.font = `${Math.max(12, 14 * (item.lineWidth / 2))}px JetBrains Mono`;
+      c.fillText(item.text, item.p.x, item.p.y);
+      break;
+    case 'freehand':
+      if (!item.points || item.points.length < 2) break;
+      c.beginPath(); c.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) c.lineTo(item.points[i].x, item.points[i].y);
+      c.stroke();
+      break;
+    case 'rect':
+      c.strokeRect(Math.min(item.p1.x, item.p2.x), Math.min(item.p1.y, item.p2.y), Math.abs(item.p2.x - item.p1.x), Math.abs(item.p2.y - item.p1.y));
+      break;
+    case 'circleAnnot': {
+      const r = Math.sqrt((item.p2.x - item.p1.x) ** 2 + (item.p2.y - item.p1.y) ** 2);
+      c.beginPath(); c.arc(item.p1.x, item.p1.y, r, 0, Math.PI * 2); c.stroke();
+      break;
+    }
+    case 'arrow':
+      c.beginPath(); c.moveTo(item.p1.x, item.p1.y); c.lineTo(item.p2.x, item.p2.y); c.stroke();
+      const angle = Math.atan2(item.p2.y - item.p1.y, item.p2.x - item.p1.x);
+      c.beginPath();
+      c.moveTo(item.p2.x, item.p2.y);
+      c.lineTo(item.p2.x - 15 * Math.cos(angle - 0.4), item.p2.y - 15 * Math.sin(angle - 0.4));
+      c.moveTo(item.p2.x, item.p2.y);
+      c.lineTo(item.p2.x - 15 * Math.cos(angle + 0.4), item.p2.y - 15 * Math.sin(angle + 0.4));
+      c.stroke();
+      break;
+    case 'scaleRef':
+      c.setLineDash([6, 4]); c.strokeStyle = '#10b981';
+      c.beginPath(); c.moveTo(item.p1.x, item.p1.y); c.lineTo(item.p2.x, item.p2.y); c.stroke();
+      c.setLineDash([]);
+      break;
+  }
+}
+
+// Save/Load
+document.getElementById('btnSave').addEventListener('click', () => {
+  try {
+    const data = { items: S.items, scale: S.scale, scaleUnit: S.scaleUnit };
+    localStorage.setItem('korb_measure_data', JSON.stringify(data));
+    showToast('Measurements saved');
+  } catch (e) { showToast('Save failed: ' + e.message); }
+});
+
+document.getElementById('btnLoad').addEventListener('click', () => {
+  try {
+    const raw = localStorage.getItem('korb_measure_data');
+    if (!raw) { showToast('No saved data found'); return; }
+    const data = JSON.parse(raw);
+    S.items = data.items || [];
+    if (data.scale) { S.scale = data.scale; S.scaleUnit = data.scaleUnit || 'ft'; document.getElementById('calibrationBar').classList.remove('hidden'); document.getElementById('scaleDisplay').textContent = (1 / S.scale * 100).toFixed(2) + ' ' + S.scaleUnit + '/100px'; }
+    renderMeasurementList();
+    render();
+    showToast('Measurements loaded');
+  } catch (e) { showToast('Load failed: ' + e.message); }
+});
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Init
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+</script>
+</body>
+</html>

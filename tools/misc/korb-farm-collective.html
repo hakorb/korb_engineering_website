@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Korb Farm Collective</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;
+--text:#e2e8f0;--dim:#64748b;--gold:#fbbf24;--purple:#a78bfa;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace}
+canvas#game{display:block;width:100%;height:100%;image-rendering:pixelated}
+
+.panel{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;z-index:100;display:none;max-height:80vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.panel.active{display:flex;flex-direction:column}
+.panel h2{color:var(--cyan);font-size:14px;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.panel-close{position:absolute;top:8px;right:12px;background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;font-family:inherit;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+.panel-close:hover{color:var(--red)}
+
+#hud{position:fixed;top:0;left:0;right:0;height:48px;background:rgba(10,16,24,0.92);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:16px;z-index:50;font-size:12px;backdrop-filter:blur(4px)}
+.hud-item{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.hud-item .icon{font-size:14px}
+.hud-item .val{color:var(--cyan);font-weight:600}
+#hud-buttons{margin-left:auto;display:flex;gap:4px}
+#hud-buttons button{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:6px 10px;border-radius:4px;cursor:pointer;min-width:44px;min-height:36px}
+#hud-buttons button:hover,#hud-buttons button.active{border-color:var(--cyan);color:var(--cyan)}
+
+#toolbar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:50;background:rgba(10,16,24,0.92);border:1px solid var(--border);border-radius:8px;padding:4px;backdrop-filter:blur(4px)}
+#toolbar button{width:48px;height:48px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;flex-direction:column;gap:1px;line-height:1}
+#toolbar button.active{border-color:var(--cyan);background:rgba(0,212,255,0.1);color:var(--cyan)}
+#toolbar button:hover{border-color:var(--cyan)}
+#toolbar .tkey{font-size:9px;color:var(--dim)}
+#toolbar button.active .tkey{color:var(--cyan)}
+
+#mobile-controls{position:fixed;bottom:80px;left:12px;z-index:50;display:none}
+@media(max-width:768px){#mobile-controls{display:block}}
+.dpad{width:140px;height:140px;position:relative}
+.dpad button{position:absolute;width:48px;height:48px;background:rgba(10,16,24,0.85);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.dpad .up{top:0;left:46px}
+.dpad .down{bottom:0;left:46px}
+.dpad .left{top:46px;left:0}
+.dpad .right{top:46px;right:0}
+#mobile-action{position:fixed;bottom:110px;right:20px;width:64px;height:64px;border-radius:50%;background:rgba(0,212,255,0.15);border:2px solid var(--cyan);color:var(--cyan);font-size:11px;font-family:inherit;font-weight:600;cursor:pointer;z-index:50;display:none}
+@media(max-width:768px){#mobile-action{display:flex;align-items:center;justify-content:center}}
+
+#minimap-wrap{position:fixed;bottom:12px;right:12px;width:140px;height:140px;background:var(--surface);border:1px solid var(--border);border-radius:6px;z-index:50;overflow:hidden}
+@media(max-width:768px){#minimap-wrap{width:80px;height:80px;bottom:80px}}
+
+#market{width:400px;top:60px;left:50%;transform:translateX(-50%)}
+@media(max-width:768px){#market{width:calc(100% - 24px);left:12px;transform:none}}
+.market-item{display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:4px;gap:8px}
+.market-item .name{font-size:12px;flex:1}
+.market-item .price{color:var(--gold);font-size:12px;font-weight:600;min-width:40px;text-align:right}
+.market-item button{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:4px 12px;border-radius:4px;cursor:pointer;min-height:32px;min-width:52px}
+.market-item button:hover{border-color:var(--cyan);color:var(--cyan)}
+.market-item button:disabled{opacity:0.35;cursor:not-allowed}
+.tab-row{display:flex;gap:4px;margin-bottom:12px}
+.tab-row button{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--dim);font-family:inherit;font-size:11px;padding:8px;border-radius:4px;cursor:pointer;min-height:36px}
+.tab-row button.active{border-color:var(--cyan);color:var(--cyan)}
+
+#inventory{width:340px;top:60px;right:12px}
+@media(max-width:768px){#inventory{width:calc(100% - 24px);right:12px;left:12px}}
+.inv-item{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1px solid var(--border);border-radius:4px;margin-bottom:3px;font-size:12px;cursor:default}
+.inv-item.selectable{cursor:pointer}
+.inv-item.selectable:hover{border-color:var(--cyan)}
+.inv-item.selected{border-color:var(--cyan);color:var(--cyan)}
+.inv-qty{color:var(--cyan);font-weight:600}
+
+#leaderboard{width:320px;top:60px;right:12px}
+@media(max-width:768px){#leaderboard{width:calc(100% - 24px);right:12px;left:12px}}
+.lb-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;margin-bottom:3px;font-size:12px}
+.lb-rank{color:var(--gold);font-weight:700;width:28px}
+.lb-name{flex:1}
+.lb-coins{color:var(--gold);font-weight:600}
+.lb-tier{font-size:10px;color:var(--dim)}
+
+#name-prompt{position:fixed;inset:0;background:rgba(5,10,15,0.97);z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#name-prompt .box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:40px 32px;text-align:center;width:380px;max-width:90vw}
+#name-prompt h1{color:var(--cyan);font-size:20px;margin-bottom:4px;letter-spacing:2px}
+#name-prompt .sub{color:var(--orange);font-size:11px;margin-bottom:6px;letter-spacing:1px}
+#name-prompt p{color:var(--dim);font-size:11px;margin-bottom:20px;line-height:1.5}
+#name-prompt input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;color:var(--text);font-family:inherit;font-size:14px;text-align:center;outline:none}
+#name-prompt input:focus{border-color:var(--cyan)}
+#name-prompt button{margin-top:16px;width:100%;background:rgba(0,212,255,0.12);border:1px solid var(--cyan);color:var(--cyan);font-family:inherit;font-size:14px;font-weight:600;padding:14px;border-radius:6px;cursor:pointer;min-height:48px;letter-spacing:1px}
+#name-prompt button:hover{background:rgba(0,212,255,0.2)}
+.controls-hint{color:var(--dim);font-size:10px;margin-top:16px;line-height:1.6}
+
+#toast{position:fixed;top:56px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:12px;z-index:150;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="name-prompt">
+  <div class="box">
+    <h1>KORB FARM COLLECTIVE</h1>
+    <div class="sub">A Korb Engineering Production</div>
+    <p>Join the collective! Grow crops in real time, claim land, trade at the market, and become the most prestigious farmer.</p>
+    <input id="name-input" type="text" placeholder="Enter farmer name..." maxlength="16" autocomplete="off">
+    <button id="name-submit">START FARMING</button>
+    <div class="controls-hint">
+      WASD / Arrows to move | Space / Enter to act<br>
+      1-5 for tools | E inventory | Q market
+    </div>
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <div class="hud-item"><span class="icon">$</span><span class="val" id="hud-coins">0</span></div>
+  <div class="hud-item"><span class="icon">T:</span><span class="val" id="hud-tool">Hoe</span></div>
+  <div class="hud-item"><span class="icon">S:</span><span class="val" id="hud-seed">Wheat</span></div>
+  <div class="hud-item"><span class="icon">W:</span><span class="val" id="hud-weather">Clear</span></div>
+  <div class="hud-item"><span class="val" id="hud-time">12:00</span></div>
+  <div id="hud-buttons">
+    <button id="btn-inv">INV</button>
+    <button id="btn-market">SHOP</button>
+    <button id="btn-lb">TOP</button>
+  </div>
+</div>
+
+<canvas id="game"></canvas>
+
+<div id="toolbar" style="display:none">
+  <button data-tool="hoe" class="active"><span>Hoe</span><span class="tkey">1</span></button>
+  <button data-tool="water"><span>Water</span><span class="tkey">2</span></button>
+  <button data-tool="harvest"><span>Harvest</span><span class="tkey">3</span></button>
+  <button data-tool="fence"><span>Fence</span><span class="tkey">4</span></button>
+  <button data-tool="move"><span>Move</span><span class="tkey">5</span></button>
+</div>
+
+<div id="mobile-controls">
+  <div class="dpad">
+    <button class="up" data-dir="up">^</button>
+    <button class="down" data-dir="down">v</button>
+    <button class="left" data-dir="left">&lt;</button>
+    <button class="right" data-dir="right">&gt;</button>
+  </div>
+</div>
+<button id="mobile-action">ACT</button>
+
+<div id="minimap-wrap"><canvas id="minimap" width="140" height="140"></canvas></div>
+
+<div class="panel" id="inventory">
+  <button class="panel-close" data-panel="inventory">x</button>
+  <h2>Inventory</h2>
+  <div id="inv-list"></div>
+</div>
+
+<div class="panel" id="market">
+  <button class="panel-close" data-panel="market">x</button>
+  <h2>Market</h2>
+  <div class="tab-row">
+    <button class="active" data-tab="seeds">Seeds</button>
+    <button data-tab="tools">Tools</button>
+    <button data-tab="cosmetics">Style</button>
+    <button data-tab="sell">Sell</button>
+  </div>
+  <div id="market-list"></div>
+</div>
+
+<div class="panel" id="leaderboard">
+  <button class="panel-close" data-panel="leaderboard">x</button>
+  <h2>Top Farmers</h2>
+  <div id="lb-list"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// === STORAGE ===
+const LS = k => { try { return JSON.parse(localStorage.getItem('korb_farm_' + k)); } catch(e) { return null; } };
+const SS = (k, v) => localStorage.setItem('korb_farm_' + k, JSON.stringify(v));
+
+// === CONSTANTS ===
+const TILE = 16;
+const WORLD_W = 120, WORLD_H = 120;
+
+const CROPS = {
+  wheat:        { name:'Wheat',        growMs:3600000,   color:'#f0c040', price:8,   seedPrice:2,  emoji:'W' },
+  corn:         { name:'Corn',         growMs:7200000,   color:'#FFD700', price:18,  seedPrice:5,  emoji:'C' },
+  tomato:       { name:'Tomato',       growMs:14400000,  color:'#FF4444', price:35,  seedPrice:10, emoji:'T' },
+  pumpkin:      { name:'Pumpkin',      growMs:28800000,  color:'#FF8C00', price:60,  seedPrice:20, emoji:'P' },
+  golden_apple: { name:'Golden Apple', growMs:86400000,  color:'#FFD700', price:150, seedPrice:50, emoji:'G' }
+};
+
+const TOOL_TIERS = [
+  { name:'Basic Hoe',  speed:1,   price:0 },
+  { name:'Iron Hoe',   speed:1.5, price:100 },
+  { name:'Golden Hoe', speed:2,   price:500 }
+];
+
+const COSMETICS = [
+  { id:'plain',   name:'Plain Farmer',        price:0,     tier:0, desc:'Humble beginnings' },
+  { id:'coat1',   name:'Leather Coat',         price:200,   tier:1, desc:'A sturdy work coat' },
+  { id:'coat2',   name:'Fur Coat',             price:800,   tier:2, desc:'Warm and luxurious' },
+  { id:'tophat1', name:'Top Hat',              price:2000,  tier:3, desc:'Distinguished farmer' },
+  { id:'tophat2', name:'Golden Top Hat',       price:5000,  tier:4, desc:'Gilded prestige' },
+  { id:'diamond', name:'Diamond-Encrusted Set', price:15000, tier:5, desc:'Legendary status' }
+];
+
+const BOT_NAMES = ['Hank','Mabel','Cletus','Daisy','Earl','Fern','Gus','Ivy','Jeb','Rosie','Buck','Pearl','Otis','Nell','Clem','Hazel'];
+const WEATHER_TYPES = ['clear','clear','clear','rain','rain','sunny'];
+
+// === GAME STATE ===
+let state = null;
+let canvas, ctx, mmCanvas, mmCtx;
+let camX = 0, camY = 0;
+let keys = {};
+let currentTool = 'hoe';
+let selectedSeed = 'wheat';
+let marketTab = 'seeds';
+let lastFrame = 0;
+let toastTimer = null;
+let saveCounter = 0;
+let terrainCache = null;
+
+// === TERRAIN GENERATION (seeded, deterministic) ===
+function seededRandom(x, y) {
+  let n = x * 374761393 + y * 668265263;
+  n = (n ^ (n >> 13)) * 1274126177;
+  n = n ^ (n >> 16);
+  return (n & 0x7fffffff) / 0x7fffffff;
+}
+
+function noise2D(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const a = seededRandom(ix, iy);
+  const b = seededRandom(ix+1, iy);
+  const c = seededRandom(ix, iy+1);
+  const d = seededRandom(ix+1, iy+1);
+  const ux = fx*fx*(3-2*fx), uy = fy*fy*(3-2*fy);
+  return a*(1-ux)*(1-uy) + b*ux*(1-uy) + c*(1-ux)*uy + d*ux*uy;
+}
+
+function generateTerrain() {
+  terrainCache = new Uint8Array(WORLD_W * WORLD_H);
+  for (let y = 0; y < WORLD_H; y++) {
+    for (let x = 0; x < WORLD_W; x++) {
+      const n1 = noise2D(x*0.06, y*0.06);
+      const n2 = noise2D(x*0.12+100, y*0.12+100) * 0.5;
+      const v = n1 + n2;
+      // Edges are water
+      const edgeDist = Math.min(x, y, WORLD_W-1-x, WORLD_H-1-y);
+      if (edgeDist < 3) { terrainCache[y*WORLD_W+x] = 0; continue; } // water
+      if (v > 1.1) { terrainCache[y*WORLD_W+x] = 0; continue; } // water (ponds)
+      if (v > 0.85 && edgeDist > 6) { terrainCache[y*WORLD_W+x] = 2; continue; } // tree
+      terrainCache[y*WORLD_W+x] = 1; // grass
+    }
+  }
+  // Clear a starting area around center
+  for (let dy = -6; dy <= 6; dy++) {
+    for (let dx = -6; dx <= 6; dx++) {
+      const tx = 60+dx, ty = 60+dy;
+      if (tx >= 0 && tx < WORLD_W && ty >= 0 && ty < WORLD_H) {
+        terrainCache[ty*WORLD_W+tx] = 1;
+      }
+    }
+  }
+}
+
+function getTerrain(tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return 'water';
+  const v = terrainCache[ty * WORLD_W + tx];
+  return v === 0 ? 'water' : v === 2 ? 'tree' : 'grass';
+}
+
+// === DEFAULT STATE ===
+function defaultState(name) {
+  const bots = [];
+  // Place bots in a ring around center
+  for (let i = 0; i < 10; i++) {
+    const angle = (i / 10) * Math.PI * 2;
+    const dist = 18 + Math.floor(seededRandom(i*7, i*13) * 25);
+    let bx = Math.floor(60 + Math.cos(angle) * dist);
+    let by = Math.floor(60 + Math.sin(angle) * dist);
+    bx = Math.max(5, Math.min(bx, WORLD_W - 10));
+    by = Math.max(5, Math.min(by, WORLD_H - 10));
+    // Ensure land is on grass
+    const lw = 4 + Math.floor(seededRandom(i*3, i*5) * 4);
+    const lh = 4 + Math.floor(seededRandom(i*9, i*2) * 4);
+    // Clear terrain for bot land
+    for (let dy = -1; dy <= lh; dy++) {
+      for (let dx = -1; dx <= lw; dx++) {
+        const ttx = bx+dx, tty = by+dy;
+        if (ttx >= 0 && ttx < WORLD_W && tty >= 0 && tty < WORLD_H) {
+          terrainCache[tty*WORLD_W+ttx] = 1;
+        }
+      }
+    }
+    const bn = BOT_NAMES[i % BOT_NAMES.length];
+    const botCoins = Math.floor(seededRandom(i*11,i*17)*3000)+100;
+    const maxCos = COSMETICS.filter(c => c.price <= botCoins);
+    const botCosm = maxCos.length > 0 ? maxCos[maxCos.length-1].id : 'plain';
+    const bot = {
+      name: bn, x: bx*TILE+TILE*2, y: by*TILE+TILE*2,
+      coins: Math.floor(seededRandom(i,i)*500)+50,
+      totalCoins: botCoins,
+      cosmetic: botCosm,
+      landX: bx, landY: by, landW: lw, landH: lh,
+      crops: [], dir: 2, moveTimer: 0, actionTimer: Math.random()*5,
+      hoeTier: Math.min(Math.floor(seededRandom(i*4,i*6)*3), 2)
+    };
+    // Plant initial crops for bots
+    for (let dy = 0; dy < bot.landH; dy++) {
+      for (let dx = 0; dx < bot.landW; dx++) {
+        if (seededRandom(bx+dx, by+dy) < 0.55) {
+          const types = Object.keys(CROPS);
+          const ct = types[Math.floor(seededRandom(dx*3+i, dy*7+i) * types.length)];
+          const age = seededRandom(dx+i*10, dy+i*20) * CROPS[ct].growMs * 1.2;
+          bot.crops.push({
+            x: bx+dx, y: by+dy, type: ct,
+            plantedAt: Date.now() - age,
+            watered: seededRandom(dx+i, dy+i) > 0.4
+          });
+        }
+      }
+    }
+    bots.push(bot);
+  }
+  return {
+    name, x: 60*TILE, y: 60*TILE, dir: 2,
+    coins: 50, totalCoins: 50,
+    seeds: { wheat:10, corn:3, tomato:0, pumpkin:0, golden_apple:0 },
+    harvested: { wheat:0, corn:0, tomato:0, pumpkin:0, golden_apple:0 },
+    hoeTier: 0,
+    cosmetic: 'plain',
+    ownedCosmetics: ['plain'],
+    lands: [],
+    crops: [],
+    bots,
+    weather: 'clear',
+    weatherChangeAt: Date.now() + 600000,
+    marketPrices: {},
+    created: Date.now()
+  };
+}
+
+function save() { if (state) SS('state', state); }
+function load() {
+  const s = LS('state');
+  if (s && s.name) {
+    state = s;
+    if (!state.ownedCosmetics) state.ownedCosmetics = ['plain'];
+    if (!state.harvested) state.harvested = {wheat:0,corn:0,tomato:0,pumpkin:0,golden_apple:0};
+    if (!state.marketPrices) state.marketPrices = {};
+    if (!state.bots) state.bots = [];
+    return true;
+  }
+  return false;
+}
+
+// === TOAST ===
+function toast(msg, color) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = color || 'var(--cyan)';
+  el.style.color = color || 'var(--cyan)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// === HELPERS ===
+function tileAt(wx, wy) { return { tx: Math.floor(wx/TILE), ty: Math.floor(wy/TILE) }; }
+
+function getCropAt(tx, ty) { return state.crops.find(c => c.x===tx && c.y===ty); }
+
+function getBotCropAt(tx, ty) {
+  for (const b of state.bots) {
+    const c = b.crops.find(c => c.x===tx && c.y===ty);
+    if (c) return { crop: c, bot: b };
+  }
+  return null;
+}
+
+function getLandAt(tx, ty) {
+  return state.lands.find(l => tx >= l.x && tx < l.x+l.w && ty >= l.y && ty < l.y+l.h);
+}
+
+function getBotLandAt(tx, ty) {
+  return state.bots.find(b => tx >= b.landX && tx < b.landX+b.landW && ty >= b.landY && ty < b.landY+b.landH);
+}
+
+function effectiveGrowTime(crop) {
+  let t = CROPS[crop.type].growMs;
+  if (crop.watered) t *= 0.75;
+  if (state.weather === 'rain') t *= 0.85;
+  return t;
+}
+
+function cropGrowth(crop) {
+  const elapsed = Date.now() - crop.plantedAt;
+  return Math.min(elapsed / effectiveGrowTime(crop), 2.5);
+}
+
+function cropStage(crop) {
+  const r = cropGrowth(crop);
+  if (r >= 2.0) return -1; // withered
+  if (r >= 1.0) return 3;  // ready
+  if (r >= 0.6) return 2;  // growing
+  if (r >= 0.2) return 1;  // sprout
+  return 0;                 // seed
+}
+
+function getMarketPrice(type) {
+  const base = CROPS[type].price;
+  const tKey = type + '_t';
+  if (!state.marketPrices[type] || Date.now() - (state.marketPrices[tKey]||0) > 300000) {
+    state.marketPrices[type] = Math.round(base * (0.75 + seededRandom(Date.now()%1000, type.length) * 0.5));
+    state.marketPrices[tKey] = Date.now();
+  }
+  return state.marketPrices[type];
+}
+
+// === RENDERING ===
+function getTimeOfDay() {
+  const h = new Date().getHours();
+  if (h >= 6 && h < 8) return 'dawn';
+  if (h >= 8 && h < 18) return 'day';
+  if (h >= 18 && h < 20) return 'dusk';
+  return 'night';
+}
+
+function getSkyOverlay() {
+  switch (getTimeOfDay()) {
+    case 'dawn': return 'rgba(255,170,80,0.07)';
+    case 'day': return 'rgba(0,0,0,0)';
+    case 'dusk': return 'rgba(180,80,40,0.1)';
+    case 'night': return 'rgba(0,0,50,0.3)';
+  }
+}
+
+function drawTile(tx, ty) {
+  const sx = tx*TILE - camX;
+  const sy = ty*TILE - camY;
+  const terrain = getTerrain(tx, ty);
+
+  if (terrain === 'water') {
+    ctx.fillStyle = '#0a2a50';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    const shimmer = Math.sin(Date.now()*0.002 + tx*0.7 + ty*0.5) * 0.12;
+    ctx.fillStyle = `rgba(0,150,220,${0.12+shimmer})`;
+    ctx.fillRect(sx+1, sy+4+Math.floor(Math.sin(Date.now()*0.001+tx)*2), TILE-2, 2);
+  } else if (terrain === 'tree') {
+    ctx.fillStyle = '#142a14';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#4a2a0a';
+    ctx.fillRect(sx+6, sy+9, 4, 7);
+    ctx.fillStyle = '#1a6a1a';
+    ctx.fillRect(sx+2, sy+2, 12, 8);
+    ctx.fillStyle = '#228B22';
+    ctx.fillRect(sx+3, sy+1, 10, 6);
+    ctx.fillStyle = '#2d9d2d';
+    ctx.fillRect(sx+5, sy+0, 6, 3);
+  } else {
+    const gv = ((tx*7 + ty*13) & 3);
+    const cols = ['#162e16','#183218','#1a3418','#163016'];
+    ctx.fillStyle = cols[gv];
+    ctx.fillRect(sx, sy, TILE, TILE);
+    if ((tx+ty) & 1) {
+      ctx.fillStyle = '#1e3e1e';
+      ctx.fillRect(sx+((tx*3)%12), sy+((ty*5)%10), 1, 3);
+    }
+    // Flowers occasionally
+    if (seededRandom(tx, ty) > 0.95) {
+      ctx.fillStyle = seededRandom(tx+1,ty) > 0.5 ? '#ff9090' : '#ffffa0';
+      ctx.fillRect(sx+6, sy+6, 3, 3);
+    }
+  }
+}
+
+function drawCrop(crop, sx, sy) {
+  const stage = cropStage(crop);
+  const def = CROPS[crop.type];
+
+  // Tilled soil base
+  ctx.fillStyle = '#2a1a0e';
+  ctx.fillRect(sx+1, sy+1, TILE-2, TILE-2);
+  ctx.fillStyle = '#35200f';
+  ctx.fillRect(sx+2, sy+2, TILE-4, TILE-4);
+
+  if (stage === -1) {
+    // Withered - brown dead plant
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(sx+5, sy+5, 6, 8);
+    ctx.fillStyle = '#2a1a0a';
+    ctx.fillRect(sx+6, sy+3, 4, 4);
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(sx+4, sy+7, 2, 3);
+    return;
+  }
+
+  if (stage === 0) {
+    // Seed - small mound
+    ctx.fillStyle = '#4a3018';
+    ctx.fillRect(sx+5, sy+9, 6, 4);
+    ctx.fillStyle = def.color;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(sx+6, sy+10, 4, 2);
+    ctx.globalAlpha = 1;
+  } else if (stage === 1) {
+    // Sprout
+    ctx.fillStyle = '#2a7a2a';
+    ctx.fillRect(sx+7, sy+6, 2, 8);
+    ctx.fillStyle = '#3a9a3a';
+    ctx.fillRect(sx+5, sy+4, 6, 3);
+  } else if (stage === 2) {
+    // Growing
+    ctx.fillStyle = '#1a6a1a';
+    ctx.fillRect(sx+6, sy+5, 3, 9);
+    ctx.fillStyle = '#2a8a2a';
+    ctx.fillRect(sx+3, sy+3, 10, 5);
+    // Small fruit forming
+    ctx.fillStyle = def.color;
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(sx+4, sy+2, 4, 3);
+    ctx.globalAlpha = 1;
+  } else {
+    // Ready!
+    ctx.fillStyle = '#1a5a1a';
+    ctx.fillRect(sx+6, sy+7, 3, 7);
+    ctx.fillStyle = '#2a7a2a';
+    ctx.fillRect(sx+3, sy+5, 10, 4);
+    // Full fruit
+    ctx.fillStyle = def.color;
+    ctx.fillRect(sx+3, sy+1, 5, 5);
+    ctx.fillRect(sx+8, sy+2, 5, 4);
+    // Sparkle animation
+    const sparkle = Math.sin(Date.now()*0.006 + crop.x*2 + crop.y*3);
+    if (sparkle > 0.5) {
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = (sparkle - 0.5) * 2;
+      ctx.fillRect(sx+4, sy+1, 2, 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Water droplet indicator
+  if (crop.watered) {
+    ctx.fillStyle = 'rgba(0,180,255,0.6)';
+    ctx.fillRect(sx+13, sy+1, 2, 3);
+    ctx.fillRect(sx+12, sy+2, 1, 1);
+  }
+}
+
+function drawFarmer(x, y, dir, cosmetic, name, isPlayer) {
+  const sx = Math.round(x - camX);
+  const sy = Math.round(y - camY);
+  if (sx < -40 || sy < -40 || sx > canvas.width+40 || sy > canvas.height+40) return;
+
+  const cosm = COSMETICS.find(c => c.id === cosmetic) || COSMETICS[0];
+  const tier = cosm.tier;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(sx+8, sy+16, 6, 2, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Walking animation
+  const walkPhase = Math.sin(Date.now() * 0.008) * 1.5;
+  const isMoving = Object.values(keys).some(v => v);
+
+  // Boots
+  ctx.fillStyle = '#3a2a1a';
+  const legOff = isMoving ? walkPhase : 0;
+  ctx.fillRect(sx+3, sy+13+legOff*0.3, 4, 3);
+  ctx.fillRect(sx+9, sy+13-legOff*0.3, 4, 3);
+
+  // Pants
+  ctx.fillStyle = '#3a5070';
+  ctx.fillRect(sx+3, sy+11, 4, 3);
+  ctx.fillRect(sx+9, sy+11, 4, 3);
+
+  // Body / Coat
+  let bodyCol, bodyAccent;
+  if (tier >= 5) { bodyCol = '#5ac8e8'; bodyAccent = '#a0e8ff'; }
+  else if (tier >= 4) { bodyCol = '#c8a020'; bodyAccent = '#e8c840'; }
+  else if (tier >= 2) { bodyCol = '#6a4020'; bodyAccent = '#8a5a30'; }
+  else if (tier >= 1) { bodyCol = '#5a3818'; bodyAccent = '#7a5030'; }
+  else { bodyCol = '#5a7a3a'; bodyAccent = '#6a8a4a'; }
+
+  ctx.fillStyle = bodyCol;
+  ctx.fillRect(sx+2, sy+5, 12, 7);
+  ctx.fillStyle = bodyAccent;
+  ctx.fillRect(sx+4, sy+5, 8, 6);
+
+  // Fur coat detail
+  if (tier >= 2) {
+    ctx.fillStyle = tier >= 5 ? '#c0e0ff' : tier >= 4 ? '#ffe060' : '#b08050';
+    // Collar
+    ctx.fillRect(sx+3, sy+4, 10, 2);
+    // Trim
+    ctx.fillRect(sx+2, sy+5, 2, 7);
+    ctx.fillRect(sx+12, sy+5, 2, 7);
+    // Fur texture dots
+    if (tier >= 2 && tier < 4) {
+      ctx.fillStyle = '#c0a070';
+      ctx.fillRect(sx+4, sy+7, 1, 1);
+      ctx.fillRect(sx+8, sy+8, 1, 1);
+      ctx.fillRect(sx+10, sy+6, 1, 1);
+    }
+  }
+
+  // Diamond sparkle effect on body
+  if (tier >= 5) {
+    const sp = Date.now() * 0.004;
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.6 + Math.sin(sp)*0.4;
+    ctx.fillRect(sx+5+Math.sin(sp)*2, sy+7, 2, 2);
+    ctx.fillRect(sx+9+Math.cos(sp)*2, sy+6, 2, 2);
+    ctx.globalAlpha = 1;
+  }
+
+  // Head
+  ctx.fillStyle = '#F0C0A8';
+  ctx.fillRect(sx+4, sy+0, 8, 6);
+  // Hair
+  ctx.fillStyle = '#4a3020';
+  ctx.fillRect(sx+4, sy+0, 8, 1);
+  ctx.fillRect(sx+4, sy+0, 1, 3);
+  ctx.fillRect(sx+11, sy+0, 1, 3);
+
+  // Eyes based on direction
+  ctx.fillStyle = '#1a1a2a';
+  if (dir === 0) { // up - show back of head
+    ctx.fillStyle = '#4a3020';
+    ctx.fillRect(sx+4, sy+1, 8, 4);
+  } else if (dir === 1) { // right
+    ctx.fillRect(sx+9, sy+2, 2, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sx+10, sy+2, 1, 1);
+  } else if (dir === 2) { // down - face forward
+    ctx.fillRect(sx+5, sy+2, 2, 2);
+    ctx.fillRect(sx+9, sy+2, 2, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sx+5, sy+2, 1, 1);
+    ctx.fillRect(sx+9, sy+2, 1, 1);
+    // Mouth
+    ctx.fillStyle = '#c08080';
+    ctx.fillRect(sx+7, sy+4, 2, 1);
+  } else { // left
+    ctx.fillRect(sx+5, sy+2, 2, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sx+5, sy+2, 1, 1);
+  }
+
+  // Hat (tier 0-1: no hat, 3+: top hat)
+  if (tier >= 3) {
+    let hatCol, bandCol, brimCol;
+    if (tier >= 5) { hatCol = '#70c0e0'; bandCol = '#ff60a0'; brimCol = '#90d0f0'; }
+    else if (tier >= 4) { hatCol = '#d0a020'; bandCol = '#ff3030'; brimCol = '#e0b030'; }
+    else { hatCol = '#1a1a2a'; bandCol = '#a03030'; brimCol = '#2a2a3a'; }
+
+    // Brim
+    ctx.fillStyle = brimCol;
+    ctx.fillRect(sx+2, sy-2, 12, 2);
+    // Hat body
+    ctx.fillStyle = hatCol;
+    ctx.fillRect(sx+4, sy-9, 8, 7);
+    // Band
+    ctx.fillStyle = bandCol;
+    ctx.fillRect(sx+4, sy-4, 8, 1);
+
+    if (tier >= 5) {
+      // Diamond sparkles on hat
+      const sp = Date.now() * 0.005;
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.7 + Math.sin(sp+1)*0.3;
+      ctx.fillRect(sx+5, sy-8, 2, 2);
+      ctx.globalAlpha = 0.7 + Math.cos(sp+2)*0.3;
+      ctx.fillRect(sx+9, sy-7, 2, 2);
+      ctx.globalAlpha = 0.7 + Math.sin(sp+3)*0.3;
+      ctx.fillRect(sx+7, sy-6, 2, 2);
+      ctx.globalAlpha = 1;
+    }
+  } else if (tier >= 1) {
+    // Simple cap for tier 1
+    ctx.fillStyle = tier >= 2 ? '#6a4020' : '#5a3818';
+    ctx.fillRect(sx+3, sy-1, 10, 2);
+    ctx.fillRect(sx+4, sy-2, 8, 2);
+  }
+
+  // Name tag
+  ctx.font = '700 8px JetBrains Mono';
+  ctx.textAlign = 'center';
+  const tagY = tier >= 3 ? sy - 12 : sy - 4;
+  // Background
+  const nameW = ctx.measureText(name).width + 4;
+  ctx.fillStyle = 'rgba(5,10,15,0.7)';
+  ctx.fillRect(sx + 8 - nameW/2, tagY - 8, nameW, 10);
+  ctx.fillStyle = isPlayer ? '#00d4ff' : 'rgba(200,210,220,0.8)';
+  ctx.fillText(name, sx+8, tagY);
+  ctx.textAlign = 'left';
+}
+
+function drawLand(land, ownerName, isPlayer) {
+  const sx = land.x*TILE - camX;
+  const sy = land.y*TILE - camY;
+  const sw = land.w*TILE;
+  const sh = land.h*TILE;
+
+  // Check if visible
+  if (sx + sw < -20 || sy + sh < -20 || sx > canvas.width+20 || sy > canvas.height+20) return;
+
+  // Fence posts and rails
+  const postCol = isPlayer ? '#00a0cc' : '#6B4226';
+  const railCol = isPlayer ? 'rgba(0,212,255,0.6)' : 'rgba(140,100,50,0.6)';
+
+  ctx.strokeStyle = railCol;
+  ctx.lineWidth = 1;
+  // Top and bottom rails
+  for (let pass = 0; pass < 2; pass++) {
+    const ry = pass === 0 ? sy + 2 : sy + sh - 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, ry);
+    ctx.lineTo(sx+sw, ry);
+    ctx.stroke();
+    const ry2 = pass === 0 ? sy + 5 : sy + sh - 5;
+    ctx.beginPath();
+    ctx.moveTo(sx, ry2);
+    ctx.lineTo(sx+sw, ry2);
+    ctx.stroke();
+  }
+  // Left and right rails
+  for (let pass = 0; pass < 2; pass++) {
+    const rx = pass === 0 ? sx + 2 : sx + sw - 2;
+    ctx.beginPath();
+    ctx.moveTo(rx, sy);
+    ctx.lineTo(rx, sy+sh);
+    ctx.stroke();
+    const rx2 = pass === 0 ? sx + 5 : sx + sw - 5;
+    ctx.beginPath();
+    ctx.moveTo(rx2, sy);
+    ctx.lineTo(rx2, sy+sh);
+    ctx.stroke();
+  }
+
+  // Fence posts
+  ctx.fillStyle = postCol;
+  for (let i = 0; i <= land.w; i++) {
+    ctx.fillRect(sx + i*TILE - 2, sy - 2, 4, 8);
+    ctx.fillRect(sx + i*TILE - 2, sy + sh - 6, 4, 8);
+  }
+  for (let i = 1; i < land.h; i++) {
+    ctx.fillRect(sx - 2, sy + i*TILE - 2, 8, 4);
+    ctx.fillRect(sx + sw - 6, sy + i*TILE - 2, 8, 4);
+  }
+
+  // Sign post
+  ctx.fillStyle = '#5a3a1a';
+  ctx.fillRect(sx + 4, sy - 6, 2, 8);
+  // Sign board
+  ctx.fillStyle = '#D2B48C';
+  ctx.fillRect(sx + 1, sy - 14, 36, 10);
+  ctx.fillStyle = '#C4A882';
+  ctx.fillRect(sx + 2, sy - 13, 34, 8);
+  // Sign text
+  ctx.fillStyle = '#2a1a0a';
+  ctx.font = '600 7px JetBrains Mono';
+  ctx.fillText(ownerName.substring(0, 5), sx + 4, sy - 7);
+}
+
+function drawRain() {
+  if (state.weather !== 'rain') return;
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = '#6090c0';
+  const time = Date.now();
+  for (let i = 0; i < 120; i++) {
+    const seed = i * 137.5;
+    const rx = ((time * 0.3 + seed * 17) % (canvas.width + 40)) - 20;
+    const ry = ((time * 1.2 + seed * 23) % (canvas.height + 40)) - 20;
+    ctx.fillRect(rx, ry, 1, 5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawSunshine() {
+  if (state.weather !== 'sunny') return;
+  ctx.fillStyle = 'rgba(255,240,150,0.03)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawMinimap() {
+  const mw = mmCanvas.width, mh = mmCanvas.height;
+  mmCtx.fillStyle = '#060e14';
+  mmCtx.fillRect(0, 0, mw, mh);
+  const scaleX = mw / (WORLD_W * TILE);
+  const scaleY = mh / (WORLD_H * TILE);
+
+  // Terrain (every 4th tile for performance)
+  for (let ty = 0; ty < WORLD_H; ty += 3) {
+    for (let tx = 0; tx < WORLD_W; tx += 3) {
+      const t = getTerrain(tx, ty);
+      mmCtx.fillStyle = t === 'water' ? '#0a2a50' : t === 'tree' ? '#0a3a0a' : '#142e14';
+      mmCtx.fillRect(tx*TILE*scaleX, ty*TILE*scaleY, 3*TILE*scaleX+1, 3*TILE*scaleY+1);
+    }
+  }
+
+  // Player lands
+  state.lands.forEach(l => {
+    mmCtx.fillStyle = 'rgba(0,212,255,0.5)';
+    mmCtx.fillRect(l.x*TILE*scaleX, l.y*TILE*scaleY, l.w*TILE*scaleX, l.h*TILE*scaleY);
+  });
+  // Bot lands
+  state.bots.forEach(b => {
+    mmCtx.fillStyle = 'rgba(255,120,0,0.3)';
+    mmCtx.fillRect(b.landX*TILE*scaleX, b.landY*TILE*scaleY, b.landW*TILE*scaleX, b.landH*TILE*scaleY);
+  });
+  // Bots
+  state.bots.forEach(b => {
+    mmCtx.fillStyle = '#ff8800';
+    mmCtx.fillRect(b.x*scaleX-1, b.y*scaleY-1, 3, 3);
+  });
+  // Player
+  mmCtx.fillStyle = '#00d4ff';
+  mmCtx.fillRect(state.x*scaleX-2, state.y*scaleY-2, 5, 5);
+  // Camera view
+  mmCtx.strokeStyle = 'rgba(0,212,255,0.4)';
+  mmCtx.lineWidth = 1;
+  mmCtx.strokeRect(camX*scaleX, camY*scaleY, canvas.width*scaleX, canvas.height*scaleY);
+}
+
+// === UPDATE ===
+function updateWeather() {
+  if (Date.now() > state.weatherChangeAt) {
+    state.weather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)];
+    state.weatherChangeAt = Date.now() + 300000 + Math.random() * 600000;
+  }
+}
+
+function updateBots(dt) {
+  state.bots.forEach(b => {
+    b.moveTimer -= dt;
+    b.actionTimer -= dt;
+
+    // Movement
+    if (b.moveTimer <= 0) {
+      b.dir = Math.floor(Math.random() * 4);
+      const step = TILE * (1 + Math.random() * 2);
+      const dirs = [[0,-step],[step,0],[0,step],[-step,0]];
+      const [ddx, ddy] = dirs[b.dir];
+      const nx = b.x + ddx;
+      const ny = b.y + ddy;
+      // Stay near their land
+      const cx = (b.landX + b.landW/2) * TILE;
+      const cy = (b.landY + b.landH/2) * TILE;
+      if (Math.abs(nx - cx) < TILE * 10 && Math.abs(ny - cy) < TILE * 10) {
+        const ttx = Math.floor(nx/TILE), tty = Math.floor(ny/TILE);
+        if (getTerrain(ttx, tty) === 'grass') {
+          b.x = nx;
+          b.y = ny;
+        }
+      }
+      b.moveTimer = 0.8 + Math.random() * 2.5;
+    }
+
+    // Actions
+    if (b.actionTimer <= 0) {
+      // Harvest ready crops, remove withered
+      for (let i = b.crops.length - 1; i >= 0; i--) {
+        const c = b.crops[i];
+        const s = cropStage(c);
+        if (s === 3) {
+          const price = getMarketPrice(c.type);
+          b.coins += price;
+          b.totalCoins += price;
+          b.crops.splice(i, 1);
+        } else if (s === -1) {
+          b.crops.splice(i, 1);
+        }
+      }
+      // Plant new crops
+      const maxCrops = b.landW * b.landH * 0.65;
+      if (b.crops.length < maxCrops) {
+        const types = Object.keys(CROPS);
+        const ct = types[Math.floor(Math.random() * Math.min(types.length, 3 + b.hoeTier))];
+        let px, py, tries = 0;
+        do {
+          px = b.landX + Math.floor(Math.random() * b.landW);
+          py = b.landY + Math.floor(Math.random() * b.landH);
+          tries++;
+        } while (b.crops.find(c => c.x===px && c.y===py) && tries < 15);
+        if (tries < 15 && getTerrain(px, py) === 'grass') {
+          b.crops.push({ x:px, y:py, type:ct, plantedAt:Date.now(), watered:Math.random()>0.35 });
+        }
+      }
+      // Water unwatered crops
+      b.crops.forEach(c => {
+        if (!c.watered && Math.random() > 0.5) c.watered = true;
+      });
+      // Upgrade cosmetic
+      const affordable = COSMETICS.filter(c => c.price <= b.totalCoins);
+      if (affordable.length > 0) b.cosmetic = affordable[affordable.length-1].id;
+      b.actionTimer = 4 + Math.random() * 12;
+    }
+  });
+}
+
+function updatePlayer(dt) {
+  const speed = TILE * 5.5 * dt;
+  let dx = 0, dy = 0;
+  if (keys['ArrowUp']||keys['w']||keys['W']||keys['mup']) { dy = -speed; state.dir = 0; }
+  if (keys['ArrowDown']||keys['s']||keys['S']||keys['mdown']) { dy = speed; state.dir = 2; }
+  if (keys['ArrowLeft']||keys['a']||keys['A']||keys['mleft']) { dx = -speed; state.dir = 3; }
+  if (keys['ArrowRight']||keys['d']||keys['D']||keys['mright']) { dx = speed; state.dir = 1; }
+
+  if (dx !== 0 && dy !== 0) {
+    dx *= 0.707;
+    dy *= 0.707;
+  }
+
+  // Try X movement
+  const nxx = state.x + dx;
+  const ntx = Math.floor(nxx / TILE);
+  const nty = Math.floor(state.y / TILE);
+  if (ntx >= 0 && ntx < WORLD_W && getTerrain(ntx, nty) !== 'water' && getTerrain(ntx, nty) !== 'tree') {
+    state.x = nxx;
+  }
+  // Try Y movement
+  const nyy = state.y + dy;
+  const ntx2 = Math.floor(state.x / TILE);
+  const nty2 = Math.floor(nyy / TILE);
+  if (nty2 >= 0 && nty2 < WORLD_H && getTerrain(ntx2, nty2) !== 'water' && getTerrain(ntx2, nty2) !== 'tree') {
+    state.y = nyy;
+  }
+
+  state.x = Math.max(TILE, Math.min(state.x, (WORLD_W-2)*TILE));
+  state.y = Math.max(TILE, Math.min(state.y, (WORLD_H-2)*TILE));
+}
+
+function updateCamera() {
+  const tx = state.x - canvas.width/2 + 8;
+  const ty = state.y - canvas.height/2 + 8;
+  camX += (tx - camX) * 0.1;
+  camY += (ty - camY) * 0.1;
+  camX = Math.max(0, Math.min(camX, WORLD_W*TILE - canvas.width));
+  camY = Math.max(0, Math.min(camY, WORLD_H*TILE - canvas.height));
+}
+
+// === ACTIONS ===
+function getFacingTile() {
+  const ptx = Math.floor((state.x + 8) / TILE);
+  const pty = Math.floor((state.y + 8) / TILE);
+  const offsets = [[0,-1],[1,0],[0,1],[-1,0]];
+  const [odx, ody] = offsets[state.dir];
+  return { tx: ptx + odx, ty: pty + ody };
+}
+
+function doAction() {
+  const { tx, ty } = getFacingTile();
+  const terrain = getTerrain(tx, ty);
+
+  if (terrain !== 'grass') {
+    toast('Cannot interact here', 'var(--red)');
+    return;
+  }
+
+  const existingCrop = getCropAt(tx, ty);
+  const botCropInfo = getBotCropAt(tx, ty);
+  const myLand = getLandAt(tx, ty);
+  const botLand = getBotLandAt(tx, ty);
+
+  if (currentTool === 'hoe') {
+    if (existingCrop || botCropInfo) {
+      toast('Already planted here', 'var(--red)');
+      return;
+    }
+    if (!myLand) {
+      toast('Claim this land first! (Fence tool)', 'var(--orange)');
+      return;
+    }
+    if (!state.seeds[selectedSeed] || state.seeds[selectedSeed] <= 0) {
+      toast('No ' + CROPS[selectedSeed].name + ' seeds! Visit the shop.', 'var(--red)');
+      return;
+    }
+    state.seeds[selectedSeed]--;
+    state.crops.push({ x:tx, y:ty, type:selectedSeed, plantedAt:Date.now(), watered:false });
+    myLand.lastPlanted = Date.now();
+    toast('Planted ' + CROPS[selectedSeed].name + '!', 'var(--green)');
+
+  } else if (currentTool === 'water') {
+    if (existingCrop) {
+      if (existingCrop.watered) { toast('Already watered', 'var(--dim)'); return; }
+      existingCrop.watered = true;
+      toast('Watered! Growth +25%', 'var(--cyan)');
+    } else {
+      toast('Nothing to water here', 'var(--dim)');
+    }
+
+  } else if (currentTool === 'harvest') {
+    if (existingCrop) {
+      const stage = cropStage(existingCrop);
+      if (stage === -1) {
+        state.crops = state.crops.filter(c => c !== existingCrop);
+        toast('Cleared withered crop', 'var(--dim)');
+      } else if (stage === 3) {
+        const price = getMarketPrice(existingCrop.type);
+        state.harvested[existingCrop.type] = (state.harvested[existingCrop.type]||0) + 1;
+        state.coins += price;
+        state.totalCoins += price;
+        state.crops = state.crops.filter(c => c !== existingCrop);
+        toast('+$' + price + ' ' + CROPS[existingCrop.type].name + ' harvested!', 'var(--gold)');
+      } else {
+        const pct = Math.floor(cropGrowth(existingCrop) * 100);
+        const remain = effectiveGrowTime(existingCrop) * (1 - cropGrowth(existingCrop));
+        const mins = Math.ceil(remain / 60000);
+        toast(CROPS[existingCrop.type].name + ' ' + pct + '% (~' + mins + 'm left)', 'var(--orange)');
+      }
+    } else {
+      toast('Nothing to harvest', 'var(--dim)');
+    }
+
+  } else if (currentTool === 'fence') {
+    if (botLand) {
+      // Check squatting possibility
+      const hasAnyCrops = botLand.crops.some(c => {
+        return c.x >= botLand.landX && c.x < botLand.landX+botLand.landW &&
+               c.y >= botLand.landY && c.y < botLand.landY+botLand.landH;
+      });
+      if (!hasAnyCrops) {
+        toast(botLand.name + '\'s land is barren... come back later to claim it!', 'var(--orange)');
+      } else {
+        toast('This land belongs to ' + botLand.name, 'var(--orange)');
+      }
+      return;
+    }
+    if (myLand) {
+      toast('You already own this land!', 'var(--dim)');
+      return;
+    }
+    const cost = 50 + state.lands.length * 40;
+    if (state.coins < cost) {
+      toast('Need $' + cost + ' to claim land', 'var(--red)');
+      return;
+    }
+    // Calculate land placement centered on target tile
+    const size = Math.min(5 + Math.floor(state.lands.length * 0.5), 10);
+    const half = Math.floor(size / 2);
+    const lx = tx - half;
+    const ly = ty - half;
+
+    // Check overlap
+    let overlap = false;
+    state.lands.forEach(l => {
+      if (lx < l.x+l.w && lx+size > l.x && ly < l.y+l.h && ly+size > l.y) overlap = true;
+    });
+    state.bots.forEach(b => {
+      if (lx < b.landX+b.landW && lx+size > b.landX && ly < b.landY+b.landH && ly+size > b.landY) overlap = true;
+    });
+    // Check bounds
+    if (lx < 1 || ly < 1 || lx+size >= WORLD_W-1 || ly+size >= WORLD_H-1) overlap = true;
+    // Check terrain (no water/trees in plot)
+    for (let dy = 0; dy < size && !overlap; dy++) {
+      for (let dx = 0; dx < size && !overlap; dx++) {
+        if (getTerrain(lx+dx, ly+dy) !== 'grass') overlap = true;
+      }
+    }
+
+    if (overlap) {
+      toast('Cannot place land here (overlap or obstacle)', 'var(--red)');
+      return;
+    }
+
+    state.coins -= cost;
+    state.lands.push({ x:lx, y:ly, w:size, h:size, lastPlanted:Date.now() });
+    toast('Claimed ' + size + 'x' + size + ' land for $' + cost + '!', 'var(--green)');
+  }
+
+  save();
+}
+
+// === UI ===
+function updateHUD() {
+  document.getElementById('hud-coins').textContent = state.coins.toLocaleString();
+  const toolNames = {
+    hoe: TOOL_TIERS[state.hoeTier].name,
+    water: 'Water Can',
+    harvest: 'Sickle',
+    fence: 'Fence',
+    move: 'Walk'
+  };
+  document.getElementById('hud-tool').textContent = toolNames[currentTool] || currentTool;
+  document.getElementById('hud-seed').textContent = CROPS[selectedSeed].name;
+  document.getElementById('hud-weather').textContent = state.weather.charAt(0).toUpperCase() + state.weather.slice(1);
+  const now = new Date();
+  document.getElementById('hud-time').textContent =
+    now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+}
+
+function renderInventory() {
+  const el = document.getElementById('inv-list');
+  let html = '';
+
+  // Seed selection
+  html += '<div style="color:var(--dim);font-size:11px;margin-bottom:6px;letter-spacing:0.5px">SEED TO PLANT (click to select)</div>';
+  Object.keys(CROPS).forEach(k => {
+    const sel = k === selectedSeed;
+    html += `<div class="inv-item selectable${sel?' selected':''}" onclick="window._selectSeed('${k}')">
+      <span style="color:${CROPS[k].color}">${CROPS[k].name}</span>
+      <span class="inv-qty">${state.seeds[k]||0}${sel?' [SEL]':''}</span>
+    </div>`;
+  });
+
+  html += '<div style="color:var(--dim);font-size:11px;margin:10px 0 6px;letter-spacing:0.5px">HARVESTED (sell at market)</div>';
+  let hasHarvest = false;
+  Object.keys(CROPS).forEach(k => {
+    if ((state.harvested[k]||0) > 0) {
+      hasHarvest = true;
+      html += `<div class="inv-item"><span>${CROPS[k].name}</span><span class="inv-qty">${state.harvested[k]}</span></div>`;
+    }
+  });
+  if (!hasHarvest) html += '<div style="color:var(--dim);font-size:10px;padding:4px 8px">None yet - harvest crops with the sickle!</div>';
+
+  html += '<div style="color:var(--dim);font-size:11px;margin:10px 0 6px;letter-spacing:0.5px">EQUIPMENT</div>';
+  html += `<div class="inv-item"><span>${TOOL_TIERS[state.hoeTier].name}</span><span class="inv-qty" style="color:var(--green)">Equipped</span></div>`;
+  const cosm = COSMETICS.find(c => c.id === state.cosmetic) || COSMETICS[0];
+  html += `<div class="inv-item"><span>${cosm.name}</span><span class="inv-qty" style="color:var(--purple)">Tier ${cosm.tier}</span></div>`;
+  html += `<div class="inv-item"><span>Land Plots Owned</span><span class="inv-qty">${state.lands.length}</span></div>`;
+  html += `<div class="inv-item"><span>Active Crops</span><span class="inv-qty">${state.crops.length}</span></div>`;
+  html += `<div class="inv-item"><span>Total Earned</span><span class="inv-qty" style="color:var(--gold)">$${state.totalCoins.toLocaleString()}</span></div>`;
+
+  el.innerHTML = html;
+}
+
+window._selectSeed = function(type) {
+  selectedSeed = type;
+  renderInventory();
+  toast('Selected ' + CROPS[type].name + ' seeds', 'var(--cyan)');
+};
+
+function renderMarket() {
+  const el = document.getElementById('market-list');
+  let html = '';
+
+  if (marketTab === 'seeds') {
+    Object.keys(CROPS).forEach(k => {
+      const c = CROPS[k];
+      const canBuy = state.coins >= c.seedPrice;
+      html += `<div class="market-item">
+        <span class="name" style="color:${c.color}">${c.name} Seed</span>
+        <span class="price">$${c.seedPrice}</span>
+        <button onclick="window._buySeed('${k}')" ${canBuy?'':'disabled'}>Buy</button>
+        <button onclick="window._buySeedBulk('${k}')" ${state.coins>=c.seedPrice*5?'':'disabled'}>x5</button>
+      </div>`;
+    });
+    html += '<div style="color:var(--dim);font-size:10px;margin-top:8px;line-height:1.5">Grow time: Wheat 1h, Corn 2h, Tomato 4h, Pumpkin 8h, Golden Apple 24h</div>';
+
+  } else if (marketTab === 'tools') {
+    TOOL_TIERS.forEach((t, i) => {
+      const owned = state.hoeTier >= i;
+      html += `<div class="market-item">
+        <span class="name">${t.name} <span style="color:var(--dim)">(${t.speed}x speed)</span></span>
+        <span class="price">${t.price===0?'Free':'$'+t.price}</span>
+        <button onclick="window._buyTool(${i})" ${owned||state.coins<t.price?'disabled':''}>${owned?'Owned':'Buy'}</button>
+      </div>`;
+    });
+
+  } else if (marketTab === 'cosmetics') {
+    COSMETICS.forEach(c => {
+      const owned = state.ownedCosmetics.includes(c.id);
+      const wearing = state.cosmetic === c.id;
+      const tierLabel = c.tier > 0 ? ' [Tier ' + c.tier + ']' : '';
+      html += `<div class="market-item">
+        <span class="name">${c.name}${tierLabel}<br><span style="color:var(--dim);font-size:10px">${c.desc}</span></span>
+        <span class="price">${c.price===0?'Free':'$'+c.price.toLocaleString()}</span>
+        <button onclick="window._buyCosmetic('${c.id}')" ${wearing?'disabled':''}>${wearing?'Wearing':owned?'Equip':'Buy'}</button>
+      </div>`;
+    });
+
+  } else if (marketTab === 'sell') {
+    let hasSomething = false;
+    Object.keys(CROPS).forEach(k => {
+      const mp = getMarketPrice(k);
+      const qty = state.harvested[k] || 0;
+      if (qty > 0) hasSomething = true;
+      html += `<div class="market-item">
+        <span class="name" style="color:${CROPS[k].color}">${CROPS[k].name} <span style="color:var(--dim)">($${mp}/ea)</span></span>
+        <span class="price">x${qty}</span>
+        <button onclick="window._sellCrop('${k}')" ${qty<=0?'disabled':''}>Sell</button>
+        <button onclick="window._sellAll('${k}')" ${qty<=0?'disabled':''}>All</button>
+      </div>`;
+    });
+    if (!hasSomething) {
+      html += '<div style="color:var(--dim);font-size:11px;padding:8px">Harvest crops first, then sell them here!</div>';
+    }
+    html += '<div style="color:var(--dim);font-size:10px;margin-top:8px">Market prices fluctuate every ~5 minutes</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function renderLeaderboard() {
+  const el = document.getElementById('lb-list');
+  const entries = [{ name:state.name, coins:state.totalCoins, cosmetic:state.cosmetic, isPlayer:true }];
+  state.bots.forEach(b => entries.push({ name:b.name, coins:b.totalCoins, cosmetic:b.cosmetic, isPlayer:false }));
+  entries.sort((a,b) => b.coins - a.coins);
+
+  let html = '';
+  entries.forEach((e, i) => {
+    const style = e.isPlayer ? 'border-color:var(--cyan)' : '';
+    const cosm = COSMETICS.find(c => c.id === e.cosmetic) || COSMETICS[0];
+    const medal = i === 0 ? ' [1st]' : i === 1 ? ' [2nd]' : i === 2 ? ' [3rd]' : '';
+    const medalCol = i === 0 ? 'color:var(--gold)' : i === 1 ? 'color:var(--dim)' : i === 2 ? 'color:var(--orange)' : '';
+    html += `<div class="lb-row" style="${style}">
+      <span class="lb-rank" style="${medalCol}">#${i+1}</span>
+      <span class="lb-name" style="${e.isPlayer?'color:var(--cyan)':''}">${e.name}</span>
+      <span class="lb-tier" style="color:${cosm.tier>=3?'var(--gold)':'var(--dim)'}">T${cosm.tier}</span>
+      <span class="lb-coins">$${e.coins.toLocaleString()}</span>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+// Market action handlers
+window._buySeed = function(type) {
+  if (state.coins >= CROPS[type].seedPrice) {
+    state.coins -= CROPS[type].seedPrice;
+    state.seeds[type] = (state.seeds[type]||0) + 1;
+    save(); renderMarket(); updateHUD();
+    toast('Bought 1 ' + CROPS[type].name + ' seed', 'var(--green)');
+  }
+};
+
+window._buySeedBulk = function(type) {
+  const cost = CROPS[type].seedPrice * 5;
+  if (state.coins >= cost) {
+    state.coins -= cost;
+    state.seeds[type] = (state.seeds[type]||0) + 5;
+    save(); renderMarket(); updateHUD();
+    toast('Bought 5 ' + CROPS[type].name + ' seeds', 'var(--green)');
+  }
+};
+
+window._buyTool = function(tier) {
+  if (state.coins >= TOOL_TIERS[tier].price && state.hoeTier < tier) {
+    state.coins -= TOOL_TIERS[tier].price;
+    state.hoeTier = tier;
+    save(); renderMarket(); updateHUD();
+    toast('Upgraded to ' + TOOL_TIERS[tier].name + '!', 'var(--green)');
+  }
+};
+
+window._buyCosmetic = function(id) {
+  const cosm = COSMETICS.find(c => c.id === id);
+  if (state.ownedCosmetics.includes(id)) {
+    state.cosmetic = id;
+    save(); renderMarket();
+    toast('Equipped ' + cosm.name, 'var(--cyan)');
+    return;
+  }
+  if (state.coins >= cosm.price) {
+    state.coins -= cosm.price;
+    state.ownedCosmetics.push(id);
+    state.cosmetic = id;
+    save(); renderMarket(); updateHUD();
+    toast(cosm.name + ' unlocked!', 'var(--gold)');
+  } else {
+    toast('Need $' + cosm.price.toLocaleString(), 'var(--red)');
+  }
+};
+
+window._sellCrop = function(type) {
+  if ((state.harvested[type]||0) > 0) {
+    const price = getMarketPrice(type);
+    state.harvested[type]--;
+    state.coins += price;
+    state.totalCoins += price;
+    save(); renderMarket(); updateHUD();
+    toast('Sold ' + CROPS[type].name + ' for $' + price, 'var(--gold)');
+  }
+};
+
+window._sellAll = function(type) {
+  const qty = state.harvested[type] || 0;
+  if (qty > 0) {
+    const price = getMarketPrice(type);
+    const total = price * qty;
+    state.harvested[type] = 0;
+    state.coins += total;
+    state.totalCoins += total;
+    save(); renderMarket(); updateHUD();
+    toast('Sold ' + qty + ' ' + CROPS[type].name + ' for $' + total, 'var(--gold)');
+  }
+};
+
+// === MAIN LOOP ===
+function gameLoop() {
+  const now = performance.now();
+  const dt = Math.min((now - lastFrame) / 1000, 0.1);
+  lastFrame = now;
+
+  if (!state) { requestAnimationFrame(gameLoop); return; }
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  updatePlayer(dt);
+  updateCamera();
+  updateWeather();
+  updateBots(dt);
+
+  // Periodic save
+  saveCounter += dt;
+  if (saveCounter > 5) { save(); saveCounter = 0; }
+
+  // Clear
+  ctx.fillStyle = '#050a0f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Visible range
+  const startTX = Math.max(0, Math.floor(camX / TILE) - 1);
+  const startTY = Math.max(0, Math.floor(camY / TILE) - 1);
+  const endTX = Math.min(WORLD_W, Math.ceil((camX + canvas.width) / TILE) + 1);
+  const endTY = Math.min(WORLD_H, Math.ceil((camY + canvas.height) / TILE) + 1);
+
+  // Draw terrain
+  for (let ty = startTY; ty < endTY; ty++) {
+    for (let tx = startTX; tx < endTX; tx++) {
+      drawTile(tx, ty);
+    }
+  }
+
+  // Draw land fences (below crops and players)
+  state.lands.forEach(l => drawLand(l, state.name, true));
+  state.bots.forEach(b => drawLand({x:b.landX, y:b.landY, w:b.landW, h:b.landH}, b.name, false));
+
+  // Draw crops
+  state.crops.forEach(c => drawCrop(c, c.x*TILE - camX, c.y*TILE - camY));
+  state.bots.forEach(b => {
+    b.crops.forEach(c => drawCrop(c, c.x*TILE - camX, c.y*TILE - camY));
+  });
+
+  // Draw entities sorted by Y for depth
+  const entities = [];
+  state.bots.forEach(b => entities.push({ y:b.y, type:'bot', data:b }));
+  entities.push({ y:state.y, type:'player' });
+  entities.sort((a,b) => a.y - b.y);
+
+  entities.forEach(e => {
+    if (e.type === 'player') {
+      drawFarmer(state.x, state.y, state.dir, state.cosmetic, state.name, true);
+    } else {
+      const b = e.data;
+      drawFarmer(b.x, b.y, b.dir, b.cosmetic, b.name, false);
+    }
+  });
+
+  // Target tile highlight
+  if (currentTool !== 'move') {
+    const { tx:ftx, ty:fty } = getFacingTile();
+    const fsx = ftx*TILE - camX;
+    const fsy = fty*TILE - camY;
+    ctx.strokeStyle = 'rgba(0,212,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.strokeRect(fsx, fsy, TILE, TILE);
+    ctx.setLineDash([]);
+
+    // Tooltip for crop at target
+    const tc = getCropAt(ftx, fty);
+    if (tc) {
+      const growth = cropGrowth(tc);
+      const stage = cropStage(tc);
+      let label, col;
+      if (stage === -1) { label = 'WITHERED'; col = '#ef4444'; }
+      else if (stage === 3) { label = 'READY!'; col = '#10b981'; }
+      else {
+        const remain = effectiveGrowTime(tc) * (1 - growth);
+        const mins = Math.ceil(remain / 60000);
+        label = Math.floor(growth*100) + '% ~' + mins + 'm';
+        col = '#e2e8f0';
+      }
+      const tipText = CROPS[tc.type].name + ' ' + label;
+      ctx.font = '600 8px JetBrains Mono';
+      const tw = ctx.measureText(tipText).width + 8;
+      ctx.fillStyle = 'rgba(5,10,15,0.85)';
+      ctx.fillRect(fsx - 2, fsy - 14, tw, 12);
+      ctx.fillStyle = col;
+      ctx.fillText(tipText, fsx + 2, fsy - 5);
+    }
+  }
+
+  // Sky overlay
+  const sky = getSkyOverlay();
+  if (sky !== 'rgba(0,0,0,0)') {
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Weather effects
+  drawRain();
+  drawSunshine();
+
+  // Minimap (every few frames for performance)
+  if (Math.floor(now / 200) !== Math.floor((now - dt*1000) / 200)) {
+    drawMinimap();
+  }
+
+  // HUD
+  updateHUD();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// === INIT ===
+function init() {
+  canvas = document.getElementById('game');
+  ctx = canvas.getContext('2d');
+  mmCanvas = document.getElementById('minimap');
+  mmCtx = mmCanvas.getContext('2d');
+
+  generateTerrain();
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    keys[e.key] = true;
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); doAction(); }
+    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); togglePanel('inventory'); }
+    if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); togglePanel('market'); }
+    if (e.key === '1') selectTool('hoe');
+    if (e.key === '2') selectTool('water');
+    if (e.key === '3') selectTool('harvest');
+    if (e.key === '4') selectTool('fence');
+    if (e.key === '5') selectTool('move');
+  });
+  document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+  // Toolbar buttons
+  document.querySelectorAll('#toolbar button[data-tool]').forEach(btn => {
+    btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+  });
+
+  // HUD panel buttons
+  document.getElementById('btn-inv').addEventListener('click', () => togglePanel('inventory'));
+  document.getElementById('btn-market').addEventListener('click', () => togglePanel('market'));
+  document.getElementById('btn-lb').addEventListener('click', () => { renderLeaderboard(); togglePanel('leaderboard'); });
+
+  // Panel close buttons
+  document.querySelectorAll('.panel-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById(btn.dataset.panel).classList.remove('active');
+    });
+  });
+
+  // Market tab buttons
+  document.querySelectorAll('.tab-row button[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-row button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      marketTab = btn.dataset.tab;
+      renderMarket();
+    });
+  });
+
+  // Mobile D-pad
+  document.querySelectorAll('.dpad button').forEach(btn => {
+    const key = 'm' + btn.dataset.dir;
+    const start = e => { e.preventDefault(); keys[key] = true; };
+    const stop = e => { e.preventDefault(); keys[key] = false; };
+    btn.addEventListener('touchstart', start);
+    btn.addEventListener('touchend', stop);
+    btn.addEventListener('touchcancel', stop);
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+  });
+
+  // Mobile action button
+  const mobileAct = document.getElementById('mobile-action');
+  mobileAct.addEventListener('click', e => { e.preventDefault(); doAction(); });
+  mobileAct.addEventListener('touchstart', e => { e.preventDefault(); doAction(); });
+
+  // Canvas click interaction
+  canvas.addEventListener('click', e => {
+    if (currentTool === 'move') return;
+    // Close panels on canvas click
+    document.querySelectorAll('.panel.active').forEach(p => p.classList.remove('active'));
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) + camX;
+    const my = (e.clientY - rect.top) + camY;
+    const clickTX = Math.floor(mx / TILE);
+    const clickTY = Math.floor(my / TILE);
+    const ptx = Math.floor((state.x + 8) / TILE);
+    const pty = Math.floor((state.y + 8) / TILE);
+    const ddx = clickTX - ptx;
+    const ddy = clickTY - pty;
+    if (Math.abs(ddx) <= 2 && Math.abs(ddy) <= 2 && (ddx !== 0 || ddy !== 0)) {
+      if (Math.abs(ddx) >= Math.abs(ddy)) state.dir = ddx > 0 ? 1 : 3;
+      else state.dir = ddy > 0 ? 2 : 0;
+      doAction();
+    }
+  });
+
+  // Prevent scrolling on mobile
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+  // Check for saved game
+  const namePrompt = document.getElementById('name-prompt');
+  if (load()) {
+    namePrompt.style.display = 'none';
+    startGame();
+  } else {
+    document.getElementById('name-submit').addEventListener('click', submitName);
+    document.getElementById('name-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitName();
+    });
+    document.getElementById('name-input').focus();
+  }
+}
+
+function submitName() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name || name.length < 1) return;
+  state = defaultState(name);
+  save();
+  document.getElementById('name-prompt').style.display = 'none';
+  startGame();
+}
+
+function startGame() {
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('toolbar').style.display = 'flex';
+  camX = state.x - window.innerWidth / 2;
+  camY = state.y - window.innerHeight / 2;
+  lastFrame = performance.now();
+  requestAnimationFrame(gameLoop);
+  toast('Welcome back, ' + state.name + '!', 'var(--cyan)');
+}
+
+function selectTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+}
+
+function togglePanel(id) {
+  const panel = document.getElementById(id);
+  const isOpen = panel.classList.contains('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  if (!isOpen) {
+    panel.classList.add('active');
+    if (id === 'inventory') renderInventory();
+    if (id === 'market') renderMarket();
+    if (id === 'leaderboard') renderLeaderboard();
+  }
+}
+
+// Resize handler
+window.addEventListener('resize', () => {
+  const mm = document.getElementById('minimap');
+  if (window.innerWidth <= 768) { mm.width = 80; mm.height = 80; }
+  else { mm.width = 140; mm.height = 140; }
+});
+
+init();
+</script>
+</body>
+</html>
