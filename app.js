@@ -247,7 +247,7 @@ const SECTIONS = {
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
       { name: 'Painting Studio', file: './tools/misc/painting-studio.html' },
-      { name: 'Paper.io', file: './tools/misc/paper-io.html' },
+      { name: 'Territory Wars', file: './tools/misc/paper-io.html' },
       { name: 'Password Forge', file: './tools/misc/password-forge.html' },
       { name: 'Pixel Art Editor', file: './tools/misc/pixel-art-editor.html' },
       { name: 'Pipe Sizing Tool', file: './tools/aviation/pipe-sizing-tool.html' },
