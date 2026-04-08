@@ -102,6 +102,7 @@ const SECTIONS = {
       { name: 'RFQ Tracker', file: './tools/aviation/rfq-tracker.html' },
       { name: 'ROI Calculator', file: './tools/aviation/roi-calculator.html' },
       { name: 'Survey Proposal Generator', file: './tools/aviation/survey-proposal-tool.html' },
+      { name: 'Contractor Bid Notification', file: './tools/aviation/contractor-bid-notification.html' },
       { name: 'SWOT Analysis', file: './tools/aviation/swot-analysis.html' },
       { name: 'Scope Creep Counselor', file: './tools/civil/scope-creep-counselor.html' },
       { name: 'Scope Gap Detector', file: './tools/civil/scope-gap-detector.html' },
@@ -253,6 +254,7 @@ const SECTIONS = {
       { name: 'Pixel Art Editor', file: './tools/misc/pixel-art-editor.html' },
       { name: 'Pipe Sizing Tool', file: './tools/aviation/pipe-sizing-tool.html' },
       { name: 'Pong', file: './tools/misc/pong.html' },
+      { name: 'Quick Reference Guide', file: './tools/misc/quick-reference-guide.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
       { name: 'Scandinavian Interior Design', file: './tools/misc/scandinavian-interior-design.html' },
       { name: 'Screen Recorder', file: './tools/misc/screen-recorder.html' },
@@ -448,6 +450,7 @@ function renderHome() {
 
   main.innerHTML = `
     <section class="landing">
+      <h1 class="sr-only">Korb Engineering — Free Aviation &amp; Civil Engineering Tools</h1>
       <div class="search-bar-wrap">
         <div class="search-bar">
           <span class="search-icon">${SEARCH_SVG}</span>
@@ -623,12 +626,16 @@ function renderToolGrid(key, sec) {
   `;
   }).join('');
 
+  const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK' };
+  const folderTitle = sectionLabels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
         <a href="#" class="back-link reveal">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
+        <div class="section-folder-title">${folderTitle}</div>
         ${SECTION_SEARCH_HTML}
         <div class="tool-grid">${cards}</div>
         <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>
@@ -732,6 +739,7 @@ function renderSubfolderGrid(sectionKey, sec, folder) {
         <a href="#" class="back-link reveal" id="subfolderBack">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
+        <div class="section-folder-title">${folder.name || 'Subfolder'}</div>
         ${SECTION_SEARCH_HTML}
         <div class="tool-grid">${cards}</div>
         <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>

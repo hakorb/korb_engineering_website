@@ -135,6 +135,7 @@ let craters = [];
 let particles = [];
 let dustParticles = [];
 let debrisParticles = [];
+let celebrationParticles = [];
 let camera = { x: 0, y: 0, zoom: 1 };
 let flashAlpha = 0;
 let landingDustSpawned = false;
@@ -147,6 +148,15 @@ let explosionTime = 0;
 let landingTime = 0;
 let shakeIntensity = 0;
 let shakeDecay = 0;
+let slowMotionFactor = 1;
+let slowMotionTimer = 0;
+let bestLanding = null; // ghost replay data
+let ghostReplay = [];
+let currentReplay = [];
+let showControlsOverlay = true;
+let controlsOverlayTimer = 0;
+let firstPlayDone = false;
+let nebulaSeeds = [];
 
 // ---- AUDIO ENGINE ----
 const AudioEngine = {
@@ -302,6 +312,25 @@ const AudioEngine = {
     }
   },
 
+  playCelebration() {
+    if (!this.initialized) return;
+    const t = this.ctx.currentTime;
+    // Triumphant arpeggio
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((freq, i) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t + i * 0.1);
+      g.gain.linearRampToValueAtTime(0.15, t + i * 0.1 + 0.05);
+      g.gain.linearRampToValueAtTime(0, t + i * 0.1 + 0.6);
+      o.connect(g);
+      g.connect(this.masterGain);
+      o.start(t + i * 0.1);
+      o.stop(t + i * 0.1 + 0.7);
+    });
+  },
+
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
@@ -387,30 +416,63 @@ function generateTerrain(level) {
 function generateCraters(level) {
   const L = LEVELS[level];
   const result = [];
-  const count = 20 + Math.floor(Math.random() * 25);
+  const count = 40 + Math.floor(Math.random() * 35);
   for (let i = 0; i < count; i++) {
     result.push({
       x: Math.random() * L.worldWidth,
-      y: L.worldHeight * (0.5 + Math.random() * 0.5),
-      r: 2 + Math.random() * 12,
-      alpha: 0.03 + Math.random() * 0.06
+      y: L.worldHeight * (0.45 + Math.random() * 0.55),
+      r: 1.5 + Math.random() * 14,
+      alpha: 0.03 + Math.random() * 0.07,
+      depth: 0.3 + Math.random() * 0.7, // shadow depth factor
+      rimAlpha: 0.02 + Math.random() * 0.04
     });
   }
   return result;
 }
 
-// ---- SURFACE ROCKS ----
+// ---- SURFACE ROCKS / BOULDERS ----
 let surfaceRocks = [];
 function generateSurfaceRocks(level) {
   const L = LEVELS[level];
   const result = [];
-  const count = 30 + Math.floor(Math.random() * 40);
+  const count = 50 + Math.floor(Math.random() * 50);
   for (let i = 0; i < count; i++) {
     const rx = Math.random() * L.worldWidth;
+    const isBoulder = Math.random() < 0.15;
     result.push({
       x: rx,
-      size: 0.3 + Math.random() * 1.2,
-      shade: 0.15 + Math.random() * 0.15
+      size: isBoulder ? (1.0 + Math.random() * 2.5) : (0.3 + Math.random() * 1.2),
+      shade: 0.15 + Math.random() * 0.15,
+      isBoulder,
+      vertices: isBoulder ? generateBoulderVertices() : null
+    });
+  }
+  return result;
+}
+
+function generateBoulderVertices() {
+  const count = 5 + Math.floor(Math.random() * 4);
+  const verts = [];
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    const r = 0.6 + Math.random() * 0.4;
+    verts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * 0.7 });
+  }
+  return verts;
+}
+
+// ---- NEBULA GENERATION ----
+function generateNebulae() {
+  const result = [];
+  for (let i = 0; i < 3; i++) {
+    result.push({
+      x: Math.random(),
+      y: Math.random() * 0.5,
+      rx: 0.08 + Math.random() * 0.15,
+      ry: 0.04 + Math.random() * 0.08,
+      hue: Math.random() < 0.5 ? '0,100,180' : '120,40,80',
+      alpha: 0.015 + Math.random() * 0.02,
+      rotation: Math.random() * Math.PI
     });
   }
   return result;
@@ -419,15 +481,18 @@ function generateSurfaceRocks(level) {
 // ---- STARS ----
 function generateStars() {
   const result = [];
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 600; i++) {
     result.push({
       x: Math.random(),
-      y: Math.random() * 0.75,
-      r: Math.random() * 1.8 + 0.2,
+      y: Math.random() * 0.8,
+      r: Math.random() * 2.0 + 0.15,
       brightness: Math.random() * 0.6 + 0.4,
-      twinkleSpeed: Math.random() * 2 + 0.5,
+      twinkleSpeed: Math.random() * 3 + 0.5,
       twinklePhase: Math.random() * Math.PI * 2,
-      color: Math.random() < 0.1 ? '180,200,255' : Math.random() < 0.05 ? '255,200,150' : '255,255,255'
+      color: Math.random() < 0.08 ? '140,170,255' :
+             Math.random() < 0.06 ? '255,200,140' :
+             Math.random() < 0.04 ? '255,160,160' : '255,255,255',
+      hasCross: Math.random() < 0.03 // bright stars with cross-hairs
     });
   }
   return result;
@@ -473,7 +538,7 @@ function createLander(level) {
 
 // ---- PARTICLES ----
 function spawnThrustParticle(x, y, angle, throttle) {
-  const spread = 0.3;
+  const spread = 0.4;
   const dir = angle + Math.PI + (Math.random() - 0.5) * spread;
   const speed = (15 + Math.random() * 25) * throttle;
   particles.push({
@@ -483,8 +548,22 @@ function spawnThrustParticle(x, y, angle, throttle) {
     r: (0.15 + Math.random() * 0.25) * throttle,
     alpha: 1,
     decay: 1.5 + Math.random() * 1.5,
-    color: Math.random() < 0.3 ? '255,200,50' : Math.random() < 0.5 ? '255,120,20' : '255,80,10'
+    color: Math.random() < 0.2 ? '255,255,220' : Math.random() < 0.3 ? '255,200,50' : Math.random() < 0.5 ? '255,120,20' : '255,80,10'
   });
+  // Spark particles
+  if (Math.random() < 0.15 * throttle) {
+    const sparkDir = angle + Math.PI + (Math.random() - 0.5) * 0.8;
+    const sparkSpeed = 20 + Math.random() * 40;
+    particles.push({
+      x, y,
+      vx: Math.cos(sparkDir) * sparkSpeed,
+      vy: Math.sin(sparkDir) * sparkSpeed,
+      r: 0.05 + Math.random() * 0.08,
+      alpha: 1,
+      decay: 2.5 + Math.random() * 2,
+      color: '255,255,200'
+    });
+  }
 }
 
 function spawnRCSParticle(x, y, dirAngle) {
@@ -502,9 +581,9 @@ function spawnRCSParticle(x, y, dirAngle) {
 
 function spawnExplosion(x, y) {
   const colors = ['255,165,0','255,80,20','255,220,50','255,50,10','200,200,200','150,150,150'];
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 180; i++) {
     const a = Math.random() * Math.PI * 2;
-    const speed = Math.random() * 35 + 5;
+    const speed = Math.random() * 40 + 5;
     particles.push({
       x: x + (Math.random() - 0.5) * 2,
       y: y + (Math.random() - 0.5) * 2,
@@ -517,7 +596,7 @@ function spawnExplosion(x, y) {
     });
   }
   // Debris chunks
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 15; i++) {
     const a = Math.random() * Math.PI * 2;
     const speed = Math.random() * 20 + 8;
     debrisParticles.push({
@@ -535,14 +614,14 @@ function spawnExplosion(x, y) {
 }
 
 function spawnLandingDust(x, y) {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 60; i++) {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const speed = 3 + Math.random() * 10;
+    const speed = 3 + Math.random() * 12;
     dustParticles.push({
       x: x + (Math.random() - 0.5) * 4,
       y: y + Math.random() * 0.5,
       vx: dir * speed + (Math.random() - 0.5) * 2,
-      vy: -Math.random() * 4,
+      vy: -Math.random() * 5,
       r: 0.3 + Math.random() * 0.6,
       alpha: 0.5 + Math.random() * 0.3,
       decay: 0.25 + Math.random() * 0.35,
@@ -551,17 +630,36 @@ function spawnLandingDust(x, y) {
   }
 }
 
+function spawnCelebration(x, y) {
+  const colors = ['0,212,255', '255,102,0', '16,185,129', '255,220,50', '255,100,200'];
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 8;
+    celebrationParticles.push({
+      x: x + (Math.random() - 0.5) * 30,
+      y: y - 20 + (Math.random() - 0.5) * 20,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed - Math.random() * 3,
+      r: 2 + Math.random() * 3,
+      alpha: 1,
+      decay: 0.3 + Math.random() * 0.4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      sparkle: Math.random() < 0.4
+    });
+  }
+}
+
 function spawnProximityDust(x, y, vy) {
-  if (Math.random() > 0.3) return;
+  if (Math.random() > 0.4) return;
   const dir = Math.random() < 0.5 ? -1 : 1;
   const intensity = Math.min(1, Math.abs(vy) / 5);
   dustParticles.push({
-    x: x + (Math.random() - 0.5) * 3,
+    x: x + (Math.random() - 0.5) * 4,
     y: y + Math.random() * 0.3,
-    vx: dir * (2 + Math.random() * 4) * intensity,
-    vy: -Math.random() * 2 * intensity,
-    r: 0.15 + Math.random() * 0.3,
-    alpha: 0.3 * intensity,
+    vx: dir * (2 + Math.random() * 5) * intensity,
+    vy: -Math.random() * 2.5 * intensity,
+    r: 0.15 + Math.random() * 0.35,
+    alpha: 0.35 * intensity,
     decay: 0.5 + Math.random() * 0.5,
     color: '140,140,130'
   });
@@ -580,10 +678,12 @@ function updateCamera(dt) {
 
   camera.zoom += (zoomClamp - camera.zoom) * 2.0 * dt;
 
-  let targetX = lander.x;
-  let targetY = lander.y;
-  camera.x += (targetX - camera.x) * 3.0 * dt;
-  camera.y += (targetY - camera.y) * 3.0 * dt;
+  // Lookahead in direction of travel
+  const lookahead = 3.0;
+  let targetX = lander.x + lander.vx * lookahead * 0.15;
+  let targetY = lander.y + lander.vy * lookahead * 0.1;
+  camera.x += (targetX - camera.x) * 2.5 * dt;
+  camera.y += (targetY - camera.y) * 2.5 * dt;
 
   // Screen shake
   if (shakeIntensity > 0.01) {
@@ -633,14 +733,22 @@ function initLevel(level) {
   particles = [];
   dustParticles = [];
   debrisParticles = [];
+  celebrationParticles = [];
   flashAlpha = 0;
   landingDustSpawned = false;
   shakeIntensity = 0;
+  slowMotionFactor = 1;
+  slowMotionTimer = 0;
   camera.x = lander.x;
   camera.y = lander.y;
   camera.zoom = 1.5;
   windOffset = 0;
+  currentReplay = [];
   retryBtn.style.display = 'none';
+  if (!firstPlayDone) {
+    controlsOverlayTimer = 0;
+    showControlsOverlay = true;
+  }
 }
 
 function startGame() {
@@ -739,6 +847,11 @@ function physicsStep(dt) {
   lander.y += lander.vy * dt;
   lander.time += dt;
 
+  // Record replay data
+  if (currentReplay.length < 6000) {
+    currentReplay.push({ x: lander.x, y: lander.y, angle: lander.angle, t: lander.time });
+  }
+
   // Wrap horizontally
   if (lander.x < 0) lander.x += terrain.width;
   if (lander.x > terrain.width) lander.x -= terrain.width;
@@ -756,6 +869,13 @@ function physicsStep(dt) {
     const groundX = lander.x;
     const groundY = getTerrainHeight(groundX);
     spawnProximityDust(groundX, groundY, lander.vy);
+  }
+
+  // Slow motion near ground
+  if (altitude < 8 && speed > 1.5) {
+    slowMotionFactor = Math.max(0.4, altitude / 8);
+  } else {
+    slowMotionFactor = Math.min(1, slowMotionFactor + dt * 2);
   }
 
   // Collision detection
@@ -794,26 +914,43 @@ function physicsStep(dt) {
       lander.angVel = 0;
       spawnLandingDust(lander.x, terrainY);
       landingDustSpawned = true;
+      slowMotionFactor = 1;
       AudioEngine.setThrust(false, 0);
       AudioEngine.playLanding();
+
+      // Perfect landing check
+      if (precision > 0.8 && absVy < L.safeV * 0.3) {
+        const sp = worldToScreen(lander.x, lander.y);
+        spawnCelebration(sp.x, sp.y);
+        AudioEngine.playCelebration();
+      }
+
+      // Save ghost replay if best score
+      if (!bestLanding || levelScore > bestLanding.score) {
+        bestLanding = { score: levelScore, level: currentLevel, replay: [...currentReplay] };
+      }
     } else {
       state = 'crashed';
       explosionTime = 0;
-      shakeIntensity = 20;
-      shakeDecay = 0.9;
+      shakeIntensity = 25;
+      shakeDecay = 0.88;
       spawnExplosion(lander.x, lander.y);
-      flashAlpha = 0.8;
+      flashAlpha = 0.9;
+      slowMotionFactor = 1;
       AudioEngine.setThrust(false, 0);
       AudioEngine.playExplosion();
     }
+
+    firstPlayDone = true;
+    showControlsOverlay = false;
   }
 
-  // Thrust particles
+  // Thrust particles (multi-layered)
   if (thrusting && lander.alive) {
     const noseAngle = lander.angle - Math.PI / 2;
     const ex = lander.x - Math.cos(noseAngle) * LANDER_H * 0.5;
     const ey = lander.y - Math.sin(noseAngle) * LANDER_H * 0.5;
-    const numParticles = fineMode ? 1 : 3;
+    const numParticles = fineMode ? 2 : 4;
     for (let i = 0; i < numParticles; i++) spawnThrustParticle(ex, ey, noseAngle + Math.PI, thrustMult);
   }
 
@@ -865,6 +1002,15 @@ function updateParticlesWorld(dt) {
     p.alpha -= p.decay * dt;
     if (p.alpha <= 0) debrisParticles.splice(i, 1);
   }
+  // Celebration particles (screen space)
+  for (let i = celebrationParticles.length - 1; i >= 0; i--) {
+    const p = celebrationParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.alpha -= p.decay * dt;
+    if (p.alpha <= 0) celebrationParticles.splice(i, 1);
+  }
   if (state === 'crashed') explosionTime += dt;
 }
 
@@ -879,45 +1025,105 @@ function drawBackground(time) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // Stars with color
+  // Nebulae / space dust clouds
+  for (const neb of nebulaSeeds) {
+    const nx = ((neb.x * w) - camera.x * 0.05) % w;
+    const ny = neb.y * h;
+    const px = nx < 0 ? nx + w : nx;
+    const rg = ctx.createRadialGradient(px, ny, 0, px, ny, neb.rx * w);
+    rg.addColorStop(0, `rgba(${neb.hue},${neb.alpha})`);
+    rg.addColorStop(0.5, `rgba(${neb.hue},${neb.alpha * 0.4})`);
+    rg.addColorStop(1, `rgba(${neb.hue},0)`);
+    ctx.save();
+    ctx.translate(px, ny);
+    ctx.rotate(neb.rotation);
+    ctx.scale(1, neb.ry / neb.rx);
+    ctx.translate(-px, -ny);
+    ctx.fillStyle = rg;
+    ctx.fillRect(px - neb.rx * w, ny - neb.rx * w, neb.rx * w * 2, neb.rx * w * 2);
+    ctx.restore();
+  }
+
+  // Stars with color and twinkling
   for (const s of stars) {
     const twinkle = 0.5 + 0.5 * Math.sin(time * s.twinkleSpeed + s.twinklePhase);
-    const alpha = s.brightness * (0.6 + 0.4 * twinkle);
+    const alpha = s.brightness * (0.5 + 0.5 * twinkle);
     const sx = ((s.x * w) - camera.x * 0.3) % w;
     const sy = s.y * h;
     const px = sx < 0 ? sx + w : sx;
     ctx.beginPath();
-    ctx.arc(px, sy, s.r, 0, Math.PI * 2);
+    ctx.arc(px, sy, s.r * (0.85 + 0.15 * twinkle), 0, Math.PI * 2);
     ctx.fillStyle = `rgba(${s.color},${alpha.toFixed(2)})`;
     ctx.fill();
     // Glow for brighter stars
     if (s.r > 1.2) {
       ctx.beginPath();
-      ctx.arc(px, sy, s.r * 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${s.color},${(alpha * 0.08).toFixed(3)})`;
+      ctx.arc(px, sy, s.r * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${s.color},${(alpha * 0.06).toFixed(3)})`;
       ctx.fill();
+    }
+    // Cross-hair on extra bright stars
+    if (s.hasCross && twinkle > 0.7) {
+      const cr = s.r * 4 * twinkle;
+      ctx.strokeStyle = `rgba(${s.color},${(alpha * 0.15).toFixed(3)})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(px - cr, sy); ctx.lineTo(px + cr, sy);
+      ctx.moveTo(px, sy - cr); ctx.lineTo(px, sy + cr);
+      ctx.stroke();
     }
   }
 
-  // Earth
-  const earthX = w * 0.82 - camera.x * 0.1;
-  const earthY = h * 0.12;
-  const earthR = Math.min(w, h) * 0.04;
+  // Large Earth/planet partially visible
+  const earthX = w * 0.82 - camera.x * 0.08;
+  const earthY = h * 0.1;
+  const earthR = Math.min(w, h) * 0.07;
   ctx.save();
+
+  // Atmosphere glow
+  ctx.beginPath();
+  ctx.arc(earthX, earthY, earthR * 1.3, 0, Math.PI * 2);
+  const atmoGlow = ctx.createRadialGradient(earthX, earthY, earthR * 0.9, earthX, earthY, earthR * 1.3);
+  atmoGlow.addColorStop(0, 'rgba(80,160,255,0.08)');
+  atmoGlow.addColorStop(1, 'rgba(80,160,255,0)');
+  ctx.fillStyle = atmoGlow;
+  ctx.fill();
+
+  // Main body
   ctx.beginPath();
   ctx.arc(earthX, earthY, earthR, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a4a8a';
+  const earthGrad = ctx.createRadialGradient(earthX - earthR * 0.3, earthY - earthR * 0.3, 0, earthX, earthY, earthR);
+  earthGrad.addColorStop(0, '#2a6ab5');
+  earthGrad.addColorStop(0.3, '#1a5090');
+  earthGrad.addColorStop(0.7, '#103a6a');
+  earthGrad.addColorStop(1, '#0a2040');
+  ctx.fillStyle = earthGrad;
+  ctx.fill();
+
+  // Continental shapes (simple patches)
+  ctx.globalAlpha = 0.2;
+  ctx.beginPath();
+  ctx.arc(earthX - earthR * 0.2, earthY - earthR * 0.1, earthR * 0.35, 0, Math.PI * 2);
+  ctx.fillStyle = '#2a7a4a';
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(earthX + earthR * 0.4, earthY - earthR * 0.1, earthR * 1.05, 0, Math.PI * 2);
+  ctx.ellipse(earthX + earthR * 0.3, earthY + earthR * 0.2, earthR * 0.25, earthR * 0.15, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Shadow crescent
+  ctx.beginPath();
+  ctx.arc(earthX + earthR * 0.5, earthY - earthR * 0.1, earthR * 1.1, 0, Math.PI * 2);
   ctx.fillStyle = '#020408';
   ctx.fill();
+
+  // Bright edge glow
   ctx.beginPath();
   ctx.arc(earthX, earthY, earthR * 1.15, 0, Math.PI * 2);
-  const earthGlow = ctx.createRadialGradient(earthX, earthY, earthR, earthX, earthY, earthR * 1.15);
-  earthGlow.addColorStop(0, 'rgba(100,180,255,0.15)');
-  earthGlow.addColorStop(1, 'rgba(100,180,255,0)');
-  ctx.fillStyle = earthGlow;
+  const edgeGlow = ctx.createRadialGradient(earthX, earthY, earthR, earthX, earthY, earthR * 1.15);
+  edgeGlow.addColorStop(0, 'rgba(100,180,255,0.12)');
+  edgeGlow.addColorStop(1, 'rgba(100,180,255,0)');
+  ctx.fillStyle = edgeGlow;
   ctx.fill();
   ctx.restore();
 }
@@ -927,19 +1133,30 @@ function drawTerrainWorld(time) {
   const scale = screenToWorldScale();
   const pts = terrain.points;
 
-  // Craters
+  // Craters with shadows
   ctx.save();
   for (const c of craters) {
     const sp = worldToScreen(c.x, c.y);
     const sr = c.r * scale;
+    if (sr < 0.5) continue;
+
+    // Shadow (offset to the right and down for "sunlight" from upper-left)
+    ctx.beginPath();
+    ctx.arc(sp.x + sr * 0.15, sp.y + sr * 0.15, sr * 0.95, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(10,10,10,${c.alpha * c.depth})`;
+    ctx.fill();
+
+    // Crater bowl
     ctx.beginPath();
     ctx.arc(sp.x, sp.y, sr, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(30,30,30,${c.alpha})`;
+    ctx.fillStyle = `rgba(25,25,25,${c.alpha})`;
     ctx.fill();
+
+    // Rim highlight (upper-left edge)
     ctx.beginPath();
-    ctx.arc(sp.x - sr * 0.2, sp.y - sr * 0.2, sr * 0.85, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(80,80,80,${c.alpha * 0.5})`;
-    ctx.lineWidth = 0.5;
+    ctx.arc(sp.x - sr * 0.1, sp.y - sr * 0.1, sr, -Math.PI * 0.7, Math.PI * 0.1);
+    ctx.strokeStyle = `rgba(100,100,95,${c.rimAlpha})`;
+    ctx.lineWidth = Math.max(0.5, sr * 0.1);
     ctx.stroke();
   }
   ctx.restore();
@@ -978,53 +1195,148 @@ function drawTerrainWorld(time) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Surface rocks
+  // Surface rocks and boulders
   for (const rock of surfaceRocks) {
     const ry = getTerrainHeight(rock.x);
     const sp = worldToScreen(rock.x, ry);
     const sr = rock.size * scale;
     if (sr < 0.5) continue;
-    ctx.beginPath();
-    ctx.moveTo(sp.x - sr, sp.y);
-    ctx.lineTo(sp.x - sr * 0.3, sp.y - sr * 0.8);
-    ctx.lineTo(sp.x + sr * 0.5, sp.y - sr * 0.6);
-    ctx.lineTo(sp.x + sr, sp.y);
-    ctx.closePath();
-    ctx.fillStyle = `rgba(80,80,75,${rock.shade})`;
-    ctx.fill();
+
+    if (rock.isBoulder && rock.vertices) {
+      ctx.beginPath();
+      const v0 = rock.vertices[0];
+      ctx.moveTo(sp.x + v0.x * sr, sp.y + v0.y * sr - sr * 0.3);
+      for (let vi = 1; vi < rock.vertices.length; vi++) {
+        const v = rock.vertices[vi];
+        ctx.lineTo(sp.x + v.x * sr, sp.y + v.y * sr - sr * 0.3);
+      }
+      ctx.closePath();
+      ctx.fillStyle = `rgba(60,58,55,${rock.shade + 0.1})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(90,88,82,${rock.shade * 0.5})`;
+      ctx.lineWidth = Math.max(0.5, sr * 0.05);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(sp.x - sr, sp.y);
+      ctx.lineTo(sp.x - sr * 0.3, sp.y - sr * 0.8);
+      ctx.lineTo(sp.x + sr * 0.5, sp.y - sr * 0.6);
+      ctx.lineTo(sp.x + sr, sp.y);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(80,80,75,${rock.shade})`;
+      ctx.fill();
+    }
   }
 
-  // Landing pads with beacons
+  // Landing pads with enhanced visuals
   for (const pad of terrain.pads) {
     const left = worldToScreen(pad.left, pad.y);
     const right = worldToScreen(pad.right, pad.y);
     const padScreenW = right.x - left.x;
-    const padScreenH = Math.max(3, scale * 0.5);
+    const padScreenH = Math.max(4, scale * 0.6);
     const padCenter = worldToScreen(pad.cx, pad.y);
 
-    // Beacon glow (pulsing)
+    // Vertical searchlight beams from pad ends
+    const beamHeight = Math.max(80, scale * 30);
+    const beamPulse = 0.3 + 0.2 * Math.sin(time * 1.5);
+    const beamColor = pad.difficulty === 3 ? '239,68,68' : pad.difficulty === 2 ? '255,102,0' : '16,185,129';
+
+    // Left beam
+    const beamGradL = ctx.createLinearGradient(left.x, left.y, left.x, left.y - beamHeight);
+    beamGradL.addColorStop(0, `rgba(${beamColor},${0.15 * beamPulse})`);
+    beamGradL.addColorStop(0.3, `rgba(${beamColor},${0.06 * beamPulse})`);
+    beamGradL.addColorStop(1, `rgba(${beamColor},0)`);
+    ctx.fillStyle = beamGradL;
+    ctx.beginPath();
+    ctx.moveTo(left.x - 2, left.y);
+    ctx.lineTo(left.x - 8, left.y - beamHeight);
+    ctx.lineTo(left.x + 8, left.y - beamHeight);
+    ctx.lineTo(left.x + 2, left.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right beam
+    const beamGradR = ctx.createLinearGradient(right.x, right.y, right.x, right.y - beamHeight);
+    beamGradR.addColorStop(0, `rgba(${beamColor},${0.15 * beamPulse})`);
+    beamGradR.addColorStop(0.3, `rgba(${beamColor},${0.06 * beamPulse})`);
+    beamGradR.addColorStop(1, `rgba(${beamColor},0)`);
+    ctx.fillStyle = beamGradR;
+    ctx.beginPath();
+    ctx.moveTo(right.x - 2, right.y);
+    ctx.lineTo(right.x - 8, right.y - beamHeight);
+    ctx.lineTo(right.x + 8, right.y - beamHeight);
+    ctx.lineTo(right.x + 2, right.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Approach corridor lines (ideal approach angle)
+    const corridorH = Math.max(60, scale * 20);
+    const corridorW = padScreenW * 0.6;
+    ctx.save();
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = `rgba(${beamColor},${0.1 + 0.05 * Math.sin(time * 2)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(left.x, left.y);
+    ctx.lineTo(left.x - corridorW, left.y - corridorH);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(right.x, right.y);
+    ctx.lineTo(right.x + corridorW, right.y - corridorH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Beacon glow (pulsing, larger)
     const beaconPulse = 0.5 + 0.5 * Math.sin(time * 3);
-    const glowR = padScreenW * 0.8 + beaconPulse * padScreenW * 0.3;
+    const glowR = padScreenW * 1.0 + beaconPulse * padScreenW * 0.5;
     const glowGrad = ctx.createRadialGradient(padCenter.x, padCenter.y, 0, padCenter.x, padCenter.y, glowR);
-    const beaconColor = pad.difficulty === 3 ? '239,68,68' : pad.difficulty === 2 ? '255,102,0' : '16,185,129';
-    glowGrad.addColorStop(0, `rgba(${beaconColor},${0.12 + beaconPulse * 0.08})`);
-    glowGrad.addColorStop(1, `rgba(${beaconColor},0)`);
+    const beaconColorStr = pad.difficulty === 3 ? '239,68,68' : pad.difficulty === 2 ? '255,102,0' : '16,185,129';
+    glowGrad.addColorStop(0, `rgba(${beaconColorStr},${0.15 + beaconPulse * 0.1})`);
+    glowGrad.addColorStop(1, `rgba(${beaconColorStr},0)`);
     ctx.fillStyle = glowGrad;
     ctx.beginPath();
     ctx.arc(padCenter.x, padCenter.y, glowR, 0, Math.PI * 2);
     ctx.fill();
 
-    // Pad surface
+    // Pad surface with markings
     ctx.fillStyle = '#555';
     ctx.fillRect(left.x, left.y - padScreenH / 2, padScreenW, padScreenH);
     ctx.strokeStyle = '#888';
     ctx.lineWidth = 1;
     ctx.strokeRect(left.x, left.y - padScreenH / 2, padScreenW, padScreenH);
 
+    // Center stripe
+    ctx.fillStyle = '#777';
+    const stripeW = Math.max(2, padScreenW * 0.03);
+    ctx.fillRect(padCenter.x - stripeW / 2, left.y - padScreenH / 2, stripeW, padScreenH);
+
+    // Alternating edge lights (runway style)
+    const numLights = Math.max(4, Math.floor(padScreenW / 10));
+    for (let li = 0; li <= numLights; li++) {
+      const lx = left.x + (padScreenW * li / numLights);
+      const ly = left.y;
+      const lightPhase = Math.sin(time * 6 + li * 0.8);
+      const lightOn = lightPhase > 0;
+      const lightColor = li % 2 === 0 ? (lightOn ? '#ff6600' : '#331500') : (lightOn ? '#00d4ff' : '#003344');
+      const lightR = Math.max(1.5, scale * 0.12);
+
+      ctx.fillStyle = lightColor;
+      ctx.beginPath();
+      ctx.arc(lx, ly - padScreenH / 2 - 1, lightR, 0, Math.PI * 2);
+      ctx.fill();
+      if (lightOn) {
+        ctx.beginPath();
+        ctx.arc(lx, ly - padScreenH / 2 - 1, lightR * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = li % 2 === 0 ? 'rgba(255,102,0,0.1)' : 'rgba(0,212,255,0.1)';
+        ctx.fill();
+      }
+    }
+
     // Edge markers (bright lines at pad edges)
-    const markerH = Math.max(8, scale * 2);
+    const markerH = Math.max(10, scale * 2.5);
     ctx.strokeStyle = pad.difficulty === 3 ? '#ef4444' : pad.difficulty === 2 ? '#ff6600' : '#10b981';
-    ctx.lineWidth = Math.max(2, scale * 0.15);
+    ctx.lineWidth = Math.max(2, scale * 0.18);
     ctx.beginPath();
     ctx.moveTo(left.x, left.y);
     ctx.lineTo(left.x, left.y - markerH);
@@ -1035,8 +1347,8 @@ function drawTerrainWorld(time) {
     ctx.stroke();
 
     // Light posts
-    const postH = Math.max(6, scale * 1.5);
-    const postW = Math.max(1, scale * 0.1);
+    const postH = Math.max(8, scale * 2.0);
+    const postW = Math.max(1, scale * 0.12);
     ctx.fillStyle = '#888';
     ctx.fillRect(left.x + 2, left.y - postH, postW, postH);
     ctx.fillRect(right.x - 2 - postW, right.y - postH, postW, postH);
@@ -1044,7 +1356,7 @@ function drawTerrainWorld(time) {
     // Blinking lights (alternating)
     const blink1 = Math.sin(time * 4) > 0;
     const blink2 = Math.sin(time * 4 + Math.PI) > 0;
-    const lightR = Math.max(2, scale * 0.25);
+    const lightR = Math.max(2.5, scale * 0.3);
 
     ctx.fillStyle = blink1 ? '#ff6600' : '#663300';
     ctx.beginPath();
@@ -1052,8 +1364,8 @@ function drawTerrainWorld(time) {
     ctx.fill();
     if (blink1) {
       ctx.beginPath();
-      ctx.arc(left.x + 2 + postW / 2, left.y - postH, lightR * 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,102,0,0.15)';
+      ctx.arc(left.x + 2 + postW / 2, left.y - postH, lightR * 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,102,0,0.12)';
       ctx.fill();
     }
 
@@ -1063,13 +1375,20 @@ function drawTerrainWorld(time) {
     ctx.fill();
     if (blink2) {
       ctx.beginPath();
-      ctx.arc(right.x - 2 - postW / 2, right.y - postH, lightR * 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,102,0,0.15)';
+      ctx.arc(right.x - 2 - postW / 2, right.y - postH, lightR * 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,102,0,0.12)';
       ctx.fill();
     }
 
-    // "H" marking
-    const fontSize = Math.max(8, Math.min(24, padScreenW * 0.3));
+    // Circle + "H" marking (helipad style)
+    const fontSize = Math.max(10, Math.min(28, padScreenW * 0.3));
+    const circleR = fontSize * 0.7;
+    ctx.beginPath();
+    ctx.arc(padCenter.x, padCenter.y - padScreenH * 0.5 - fontSize * 0.3, circleR, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${beaconColorStr},${0.3 + beaconPulse * 0.2})`;
+    ctx.lineWidth = Math.max(1, scale * 0.06);
+    ctx.stroke();
+
     ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1077,11 +1396,65 @@ function drawTerrainWorld(time) {
     ctx.fillText('H', padCenter.x, padCenter.y - padScreenH - fontSize * 0.1);
 
     // Points label and difficulty stars
-    ctx.font = `${Math.max(6, fontSize * 0.4)}px "JetBrains Mono", monospace`;
+    ctx.font = `${Math.max(7, fontSize * 0.4)}px "JetBrains Mono", monospace`;
     ctx.fillStyle = '#888';
     const diffStars = '\u2605'.repeat(pad.difficulty);
     ctx.fillText(`${pad.points} ${diffStars}`, padCenter.x, padCenter.y - padScreenH - fontSize * 0.8);
+
+    // "LAND HERE" text that fades when close
+    if (lander) {
+      const distToPad = Math.sqrt(Math.pow(lander.x - pad.cx, 2) + Math.pow(lander.y - pad.y, 2));
+      const fadeAlpha = Math.min(1, Math.max(0, (distToPad - 20) / 40));
+      if (fadeAlpha > 0.05) {
+        const labelPulse = 0.6 + 0.4 * Math.sin(time * 2);
+        ctx.font = `bold ${Math.max(8, fontSize * 0.35)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = `rgba(${beaconColorStr},${fadeAlpha * labelPulse * 0.6})`;
+        ctx.fillText('LAND HERE', padCenter.x, padCenter.y - padScreenH - fontSize * 1.3);
+      }
+    }
   }
+}
+
+function drawGhostReplay(time) {
+  if (!bestLanding || bestLanding.level !== currentLevel || !bestLanding.replay.length) return;
+  if (!lander) return;
+
+  const replay = bestLanding.replay;
+  // Find the frame matching current lander time
+  const t = lander.time;
+  let frame = null;
+  for (let i = 0; i < replay.length; i++) {
+    if (replay[i].t >= t) { frame = replay[i]; break; }
+  }
+  if (!frame) return;
+
+  const scale = screenToWorldScale();
+  const sp = worldToScreen(frame.x, frame.y);
+
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  ctx.translate(sp.x, sp.y);
+  ctx.rotate(frame.angle);
+
+  const s = scale;
+  const bw = LANDER_W * s / 2;
+  const bh = LANDER_H * s / 2;
+
+  // Ghost body outline
+  ctx.beginPath();
+  ctx.moveTo(0, -bh);
+  ctx.lineTo(-bw * 0.5, -bh * 0.3);
+  ctx.lineTo(-bw * 0.6, bh * 0.5);
+  ctx.lineTo(-bw * 0.4, bh * 0.7);
+  ctx.lineTo(bw * 0.4, bh * 0.7);
+  ctx.lineTo(bw * 0.6, bh * 0.5);
+  ctx.lineTo(bw * 0.5, -bh * 0.3);
+  ctx.closePath();
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 function drawLanderWorld(time) {
@@ -1127,16 +1500,19 @@ function drawLanderWorld(time) {
     ctx.fill();
   }
 
-  // Main thrust flame
+  // Main thrust flame (multi-layered with flickering)
   if (lander.thrusting && lander.fuel > 0) {
     const t = lander.throttle;
-    const flameLen = (0.6 + Math.random() * 0.4) * bh * t + bh * 0.2;
-    const flameW = (bw * 0.4 + Math.random() * bw * 0.12) * t + bw * 0.1;
+
+    // Outer flame
+    const flameLen = (0.7 + Math.random() * 0.5) * bh * t + bh * 0.25;
+    const flameW = (bw * 0.45 + Math.random() * bw * 0.15) * t + bw * 0.12;
     const grad = ctx.createLinearGradient(0, bh * 0.7, 0, bh * 0.7 + flameLen);
-    grad.addColorStop(0, 'rgba(255,255,200,0.95)');
-    grad.addColorStop(0.3, 'rgba(255,180,50,0.85)');
-    grad.addColorStop(0.6, 'rgba(255,100,20,0.5)');
-    grad.addColorStop(1, 'rgba(255,60,10,0)');
+    grad.addColorStop(0, 'rgba(255,255,220,0.95)');
+    grad.addColorStop(0.2, 'rgba(255,200,80,0.9)');
+    grad.addColorStop(0.4, 'rgba(255,140,30,0.7)');
+    grad.addColorStop(0.7, 'rgba(255,80,10,0.3)');
+    grad.addColorStop(1, 'rgba(255,40,5,0)');
     ctx.beginPath();
     ctx.moveTo(-flameW, bh * 0.7);
     ctx.quadraticCurveTo(-flameW * 0.3, bh * 0.7 + flameLen * 0.6, 0, bh * 0.7 + flameLen);
@@ -1145,14 +1521,39 @@ function drawLanderWorld(time) {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    const innerLen = flameLen * 0.5;
-    const innerW = flameW * 0.4;
+    // Middle flame layer
+    const midLen = flameLen * 0.65;
+    const midW = flameW * 0.55;
+    const midGrad = ctx.createLinearGradient(0, bh * 0.7, 0, bh * 0.7 + midLen);
+    midGrad.addColorStop(0, 'rgba(255,255,255,0.7)');
+    midGrad.addColorStop(0.3, 'rgba(200,220,255,0.5)');
+    midGrad.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.beginPath();
+    ctx.moveTo(-midW, bh * 0.7);
+    ctx.quadraticCurveTo(-midW * 0.2, bh * 0.7 + midLen * 0.7, 0, bh * 0.7 + midLen);
+    ctx.quadraticCurveTo(midW * 0.2, bh * 0.7 + midLen * 0.7, midW, bh * 0.7);
+    ctx.closePath();
+    ctx.fillStyle = midGrad;
+    ctx.fill();
+
+    // Inner core
+    const innerLen = flameLen * 0.35 + Math.random() * flameLen * 0.1;
+    const innerW = flameW * 0.25;
     ctx.beginPath();
     ctx.moveTo(-innerW, bh * 0.7);
     ctx.quadraticCurveTo(0, bh * 0.7 + innerLen * 0.7, 0, bh * 0.7 + innerLen);
     ctx.quadraticCurveTo(0, bh * 0.7 + innerLen * 0.7, innerW, bh * 0.7);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fill();
+
+    // Flame glow
+    ctx.beginPath();
+    ctx.arc(0, bh * 0.7 + flameLen * 0.3, flameW * 1.5, 0, Math.PI * 2);
+    const flameGlow = ctx.createRadialGradient(0, bh * 0.7 + flameLen * 0.3, 0, 0, bh * 0.7 + flameLen * 0.3, flameW * 1.5);
+    flameGlow.addColorStop(0, `rgba(255,150,30,${0.08 * t})`);
+    flameGlow.addColorStop(1, 'rgba(255,100,10,0)');
+    ctx.fillStyle = flameGlow;
     ctx.fill();
   }
 
@@ -1261,26 +1662,47 @@ function drawParticlesWorld() {
   }
 }
 
+function drawCelebrationParticles(time) {
+  for (const p of celebrationParticles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.alpha);
+    if (p.sparkle) {
+      const twinkle = 0.5 + 0.5 * Math.sin(time * 10 + p.x);
+      ctx.globalAlpha *= twinkle;
+    }
+    ctx.fillStyle = `rgba(${p.color},1)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    // Glow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * 2, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.color},0.2)`;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 // ---- MINI-MAP / RADAR ----
 function drawRadar(time) {
   if (!lander || !terrain) return;
   const w = canvas.width, h = canvas.height;
-  const radarW = Math.min(180, w * 0.22);
-  const radarH = Math.min(80, h * 0.1);
+  const radarW = Math.min(200, w * 0.24);
+  const radarH = Math.min(90, h * 0.11);
   const rx = w / 2 - radarW / 2;
   const ry = 12;
 
   // Background
-  ctx.fillStyle = 'rgba(5,10,15,0.9)';
+  ctx.fillStyle = 'rgba(5,10,15,0.92)';
   ctx.fillRect(rx, ry, radarW, radarH);
   ctx.strokeStyle = '#1a2535';
   ctx.lineWidth = 1;
   ctx.strokeRect(rx, ry, radarW, radarH);
 
-  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.font = '9px "JetBrains Mono", monospace';
   ctx.fillStyle = '#00d4ff';
   ctx.textAlign = 'center';
-  ctx.fillText('RADAR', rx + radarW / 2, ry + 10);
+  ctx.fillText('RADAR', rx + radarW / 2, ry + 11);
 
   // Scale factors
   const scaleX = (radarW - 8) / terrain.width;
@@ -1313,7 +1735,7 @@ function drawRadar(time) {
     // Beacon dot
     if (blink) {
       ctx.beginPath();
-      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
       ctx.fillStyle = '#ff6600';
       ctx.fill();
     }
@@ -1324,8 +1746,15 @@ function drawRadar(time) {
   const ly = offY + lander.y * scaleY;
   ctx.fillStyle = '#00d4ff';
   ctx.beginPath();
-  ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+  ctx.arc(lx, ly, 3, 0, Math.PI * 2);
   ctx.fill();
+  // Pulsing ring
+  const ringPulse = 0.3 + 0.3 * Math.sin(time * 4);
+  ctx.beginPath();
+  ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(0,212,255,${ringPulse})`;
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
   // Velocity vector
   const vScale = 3;
   ctx.beginPath();
@@ -1336,7 +1765,7 @@ function drawRadar(time) {
   ctx.stroke();
 }
 
-// ---- PAD DIRECTION INDICATOR ----
+// ---- PAD DIRECTION INDICATOR (ENHANCED) ----
 function drawPadDirectionIndicators(time) {
   if (!lander || !terrain) return;
   const w = canvas.width, h = canvas.height;
@@ -1346,7 +1775,7 @@ function drawPadDirectionIndicators(time) {
     const padScreen = worldToScreen(pad.cx, pad.y);
 
     // Check if pad is off-screen or far away
-    const margin = 60;
+    const margin = 80;
     const offScreen = padScreen.x < margin || padScreen.x > w - margin ||
                       padScreen.y < margin || padScreen.y > h - margin;
 
@@ -1354,48 +1783,171 @@ function drawPadDirectionIndicators(time) {
     const dy = pad.y - lander.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (offScreen || dist > 40) {
-      // Draw arrow pointing to pad at screen edge
+    if (offScreen || dist > 50) {
+      // Large, prominent arrow/chevron at screen edge
       const angle = Math.atan2(dy, dx);
       const centerX = w / 2;
       const centerY = h / 2;
 
-      // Clamp to screen edge
-      const edgeMargin = 50;
-      let arrowX = centerX + Math.cos(angle) * (w * 0.4);
-      let arrowY = centerY + Math.sin(angle) * (h * 0.4);
+      // Calculate edge intersection point
+      const edgeMargin = 60;
+      let arrowX, arrowY;
+
+      // Cast ray from center to find screen edge
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+      const halfW = w / 2 - edgeMargin;
+      const halfH = h / 2 - edgeMargin;
+
+      let tX = cosA !== 0 ? halfW / Math.abs(cosA) : Infinity;
+      let tY = sinA !== 0 ? halfH / Math.abs(sinA) : Infinity;
+      let t = Math.min(tX, tY);
+
+      arrowX = centerX + cosA * t;
+      arrowY = centerY + sinA * t;
+
       arrowX = Math.max(edgeMargin, Math.min(w - edgeMargin, arrowX));
       arrowY = Math.max(edgeMargin, Math.min(h - edgeMargin, arrowY));
 
-      const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+      const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      const pulseScale = 0.9 + 0.2 * Math.sin(time * 3);
+      const beaconColor = pad.difficulty === 3 ? [239,68,68] : pad.difficulty === 2 ? [255,102,0] : [0,212,255];
 
       ctx.save();
       ctx.translate(arrowX, arrowY);
       ctx.rotate(angle);
+      ctx.scale(pulseScale, pulseScale);
 
-      // Arrow
+      // Outer glow
       ctx.beginPath();
-      ctx.moveTo(12, 0);
-      ctx.lineTo(-6, -7);
-      ctx.lineTo(-3, 0);
-      ctx.lineTo(-6, 7);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(255,102,0,${0.5 * pulse})`;
+      ctx.arc(0, 0, 28, 0, Math.PI * 2);
+      const arrowGlow = ctx.createRadialGradient(0, 0, 5, 0, 0, 28);
+      arrowGlow.addColorStop(0, `rgba(${beaconColor.join(',')},${0.15 * pulse})`);
+      arrowGlow.addColorStop(1, `rgba(${beaconColor.join(',')},0)`);
+      ctx.fillStyle = arrowGlow;
       ctx.fill();
-      ctx.strokeStyle = `rgba(255,102,0,${0.8 * pulse})`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
+
+      // Double chevron
+      for (let ch = 0; ch < 2; ch++) {
+        const offset = ch * -14;
+        const chAlpha = ch === 0 ? (0.7 + 0.3 * pulse) : (0.3 + 0.3 * pulse);
+        ctx.beginPath();
+        ctx.moveTo(16 + offset, 0);
+        ctx.lineTo(2 + offset, -10);
+        ctx.lineTo(6 + offset, 0);
+        ctx.lineTo(2 + offset, 10);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${beaconColor.join(',')},${chAlpha})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${beaconColor.join(',')},${chAlpha * 1.2})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
 
       ctx.restore();
 
-      // Distance label
-      ctx.font = '9px "JetBrains Mono", monospace';
+      // Distance label with background
+      const distFt = (dist * 3.281).toFixed(0);
+      const distLabel = `${dist.toFixed(0)}m (${distFt}ft)`;
+      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+      const labelW = ctx.measureText(distLabel).width + 10;
+
+      // Position label below or beside arrow
+      let labelX = arrowX;
+      let labelY = arrowY + 22;
+      if (arrowY > h - 100) labelY = arrowY - 22;
+
+      ctx.fillStyle = `rgba(5,10,15,0.85)`;
+      ctx.fillRect(labelX - labelW / 2, labelY - 8, labelW, 18);
+      ctx.strokeStyle = `rgba(${beaconColor.join(',')},${0.3 * pulse})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(labelX - labelW / 2, labelY - 8, labelW, 18);
+
       ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(255,102,0,${0.7 * pulse})`;
-      ctx.fillText(`${dist.toFixed(0)}m`, arrowX, arrowY + 18);
-      ctx.fillText(`${pad.points}pts`, arrowX, arrowY + 28);
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = `rgba(${beaconColor.join(',')},${0.6 + 0.4 * pulse})`;
+      ctx.fillText(distLabel, labelX, labelY + 1);
+
+      // Points label
+      ctx.font = '8px "JetBrains Mono", monospace';
+      ctx.fillStyle = `rgba(${beaconColor.join(',')},${0.4 * pulse})`;
+      ctx.fillText(`${pad.points}pts`, labelX, labelY + 16);
     }
   }
+}
+
+// ---- COMPASS DIRECTION BAR ----
+function drawCompassBar(time) {
+  if (!lander || !terrain) return;
+  const w = canvas.width, h = canvas.height;
+  const barW = Math.min(300, w * 0.4);
+  const barH = 20;
+  const barX = w / 2 - barW / 2;
+  const barY = canvas.height - (isMobileDevice() ? 160 : 45);
+
+  ctx.fillStyle = 'rgba(5,10,15,0.8)';
+  ctx.fillRect(barX, barY, barW, barH);
+  ctx.strokeStyle = '#1a2535';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barW, barH);
+
+  // Center tick
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(w / 2, barY);
+  ctx.lineTo(w / 2, barY + barH);
+  ctx.stroke();
+
+  // Draw pad indicators on compass
+  for (const pad of terrain.pads) {
+    const dx = pad.cx - lander.x;
+    // Normalize to bar range
+    const maxRange = terrain.width / 2;
+    const normX = (dx / maxRange);
+    const clampedX = Math.max(-1, Math.min(1, normX));
+    const dotX = w / 2 + clampedX * (barW / 2 - 8);
+
+    const beaconColor = pad.difficulty === 3 ? '#ef4444' : pad.difficulty === 2 ? '#ff6600' : '#00d4ff';
+    const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+
+    // Pad dot
+    ctx.fillStyle = beaconColor;
+    ctx.beginPath();
+    ctx.arc(dotX, barY + barH / 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(dotX, barY + barH / 2, 7, 0, Math.PI * 2);
+    ctx.fillStyle = beaconColor.replace('#', '');
+    // Convert hex to rgba
+    const r = parseInt(beaconColor.slice(1,3), 16);
+    const g = parseInt(beaconColor.slice(3,5), 16);
+    const b = parseInt(beaconColor.slice(5,7), 16);
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.15 * pulse})`;
+    ctx.fill();
+
+    // Direction triangle if at edge
+    if (Math.abs(clampedX) >= 0.95) {
+      const dir = clampedX > 0 ? 1 : -1;
+      ctx.fillStyle = beaconColor;
+      ctx.beginPath();
+      ctx.moveTo(dotX + dir * 6, barY + barH / 2);
+      ctx.lineTo(dotX, barY + barH / 2 - 3);
+      ctx.lineTo(dotX, barY + barH / 2 + 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Lander position marker
+  ctx.fillStyle = '#00d4ff';
+  ctx.beginPath();
+  ctx.moveTo(w / 2, barY + 2);
+  ctx.lineTo(w / 2 - 3, barY - 2);
+  ctx.lineTo(w / 2 + 3, barY - 2);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // ---- THRUST GAUGE ----
@@ -1405,18 +1957,18 @@ function drawThrustGauge() {
   const fineMode = keys['ShiftLeft'] || keys['ShiftRight'] || touches.fine;
   const isThrusting = lander.thrusting && lander.fuel > 0;
 
-  const gx = w - 48, gy = h - 130, gw = 14, gh = 60;
+  const gx = w - 48, gy = h - 140, gw = 16, gh = 65;
 
-  ctx.fillStyle = 'rgba(5,10,15,0.85)';
-  ctx.fillRect(gx - 6, gy - 18, gw + 12, gh + 36);
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
+  ctx.fillRect(gx - 6, gy - 20, gw + 14, gh + 40);
   ctx.strokeStyle = '#1a2535';
   ctx.lineWidth = 1;
-  ctx.strokeRect(gx - 6, gy - 18, gw + 12, gh + 36);
+  ctx.strokeRect(gx - 6, gy - 20, gw + 14, gh + 40);
 
-  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.font = '9px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.fillStyle = fineMode ? '#10b981' : '#00d4ff';
-  ctx.fillText(fineMode ? 'FINE' : 'THR', gx + gw / 2, gy - 6);
+  ctx.fillText(fineMode ? 'FINE' : 'THR', gx + gw / 2, gy - 7);
 
   ctx.strokeStyle = '#1a2535';
   ctx.strokeRect(gx, gy, gw, gh);
@@ -1426,13 +1978,16 @@ function drawThrustGauge() {
   const fillH = gh * thrustPct;
   const thrColor = fineMode ? '#10b981' : '#ff6600';
   if (fillH > 0) {
-    ctx.fillStyle = thrColor;
+    const thrGrad = ctx.createLinearGradient(0, gy + gh, 0, gy + gh - fillH);
+    thrGrad.addColorStop(0, thrColor);
+    thrGrad.addColorStop(1, fineMode ? '#0a8060' : '#cc5200');
+    ctx.fillStyle = thrGrad;
     ctx.fillRect(gx + 1, gy + gh - fillH, gw - 2, fillH);
   }
 
-  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.font = '9px "JetBrains Mono", monospace';
   ctx.fillStyle = '#888';
-  ctx.fillText(`${Math.round(thrustPct * 100)}%`, gx + gw / 2, gy + gh + 12);
+  ctx.fillText(`${Math.round(thrustPct * 100)}%`, gx + gw / 2, gy + gh + 14);
 }
 
 function drawHUD(time) {
@@ -1445,18 +2000,18 @@ function drawHUD(time) {
 
   ctx.save();
 
-  // === LEFT SIDE: Altitude bar ===
-  const barX = 24, barY = 60, barH = Math.min(280, h * 0.35), barW = 16;
-  ctx.fillStyle = 'rgba(5,10,15,0.85)';
-  ctx.fillRect(barX - 8, barY - 24, barW + 50, barH + 44);
+  // === LEFT SIDE: Altitude bar (LARGER) ===
+  const barX = 24, barY = 55, barH = Math.min(300, h * 0.38), barW = 20;
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
+  ctx.fillRect(barX - 8, barY - 26, barW + 60, barH + 48);
   ctx.strokeStyle = '#1a2535';
   ctx.lineWidth = 1;
-  ctx.strokeRect(barX - 8, barY - 24, barW + 50, barH + 44);
+  ctx.strokeRect(barX - 8, barY - 26, barW + 60, barH + 48);
 
-  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#00d4ff';
   ctx.textAlign = 'center';
-  ctx.fillText('ALT', barX + barW / 2, barY - 8);
+  ctx.fillText('ALT', barX + barW / 2, barY - 10);
 
   ctx.strokeStyle = '#1a2535';
   ctx.strokeRect(barX, barY, barW, barH);
@@ -1464,6 +2019,7 @@ function drawHUD(time) {
   const maxDisplayAlt = L.worldHeight * 0.6;
   const altPct = Math.min(1, altitude / maxDisplayAlt);
 
+  // Danger zones
   ctx.fillStyle = 'rgba(239,68,68,0.2)';
   ctx.fillRect(barX + 1, barY + barH * 0.9, barW - 2, barH * 0.1);
   ctx.fillStyle = 'rgba(255,102,0,0.15)';
@@ -1471,60 +2027,85 @@ function drawHUD(time) {
 
   const fillH = barH * altPct;
   const altColor = altPct < 0.1 ? '#ef4444' : altPct < 0.3 ? '#ff6600' : '#10b981';
-  ctx.fillStyle = altColor;
-  ctx.fillRect(barX + 1, barY + barH - fillH, barW - 2, fillH);
 
-  ctx.font = '11px "JetBrains Mono", monospace';
+  // Gradient fill
+  if (fillH > 0) {
+    const altGrad = ctx.createLinearGradient(0, barY + barH, 0, barY + barH - fillH);
+    altGrad.addColorStop(0, altColor);
+    altGrad.addColorStop(1, altColor === '#ef4444' ? '#aa2020' : altColor === '#ff6600' ? '#cc4400' : '#0a7050');
+    ctx.fillStyle = altGrad;
+    ctx.fillRect(barX + 1, barY + barH - fillH, barW - 2, fillH);
+  }
+
+  // Large altitude readout
+  ctx.font = 'bold 14px "JetBrains Mono", monospace';
   ctx.fillStyle = altColor;
   ctx.textAlign = 'left';
-  ctx.fillText(`${altitude.toFixed(0)}m`, barX + barW + 4, barY + barH - fillH + 4);
+  ctx.fillText(`${altitude.toFixed(0)}m`, barX + barW + 6, barY + barH - fillH + 5);
 
-  // === LEFT SIDE: Fuel bar ===
-  const fuelBarY = barY + barH + 40;
-  const fuelBarH = Math.min(120, h * 0.15);
-  ctx.fillStyle = 'rgba(5,10,15,0.85)';
-  ctx.fillRect(barX - 8, fuelBarY - 24, barW + 50, fuelBarH + 44);
+  // Feet readout
+  ctx.font = '9px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#666';
+  ctx.fillText(`${(altitude * 3.281).toFixed(0)}ft`, barX + barW + 6, barY + barH - fillH + 18);
+
+  // === LEFT SIDE: Fuel bar (MORE PROMINENT) ===
+  const fuelBarY = barY + barH + 44;
+  const fuelBarH = Math.min(130, h * 0.16);
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
+  ctx.fillRect(barX - 8, fuelBarY - 26, barW + 60, fuelBarH + 48);
   ctx.strokeStyle = '#1a2535';
-  ctx.strokeRect(barX - 8, fuelBarY - 24, barW + 50, fuelBarH + 44);
+  ctx.strokeRect(barX - 8, fuelBarY - 26, barW + 60, fuelBarH + 48);
 
-  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#00d4ff';
   ctx.textAlign = 'center';
-  ctx.fillText('FUEL', barX + barW / 2, fuelBarY - 8);
+  ctx.fillText('FUEL', barX + barW / 2, fuelBarY - 10);
   ctx.strokeStyle = '#1a2535';
   ctx.strokeRect(barX, fuelBarY, barW, fuelBarH);
 
   const fuelFill = fuelBarH * fuelPct;
   const fuelColor = fuelPct < 0.15 ? '#ef4444' : fuelPct < 0.35 ? '#ff6600' : '#10b981';
-  ctx.fillStyle = fuelColor;
-  ctx.fillRect(barX + 1, fuelBarY + fuelBarH - fuelFill, barW - 2, fuelFill);
 
-  // Fuel warning flash
+  if (fuelFill > 0) {
+    const fuelGrad = ctx.createLinearGradient(0, fuelBarY + fuelBarH, 0, fuelBarY + fuelBarH - fuelFill);
+    fuelGrad.addColorStop(0, fuelColor);
+    fuelGrad.addColorStop(1, fuelColor === '#ef4444' ? '#aa2020' : fuelColor === '#ff6600' ? '#cc4400' : '#0a7050');
+    ctx.fillStyle = fuelGrad;
+    ctx.fillRect(barX + 1, fuelBarY + fuelBarH - fuelFill, barW - 2, fuelFill);
+  }
+
+  // Fuel warning flash (more prominent)
   if (fuelPct < 0.15 && Math.sin(time * 8) > 0) {
-    ctx.fillStyle = 'rgba(239,68,68,0.3)';
-    ctx.fillRect(barX - 8, fuelBarY - 24, barW + 50, fuelBarH + 44);
+    ctx.fillStyle = 'rgba(239,68,68,0.35)';
+    ctx.fillRect(barX - 8, fuelBarY - 26, barW + 60, fuelBarH + 48);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(barX - 8, fuelBarY - 26, barW + 60, fuelBarH + 48);
   }
   // Empty fuel - big warning
   if (lander.fuel <= 0) {
-    ctx.font = 'bold 14px "JetBrains Mono", monospace';
+    ctx.font = 'bold 16px "JetBrains Mono", monospace';
     ctx.fillStyle = Math.sin(time * 6) > 0 ? '#ef4444' : 'transparent';
     ctx.textAlign = 'center';
-    ctx.fillText('NO FUEL', barX + barW / 2 + 16, fuelBarY + fuelBarH + 28);
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = Math.sin(time * 6) > 0 ? 10 : 0;
+    ctx.fillText('NO FUEL', barX + barW / 2 + 20, fuelBarY + fuelBarH + 30);
+    ctx.shadowBlur = 0;
   }
 
-  ctx.font = '11px "JetBrains Mono", monospace';
+  ctx.font = 'bold 13px "JetBrains Mono", monospace';
   ctx.fillStyle = fuelColor;
   ctx.textAlign = 'left';
-  ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + barW + 4, fuelBarY + fuelBarH / 2 + 4);
+  ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + barW + 6, fuelBarY + fuelBarH / 2 + 5);
 
   // === RIGHT SIDE: Flight data panel ===
-  const pw = 220, px = w - pw - 14, py = 100;
-  ctx.fillStyle = 'rgba(5,10,15,0.85)';
-  ctx.fillRect(px, py, pw, 210);
+  const pw = 230, px = w - pw - 14, py = 100;
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
+  ctx.fillRect(px, py, pw, 230);
   ctx.strokeStyle = '#1a2535';
-  ctx.strokeRect(px, py, pw, 210);
+  ctx.strokeRect(px, py, pw, 230);
 
-  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#00d4ff';
   ctx.textAlign = 'left';
   ctx.fillText('FLIGHT DATA', px + 10, py + 16);
@@ -1534,7 +2115,7 @@ function drawHUD(time) {
   ctx.fillText(`LVL ${currentLevel + 1}: ${L.name}`, px + pw - 10, py + 16);
 
   ctx.textAlign = 'left';
-  ctx.font = '12px "JetBrains Mono", monospace';
+  ctx.font = '13px "JetBrains Mono", monospace';
 
   const vSpeed = lander.vy;
   const hSpeed = lander.vx;
@@ -1552,11 +2133,13 @@ function drawHUD(time) {
   ];
 
   lines.forEach((line, i) => {
-    const ly = py + 36 + i * 20;
+    const ly = py + 38 + i * 22;
     ctx.fillStyle = '#777';
     ctx.textAlign = 'left';
+    ctx.font = '11px "JetBrains Mono", monospace';
     ctx.fillText(line.label + ':', px + 10, ly);
     ctx.fillStyle = line.color;
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
     ctx.textAlign = 'right';
     ctx.fillText(line.value, px + pw - 10, ly);
   });
@@ -1565,14 +2148,17 @@ function drawHUD(time) {
   ctx.font = '9px "JetBrains Mono", monospace';
   ctx.fillStyle = '#555';
   ctx.textAlign = 'left';
-  ctx.fillText(`LIMITS: V<${L.safeV} H<${L.safeH} A<${(L.safeAngle*180/Math.PI).toFixed(0)}deg`, px + 10, py + 195);
+  ctx.fillText(`LIMITS: V<${L.safeV} H<${L.safeH} A<${(L.safeAngle*180/Math.PI).toFixed(0)}deg`, px + 10, py + 210);
 
   // Fine mode indicator
   if (fineMode) {
-    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.font = 'bold 11px "JetBrains Mono", monospace';
     ctx.fillStyle = '#10b981';
     ctx.textAlign = 'center';
-    ctx.fillText('[ FINE CONTROL ]', w / 2, h - 20);
+    ctx.shadowColor = '#10b981';
+    ctx.shadowBlur = 8;
+    ctx.fillText('[ FINE CONTROL ]', w / 2, h - 24);
+    ctx.shadowBlur = 0;
   }
 
   // === LANDING GUIDANCE (when near a pad) ===
@@ -1587,56 +2173,76 @@ function drawHUD(time) {
   }
 
   if (nearestPad && altitude < 80) {
-    const guidX = w / 2 - 100, guidY = h - 90;
-    ctx.fillStyle = 'rgba(5,10,15,0.9)';
-    ctx.fillRect(guidX, guidY, 200, 60);
+    const guidW = 240;
+    const guidH = 75;
+    const guidX = w / 2 - guidW / 2;
+    const guidY = h - (isMobileDevice() ? 200 : 100);
+    ctx.fillStyle = 'rgba(5,10,15,0.92)';
+    ctx.fillRect(guidX, guidY, guidW, guidH);
     ctx.strokeStyle = '#1a2535';
-    ctx.strokeRect(guidX, guidY, 200, 60);
+    ctx.strokeRect(guidX, guidY, guidW, guidH);
 
-    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00d4ff';
-    ctx.fillText('LANDING GUIDANCE', guidX + 100, guidY + 12);
+    ctx.fillText('LANDING CHECKLIST', guidX + guidW / 2, guidY + 13);
 
     const speedOk = Math.abs(lander.vy) <= L.safeV && Math.abs(lander.vx) <= L.safeH;
     const angleOk = Math.abs(lander.angle) <= L.safeAngle;
     const onPadOk = lander.x >= nearestPad.left && lander.x <= nearestPad.right;
+    const fuelOk = lander.fuel > 0;
 
     const indicators = [
-      { label: 'SPD', ok: speedOk },
-      { label: 'ANG', ok: angleOk },
-      { label: 'POS', ok: onPadOk },
-      { label: 'FUEL', ok: lander.fuel > 0 }
+      { label: 'SPD', ok: speedOk, detail: speedOk ? 'OK' : 'HIGH' },
+      { label: 'ANG', ok: angleOk, detail: angleOk ? 'OK' : 'TILT' },
+      { label: 'POS', ok: onPadOk, detail: onPadOk ? 'OK' : 'OFF' },
+      { label: 'FUEL', ok: fuelOk, detail: fuelOk ? 'OK' : 'EMPTY' }
     ];
 
+    const allOk = indicators.every(ind => ind.ok);
+    if (allOk && altitude < 20) {
+      // All green - highlight the panel
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(guidX, guidY, guidW, guidH);
+    }
+
     indicators.forEach((ind, i) => {
-      const ix = guidX + 28 + i * 42;
-      const iy = guidY + 32;
+      const ix = guidX + 36 + i * 48;
+      const iy = guidY + 34;
+
+      // Checkmark or X
       ctx.fillStyle = ind.ok ? '#10b981' : '#ef4444';
-      ctx.beginPath();
-      ctx.arc(ix, iy, 5, 0, Math.PI * 2);
-      ctx.fill();
-      // Pulsing outline when not OK
+      ctx.font = 'bold 14px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(ind.ok ? '\u2713' : '\u2717', ix, iy + 4);
+
+      // Pulsing ring when not OK
       if (!ind.ok) {
         const pulse = 0.3 + 0.3 * Math.sin(time * 6);
         ctx.beginPath();
-        ctx.arc(ix, iy, 8, 0, Math.PI * 2);
+        ctx.arc(ix, iy, 10, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(239,68,68,${pulse})`;
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-      ctx.fillStyle = '#ccc';
-      ctx.font = '8px "JetBrains Mono", monospace';
+
+      ctx.fillStyle = ind.ok ? '#10b981' : '#888';
+      ctx.font = 'bold 8px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(ind.label, ix, iy + 16);
+      ctx.fillText(ind.label, ix, iy + 18);
+
+      ctx.font = '7px "JetBrains Mono", monospace';
+      ctx.fillStyle = ind.ok ? '#10b981' : '#ef4444';
+      ctx.fillText(ind.detail, ix, iy + 27);
     });
 
     // Horizontal offset indicator
     const offsetX = lander.x - nearestPad.cx;
     const maxOffset = nearestPad.width * 2;
-    const barCX = guidX + 100;
-    const barCY = guidY + 54;
-    const iBarW = 80;
+    const barCX = guidX + guidW / 2;
+    const barCY = guidY + guidH - 8;
+    const iBarW = 100;
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1659,17 +2265,17 @@ function drawHUD(time) {
   // === WIND INDICATOR ===
   if (L.wind > 0) {
     const windVal = Math.sin(windOffset * 2) * L.wind;
-    const windX = w / 2 - 60;
+    const windX = w / 2 - 70;
     const windY = 80;
-    ctx.fillStyle = 'rgba(5,10,15,0.85)';
-    ctx.fillRect(windX, windY, 120, 22);
+    ctx.fillStyle = 'rgba(5,10,15,0.88)';
+    ctx.fillRect(windX, windY, 140, 24);
     ctx.strokeStyle = '#1a2535';
-    ctx.strokeRect(windX, windY, 120, 22);
-    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.strokeRect(windX, windY, 140, 24);
+    ctx.font = '10px "JetBrains Mono", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#888';
     const windDir = windVal > 0.05 ? '>>>' : windVal < -0.05 ? '<<<' : '---';
-    ctx.fillText(`WIND ${windDir} ${Math.abs(windVal).toFixed(1)}`, w / 2, windY + 14);
+    ctx.fillText(`WIND ${windDir} ${Math.abs(windVal).toFixed(1)}`, w / 2, windY + 15);
   }
 
   ctx.restore();
@@ -1679,22 +2285,24 @@ function drawAngleIndicator() {
   if (!lander) return;
   const L = LEVELS[currentLevel];
   const w = canvas.width, h = canvas.height;
-  const cx = w - 50, cy = h - 180, r = 30;
+  const cx = w - 50, cy = h - 190, r = 32;
 
   ctx.save();
-  ctx.fillStyle = 'rgba(5,10,15,0.85)';
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
   ctx.beginPath();
-  ctx.arc(cx, cy, r + 8, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#1a2535';
   ctx.stroke();
 
+  // Safe zone arc
   ctx.beginPath();
   ctx.arc(cx, cy, r, -Math.PI / 2 - L.safeAngle, -Math.PI / 2 + L.safeAngle);
-  ctx.strokeStyle = 'rgba(16,185,129,0.4)';
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(16,185,129,0.5)';
+  ctx.lineWidth = 4;
   ctx.stroke();
 
+  // Danger zone arcs
   ctx.beginPath();
   ctx.arc(cx, cy, r, -Math.PI / 2 + L.safeAngle, -Math.PI / 2 + MAX_ANGLE);
   ctx.strokeStyle = 'rgba(239,68,68,0.3)';
@@ -1710,18 +2318,126 @@ function drawAngleIndicator() {
   ctx.moveTo(cx, cy);
   ctx.lineTo(cx + Math.cos(needleAngle) * (r - 4), cy + Math.sin(needleAngle) * (r - 4));
   ctx.strokeStyle = needleColor;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
   ctx.fillStyle = needleColor;
   ctx.fill();
 
-  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.font = '9px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#888';
-  ctx.fillText('TILT', cx, cy + r + 16);
+  ctx.fillText('TILT', cx, cy + r + 18);
+
+  ctx.restore();
+}
+
+// ---- VERTICAL SPEED INDICATOR ----
+function drawVSpeedIndicator() {
+  if (!lander) return;
+  const L = LEVELS[currentLevel];
+  const w = canvas.width, h = canvas.height;
+
+  const vsX = w - 85, vsY = h - 190;
+  const vsH = 65, vsW = 8;
+
+  ctx.fillStyle = 'rgba(5,10,15,0.88)';
+  ctx.fillRect(vsX - 10, vsY - 18, vsW + 22, vsH + 36);
+  ctx.strokeStyle = '#1a2535';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(vsX - 10, vsY - 18, vsW + 22, vsH + 36);
+
+  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText('V/S', vsX + vsW / 2, vsY - 6);
+
+  // Bar background
+  ctx.fillStyle = '#0a1018';
+  ctx.fillRect(vsX, vsY, vsW, vsH);
+
+  // Center line (zero)
+  const centerY = vsY + vsH / 2;
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(vsX, centerY);
+  ctx.lineTo(vsX + vsW, centerY);
+  ctx.stroke();
+
+  // V-speed normalized
+  const maxVS = L.safeV * 2;
+  const vsNorm = Math.max(-1, Math.min(1, lander.vy / maxVS));
+  const barFillH = Math.abs(vsNorm) * vsH / 2;
+
+  const vsColor = Math.abs(lander.vy) > L.safeV ? '#ef4444' :
+                  Math.abs(lander.vy) > L.safeV * 0.7 ? '#ff6600' : '#10b981';
+
+  if (vsNorm > 0) {
+    ctx.fillStyle = vsColor;
+    ctx.fillRect(vsX + 1, centerY, vsW - 2, barFillH);
+  } else {
+    ctx.fillStyle = vsColor;
+    ctx.fillRect(vsX + 1, centerY - barFillH, vsW - 2, barFillH);
+  }
+
+  // Value readout
+  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.fillStyle = vsColor;
+  ctx.fillText(`${lander.vy.toFixed(1)}`, vsX + vsW / 2, vsY + vsH + 12);
+}
+
+// ---- CONTROLS OVERLAY ----
+function drawControlsOverlay(time) {
+  if (!showControlsOverlay) return;
+  controlsOverlayTimer += 1/60;
+  if (controlsOverlayTimer > 6) {
+    showControlsOverlay = false;
+    return;
+  }
+
+  const w = canvas.width, h = canvas.height;
+  const alpha = controlsOverlayTimer < 0.5 ? controlsOverlayTimer * 2 :
+                controlsOverlayTimer > 5 ? (6 - controlsOverlayTimer) : 1;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.85;
+  const boxW = 280, boxH = 140;
+  const bx = w / 2 - boxW / 2, by = h * 0.6;
+
+  ctx.fillStyle = 'rgba(5,10,15,0.95)';
+  ctx.fillRect(bx, by, boxW, boxH);
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, boxW, boxH);
+
+  ctx.font = 'bold 12px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#00d4ff';
+  ctx.textAlign = 'center';
+  ctx.fillText('CONTROLS', bx + boxW / 2, by + 20);
+
+  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#ccc';
+  const isMobile = isMobileDevice();
+  const controls = isMobile ? [
+    'ROT L / ROT R = Rotate',
+    'THRUST = Main Engine',
+    'FINE = Precision Mode (40%)',
+    'Land gently on the pad!'
+  ] : [
+    'SPACE / UP / W = Main Thrust',
+    'LEFT / RIGHT / A / D = Rotate',
+    'SHIFT = Fine Control (40% power)',
+    'R = Retry | Land gently on pad!'
+  ];
+  controls.forEach((c, i) => {
+    ctx.fillText(c, bx + boxW / 2, by + 42 + i * 18);
+  });
+
+  ctx.font = '8px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#555';
+  ctx.fillText('This message will auto-dismiss', bx + boxW / 2, by + boxH - 10);
 
   ctx.restore();
 }
@@ -1748,7 +2464,7 @@ function drawTitleScreen(time) {
   ctx.arc(0, -2, 2.5, 0, Math.PI * 2);
   ctx.fillStyle = '#00d4ff';
   ctx.fill();
-  // Animated flame
+  // Animated flame (multi-layered)
   const flameLen = 8 + Math.sin(time * 12) * 3;
   ctx.beginPath();
   ctx.moveTo(-2.5, 7);
@@ -1756,6 +2472,15 @@ function drawTitleScreen(time) {
   ctx.quadraticCurveTo(0, 7 + flameLen, 2.5, 7);
   ctx.closePath();
   ctx.fillStyle = `rgba(255,${140 + Math.sin(time*15)*40},20,0.8)`;
+  ctx.fill();
+  // Inner flame
+  const innerLen = flameLen * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, 7);
+  ctx.quadraticCurveTo(0, 7 + innerLen, 0, 7 + innerLen + 1);
+  ctx.quadraticCurveTo(0, 7 + innerLen, 1, 7);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,200,0.7)';
   ctx.fill();
   ctx.restore();
 
@@ -1837,13 +2562,35 @@ function drawLandedScreen(time) {
   ctx.save();
   ctx.textAlign = 'center';
 
+  // Check for perfect landing
+  let isPerfect = false;
+  if (lander) {
+    const L = LEVELS[currentLevel];
+    let onPad = null;
+    for (const pad of terrain.pads) {
+      if (lander.x >= pad.left && lander.x <= pad.right) onPad = pad;
+    }
+    if (onPad) {
+      const precision = Math.max(0, 1 - Math.abs(lander.x - onPad.cx) / (onPad.width / 2));
+      isPerfect = precision > 0.8;
+    }
+  }
+
   // Glow effect
   const pulse = 0.7 + 0.3 * Math.sin(time * 2);
   ctx.font = `bold ${Math.min(36, w * 0.06)}px "JetBrains Mono", monospace`;
-  ctx.fillStyle = '#10b981';
-  ctx.shadowColor = '#10b981';
-  ctx.shadowBlur = 20 * pulse;
-  ctx.fillText('LANDING SUCCESSFUL', w / 2, h * 0.22);
+
+  if (isPerfect) {
+    ctx.fillStyle = '#ff6600';
+    ctx.shadowColor = '#ff6600';
+    ctx.shadowBlur = 25 * pulse;
+    ctx.fillText('PERFECT LANDING!', w / 2, h * 0.22);
+  } else {
+    ctx.fillStyle = '#10b981';
+    ctx.shadowColor = '#10b981';
+    ctx.shadowBlur = 20 * pulse;
+    ctx.fillText('LANDING SUCCESSFUL', w / 2, h * 0.22);
+  }
   ctx.shadowBlur = 0;
 
   ctx.font = 'bold 24px "JetBrains Mono", monospace';
@@ -1964,11 +2711,14 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.25) dt = 0.25;
 
+  // Apply slow motion
+  const effectiveDt = dt * slowMotionFactor;
+
   const w = canvas.width, h = canvas.height;
   const time = timestamp / 1000;
 
   if (state === 'playing') {
-    accumulator += dt;
+    accumulator += effectiveDt;
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < MAX_STEPS) {
       physicsStep(FIXED_DT);
@@ -1977,8 +2727,8 @@ function gameLoop(timestamp) {
       if (state !== 'playing') break;
     }
     if (accumulator > FIXED_DT * MAX_STEPS) accumulator = 0;
-    updateCamera(dt);
-    updateParticlesWorld(dt);
+    updateCamera(effectiveDt);
+    updateParticlesWorld(effectiveDt);
   } else if (state === 'crashed' || state === 'landed') {
     updateCamera(dt);
     updateParticlesWorld(dt);
@@ -1993,17 +2743,22 @@ function gameLoop(timestamp) {
     drawTitleScreen(time);
   } else {
     drawTerrainWorld(time);
+    if (state === 'playing') drawGhostReplay(time);
     drawParticlesWorld();
     if (lander && lander.alive) drawLanderWorld(time);
     if (state === 'playing') {
       drawPadDirectionIndicators(time);
+      drawCompassBar(time);
       drawRadar(time);
       drawHUD(time);
       drawAngleIndicator();
+      drawVSpeedIndicator();
       drawThrustGauge();
+      drawControlsOverlay(time);
     }
     if (state === 'landed') {
       if (lander) drawLanderWorld(time);
+      drawCelebrationParticles(time);
       drawHUD(time);
       drawLandedScreen(time);
     }
@@ -2020,6 +2775,22 @@ function gameLoop(timestamp) {
   if (flashAlpha > 0.01) {
     ctx.fillStyle = `rgba(255,100,20,${flashAlpha.toFixed(2)})`;
     ctx.fillRect(0, 0, w, h);
+  }
+
+  // Slow motion vignette effect
+  if (slowMotionFactor < 0.8 && state === 'playing') {
+    const vigAlpha = (1 - slowMotionFactor) * 0.15;
+    const vigGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.7);
+    vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vigGrad.addColorStop(1, `rgba(0,0,0,${vigAlpha})`);
+    ctx.fillStyle = vigGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // "CAUTION" text during slow-mo
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    ctx.fillStyle = `rgba(255,102,0,${0.3 + 0.3 * Math.sin(time * 6)})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('PROXIMITY WARNING', w / 2, 40);
   }
 
   // Watermark
@@ -2063,6 +2834,10 @@ window.addEventListener('keydown', e => {
       initLevel(currentLevel);
     }
   }
+  // Dismiss controls overlay on any key
+  if (showControlsOverlay && controlsOverlayTimer > 1) {
+    showControlsOverlay = false;
+  }
 });
 
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -2085,6 +2860,10 @@ if ('ontouchstart' in window) {
         else if (state === 'crashed') { state = 'playing'; initLevel(currentLevel); }
         else if (state === 'victory') { state = 'title'; retryBtn.style.display = 'none'; }
       }
+      // Dismiss controls overlay on touch
+      if (showControlsOverlay && controlsOverlayTimer > 1) {
+        showControlsOverlay = false;
+      }
     });
     el.addEventListener('touchend', e => { e.preventDefault(); touches[key] = false; el.classList.remove('active'); });
     el.addEventListener('touchcancel', e => { touches[key] = false; el.classList.remove('active'); });
@@ -2097,6 +2876,7 @@ if ('ontouchstart' in window) {
 
 // ---- INIT ----
 stars = generateStars();
+nebulaSeeds = generateNebulae();
 highScores = getHighScores();
 requestAnimationFrame(gameLoop);
 
