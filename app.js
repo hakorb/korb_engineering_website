@@ -214,6 +214,7 @@ const SECTIONS = {
       { name: 'Connect Four', file: './tools/misc/connect-four.html' },
       { name: 'Crossword', file: './tools/misc/crossword.html' },
       { name: 'Dev Toolkit', file: './tools/misc/dev-toolkit.html' },
+      { name: 'DFW Earth-Day Game', file: './tools/misc/dfw-earth-day-game.html' },
       { name: 'DFW Events & Deals', file: './tools/misc/dfw-events.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
