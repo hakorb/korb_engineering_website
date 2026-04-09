@@ -1,0 +1,2355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360° to BIM Model — Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+--cyan:#00d4ff;--orange:#ff6600;--green:#10b981;--red:#ef4444;
+--text:#e2e8f0;--text-dim:#64748b;--gold:#fbbf24;
+--glass:rgba(10,16,24,0.75);--glow:0 0 20px rgba(0,212,255,0.3);
+}
+html{font-size:16px}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;width:100vw}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:var(--text);font-size:.75rem}
+input,select,textarea{font-family:inherit;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:16px;outline:none}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,0.2)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
+
+.app{display:flex;height:100vh;width:100vw;position:relative}
+
+/* SIDEBAR */
+.sidebar{width:280px;min-width:280px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:20;transition:transform .3s ease}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);text-align:center}
+.sidebar-header h1{font-size:.85rem;font-weight:600;color:var(--cyan);letter-spacing:1px;text-transform:uppercase}
+.sidebar-header .subtitle{font-size:.65rem;color:var(--text-dim);margin-top:4px}
+.sidebar-content{flex:1;overflow-y:auto;padding:12px}
+.sidebar-toggle{display:none;position:fixed;top:12px;left:12px;z-index:30;width:44px;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--cyan);font-size:1.2rem;align-items:center;justify-content:center}
+
+/* Steps */
+.step-nav{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.step-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;transition:all .2s;text-align:left;min-height:44px}
+.step-btn:hover{background:var(--surface2)}
+.step-btn.active{background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3)}
+.step-btn.completed .step-num{background:var(--green);color:var(--bg)}
+.step-num{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;flex-shrink:0;transition:all .3s}
+.step-btn.active .step-num{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,0.4)}
+.step-label{font-size:.72rem;font-weight:500}
+.step-sublabel{font-size:.6rem;color:var(--text-dim);margin-top:2px}
+
+/* Panels */
+.panel{display:none;animation:fadeIn .3s ease}
+.panel.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.panel-title{font-size:.75rem;font-weight:600;color:var(--cyan);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.panel-group{margin-bottom:16px}
+.panel-group label{display:block;font-size:.65rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+
+/* Buttons */
+.btn{padding:10px 16px;border-radius:8px;font-size:.72rem;font-weight:600;transition:all .2s;display:inline-flex;align-items:center;gap:6px;min-height:44px;justify-content:center}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),#0099cc);color:var(--bg)}
+.btn-primary:hover{box-shadow:var(--glow);transform:translateY(-1px)}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--cyan)}
+.btn-danger{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:var(--red)}
+.btn-sm{padding:6px 12px;min-height:36px;font-size:.65rem}
+.btn-block{width:100%}
+.btn-group{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--cyan);background:rgba(0,212,255,0.05)}
+.drop-zone.dragover{animation:borderPulse 1s ease infinite}
+@keyframes borderPulse{0%,100%{border-color:var(--cyan)}50%{border-color:var(--orange)}}
+.drop-zone-icon{font-size:2rem;margin-bottom:8px;opacity:.6}
+.drop-zone-text{font-size:.7rem;color:var(--text-dim)}
+.drop-zone-text strong{color:var(--cyan)}
+.drop-zone input{display:none}
+
+/* Slider */
+.slider-group{margin-bottom:12px}
+.slider-group label{display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-dim);margin-bottom:6px}
+.slider-group input[type=range]{-webkit-appearance:none;width:100%;height:6px;background:var(--surface2);border-radius:3px;outline:none;border:none;padding:0}
+.slider-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--cyan);border-radius:50%;cursor:pointer;box-shadow:0 0 8px rgba(0,212,255,0.4)}
+
+/* Progress */
+.progress-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:3px;transition:width .5s ease;width:0}
+
+/* Checkbox/toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:.68rem}
+.toggle{width:36px;height:20px;background:var(--surface2);border-radius:10px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--cyan)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--text);border-radius:50%;transition:transform .2s}
+.toggle.on::after{transform:translateX(16px)}
+
+/* Main viewport */
+.main{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden}
+
+/* Toolbar */
+.toolbar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px;z-index:10;flex-shrink:0}
+.toolbar-sep{width:1px;height:24px;background:var(--border)}
+.tool-btn{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.8rem;position:relative}
+.tool-btn:hover{background:var(--surface2)}
+.tool-btn.active{background:rgba(0,212,255,0.15);color:var(--cyan);box-shadow:inset 0 0 8px rgba(0,212,255,0.2)}
+.tool-btn[title]::after{content:attr(title);position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);background:var(--surface2);color:var(--text);padding:3px 8px;border-radius:4px;font-size:.55rem;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s;border:1px solid var(--border);z-index:99}
+.tool-btn:hover[title]::after{opacity:1}
+
+/* Viewport */
+.viewport{flex:1;position:relative;background:var(--bg)}
+.viewport canvas{display:block}
+#threeContainer{width:100%;height:100%;position:absolute;top:0;left:0}
+#canvas2D{position:absolute;top:0;left:0;width:100%;height:100%;display:none}
+
+/* Empty state */
+.empty-state{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.empty-state-icon{font-size:4rem;opacity:.2;margin-bottom:16px}
+.empty-state h2{font-size:1rem;font-weight:400;color:var(--text-dim);margin-bottom:8px}
+.empty-state p{font-size:.7rem;color:var(--text-dim);opacity:.6}
+
+/* Bottom bar */
+.bottom-bar{height:80px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:8px 12px;gap:12px;z-index:10;flex-shrink:0}
+.thumb-strip{display:flex;gap:8px;flex:1;overflow-x:auto;padding:4px}
+.thumb-item{width:56px;height:56px;border-radius:6px;border:2px solid var(--border);overflow:hidden;cursor:pointer;flex-shrink:0;transition:all .2s;position:relative}
+.thumb-item:hover,.thumb-item.active{border-color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,0.3)}
+.thumb-item img{width:100%;height:100%;object-fit:cover}
+.thumb-item .thumb-remove{position:absolute;top:2px;right:2px;width:16px;height:16px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.5rem;opacity:0;transition:opacity .2s}
+.thumb-item:hover .thumb-remove{opacity:1}
+.status-bar{display:flex;gap:16px;align-items:center;font-size:.6rem;color:var(--text-dim);flex-shrink:0}
+.status-item{display:flex;align-items:center;gap:4px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+/* Loading overlay */
+.loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(5,10,15,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .3s}
+.loading-overlay.visible{opacity:1;pointer-events:all}
+.loading-building{width:200px;height:200px;position:relative;margin-bottom:24px}
+.building-line{position:absolute;background:var(--cyan);opacity:0;transition:all .5s}
+.loading-text{font-size:.8rem;color:var(--cyan);margin-bottom:12px;letter-spacing:1px}
+.loading-sub{font-size:.65rem;color:var(--text-dim)}
+
+/* Scan lines animation */
+.scan-lines{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:5;opacity:0;transition:opacity .3s}
+.scan-lines.active{opacity:1}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);animation:scanMove 2s ease-in-out infinite}
+@keyframes scanMove{0%{top:-2px}100%{top:100%}}
+
+/* Glassmorphism panels */
+.glass-panel{background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3)}
+
+/* Mini map */
+.mini-map{position:absolute;bottom:12px;right:12px;width:160px;height:120px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);z-index:15;display:none}
+.mini-map canvas{width:100%;height:100%}
+
+/* Info display */
+.info-overlay{position:absolute;top:8px;right:8px;z-index:15}
+.info-chip{background:var(--glass);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:4px 10px;font-size:.6rem;color:var(--text-dim);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.info-chip .val{color:var(--cyan)}
+
+/* Measurement overlay */
+.measure-label{position:absolute;background:rgba(251,191,36,0.9);color:var(--bg);padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:600;pointer-events:none;z-index:20;transform:translate(-50%,-50%);white-space:nowrap}
+
+/* Modal */
+.modal-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-backdrop.visible{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:.85rem;font-weight:600;color:var(--cyan);margin-bottom:16px}
+.modal-close{position:absolute;top:12px;right:12px;font-size:1.2rem;color:var(--text-dim)}
+
+/* Export card */
+.export-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;transition:all .2s}
+.export-card:hover{border-color:var(--cyan);transform:translateX(2px)}
+.export-card h4{font-size:.72rem;font-weight:600;margin-bottom:4px}
+.export-card p{font-size:.6rem;color:var(--text-dim);margin-bottom:8px}
+
+/* Symbol palette */
+.symbol-palette{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.symbol-btn{width:100%;aspect-ratio:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:.55rem;transition:all .2s;min-height:44px}
+.symbol-btn:hover,.symbol-btn.active{border-color:var(--cyan);background:rgba(0,212,255,0.08)}
+.symbol-btn svg{width:20px;height:20px;stroke:var(--text);fill:none;stroke-width:1.5}
+
+/* Neon glow effect */
+.neon-glow{box-shadow:0 0 10px rgba(0,212,255,0.3),inset 0 0 10px rgba(0,212,255,0.1)}
+
+/* Responsive */
+@media(max-width:768px){
+.sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);z-index:25}
+.sidebar.open{transform:translateX(0)}
+.sidebar-toggle{display:flex}
+.bottom-bar{height:auto;flex-wrap:wrap;padding:6px}
+.thumb-strip{order:1;width:100%}
+.status-bar{order:2;width:100%;justify-content:center}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<!-- Sidebar Toggle (mobile) -->
+<button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">&#9776;</button>
+
+<!-- Left Sidebar -->
+<div class="sidebar" id="sidebar">
+<div class="sidebar-header">
+<h1>360&deg; to BIM</h1>
+<div class="subtitle">Korb Engineering Survey Tool</div>
+</div>
+<div class="sidebar-content">
+<!-- Step Navigation -->
+<div class="step-nav">
+<button class="step-btn active" data-step="1" onclick="goToStep(1)">
+<div class="step-num">1</div>
+<div><div class="step-label">Upload &amp; Preview</div><div class="step-sublabel">360&deg; images &amp; video</div></div>
+</button>
+<button class="step-btn" data-step="2" onclick="goToStep(2)">
+<div class="step-num">2</div>
+<div><div class="step-label">Feature Detection</div><div class="step-sublabel">Point cloud generation</div></div>
+</button>
+<button class="step-btn" data-step="3" onclick="goToStep(3)">
+<div class="step-num">3</div>
+<div><div class="step-label">3D Model</div><div class="step-sublabel">Geometry &amp; editing</div></div>
+</button>
+<button class="step-btn" data-step="4" onclick="goToStep(4)">
+<div class="step-num">4</div>
+<div><div class="step-label">Floor Plan</div><div class="step-sublabel">2D site plan layout</div></div>
+</button>
+<button class="step-btn" data-step="5" onclick="goToStep(5)">
+<div class="step-num">5</div>
+<div><div class="step-label">Export</div><div class="step-sublabel">OBJ, PDF, DXF &amp; more</div></div>
+</button>
+</div>
+
+<!-- Step 1: Upload Panel -->
+<div class="panel active" id="panel1">
+<div class="panel-title">Upload 360&deg; Images</div>
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+<div class="drop-zone-icon">&#x1F4F7;</div>
+<div class="drop-zone-text"><strong>Drop files here</strong><br>or click to browse<br><br>JPG, PNG (equirectangular)<br>MP4 (video frames)</div>
+<input type="file" id="fileInput" multiple accept="image/jpeg,image/png,video/mp4">
+</div>
+<div style="margin-top:12px">
+<div class="panel-group">
+<label>Project Name</label>
+<input type="text" id="projectName" value="Untitled Survey" style="width:100%">
+</div>
+</div>
+<div id="imageMetadata" style="display:none;margin-top:12px">
+<div class="panel-title">Image Info</div>
+<div id="metadataContent" style="font-size:.65rem;color:var(--text-dim)"></div>
+</div>
+</div>
+
+<!-- Step 2: Processing Panel -->
+<div class="panel" id="panel2">
+<div class="panel-title">Feature Detection</div>
+<div class="slider-group">
+<label><span>Edge Threshold</span><span id="edgeThreshVal">30</span></label>
+<input type="range" min="5" max="100" value="30" id="edgeThreshold" oninput="document.getElementById('edgeThreshVal').textContent=this.value">
+</div>
+<div class="slider-group">
+<label><span>Min Feature Size</span><span id="minFeatVal">4</span></label>
+<input type="range" min="1" max="20" value="4" id="minFeatureSize" oninput="document.getElementById('minFeatVal').textContent=this.value">
+</div>
+<div class="slider-group">
+<label><span>Corner Sensitivity</span><span id="cornerSensVal">50</span></label>
+<input type="range" min="10" max="100" value="50" id="cornerSensitivity" oninput="document.getElementById('cornerSensVal').textContent=this.value">
+</div>
+<button class="btn btn-primary btn-block" onclick="runFeatureDetection()" id="detectBtn">
+&#x25B6; Run Detection
+</button>
+<div class="progress-bar" id="detectProgress" style="display:none"><div class="progress-fill" id="detectFill"></div></div>
+<div id="detectStatus" style="font-size:.6rem;color:var(--text-dim);margin-top:8px"></div>
+<div style="margin-top:16px">
+<div class="panel-title">Scale Reference</div>
+<p style="font-size:.6rem;color:var(--text-dim);margin-bottom:8px">Click two points in the viewer and enter the real-world distance to set scale.</p>
+<div class="panel-group">
+<label>Reference Distance (ft)</label>
+<input type="number" id="scaleDistance" value="10" min="0.1" step="0.1" style="width:100%">
+</div>
+<button class="btn btn-secondary btn-sm btn-block" onclick="startScaleMode()">&#x1F4CF; Set Scale Reference</button>
+</div>
+</div>
+
+<!-- Step 3: 3D Model Panel -->
+<div class="panel" id="panel3">
+<div class="panel-title">3D Model Controls</div>
+<div class="panel-group">
+<label>Render Mode</label>
+<div class="btn-group">
+<button class="btn btn-sm btn-secondary active" onclick="setRenderMode('solid',this)" data-mode="solid">Solid</button>
+<button class="btn btn-sm btn-secondary" onclick="setRenderMode('wireframe',this)" data-mode="wireframe">Wire</button>
+<button class="btn btn-sm btn-secondary" onclick="setRenderMode('textured',this)" data-mode="textured">Texture</button>
+</div>
+</div>
+<div class="panel-group">
+<label>Visibility</label>
+<div class="toggle-row"><span>Floor</span><div class="toggle on" data-target="floor" onclick="toggleVisibility(this)"></div></div>
+<div class="toggle-row"><span>Walls</span><div class="toggle on" data-target="walls" onclick="toggleVisibility(this)"></div></div>
+<div class="toggle-row"><span>Ceiling</span><div class="toggle on" data-target="ceiling" onclick="toggleVisibility(this)"></div></div>
+<div class="toggle-row"><span>Grid</span><div class="toggle on" data-target="grid" onclick="toggleVisibility(this)"></div></div>
+<div class="toggle-row"><span>Dimensions</span><div class="toggle on" data-target="dims" onclick="toggleVisibility(this)"></div></div>
+</div>
+<div class="panel-group">
+<label>Camera</label>
+<div class="btn-group">
+<button class="btn btn-sm btn-secondary active" onclick="setCameraType('perspective',this)">Perspective</button>
+<button class="btn btn-sm btn-secondary" onclick="setCameraType('ortho',this)">Orthographic</button>
+</div>
+</div>
+<div class="slider-group">
+<label><span>Sun Angle</span><span id="sunAngleVal">45&deg;</span></label>
+<input type="range" min="0" max="360" value="45" id="sunAngle" oninput="updateSunAngle(this.value)">
+</div>
+<div class="panel-group">
+<label>Edit Tools</label>
+<div class="btn-group" style="flex-wrap:wrap">
+<button class="btn btn-sm btn-secondary" onclick="setEditTool('move')">&#x2725; Move</button>
+<button class="btn btn-sm btn-secondary" onclick="setEditTool('addwall')">&#x271A; Add Wall</button>
+<button class="btn btn-sm btn-secondary" onclick="setEditTool('delete')">&#x2716; Delete</button>
+</div>
+</div>
+<div class="toggle-row"><span>Snap to Grid</span><div class="toggle on" data-target="snap" onclick="toggleSnap(this)"></div></div>
+<div style="margin-top:12px">
+<button class="btn btn-primary btn-block" onclick="generateModel()">&#x1F3D7; Generate 3D Model</button>
+</div>
+</div>
+
+<!-- Step 4: Floor Plan Panel -->
+<div class="panel" id="panel4">
+<div class="panel-title">2D Floor Plan</div>
+<div class="panel-group">
+<label>Layers</label>
+<div class="toggle-row"><span>Walls</span><div class="toggle on" data-layer="walls2d" onclick="toggle2DLayer(this)"></div></div>
+<div class="toggle-row"><span>Dimensions</span><div class="toggle on" data-layer="dims2d" onclick="toggle2DLayer(this)"></div></div>
+<div class="toggle-row"><span>Annotations</span><div class="toggle on" data-layer="annot2d" onclick="toggle2DLayer(this)"></div></div>
+<div class="toggle-row"><span>Grid</span><div class="toggle on" data-layer="grid2d" onclick="toggle2DLayer(this)"></div></div>
+<div class="toggle-row"><span>Symbols</span><div class="toggle on" data-layer="sym2d" onclick="toggle2DLayer(this)"></div></div>
+</div>
+<div class="panel-group">
+<label>Add Symbols</label>
+<div class="symbol-palette">
+<button class="symbol-btn" onclick="setPlanTool('door')" title="Door">
+<svg viewBox="0 0 24 24"><path d="M3 21V3h8v18M11 12h2M11 3a8 8 0 0 1 8 8"/></svg>
+Door
+</button>
+<button class="symbol-btn" onclick="setPlanTool('window')" title="Window">
+<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+Window
+</button>
+<button class="symbol-btn" onclick="setPlanTool('label')" title="Text Label">
+<svg viewBox="0 0 24 24"><text x="6" y="17" font-size="14" fill="currentColor" stroke="none">T</text></svg>
+Label
+</button>
+<button class="symbol-btn" onclick="setPlanTool('dim')" title="Dimension">
+<svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="8" x2="3" y2="16"/><line x1="21" y1="8" x2="21" y2="16"/></svg>
+Dim
+</button>
+<button class="symbol-btn" onclick="setPlanTool('wall2d')" title="Add Wall">
+<svg viewBox="0 0 24 24"><rect x="4" y="3" width="4" height="18"/></svg>
+Wall
+</button>
+<button class="symbol-btn" onclick="setPlanTool('select2d')" title="Select">
+<svg viewBox="0 0 24 24"><path d="M5 3l14 9-7 2-3 7z"/></svg>
+Select
+</button>
+</div>
+</div>
+<div class="panel-group">
+<label>Room Labels</label>
+<div id="roomLabelList" style="font-size:.65rem;color:var(--text-dim)">No rooms detected</div>
+</div>
+<div style="margin-top:12px">
+<button class="btn btn-primary btn-block" onclick="generateFloorPlan()">&#x1F4D0; Generate Floor Plan</button>
+</div>
+</div>
+
+<!-- Step 5: Export Panel -->
+<div class="panel" id="panel5">
+<div class="panel-title">3D Model Exports</div>
+<div class="export-card" onclick="exportOBJ()">
+<h4>&#x1F4E6; OBJ (Wavefront)</h4>
+<p>Standard 3D model format</p>
+<button class="btn btn-sm btn-primary">Download .obj</button>
+</div>
+<div class="export-card" onclick="exportSTL()">
+<h4>&#x1F5A8; STL</h4>
+<p>3D printing format</p>
+<button class="btn btn-sm btn-primary">Download .stl</button>
+</div>
+<div class="export-card" onclick="exportGLTF()">
+<h4>&#x1F310; glTF/GLB</h4>
+<p>Web 3D standard</p>
+<button class="btn btn-sm btn-primary">Download .gltf</button>
+</div>
+<div class="export-card" onclick="export3DScreenshot()">
+<h4>&#x1F4F8; 3D Screenshot</h4>
+<p>PNG of current 3D view</p>
+<button class="btn btn-sm btn-primary">Download .png</button>
+</div>
+
+<div class="panel-title" style="margin-top:16px">2D Plan Exports</div>
+<div class="export-card" onclick="exportPlanPDF()">
+<h4>&#x1F4C4; PDF Floor Plan</h4>
+<p>Scaled architectural drawing</p>
+<button class="btn btn-sm btn-primary">Download .pdf</button>
+</div>
+<div class="export-card" onclick="exportPlanPNG()">
+<h4>&#x1F5BC; PNG Screenshot</h4>
+<p>Floor plan image</p>
+<button class="btn btn-sm btn-primary">Download .png</button>
+</div>
+<div class="export-card" onclick="exportSVG()">
+<h4>&#x1F4D0; SVG Vector</h4>
+<p>Scalable vector graphic</p>
+<button class="btn btn-sm btn-primary">Download .svg</button>
+</div>
+<div class="export-card" onclick="exportDXF()">
+<h4>&#x1F4D0; DXF (AutoCAD)</h4>
+<p>CAD-compatible format</p>
+<button class="btn btn-sm btn-primary">Download .dxf</button>
+</div>
+
+<div class="panel-title" style="margin-top:16px">Full Report</div>
+<div class="export-card" onclick="exportReport()">
+<h4>&#x1F4CB; Survey Report PDF</h4>
+<p>Complete report with images, model, plan, and dimensions</p>
+<button class="btn btn-sm btn-primary">Generate Report</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+<!-- Toolbar -->
+<div class="toolbar">
+<button class="tool-btn active" id="tbOrbit" title="Orbit" onclick="setViewTool('orbit',this)">&#x1F504;</button>
+<button class="tool-btn" id="tbPan" title="Pan" onclick="setViewTool('pan',this)">&#x270B;</button>
+<button class="tool-btn" id="tbZoomIn" title="Zoom In" onclick="zoomIn()">&#x1F50D;</button>
+<div class="toolbar-sep"></div>
+<button class="tool-btn" id="tbMeasure" title="Measure" onclick="toggleMeasure(this)">&#x1F4CF;</button>
+<button class="tool-btn" id="tbFullscreen" title="Fullscreen" onclick="toggleFullscreen()">&#x26F6;</button>
+<div class="toolbar-sep"></div>
+<button class="tool-btn" id="tbUndo" title="Undo (Ctrl+Z)" onclick="undo()">&#x21A9;</button>
+<button class="tool-btn" id="tbRedo" title="Redo (Ctrl+Y)" onclick="redo()">&#x21AA;</button>
+<div style="flex:1"></div>
+<div class="status-item" style="font-size:.6rem;color:var(--text-dim)">
+<span id="coordDisplay">X: 0 Y: 0 Z: 0</span>
+</div>
+</div>
+
+<!-- Viewport -->
+<div class="viewport" id="viewport">
+<div id="threeContainer"></div>
+<canvas id="canvas2D"></canvas>
+<div class="scan-lines" id="scanLines">
+<div class="scan-line"></div>
+<div class="scan-line" style="animation-delay:.5s"></div>
+<div class="scan-line" style="animation-delay:1s"></div>
+</div>
+<div class="loading-overlay" id="loadingOverlay">
+<div class="loading-building" id="loadingBuilding"></div>
+<div class="loading-text" id="loadingText">Processing...</div>
+<div class="loading-sub" id="loadingSub">Analyzing image features</div>
+<div class="progress-bar" style="width:200px;margin-top:12px"><div class="progress-fill" id="loadingFill"></div></div>
+</div>
+<div class="empty-state" id="emptyState">
+<div class="empty-state-icon">&#x1F3D7;</div>
+<h2>360&deg; to BIM Model</h2>
+<p>Upload a 360&deg; panoramic image to begin</p>
+</div>
+<div class="info-overlay" id="infoOverlay" style="display:none"></div>
+<div class="mini-map" id="miniMap"><canvas id="miniMapCanvas" width="160" height="120"></canvas></div>
+</div>
+
+<!-- Bottom Bar -->
+<div class="bottom-bar">
+<div class="thumb-strip" id="thumbStrip"></div>
+<div class="status-bar">
+<div class="status-item"><div class="status-dot" id="statusDot"></div><span id="statusText">Ready</span></div>
+<div class="status-item">Zoom: <span id="zoomLevel">100%</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const STATE = {
+  step: 1,
+  images: [],
+  activeImageIdx: 0,
+  pointCloud: null,
+  model: null,
+  floorPlan: null,
+  scale: 1, // px per foot
+  scaleMode: false,
+  scalePoints: [],
+  measureMode: false,
+  measurePoints: [],
+  editTool: null,
+  planTool: 'select2d',
+  snapToGrid: true,
+  renderMode: 'solid',
+  cameraType: 'perspective',
+  visibility: { floor: true, walls: true, ceiling: true, grid: true, dims: true },
+  layers2d: { walls2d: true, dims2d: true, annot2d: true, grid2d: true, sym2d: true },
+  undoStack: [],
+  redoStack: [],
+  walls3d: [],
+  floorData: null,
+  ceilingData: null,
+  rooms: [],
+  doors2d: [],
+  windows2d: [],
+  labels2d: [],
+  dimLines2d: [],
+  walls2dData: [],
+  planOffset: { x: 0, y: 0 },
+  planZoom: 1,
+  pan2d: { dragging: false, lx: 0, ly: 0 },
+  addWallStart: null,
+  projectName: 'Untitled Survey'
+};
+
+// ============================================================
+// THREE.JS SETUP
+// ============================================================
+let scene, camera, renderer, orthoCamera, activeCamera;
+let controls = { enabled: true, rotateSpeed: 0.005, panSpeed: 0.01, zoomSpeed: 0.001 };
+let mouse = { x: 0, y: 0, down: false, button: 0, lastX: 0, lastY: 0 };
+let sphereMesh, pointCloudObj, modelGroup, gridHelper, axisHelper, sunLight;
+let ambientLight, dirLight;
+
+function initThree() {
+  const container = document.getElementById('threeContainer');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x050a0f);
+
+  const w = container.clientWidth, h = container.clientHeight;
+  camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
+  camera.position.set(0, 5, 15);
+
+  orthoCamera = new THREE.OrthographicCamera(-20, 20, 15, -15, 0.1, 1000);
+  orthoCamera.position.set(0, 50, 0);
+  orthoCamera.lookAt(0, 0, 0);
+
+  activeCamera = camera;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  ambientLight = new THREE.AmbientLight(0x404060, 0.6);
+  scene.add(ambientLight);
+
+  dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(10, 20, 10);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  scene.add(dirLight);
+
+  sunLight = dirLight;
+
+  // Grid
+  gridHelper = new THREE.GridHelper(40, 40, 0x1a2535, 0x0e1520);
+  gridHelper.visible = false;
+  scene.add(gridHelper);
+
+  // Axis helper
+  axisHelper = new THREE.AxesHelper(5);
+  axisHelper.visible = false;
+  scene.add(axisHelper);
+
+  modelGroup = new THREE.Group();
+  scene.add(modelGroup);
+
+  // Mouse controls
+  const cvs = renderer.domElement;
+  cvs.addEventListener('mousedown', onMouseDown);
+  cvs.addEventListener('mousemove', onMouseMove);
+  cvs.addEventListener('mouseup', onMouseUp);
+  cvs.addEventListener('wheel', onWheel, { passive: false });
+  cvs.addEventListener('touchstart', onTouchStart, { passive: false });
+  cvs.addEventListener('touchmove', onTouchMove, { passive: false });
+  cvs.addEventListener('touchend', onTouchEnd);
+  cvs.addEventListener('contextmenu', e => e.preventDefault());
+
+  window.addEventListener('resize', onResize);
+  animate();
+}
+
+function onResize() {
+  const container = document.getElementById('threeContainer');
+  const w = container.clientWidth, h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  const aspect = w / h;
+  orthoCamera.left = -20 * aspect;
+  orthoCamera.right = 20 * aspect;
+  orthoCamera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+
+  const c2d = document.getElementById('canvas2D');
+  c2d.width = w;
+  c2d.height = h;
+}
+
+let cameraOrbit = { theta: 0, phi: Math.PI / 4, radius: 15, target: new THREE.Vector3(0, 2, 0) };
+
+function updateCameraFromOrbit() {
+  const { theta, phi, radius, target } = cameraOrbit;
+  camera.position.set(
+    target.x + radius * Math.sin(phi) * Math.cos(theta),
+    target.y + radius * Math.cos(phi),
+    target.z + radius * Math.sin(phi) * Math.sin(theta)
+  );
+  camera.lookAt(target);
+}
+
+function onMouseDown(e) {
+  mouse.down = true;
+  mouse.button = e.button;
+  mouse.lastX = e.clientX;
+  mouse.lastY = e.clientY;
+
+  if (STATE.measureMode && STATE.step >= 2) {
+    handleMeasureClick(e);
+  }
+  if (STATE.scaleMode && STATE.step === 2) {
+    handleScaleClick(e);
+  }
+}
+
+function onMouseMove(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+
+  if (!mouse.down) {
+    updateCoordDisplay(e);
+    return;
+  }
+
+  const dx = e.clientX - mouse.lastX;
+  const dy = e.clientY - mouse.lastY;
+  mouse.lastX = e.clientX;
+  mouse.lastY = e.clientY;
+
+  if (STATE.step === 1 && sphereMesh) {
+    // Panorama view orbit
+    cameraOrbit.theta -= dx * 0.005;
+    cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbit.phi + dy * 0.005));
+    camera.position.set(
+      Math.sin(cameraOrbit.phi) * Math.cos(cameraOrbit.theta) * 0.01,
+      Math.cos(cameraOrbit.phi) * 0.01,
+      Math.sin(cameraOrbit.phi) * Math.sin(cameraOrbit.theta) * 0.01
+    );
+    camera.lookAt(0, 0, 0);
+  } else if (mouse.button === 0) {
+    // Orbit
+    cameraOrbit.theta -= dx * controls.rotateSpeed;
+    cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbit.phi + dy * controls.rotateSpeed));
+    updateCameraFromOrbit();
+  } else if (mouse.button === 2) {
+    // Pan
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    camera.getWorldDirection(new THREE.Vector3());
+    right.crossVectors(camera.up, new THREE.Vector3().subVectors(camera.position, cameraOrbit.target)).normalize();
+    up.copy(camera.up);
+    cameraOrbit.target.add(right.multiplyScalar(dx * 0.02));
+    cameraOrbit.target.add(up.multiplyScalar(-dy * 0.02));
+    updateCameraFromOrbit();
+  }
+  updateCoordDisplay(e);
+}
+
+function onMouseUp() { mouse.down = false; }
+
+function onWheel(e) {
+  e.preventDefault();
+  if (STATE.step === 1) {
+    camera.fov = Math.max(20, Math.min(120, camera.fov + e.deltaY * 0.05));
+    camera.updateProjectionMatrix();
+  } else {
+    cameraOrbit.radius = Math.max(2, Math.min(100, cameraOrbit.radius + e.deltaY * 0.01));
+    updateCameraFromOrbit();
+  }
+  document.getElementById('zoomLevel').textContent = Math.round(75 / (camera.fov || 75) * 100) + '%';
+}
+
+// Touch handlers
+let touchDist = 0;
+function onTouchStart(e) {
+  if (e.touches.length === 1) {
+    mouse.down = true;
+    mouse.button = 0;
+    mouse.lastX = e.touches[0].clientX;
+    mouse.lastY = e.touches[0].clientY;
+  } else if (e.touches.length === 2) {
+    touchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  }
+  e.preventDefault();
+}
+function onTouchMove(e) {
+  if (e.touches.length === 1 && mouse.down) {
+    const dx = e.touches[0].clientX - mouse.lastX;
+    const dy = e.touches[0].clientY - mouse.lastY;
+    mouse.lastX = e.touches[0].clientX;
+    mouse.lastY = e.touches[0].clientY;
+    if (STATE.step === 1 && sphereMesh) {
+      cameraOrbit.theta -= dx * 0.005;
+      cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbit.phi + dy * 0.005));
+      camera.position.set(Math.sin(cameraOrbit.phi) * Math.cos(cameraOrbit.theta) * 0.01, Math.cos(cameraOrbit.phi) * 0.01, Math.sin(cameraOrbit.phi) * Math.sin(cameraOrbit.theta) * 0.01);
+      camera.lookAt(0, 0, 0);
+    } else {
+      cameraOrbit.theta -= dx * 0.005;
+      cameraOrbit.phi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraOrbit.phi + dy * 0.005));
+      updateCameraFromOrbit();
+    }
+  } else if (e.touches.length === 2) {
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const delta = touchDist - d;
+    touchDist = d;
+    cameraOrbit.radius = Math.max(2, Math.min(100, cameraOrbit.radius + delta * 0.05));
+    updateCameraFromOrbit();
+  }
+  e.preventDefault();
+}
+function onTouchEnd() { mouse.down = false; }
+
+function updateCoordDisplay(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  document.getElementById('coordDisplay').textContent = `X: ${nx.toFixed(2)} Y: ${ny.toFixed(2)}`;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, activeCamera);
+}
+
+// ============================================================
+// SIDEBAR & NAVIGATION
+// ============================================================
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function goToStep(n) {
+  if (n > 1 && STATE.images.length === 0) { showToast('Upload an image first'); return; }
+  if (n > 2 && !STATE.pointCloud) { showToast('Run feature detection first'); return; }
+
+  // Mark previous steps completed
+  for (let i = 1; i < n; i++) {
+    document.querySelector(`.step-btn[data-step="${i}"]`).classList.add('completed');
+  }
+
+  STATE.step = n;
+
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.step-btn[data-step="${n}"]`).classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel${n}`).classList.add('active');
+
+  // Switch viewport
+  const c2d = document.getElementById('canvas2D');
+  const tc = document.getElementById('threeContainer');
+  const mm = document.getElementById('miniMap');
+
+  if (n === 4) {
+    c2d.style.display = 'block';
+    tc.style.display = 'none';
+    mm.style.display = 'none';
+    renderFloorPlan();
+  } else {
+    c2d.style.display = 'none';
+    tc.style.display = 'block';
+    mm.style.display = (n === 3) ? 'block' : 'none';
+  }
+
+  if (n === 1) setupPanoView();
+  if (n === 2) setupPointCloudView();
+  if (n === 3) setupModelView();
+
+  // Close sidebar on mobile
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+}
+
+// ============================================================
+// STEP 1: UPLOAD & PREVIEW
+// ============================================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    if (file.type.startsWith('image/')) {
+      loadImage(file);
+    } else if (file.type.startsWith('video/')) {
+      extractVideoFrames(file);
+    }
+  });
+}
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const entry = {
+        name: file.name,
+        dataUrl: e.target.result,
+        width: img.width,
+        height: img.height,
+        size: file.size,
+        aspect: (img.width / img.height).toFixed(2),
+        isEquirect: Math.abs(img.width / img.height - 2) < 0.1,
+        image: img
+      };
+      STATE.images.push(entry);
+      STATE.activeImageIdx = STATE.images.length - 1;
+      addThumbnail(entry, STATE.images.length - 1);
+      showMetadata(entry);
+      document.getElementById('emptyState').style.display = 'none';
+      setupPanoView();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function extractVideoFrames(file) {
+  showToast('Extracting video frames...');
+  const video = document.createElement('video');
+  video.muted = true;
+  video.src = URL.createObjectURL(file);
+  video.addEventListener('loadeddata', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    const duration = video.duration;
+    const frameCount = Math.min(8, Math.floor(duration));
+    let extracted = 0;
+
+    function grabFrame(t) {
+      video.currentTime = t;
+    }
+    video.addEventListener('seeked', () => {
+      ctx.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const img = new Image();
+      img.onload = () => {
+        const entry = {
+          name: `${file.name}_frame${extracted + 1}`,
+          dataUrl, width: img.width, height: img.height,
+          size: Math.round(dataUrl.length * 0.75),
+          aspect: (img.width / img.height).toFixed(2),
+          isEquirect: Math.abs(img.width / img.height - 2) < 0.1,
+          image: img
+        };
+        STATE.images.push(entry);
+        addThumbnail(entry, STATE.images.length - 1);
+        extracted++;
+        if (extracted < frameCount) {
+          grabFrame((extracted / frameCount) * duration);
+        } else {
+          STATE.activeImageIdx = STATE.images.length - frameCount;
+          document.getElementById('emptyState').style.display = 'none';
+          setupPanoView();
+          showToast(`Extracted ${frameCount} frames`);
+        }
+      };
+      img.src = dataUrl;
+    });
+    grabFrame(0.5);
+  });
+}
+
+function addThumbnail(entry, idx) {
+  const strip = document.getElementById('thumbStrip');
+  const div = document.createElement('div');
+  div.className = 'thumb-item' + (idx === STATE.activeImageIdx ? ' active' : '');
+  div.innerHTML = `<img src="${entry.dataUrl}" alt="${entry.name}"><div class="thumb-remove" onclick="event.stopPropagation();removeImage(${idx})">&#x2715;</div>`;
+  div.onclick = () => {
+    STATE.activeImageIdx = idx;
+    document.querySelectorAll('.thumb-item').forEach(t => t.classList.remove('active'));
+    div.classList.add('active');
+    showMetadata(entry);
+    if (STATE.step === 1) setupPanoView();
+  };
+  strip.appendChild(div);
+}
+
+function removeImage(idx) {
+  STATE.images.splice(idx, 1);
+  rebuildThumbnails();
+  if (STATE.images.length === 0) {
+    document.getElementById('emptyState').style.display = '';
+    if (sphereMesh) { scene.remove(sphereMesh); sphereMesh = null; }
+  } else {
+    STATE.activeImageIdx = Math.min(STATE.activeImageIdx, STATE.images.length - 1);
+    setupPanoView();
+  }
+}
+
+function rebuildThumbnails() {
+  const strip = document.getElementById('thumbStrip');
+  strip.innerHTML = '';
+  STATE.images.forEach((e, i) => addThumbnail(e, i));
+}
+
+function showMetadata(entry) {
+  const md = document.getElementById('imageMetadata');
+  md.style.display = 'block';
+  document.getElementById('metadataContent').innerHTML = `
+    <div style="margin-bottom:4px"><strong>${entry.name}</strong></div>
+    <div>Resolution: ${entry.width} x ${entry.height}</div>
+    <div>Size: ${(entry.size / 1024).toFixed(1)} KB</div>
+    <div>Aspect: ${entry.aspect} ${entry.isEquirect ? '<span style="color:var(--green)">&#x2714; Equirectangular</span>' : '<span style="color:var(--orange)">&#x26A0; Non-standard</span>'}</div>
+  `;
+}
+
+function setupPanoView() {
+  if (STATE.images.length === 0) return;
+  const entry = STATE.images[STATE.activeImageIdx];
+
+  // Remove old sphere
+  if (sphereMesh) scene.remove(sphereMesh);
+
+  const tex = new THREE.TextureLoader().load(entry.dataUrl);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  const geo = new THREE.SphereGeometry(50, 64, 32);
+  geo.scale(-1, 1, 1); // inside-out
+  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  sphereMesh = new THREE.Mesh(geo, mat);
+  scene.add(sphereMesh);
+
+  // Reset camera to center of sphere
+  camera.position.set(0, 0, 0.01);
+  camera.fov = 75;
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0, -1);
+  cameraOrbit.theta = 0;
+  cameraOrbit.phi = Math.PI / 2;
+
+  activeCamera = camera;
+  gridHelper.visible = false;
+  axisHelper.visible = false;
+  modelGroup.visible = false;
+  if (pointCloudObj) pointCloudObj.visible = false;
+}
+
+// ============================================================
+// STEP 2: FEATURE DETECTION & POINT CLOUD
+// ============================================================
+function runFeatureDetection() {
+  if (STATE.images.length === 0) { showToast('No image uploaded'); return; }
+  const entry = STATE.images[STATE.activeImageIdx];
+  const threshold = parseInt(document.getElementById('edgeThreshold').value);
+  const minSize = parseInt(document.getElementById('minFeatureSize').value);
+  const cornerSens = parseInt(document.getElementById('cornerSensitivity').value);
+
+  showLoading('Detecting Features', 'Running edge detection...');
+  const progBar = document.getElementById('detectProgress');
+  const progFill = document.getElementById('detectFill');
+  progBar.style.display = 'block';
+
+  // Use offscreen canvas for processing
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 800 / entry.width);
+  canvas.width = Math.round(entry.width * scale);
+  canvas.height = Math.round(entry.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(entry.image, 0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  const w = canvas.width, h = canvas.height;
+
+  // Grayscale
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    gray[i] = data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114;
+  }
+
+  // Async processing with progress
+  let step = 0;
+  const totalSteps = 4;
+
+  function nextStep() {
+    step++;
+    const pct = (step / totalSteps) * 100;
+    progFill.style.width = pct + '%';
+    document.getElementById('loadingFill').style.width = pct + '%';
+  }
+
+  setTimeout(() => {
+    // Step 1: Sobel edge detection
+    document.getElementById('loadingSub').textContent = 'Sobel edge detection...';
+    const edges = sobelEdgeDetect(gray, w, h, threshold);
+    nextStep();
+
+    setTimeout(() => {
+      // Step 2: Corner detection
+      document.getElementById('loadingSub').textContent = 'Harris corner detection...';
+      const corners = harrisCorners(gray, w, h, cornerSens / 100);
+      nextStep();
+
+      setTimeout(() => {
+        // Step 3: Line detection
+        document.getElementById('loadingSub').textContent = 'Detecting lines and surfaces...';
+        const lines = detectLines(edges, w, h, minSize);
+        nextStep();
+
+        setTimeout(() => {
+          // Step 4: Generate point cloud
+          document.getElementById('loadingSub').textContent = 'Building 3D point cloud...';
+          const points = generatePointCloud(edges, corners, lines, w, h);
+          STATE.pointCloud = points;
+          nextStep();
+
+          // Estimate room dimensions
+          estimateRoomDimensions(points);
+
+          hideLoading();
+          document.getElementById('detectStatus').innerHTML = `<span style="color:var(--green)">&#x2714; Detection complete</span><br>Points: ${points.positions.length / 3}<br>Corners: ${corners.length}<br>Lines: ${lines.length}`;
+
+          document.getElementById('scanLines').classList.remove('active');
+          setupPointCloudView();
+          goToStep(2);
+        }, 300);
+      }, 300);
+    }, 300);
+  }, 300);
+
+  document.getElementById('scanLines').classList.add('active');
+}
+
+function sobelEdgeDetect(gray, w, h, threshold) {
+  const edges = new Float32Array(w * h);
+  const edgePoints = [];
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const gx = -gray[(y - 1) * w + x - 1] + gray[(y - 1) * w + x + 1]
+               - 2 * gray[y * w + x - 1] + 2 * gray[y * w + x + 1]
+               - gray[(y + 1) * w + x - 1] + gray[(y + 1) * w + x + 1];
+      const gy = -gray[(y - 1) * w + x - 1] - 2 * gray[(y - 1) * w + x] - gray[(y - 1) * w + x + 1]
+               + gray[(y + 1) * w + x - 1] + 2 * gray[(y + 1) * w + x] + gray[(y + 1) * w + x + 1];
+      const mag = Math.sqrt(gx * gx + gy * gy);
+      edges[y * w + x] = mag;
+      if (mag > threshold) {
+        edgePoints.push({ x, y, mag, angle: Math.atan2(gy, gx) });
+      }
+    }
+  }
+  return edgePoints;
+}
+
+function harrisCorners(gray, w, h, sensitivity) {
+  const corners = [];
+  const k = 0.04;
+  const windowSize = 3;
+  const halfW = Math.floor(windowSize / 2);
+  const thresh = sensitivity * 5000;
+
+  // Compute gradients
+  for (let y = halfW + 1; y < h - halfW - 1; y += 3) {
+    for (let x = halfW + 1; x < w - halfW - 1; x += 3) {
+      let Ixx = 0, Iyy = 0, Ixy = 0;
+      for (let wy = -halfW; wy <= halfW; wy++) {
+        for (let wx = -halfW; wx <= halfW; wx++) {
+          const idx = (y + wy) * w + (x + wx);
+          const ix = gray[idx + 1] - gray[idx - 1];
+          const iy = gray[idx + w] - gray[idx - w];
+          Ixx += ix * ix;
+          Iyy += iy * iy;
+          Ixy += ix * iy;
+        }
+      }
+      const det = Ixx * Iyy - Ixy * Ixy;
+      const trace = Ixx + Iyy;
+      const R = det - k * trace * trace;
+      if (R > thresh) {
+        corners.push({ x, y, strength: R });
+      }
+    }
+  }
+  return corners.sort((a, b) => b.strength - a.strength).slice(0, 500);
+}
+
+function detectLines(edges, w, h, minSize) {
+  const lines = [];
+  // Simple line grouping: cluster edge points by angle
+  const vLines = edges.filter(e => Math.abs(Math.cos(e.angle)) < 0.3);
+  const hLines = edges.filter(e => Math.abs(Math.sin(e.angle)) < 0.3);
+
+  // Group vertical lines by x-coordinate
+  const vBuckets = {};
+  vLines.forEach(p => {
+    const bx = Math.round(p.x / minSize) * minSize;
+    if (!vBuckets[bx]) vBuckets[bx] = [];
+    vBuckets[bx].push(p);
+  });
+  Object.values(vBuckets).forEach(pts => {
+    if (pts.length >= minSize * 2) {
+      pts.sort((a, b) => a.y - b.y);
+      lines.push({ type: 'vertical', x: pts[0].x, y1: pts[0].y, y2: pts[pts.length - 1].y, points: pts.length });
+    }
+  });
+
+  // Group horizontal lines
+  const hBuckets = {};
+  hLines.forEach(p => {
+    const by = Math.round(p.y / minSize) * minSize;
+    if (!hBuckets[by]) hBuckets[by] = [];
+    hBuckets[by].push(p);
+  });
+  Object.values(hBuckets).forEach(pts => {
+    if (pts.length >= minSize * 2) {
+      pts.sort((a, b) => a.x - b.x);
+      lines.push({ type: 'horizontal', y: pts[0].y, x1: pts[0].x, x2: pts[pts.length - 1].x, points: pts.length });
+    }
+  });
+
+  return lines;
+}
+
+function generatePointCloud(edges, corners, lines, w, h) {
+  const positions = [];
+  const colors = [];
+
+  // Convert edge points to 3D spherical coordinates
+  const sampleRate = Math.max(1, Math.floor(edges.length / 3000));
+  for (let i = 0; i < edges.length; i += sampleRate) {
+    const e = edges[i];
+    const theta = (e.x / w) * Math.PI * 2 - Math.PI;
+    const phi = (e.y / h) * Math.PI;
+    const r = 8 + Math.random() * 2;
+    positions.push(
+      r * Math.sin(phi) * Math.cos(theta),
+      r * Math.cos(phi),
+      r * Math.sin(phi) * Math.sin(theta)
+    );
+    // Color by angle: cyan for vertical, orange for horizontal
+    if (Math.abs(Math.cos(e.angle)) < 0.3) {
+      colors.push(0, 0.83, 1); // cyan
+    } else if (Math.abs(Math.sin(e.angle)) < 0.3) {
+      colors.push(1, 0.4, 0); // orange
+    } else {
+      colors.push(0.06, 0.73, 0.51); // green
+    }
+  }
+
+  // Add corner points (brighter, gold)
+  corners.forEach(c => {
+    const theta = (c.x / w) * Math.PI * 2 - Math.PI;
+    const phi = (c.y / h) * Math.PI;
+    const r = 8;
+    positions.push(r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
+    colors.push(0.98, 0.75, 0.14); // gold
+  });
+
+  return { positions: new Float32Array(positions), colors: new Float32Array(colors), lines, corners, w, h };
+}
+
+function estimateRoomDimensions(pc) {
+  // Estimate dimensions from point cloud spread
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const pos = pc.positions;
+  for (let i = 0; i < pos.length; i += 3) {
+    minX = Math.min(minX, pos[i]);
+    maxX = Math.max(maxX, pos[i]);
+    minY = Math.min(minY, pos[i + 1]);
+    maxY = Math.max(maxY, pos[i + 1]);
+    minZ = Math.min(minZ, pos[i + 2]);
+    maxZ = Math.max(maxZ, pos[i + 2]);
+  }
+
+  const roomWidth = (maxX - minX) * STATE.scale;
+  const roomDepth = (maxZ - minZ) * STATE.scale;
+  const roomHeight = (maxY - minY) * STATE.scale;
+
+  STATE.rooms = [{
+    name: 'Room 1',
+    width: parseFloat(roomWidth.toFixed(1)),
+    depth: parseFloat(roomDepth.toFixed(1)),
+    height: parseFloat(roomHeight.toFixed(1)),
+    center: { x: (minX + maxX) / 2, y: 0, z: (minZ + maxZ) / 2 },
+    bounds: { minX, maxX, minY, maxY, minZ, maxZ }
+  }];
+}
+
+function setupPointCloudView() {
+  if (!STATE.pointCloud) return;
+
+  if (sphereMesh) sphereMesh.visible = false;
+  if (pointCloudObj) scene.remove(pointCloudObj);
+  modelGroup.visible = false;
+
+  const pc = STATE.pointCloud;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pc.positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(pc.colors, 3));
+
+  const mat = new THREE.PointsMaterial({ size: 0.15, vertexColors: true, transparent: true, opacity: 0 });
+  pointCloudObj = new THREE.Points(geo, mat);
+  scene.add(pointCloudObj);
+
+  // Animate points flying in
+  let t = 0;
+  const flyIn = () => {
+    t += 0.02;
+    if (t >= 1) {
+      mat.opacity = 1;
+      return;
+    }
+    mat.opacity = t;
+    mat.size = 0.15 + (1 - t) * 0.5;
+    requestAnimationFrame(flyIn);
+  };
+  flyIn();
+
+  gridHelper.visible = true;
+  axisHelper.visible = true;
+  activeCamera = camera;
+  cameraOrbit = { theta: 0.5, phi: Math.PI / 3, radius: 20, target: new THREE.Vector3(0, 2, 0) };
+  updateCameraFromOrbit();
+}
+
+// Scale reference mode
+function startScaleMode() {
+  STATE.scaleMode = true;
+  STATE.scalePoints = [];
+  showToast('Click two points to set scale reference');
+}
+
+function handleScaleClick(e) {
+  if (STATE.scalePoints.length >= 2) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
+  if (pointCloudObj) {
+    const intersects = raycaster.intersectObject(pointCloudObj);
+    if (intersects.length > 0) {
+      STATE.scalePoints.push(intersects[0].point.clone());
+      if (STATE.scalePoints.length === 2) {
+        const dist3d = STATE.scalePoints[0].distanceTo(STATE.scalePoints[1]);
+        const refDist = parseFloat(document.getElementById('scaleDistance').value);
+        STATE.scale = refDist / dist3d;
+        STATE.scaleMode = false;
+        showToast(`Scale set: 1 unit = ${STATE.scale.toFixed(2)} ft`);
+      }
+    }
+  }
+}
+
+// ============================================================
+// STEP 3: 3D MODEL GENERATION
+// ============================================================
+function generateModel() {
+  if (!STATE.pointCloud) { showToast('Run feature detection first'); return; }
+
+  showLoading('Building 3D Model', 'Generating geometry...');
+
+  setTimeout(() => {
+    // Clear existing model
+    while (modelGroup.children.length > 0) modelGroup.remove(modelGroup.children[0]);
+    STATE.walls3d = [];
+
+    const room = STATE.rooms[0];
+    if (!room) { hideLoading(); return; }
+
+    const b = room.bounds;
+    const wallH = (b.maxY - b.minY) || 8;
+    const sf = STATE.scale || 1;
+
+    // Normalize bounds to reasonable room size
+    const cx = (b.minX + b.maxX) / 2;
+    const cz = (b.minZ + b.maxZ) / 2;
+    const hw = Math.max((b.maxX - b.minX) / 2, 4);
+    const hd = Math.max((b.maxZ - b.minZ) / 2, 4);
+    const wh = Math.max(wallH, 3);
+
+    // Materials
+    const wallMat = new THREE.MeshPhongMaterial({ color: 0x1a2535, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+    const floorMat = new THREE.MeshPhongMaterial({ color: 0x0e1520, side: THREE.DoubleSide });
+    const ceilMat = new THREE.MeshPhongMaterial({ color: 0x0a1018, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+
+    // Floor
+    const floorGeo = new THREE.PlaneGeometry(hw * 2, hd * 2);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(cx, 0, cz);
+    floor.receiveShadow = true;
+    floor.userData = { type: 'floor' };
+    modelGroup.add(floor);
+    STATE.floorData = floor;
+
+    // Ceiling
+    const ceilGeo = new THREE.PlaneGeometry(hw * 2, hd * 2);
+    const ceil = new THREE.Mesh(ceilGeo, ceilMat);
+    ceil.rotation.x = Math.PI / 2;
+    ceil.position.set(cx, wh, cz);
+    ceil.userData = { type: 'ceiling' };
+    modelGroup.add(ceil);
+    STATE.ceilingData = ceil;
+
+    // Walls
+    const wallDefs = [
+      { pos: [cx, wh / 2, cz - hd], rot: [0, 0, 0], size: [hw * 2, wh] }, // back
+      { pos: [cx, wh / 2, cz + hd], rot: [0, Math.PI, 0], size: [hw * 2, wh] }, // front
+      { pos: [cx - hw, wh / 2, cz], rot: [0, Math.PI / 2, 0], size: [hd * 2, wh] }, // left
+      { pos: [cx + hw, wh / 2, cz], rot: [0, -Math.PI / 2, 0], size: [hd * 2, wh] }, // right
+    ];
+
+    wallDefs.forEach((wd, i) => {
+      const wGeo = new THREE.PlaneGeometry(wd.size[0], wd.size[1]);
+      const wall = new THREE.Mesh(wGeo, wallMat.clone());
+      wall.position.set(...wd.pos);
+      wall.rotation.set(...wd.rot);
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      wall.userData = { type: 'wall', index: i, width: wd.size[0], height: wd.size[1] };
+      modelGroup.add(wall);
+      STATE.walls3d.push(wall);
+    });
+
+    // Add door opening (cutout approximation — we just add a door frame mesh)
+    const doorW = 3, doorH = wh * 0.85;
+    const doorFrame = new THREE.Mesh(
+      new THREE.PlaneGeometry(doorW, doorH),
+      new THREE.MeshPhongMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+    );
+    doorFrame.position.set(cx, doorH / 2, cz + hd - 0.01);
+    doorFrame.rotation.y = Math.PI;
+    doorFrame.userData = { type: 'door' };
+    modelGroup.add(doorFrame);
+    STATE.doors2d.push({ x: cx, z: cz + hd, width: doorW, wall: 'front' });
+
+    // Add window
+    const winW = 4, winH = 3;
+    const winFrame = new THREE.Mesh(
+      new THREE.PlaneGeometry(winW, winH),
+      new THREE.MeshPhongMaterial({ color: 0x10b981, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+    );
+    winFrame.position.set(cx + hw - 0.01, wh * 0.5, cz);
+    winFrame.rotation.y = -Math.PI / 2;
+    winFrame.userData = { type: 'window' };
+    modelGroup.add(winFrame);
+    STATE.windows2d.push({ x: cx + hw, z: cz, width: winW, wall: 'right' });
+
+    // Animate walls rising
+    modelGroup.children.forEach((child, i) => {
+      if (child.userData.type === 'wall' || child.userData.type === 'door' || child.userData.type === 'window') {
+        const targetY = child.position.y;
+        child.position.y = -5;
+        child.material.opacity = 0;
+        const delay = i * 150;
+        setTimeout(() => {
+          animateValue(child.position, 'y', -5, targetY, 800);
+          animateValue(child.material, 'opacity', 0, child.userData.type === 'wall' ? 0.85 : 0.2, 800);
+        }, delay);
+      }
+    });
+
+    // Update room data for floor plan
+    STATE.rooms[0].bounds2d = {
+      x: cx - hw, z: cz - hd,
+      w: hw * 2, d: hd * 2,
+      wallH: wh
+    };
+
+    // Set up walls2d for floor plan
+    STATE.walls2dData = [
+      { x1: cx - hw, z1: cz - hd, x2: cx + hw, z2: cz - hd, thickness: 0.5 },
+      { x1: cx + hw, z1: cz - hd, x2: cx + hw, z2: cz + hd, thickness: 0.5 },
+      { x1: cx + hw, z1: cz + hd, x2: cx - hw, z2: cz + hd, thickness: 0.5 },
+      { x1: cx - hw, z1: cz + hd, x2: cx - hw, z2: cz - hd, thickness: 0.5 },
+    ];
+
+    // Room labels
+    const rl = document.getElementById('roomLabelList');
+    rl.innerHTML = STATE.rooms.map((r, i) => `
+      <div style="margin-bottom:4px">
+        <input type="text" value="${r.name}" style="width:100%;font-size:.65rem" onchange="STATE.rooms[${i}].name=this.value">
+        <div style="color:var(--text-dim);font-size:.58rem">${(r.bounds2d.w * sf).toFixed(1)}' x ${(r.bounds2d.d * sf).toFixed(1)}' x ${(r.bounds2d.wallH * sf).toFixed(1)}'h</div>
+      </div>
+    `).join('');
+
+    hideLoading();
+    setupModelView();
+
+    // Cinematic orbit
+    setTimeout(() => cinematicOrbit(), 1200);
+  }, 500);
+}
+
+function animateValue(obj, prop, from, to, duration) {
+  const start = performance.now();
+  const update = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    obj[prop] = from + (to - from) * ease;
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+function cinematicOrbit() {
+  const start = performance.now();
+  const duration = 3000;
+  const startTheta = cameraOrbit.theta;
+  const update = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    cameraOrbit.theta = startTheta + ease * Math.PI * 0.5;
+    updateCameraFromOrbit();
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+function setupModelView() {
+  if (sphereMesh) sphereMesh.visible = false;
+  if (pointCloudObj) pointCloudObj.visible = false;
+  modelGroup.visible = true;
+  gridHelper.visible = STATE.visibility.grid;
+  axisHelper.visible = true;
+
+  activeCamera = camera;
+  cameraOrbit = { theta: 0.8, phi: Math.PI / 4, radius: 25, target: new THREE.Vector3(0, 3, 0) };
+  updateCameraFromOrbit();
+
+  document.getElementById('miniMap').style.display = 'block';
+  updateMiniMap();
+}
+
+function setRenderMode(mode, btn) {
+  STATE.renderMode = mode;
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  modelGroup.children.forEach(child => {
+    if (child.material) {
+      child.material.wireframe = mode === 'wireframe';
+    }
+  });
+}
+
+function toggleVisibility(el) {
+  el.classList.toggle('on');
+  const target = el.dataset.target;
+  STATE.visibility[target] = el.classList.contains('on');
+
+  modelGroup.children.forEach(child => {
+    if (target === 'floor' && child.userData.type === 'floor') child.visible = STATE.visibility.floor;
+    if (target === 'walls' && (child.userData.type === 'wall' || child.userData.type === 'door' || child.userData.type === 'window')) child.visible = STATE.visibility.walls;
+    if (target === 'ceiling' && child.userData.type === 'ceiling') child.visible = STATE.visibility.ceiling;
+  });
+  if (target === 'grid') gridHelper.visible = STATE.visibility.grid;
+}
+
+function setCameraType(type, btn) {
+  STATE.cameraType = type;
+  document.querySelectorAll('[onclick*="setCameraType"]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  if (type === 'ortho') {
+    activeCamera = orthoCamera;
+    orthoCamera.position.set(0, 30, 0);
+    orthoCamera.lookAt(0, 0, 0);
+  } else {
+    activeCamera = camera;
+    updateCameraFromOrbit();
+  }
+}
+
+function updateSunAngle(val) {
+  const rad = (val / 180) * Math.PI;
+  sunLight.position.set(Math.cos(rad) * 20, 20, Math.sin(rad) * 20);
+  document.getElementById('sunAngleVal').textContent = val + '\u00B0';
+}
+
+function setEditTool(tool) { STATE.editTool = tool; showToast(`Edit tool: ${tool}`); }
+function toggleSnap(el) { el.classList.toggle('on'); STATE.snapToGrid = el.classList.contains('on'); }
+
+function updateMiniMap() {
+  const canvas = document.getElementById('miniMapCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050a0f';
+  ctx.fillRect(0, 0, 160, 120);
+
+  if (STATE.rooms.length > 0 && STATE.rooms[0].bounds2d) {
+    const r = STATE.rooms[0].bounds2d;
+    const scale = Math.min(140 / r.w, 100 / r.d);
+    const ox = 80 - (r.w * scale) / 2 - r.x * scale;
+    const oz = 60 - (r.d * scale) / 2 - r.z * scale;
+
+    ctx.strokeStyle = '#1a2535';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(r.x * scale + ox, r.z * scale + oz, r.w * scale, r.d * scale);
+
+    // Camera position dot
+    ctx.fillStyle = '#00d4ff';
+    ctx.beginPath();
+    const camX = camera.position.x * scale + ox;
+    const camZ = camera.position.z * scale + oz;
+    ctx.arc(Math.max(0, Math.min(160, camX)), Math.max(0, Math.min(120, camZ)), 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (STATE.step === 3) requestAnimationFrame(updateMiniMap);
+}
+
+// ============================================================
+// STEP 4: 2D FLOOR PLAN
+// ============================================================
+const canvas2D = document.getElementById('canvas2D');
+const ctx2D = canvas2D.getContext('2d');
+
+function generateFloorPlan() {
+  if (STATE.rooms.length === 0) { showToast('Generate 3D model first'); return; }
+  goToStep(4);
+}
+
+// 2D canvas mouse handling
+canvas2D.addEventListener('mousedown', on2DMouseDown);
+canvas2D.addEventListener('mousemove', on2DMouseMove);
+canvas2D.addEventListener('mouseup', on2DMouseUp);
+canvas2D.addEventListener('wheel', on2DWheel, { passive: false });
+
+function on2DMouseDown(e) {
+  const p = screen2DToWorld(e.offsetX, e.offsetY);
+  if (STATE.planTool === 'door') {
+    STATE.doors2d.push({ x: p.x, z: p.y, width: 3, wall: 'manual' });
+    renderFloorPlan();
+  } else if (STATE.planTool === 'window') {
+    STATE.windows2d.push({ x: p.x, z: p.y, width: 4, wall: 'manual' });
+    renderFloorPlan();
+  } else if (STATE.planTool === 'label') {
+    const text = prompt('Enter label text:', 'Room');
+    if (text) {
+      STATE.labels2d.push({ x: p.x, y: p.y, text });
+      renderFloorPlan();
+    }
+  } else if (STATE.planTool === 'dim') {
+    if (!STATE.addWallStart) {
+      STATE.addWallStart = p;
+    } else {
+      STATE.dimLines2d.push({ x1: STATE.addWallStart.x, z1: STATE.addWallStart.y, x2: p.x, z2: p.y });
+      STATE.addWallStart = null;
+      renderFloorPlan();
+    }
+  } else if (STATE.planTool === 'wall2d') {
+    if (!STATE.addWallStart) {
+      STATE.addWallStart = p;
+    } else {
+      STATE.walls2dData.push({ x1: STATE.addWallStart.x, z1: STATE.addWallStart.y, x2: p.x, z2: p.y, thickness: 0.5 });
+      STATE.addWallStart = null;
+      renderFloorPlan();
+    }
+  } else {
+    STATE.pan2d.dragging = true;
+    STATE.pan2d.lx = e.offsetX;
+    STATE.pan2d.ly = e.offsetY;
+  }
+}
+function on2DMouseMove(e) {
+  if (STATE.pan2d.dragging) {
+    STATE.planOffset.x += e.offsetX - STATE.pan2d.lx;
+    STATE.planOffset.y += e.offsetY - STATE.pan2d.ly;
+    STATE.pan2d.lx = e.offsetX;
+    STATE.pan2d.ly = e.offsetY;
+    renderFloorPlan();
+  }
+}
+function on2DMouseUp() { STATE.pan2d.dragging = false; }
+function on2DWheel(e) {
+  e.preventDefault();
+  STATE.planZoom = Math.max(0.2, Math.min(5, STATE.planZoom - e.deltaY * 0.001));
+  renderFloorPlan();
+}
+
+function screen2DToWorld(sx, sy) {
+  const cw = canvas2D.width, ch = canvas2D.height;
+  return {
+    x: (sx - cw / 2 - STATE.planOffset.x) / (STATE.planZoom * 20),
+    y: (sy - ch / 2 - STATE.planOffset.y) / (STATE.planZoom * 20)
+  };
+}
+function world2DToScreen(wx, wy) {
+  const cw = canvas2D.width, ch = canvas2D.height;
+  return {
+    x: wx * STATE.planZoom * 20 + cw / 2 + STATE.planOffset.x,
+    y: wy * STATE.planZoom * 20 + ch / 2 + STATE.planOffset.y
+  };
+}
+
+function renderFloorPlan() {
+  const c = canvas2D;
+  c.width = c.parentElement.clientWidth;
+  c.height = c.parentElement.clientHeight;
+  const ctx = ctx2D;
+  const w = c.width, h = c.height;
+
+  ctx.fillStyle = '#050a0f';
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.translate(w / 2 + STATE.planOffset.x, h / 2 + STATE.planOffset.y);
+  const s = STATE.planZoom * 20;
+
+  // Grid
+  if (STATE.layers2d.grid2d) {
+    ctx.strokeStyle = '#0e1520';
+    ctx.lineWidth = 0.5;
+    const gridSize = 50;
+    for (let i = -gridSize; i <= gridSize; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * s, -gridSize * s);
+      ctx.lineTo(i * s, gridSize * s);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-gridSize * s, i * s);
+      ctx.lineTo(gridSize * s, i * s);
+      ctx.stroke();
+    }
+  }
+
+  // Walls
+  if (STATE.layers2d.walls2d) {
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = Math.max(3, 8 * STATE.planZoom);
+    ctx.lineCap = 'square';
+    STATE.walls2dData.forEach(wall => {
+      ctx.beginPath();
+      ctx.moveTo(wall.x1 * s, wall.z1 * s);
+      ctx.lineTo(wall.x2 * s, wall.z2 * s);
+      ctx.stroke();
+    });
+  }
+
+  // Doors (arc symbol)
+  if (STATE.layers2d.sym2d) {
+    STATE.doors2d.forEach(d => {
+      const dx = d.x * s, dz = d.z * s;
+      const dw = (d.width || 3) * s;
+
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2;
+      // Door gap
+      ctx.fillStyle = '#050a0f';
+      ctx.fillRect(dx - dw / 2, dz - 4, dw, 8);
+      // Arc swing
+      ctx.beginPath();
+      ctx.arc(dx - dw / 2, dz, dw, -Math.PI / 2, 0);
+      ctx.stroke();
+      // Door leaf line
+      ctx.beginPath();
+      ctx.moveTo(dx - dw / 2, dz);
+      ctx.lineTo(dx - dw / 2, dz - dw);
+      ctx.stroke();
+    });
+
+    // Windows
+    STATE.windows2d.forEach(win => {
+      const wx = win.x * s, wz = win.z * s;
+      const ww = (win.width || 4) * s;
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      // Window gap
+      ctx.fillStyle = '#050a0f';
+      ctx.fillRect(wx - 4, wz - ww / 2, 8, ww);
+      // Window lines
+      ctx.beginPath();
+      ctx.moveTo(wx - 6, wz - ww / 2);
+      ctx.lineTo(wx + 6, wz - ww / 2);
+      ctx.moveTo(wx - 6, wz + ww / 2);
+      ctx.lineTo(wx + 6, wz + ww / 2);
+      ctx.moveTo(wx, wz - ww / 2);
+      ctx.lineTo(wx, wz + ww / 2);
+      ctx.stroke();
+    });
+  }
+
+  // Dimension lines
+  if (STATE.layers2d.dims2d && STATE.rooms.length > 0) {
+    const sf = STATE.scale || 1;
+    STATE.walls2dData.forEach(wall => {
+      const mx = (wall.x1 + wall.x2) / 2 * s;
+      const mz = (wall.z1 + wall.z2) / 2 * s;
+      const len = Math.sqrt(Math.pow(wall.x2 - wall.x1, 2) + Math.pow(wall.z2 - wall.z1, 2)) * sf;
+
+      // Offset dimension line
+      const dx = wall.x2 - wall.x1, dz = wall.z2 - wall.z1;
+      const mag = Math.sqrt(dx * dx + dz * dz);
+      if (mag === 0) return;
+      const nx = -dz / mag * 20, nz = dx / mag * 20;
+
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      // Dimension line
+      ctx.beginPath();
+      ctx.moveTo(wall.x1 * s + nx, wall.z1 * s + nz);
+      ctx.lineTo(wall.x2 * s + nx, wall.z2 * s + nz);
+      ctx.stroke();
+      // Tick marks
+      ctx.beginPath();
+      ctx.moveTo(wall.x1 * s + nx * 0.5, wall.z1 * s + nz * 0.5);
+      ctx.lineTo(wall.x1 * s + nx * 1.5, wall.z1 * s + nz * 1.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(wall.x2 * s + nx * 0.5, wall.z2 * s + nz * 0.5);
+      ctx.lineTo(wall.x2 * s + nx * 1.5, wall.z2 * s + nz * 1.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Dimension text
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = `${Math.max(10, 12 * STATE.planZoom)}px JetBrains Mono`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${len.toFixed(1)}'`, mx + nx * 1.5, mz + nz * 1.5 - 4);
+    });
+
+    // Custom dimension lines
+    STATE.dimLines2d.forEach(dim => {
+      const len = Math.sqrt(Math.pow(dim.x2 - dim.x1, 2) + Math.pow(dim.z2 - dim.z1, 2)) * sf;
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(dim.x1 * s, dim.z1 * s);
+      ctx.lineTo(dim.x2 * s, dim.z2 * s);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = `${Math.max(10, 12 * STATE.planZoom)}px JetBrains Mono`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${len.toFixed(1)}'`, (dim.x1 + dim.x2) / 2 * s, (dim.z1 + dim.z2) / 2 * s - 8);
+    });
+  }
+
+  // Room labels
+  if (STATE.layers2d.annot2d) {
+    STATE.rooms.forEach(r => {
+      if (!r.bounds2d) return;
+      const cx = (r.bounds2d.x + r.bounds2d.w / 2) * s;
+      const cz = (r.bounds2d.z + r.bounds2d.d / 2) * s;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = `bold ${Math.max(12, 14 * STATE.planZoom)}px JetBrains Mono`;
+      ctx.textAlign = 'center';
+      ctx.fillText(r.name, cx, cz);
+      ctx.font = `${Math.max(10, 11 * STATE.planZoom)}px JetBrains Mono`;
+      ctx.fillStyle = '#64748b';
+      const sf = STATE.scale || 1;
+      ctx.fillText(`${(r.bounds2d.w * sf).toFixed(1)}' x ${(r.bounds2d.d * sf).toFixed(1)}'`, cx, cz + 18 * STATE.planZoom);
+    });
+
+    // Custom labels
+    STATE.labels2d.forEach(l => {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = `${Math.max(10, 12 * STATE.planZoom)}px JetBrains Mono`;
+      ctx.textAlign = 'center';
+      ctx.fillText(l.text, l.x * s, l.y * s);
+    });
+  }
+
+  // North arrow
+  ctx.save();
+  ctx.translate(-w / 2 - STATE.planOffset.x + 40, -h / 2 - STATE.planOffset.y + 50);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(8, 10);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(-8, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = 'bold 12px JetBrains Mono';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', 0, -24);
+  ctx.restore();
+
+  // Scale bar
+  ctx.save();
+  ctx.translate(-w / 2 - STATE.planOffset.x + 20, h / 2 + STATE.planOffset.y - 30);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  const sbLen = 10 * s * (STATE.scale || 1);
+  const sbPx = Math.min(sbLen, 120);
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(sbPx, 0);
+  ctx.moveTo(0, -5); ctx.lineTo(0, 5);
+  ctx.moveTo(sbPx, -5); ctx.lineTo(sbPx, 5);
+  ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '10px JetBrains Mono';
+  ctx.textAlign = 'center';
+  const scaleFt = (sbPx / (s * (STATE.scale || 1))).toFixed(0);
+  ctx.fillText(`${scaleFt} ft`, sbPx / 2, -8);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function toggle2DLayer(el) {
+  el.classList.toggle('on');
+  const layer = el.dataset.layer;
+  STATE.layers2d[layer] = el.classList.contains('on');
+  renderFloorPlan();
+}
+
+function setPlanTool(tool) {
+  STATE.planTool = tool;
+  STATE.addWallStart = null;
+  document.querySelectorAll('.symbol-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  showToast(`Plan tool: ${tool}`);
+}
+
+// ============================================================
+// STEP 5: EXPORTS
+// ============================================================
+function exportOBJ() {
+  if (!STATE.rooms.length) { showToast('Generate model first'); return; }
+  let obj = '# Korb Engineering 360 to BIM Export\n# Generated: ' + new Date().toISOString() + '\n\n';
+  let vertIdx = 1;
+
+  modelGroup.children.forEach(child => {
+    if (!child.geometry) return;
+    const pos = child.geometry.attributes.position;
+    const matrix = child.matrixWorld;
+
+    obj += `o ${child.userData.type || 'object'}\n`;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(matrix);
+      obj += `v ${v.x.toFixed(4)} ${v.y.toFixed(4)} ${v.z.toFixed(4)}\n`;
+    }
+
+    const idx = child.geometry.index;
+    if (idx) {
+      for (let i = 0; i < idx.count; i += 3) {
+        obj += `f ${idx.getX(i) + vertIdx} ${idx.getX(i + 1) + vertIdx} ${idx.getX(i + 2) + vertIdx}\n`;
+      }
+    } else {
+      for (let i = 0; i < pos.count; i += 3) {
+        obj += `f ${i + vertIdx} ${i + 1 + vertIdx} ${i + 2 + vertIdx}\n`;
+      }
+    }
+    vertIdx += pos.count;
+    obj += '\n';
+  });
+
+  downloadFile(obj, `${STATE.projectName.replace(/\s+/g, '_')}_model.obj`, 'text/plain');
+}
+
+function exportSTL() {
+  if (!STATE.rooms.length) { showToast('Generate model first'); return; }
+  let stl = 'solid KorbBIM\n';
+
+  modelGroup.children.forEach(child => {
+    if (!child.geometry) return;
+    const pos = child.geometry.attributes.position;
+    const matrix = child.matrixWorld;
+    const normals = child.geometry.attributes.normal;
+
+    const idx = child.geometry.index;
+    const getVert = (i) => new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(matrix);
+
+    if (idx) {
+      for (let i = 0; i < idx.count; i += 3) {
+        const a = getVert(idx.getX(i)), b = getVert(idx.getX(i + 1)), c = getVert(idx.getX(i + 2));
+        const n = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(b, a), new THREE.Vector3().subVectors(c, a)).normalize();
+        stl += `facet normal ${n.x} ${n.y} ${n.z}\n  outer loop\n    vertex ${a.x} ${a.y} ${a.z}\n    vertex ${b.x} ${b.y} ${b.z}\n    vertex ${c.x} ${c.y} ${c.z}\n  endloop\nendfacet\n`;
+      }
+    } else {
+      for (let i = 0; i < pos.count; i += 3) {
+        const a = getVert(i), b = getVert(i + 1), c = getVert(i + 2);
+        const n = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(b, a), new THREE.Vector3().subVectors(c, a)).normalize();
+        stl += `facet normal ${n.x} ${n.y} ${n.z}\n  outer loop\n    vertex ${a.x} ${a.y} ${a.z}\n    vertex ${b.x} ${b.y} ${b.z}\n    vertex ${c.x} ${c.y} ${c.z}\n  endloop\nendfacet\n`;
+      }
+    }
+  });
+
+  stl += 'endsolid KorbBIM\n';
+  downloadFile(stl, `${STATE.projectName.replace(/\s+/g, '_')}_model.stl`, 'text/plain');
+}
+
+function exportGLTF() {
+  if (!STATE.rooms.length) { showToast('Generate model first'); return; }
+  // Simple glTF JSON export
+  const nodes = [];
+  const meshes = [];
+  const accessors = [];
+  const bufferViews = [];
+  const buffers = [];
+  let totalByteLength = 0;
+  const binChunks = [];
+
+  modelGroup.children.forEach((child, ci) => {
+    if (!child.geometry) return;
+    const pos = child.geometry.attributes.position;
+    const arr = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      arr[i * 3] = pos.getX(i);
+      arr[i * 3 + 1] = pos.getY(i);
+      arr[i * 3 + 2] = pos.getZ(i);
+    }
+
+    const bvIdx = bufferViews.length;
+    bufferViews.push({ buffer: 0, byteOffset: totalByteLength, byteLength: arr.byteLength });
+    accessors.push({ bufferView: bvIdx, componentType: 5126, count: pos.count, type: 'VEC3', max: [10, 10, 10], min: [-10, -10, -10] });
+    meshes.push({ primitives: [{ attributes: { POSITION: accessors.length - 1 }, mode: 4 }] });
+    nodes.push({ mesh: meshes.length - 1, translation: [child.position.x, child.position.y, child.position.z] });
+    binChunks.push(arr.buffer);
+    totalByteLength += arr.byteLength;
+  });
+
+  if (nodes.length === 0) { showToast('No geometry to export'); return; }
+
+  const gltf = {
+    asset: { version: '2.0', generator: 'Korb Engineering 360-to-BIM' },
+    scene: 0,
+    scenes: [{ nodes: nodes.map((_, i) => i) }],
+    nodes, meshes, accessors, bufferViews,
+    buffers: [{ byteLength: totalByteLength, uri: 'data:application/octet-stream;base64,' + btoa(String.fromCharCode(...new Uint8Array(concatBuffers(binChunks)))) }]
+  };
+
+  downloadFile(JSON.stringify(gltf, null, 2), `${STATE.projectName.replace(/\s+/g, '_')}_model.gltf`, 'application/json');
+}
+
+function concatBuffers(buffers) {
+  const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+  const result = new Uint8Array(total);
+  let offset = 0;
+  buffers.forEach(b => { result.set(new Uint8Array(b), offset); offset += b.byteLength; });
+  return result.buffer;
+}
+
+function export3DScreenshot() {
+  renderer.render(scene, activeCamera);
+  const dataUrl = renderer.domElement.toDataURL('image/png');
+  downloadDataUrl(dataUrl, `${STATE.projectName.replace(/\s+/g, '_')}_3d_view.png`);
+}
+
+function exportPlanPNG() {
+  renderFloorPlan();
+  const dataUrl = canvas2D.toDataURL('image/png');
+  downloadDataUrl(dataUrl, `${STATE.projectName.replace(/\s+/g, '_')}_floor_plan.png`);
+}
+
+function exportPlanPDF() {
+  if (!STATE.rooms.length) { showToast('Generate floor plan first'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter' });
+
+  // Title block
+  drawTitleBlock(doc);
+
+  // Floor plan image
+  renderFloorPlan();
+  const planImg = canvas2D.toDataURL('image/png');
+  doc.addImage(planImg, 'PNG', 0.75, 0.75, 9.5, 6);
+
+  doc.save(`${STATE.projectName.replace(/\s+/g, '_')}_floor_plan.pdf`);
+}
+
+function exportSVG() {
+  if (!STATE.rooms.length) { showToast('Generate floor plan first'); return; }
+  const sf = STATE.scale || 1;
+  const r = STATE.rooms[0].bounds2d;
+  const padding = 50;
+  const s = 20;
+  const svgW = r.w * s + padding * 2;
+  const svgH = r.d * s + padding * 2;
+
+  let svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}">\n`;
+  svg += `<rect width="100%" height="100%" fill="#050a0f"/>\n`;
+
+  // Walls
+  STATE.walls2dData.forEach(wall => {
+    const x1 = (wall.x1 - r.x) * s + padding;
+    const z1 = (wall.z1 - r.z) * s + padding;
+    const x2 = (wall.x2 - r.x) * s + padding;
+    const z2 = (wall.z2 - r.z) * s + padding;
+    svg += `<line x1="${x1}" y1="${z1}" x2="${x2}" y2="${z2}" stroke="#e2e8f0" stroke-width="4"/>\n`;
+  });
+
+  // Room label
+  svg += `<text x="${svgW / 2}" y="${svgH / 2}" fill="#e2e8f0" font-family="JetBrains Mono" font-size="14" text-anchor="middle">${STATE.rooms[0].name}</text>\n`;
+  svg += `<text x="${svgW / 2}" y="${svgH / 2 + 18}" fill="#64748b" font-family="JetBrains Mono" font-size="11" text-anchor="middle">${(r.w * sf).toFixed(1)}' x ${(r.d * sf).toFixed(1)}'</text>\n`;
+
+  svg += '</svg>';
+  downloadFile(svg, `${STATE.projectName.replace(/\s+/g, '_')}_floor_plan.svg`, 'image/svg+xml');
+}
+
+function exportDXF() {
+  if (!STATE.rooms.length) { showToast('Generate floor plan first'); return; }
+  const sf = STATE.scale || 1;
+
+  let dxf = '0\nSECTION\n2\nHEADER\n0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+
+  STATE.walls2dData.forEach(wall => {
+    dxf += `0\nLINE\n8\nWALLS\n10\n${(wall.x1 * sf).toFixed(4)}\n20\n${(wall.z1 * sf).toFixed(4)}\n30\n0.0\n11\n${(wall.x2 * sf).toFixed(4)}\n21\n${(wall.z2 * sf).toFixed(4)}\n31\n0.0\n`;
+  });
+
+  // Room label
+  if (STATE.rooms[0].bounds2d) {
+    const r = STATE.rooms[0].bounds2d;
+    const cx = (r.x + r.w / 2) * sf;
+    const cz = (r.z + r.d / 2) * sf;
+    dxf += `0\nTEXT\n8\nLABELS\n10\n${cx.toFixed(4)}\n20\n${cz.toFixed(4)}\n30\n0.0\n40\n1.0\n1\n${STATE.rooms[0].name}\n`;
+  }
+
+  dxf += '0\nENDSEC\n0\nEOF\n';
+  downloadFile(dxf, `${STATE.projectName.replace(/\s+/g, '_')}_floor_plan.dxf`, 'application/dxf');
+}
+
+function exportReport() {
+  if (!STATE.rooms.length) { showToast('Generate model first'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' });
+
+  // Page 1: Cover + panorama
+  doc.setFillColor(5, 10, 15);
+  doc.rect(0, 0, 8.5, 11, 'F');
+  doc.setTextColor(0, 212, 255);
+  doc.setFontSize(20);
+  doc.text('360\u00B0 to BIM Survey Report', 4.25, 1.5, { align: 'center' });
+  doc.setFontSize(12);
+  doc.setTextColor(226, 232, 240);
+  doc.text(STATE.projectName, 4.25, 2, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 4.25, 2.4, { align: 'center' });
+  doc.text('Korb Engineering', 4.25, 2.7, { align: 'center' });
+
+  // Panorama thumbnail
+  if (STATE.images.length > 0) {
+    doc.setTextColor(0, 212, 255);
+    doc.setFontSize(11);
+    doc.text('Source Panorama', 0.75, 3.5);
+    doc.addImage(STATE.images[0].dataUrl, 'JPEG', 0.75, 3.7, 7, 3.5);
+  }
+
+  // 3D model screenshot
+  renderer.render(scene, activeCamera);
+  const modelImg = renderer.domElement.toDataURL('image/png');
+  doc.setTextColor(0, 212, 255);
+  doc.text('3D Model View', 0.75, 7.8);
+  doc.addImage(modelImg, 'PNG', 0.75, 8, 7, 2.5);
+
+  // Page 2: Floor plan + dimensions
+  doc.addPage();
+  doc.setFillColor(5, 10, 15);
+  doc.rect(0, 0, 8.5, 11, 'F');
+
+  doc.setTextColor(0, 212, 255);
+  doc.setFontSize(11);
+  doc.text('Floor Plan', 0.75, 0.75);
+
+  // Render floor plan and capture
+  const prevStep = STATE.step;
+  const c2d = document.getElementById('canvas2D');
+  c2d.style.display = 'block';
+  renderFloorPlan();
+  const planImg = c2d.toDataURL('image/png');
+  doc.addImage(planImg, 'PNG', 0.75, 1, 7, 5);
+  if (prevStep !== 4) c2d.style.display = 'none';
+
+  // Dimensions table
+  doc.setTextColor(0, 212, 255);
+  doc.text('Room Dimensions', 0.75, 6.8);
+  doc.setTextColor(226, 232, 240);
+  doc.setFontSize(9);
+  const sf = STATE.scale || 1;
+  let y = 7.2;
+  doc.text('Room', 0.75, y);
+  doc.text('Width', 3, y);
+  doc.text('Depth', 4.5, y);
+  doc.text('Height', 6, y);
+  y += 0.3;
+  doc.setDrawColor(26, 37, 53);
+  doc.line(0.75, y - 0.15, 7.5, y - 0.15);
+
+  STATE.rooms.forEach(r => {
+    doc.setTextColor(226, 232, 240);
+    doc.text(r.name, 0.75, y);
+    doc.text(`${(r.bounds2d.w * sf).toFixed(1)}'`, 3, y);
+    doc.text(`${(r.bounds2d.d * sf).toFixed(1)}'`, 4.5, y);
+    doc.text(`${(r.bounds2d.wallH * sf).toFixed(1)}'`, 6, y);
+    y += 0.3;
+  });
+
+  // Title block at bottom
+  drawTitleBlock(doc);
+
+  doc.save(`${STATE.projectName.replace(/\s+/g, '_')}_report.pdf`);
+}
+
+function drawTitleBlock(doc) {
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  doc.setDrawColor(26, 37, 53);
+  doc.setLineWidth(0.01);
+  doc.rect(0.5, ph - 1.2, pw - 1, 0.8);
+  doc.setFontSize(8);
+  doc.setTextColor(0, 212, 255);
+  doc.text('KORB ENGINEERING', 0.65, ph - 0.85);
+  doc.setTextColor(100, 116, 139);
+  doc.text('360\u00B0 to BIM Survey', 0.65, ph - 0.65);
+  doc.text(`Project: ${STATE.projectName}`, 3, ph - 0.85);
+  doc.text(`Date: ${new Date().toLocaleDateString()}`, 3, ph - 0.65);
+  doc.text(`Scale: 1" = ${(1 / (STATE.scale || 1)).toFixed(1)}'`, 5.5, ph - 0.85);
+}
+
+// ============================================================
+// TOOLBAR FUNCTIONS
+// ============================================================
+function setViewTool(tool, btn) {
+  document.querySelectorAll('.toolbar .tool-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function zoomIn() {
+  cameraOrbit.radius = Math.max(2, cameraOrbit.radius - 3);
+  updateCameraFromOrbit();
+}
+
+function toggleMeasure(btn) {
+  STATE.measureMode = !STATE.measureMode;
+  STATE.measurePoints = [];
+  btn.classList.toggle('active');
+  if (STATE.measureMode) showToast('Click two points to measure distance');
+  // Remove existing measure labels
+  document.querySelectorAll('.measure-label').forEach(el => el.remove());
+}
+
+function handleMeasureClick(e) {
+  if (!STATE.measureMode) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(nx, ny), activeCamera);
+
+  const targets = [];
+  modelGroup.children.forEach(c => { if (c.visible) targets.push(c); });
+  if (pointCloudObj && pointCloudObj.visible) targets.push(pointCloudObj);
+
+  const intersects = raycaster.intersectObjects(targets);
+  if (intersects.length > 0) {
+    STATE.measurePoints.push(intersects[0].point.clone());
+    if (STATE.measurePoints.length === 2) {
+      const dist = STATE.measurePoints[0].distanceTo(STATE.measurePoints[1]) * (STATE.scale || 1);
+      // Show measurement label
+      const mid = new THREE.Vector3().addVectors(STATE.measurePoints[0], STATE.measurePoints[1]).multiplyScalar(0.5);
+      const screenPos = mid.project(activeCamera);
+      const label = document.createElement('div');
+      label.className = 'measure-label';
+      label.textContent = `${dist.toFixed(2)} ft`;
+      label.style.left = ((screenPos.x + 1) / 2 * renderer.domElement.clientWidth) + 'px';
+      label.style.top = ((-screenPos.y + 1) / 2 * renderer.domElement.clientHeight) + 'px';
+      document.getElementById('viewport').appendChild(label);
+      STATE.measurePoints = [];
+    }
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// Undo/Redo
+function undo() {
+  if (STATE.undoStack.length === 0) return;
+  const action = STATE.undoStack.pop();
+  STATE.redoStack.push(action);
+  // Simple undo: remove last added element
+  if (action.type === 'addWall2d') {
+    STATE.walls2dData.pop();
+    renderFloorPlan();
+  } else if (action.type === 'addDoor') {
+    STATE.doors2d.pop();
+    renderFloorPlan();
+  } else if (action.type === 'addWindow') {
+    STATE.windows2d.pop();
+    renderFloorPlan();
+  } else if (action.type === 'addLabel') {
+    STATE.labels2d.pop();
+    renderFloorPlan();
+  }
+}
+
+function redo() {
+  if (STATE.redoStack.length === 0) return;
+  const action = STATE.redoStack.pop();
+  STATE.undoStack.push(action);
+  if (action.data) {
+    if (action.type === 'addWall2d') STATE.walls2dData.push(action.data);
+    else if (action.type === 'addDoor') STATE.doors2d.push(action.data);
+    else if (action.type === 'addWindow') STATE.windows2d.push(action.data);
+    else if (action.type === 'addLabel') STATE.labels2d.push(action.data);
+    renderFloorPlan();
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+  if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+});
+
+// ============================================================
+// UTILITY
+// ============================================================
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  a.click();
+}
+
+function showLoading(title, sub) {
+  document.getElementById('loadingText').textContent = title;
+  document.getElementById('loadingSub').textContent = sub;
+  document.getElementById('loadingFill').style.width = '0%';
+  document.getElementById('loadingOverlay').classList.add('visible');
+  buildLoadingAnimation();
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('visible');
+}
+
+function buildLoadingAnimation() {
+  const container = document.getElementById('loadingBuilding');
+  container.innerHTML = '';
+  // Animated wireframe building
+  const lines = [
+    // Floor
+    { x: 20, y: 180, w: 160, h: 2, delay: 0 },
+    // Left wall
+    { x: 20, y: 80, w: 2, h: 100, delay: 200 },
+    // Right wall
+    { x: 178, y: 80, w: 2, h: 100, delay: 400 },
+    // Ceiling
+    { x: 20, y: 80, w: 160, h: 2, delay: 600 },
+    // Roof peak
+    { x: 98, y: 30, w: 4, h: 50, delay: 800 },
+    // Roof left
+    { x: 20, y: 78, w: 84, h: 2, delay: 1000, transform: 'rotate(-30deg)', transformOrigin: 'left center' },
+    // Roof right
+    { x: 96, y: 48, w: 84, h: 2, delay: 1200, transform: 'rotate(30deg)', transformOrigin: 'left center' },
+    // Door
+    { x: 80, y: 120, w: 40, h: 60, delay: 1400, border: true },
+    // Window left
+    { x: 35, y: 110, w: 30, h: 30, delay: 1600, border: true },
+    // Window right
+    { x: 135, y: 110, w: 30, h: 30, delay: 1800, border: true },
+  ];
+
+  lines.forEach(l => {
+    const div = document.createElement('div');
+    div.className = 'building-line';
+    div.style.cssText = `left:${l.x}px;top:${l.y}px;width:${l.w}px;height:${l.h}px;`;
+    if (l.border) {
+      div.style.background = 'none';
+      div.style.border = '2px solid var(--cyan)';
+      div.style.width = l.w + 'px';
+      div.style.height = l.h + 'px';
+    } else {
+      div.style.background = 'var(--cyan)';
+    }
+    if (l.transform) {
+      div.style.transform = l.transform;
+      div.style.transformOrigin = l.transformOrigin;
+    }
+    setTimeout(() => {
+      div.style.opacity = '1';
+      div.style.boxShadow = '0 0 8px rgba(0,212,255,0.5)';
+    }, l.delay);
+    container.appendChild(div);
+  });
+}
+
+let toastTimeout;
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:8px;font-size:.72rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;font-family:JetBrains Mono,monospace';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
+// Project name sync
+document.getElementById('projectName').addEventListener('change', e => {
+  STATE.projectName = e.target.value;
+  try { localStorage.setItem('korb_360bim_projectName', e.target.value); } catch(e) {}
+});
+
+// Load saved project name
+try {
+  const saved = localStorage.getItem('korb_360bim_projectName');
+  if (saved) { STATE.projectName = saved; document.getElementById('projectName').value = saved; }
+} catch(e) {}
+
+// ============================================================
+// INIT
+// ============================================================
+initThree();
+onResize();
+</script>
+</body>
+</html>

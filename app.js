@@ -60,6 +60,7 @@ const SECTIONS = {
       { name: 'Flight Time Logger', file: './tools/aviation/flight-time-logger.html' },
       { name: 'Front End Documents', file: './tools/civil/front-end-documents.html' },
       { name: '360° Photo Stitcher', file: './tools/aviation/360-photo-stitcher.html' },
+      { name: '360° to BIM Model', file: './tools/aviation/360-to-bim.html' },
       { name: 'DBE Participation Calculator', file: './tools/aviation/dbe-calculator.html' },
       { name: 'Design Aircraft Repository', file: './tools/aviation/design-aircraft-repository.html' },
       { name: 'DFW Earth-Day Game', file: './tools/misc/dfw-earth-day-game.html' },
