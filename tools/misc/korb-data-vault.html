@@ -6,6 +6,7 @@
 <title>Korb Data Vault</title>
 <meta name="description" content="Export and import all of your korb.engineering tool data — backups for Caddy bags, garden beds, trackers, and every other tool.">
 <link rel="stylesheet" href="../_shared/korb.css">
+<script src="../_shared/korb-ui.js" defer></script>
 <style>
   body { padding: 24px 16px 80px; }
   .wrap { max-width: 880px; margin: 0 auto; }
@@ -176,12 +177,22 @@
   const PREFIX = 'korb_';
 
   // ---------- helpers ----------
-  function toast(msg, ms) {
+  function toast(msg, ms, type) {
+    // Prefer KorbUI.toast when available; fall back to the inline toast div.
+    if (window.KorbUI && window.KorbUI.toast) {
+      return window.KorbUI.toast(msg, { ms: ms || 2400, type: type || null });
+    }
     const t = document.getElementById('toast');
+    if (!t) return;
     t.textContent = msg;
     t.classList.add('korb-show');
     clearTimeout(t._h);
     t._h = setTimeout(() => t.classList.remove('korb-show'), ms || 2200);
+  }
+
+  function korbConfirm(msg, opts) {
+    if (window.KorbUI && window.KorbUI.confirm) return window.KorbUI.confirm(msg, opts);
+    return Promise.resolve(window.confirm(msg));
   }
 
   function humanBytes(n) {
@@ -319,17 +330,21 @@
   document.getElementById('btnCopy').addEventListener('click', async () => {
     const payload = makeExport(null);
     const text = JSON.stringify(payload, null, 2);
-    try {
-      await navigator.clipboard.writeText(text);
-      toast('Copied to clipboard');
-    } catch (e) {
-      const box = document.getElementById('importBox');
-      box.value = text;
-      toast('Clipboard blocked — JSON placed in import box for copying');
+    let ok = false;
+    if (window.KorbUI && window.KorbUI.copyToClipboard) {
+      ok = await window.KorbUI.copyToClipboard(text);
+    } else {
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (_) {}
+    }
+    if (ok) {
+      toast('Copied to clipboard', 2200, 'success');
+    } else {
+      document.getElementById('importBox').value = text;
+      toast('Clipboard blocked — JSON placed in import box for copying', 3500, 'warn');
     }
   });
 
-  document.getElementById('toolList').addEventListener('click', (e) => {
+  document.getElementById('toolList').addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
     const slug = btn.getAttribute('data-slug');
@@ -337,15 +352,19 @@
     if (act === 'export') {
       const payload = makeExport(slug);
       downloadJson(payload, 'korb-' + slug + '-' + new Date().toISOString().slice(0, 10) + '.json');
-      toast('Exported ' + slug);
+      toast('Exported ' + slug, 2200, 'success');
     } else if (act === 'delete') {
-      if (!confirm('Delete all data for "' + slug + '"? This cannot be undone.')) return;
+      const ok = await korbConfirm(
+        'Delete all data for "' + slug + '"? This cannot be undone.',
+        { title: 'Delete tool data', okLabel: 'Delete', danger: true }
+      );
+      if (!ok) return;
       const scan = scanAll();
       const g = scan.groups[slug];
       if (g) {
         for (const k of Object.keys(g.entries)) localStorage.removeItem(k);
         render();
-        toast('Deleted ' + slug);
+        toast('Deleted ' + slug, 2200, 'success');
       }
     }
   });
@@ -365,21 +384,25 @@
   document.getElementById('btnValidate').addEventListener('click', () => {
     try {
       const { count, korbCount } = parseImport(document.getElementById('importBox').value);
-      toast('Valid — ' + korbCount + ' Korb keys (of ' + count + ') ready to import');
+      toast('Valid — ' + korbCount + ' Korb keys (of ' + count + ') ready to import', 2800, 'success');
     } catch (e) {
-      toast('Invalid: ' + e.message, 4000);
+      toast('Invalid: ' + e.message, 4000, 'error');
     }
   });
 
-  document.getElementById('btnImport').addEventListener('click', () => {
+  document.getElementById('btnImport').addEventListener('click', async () => {
     try {
       const { obj, korbCount } = parseImport(document.getElementById('importBox').value);
-      if (!confirm('Import ' + korbCount + ' Korb keys? This will overwrite any existing keys with the same names.')) return;
+      const ok = await korbConfirm(
+        'Import ' + korbCount + ' Korb keys? This will overwrite any existing keys with the same names.',
+        { title: 'Import backup', okLabel: 'Import' }
+      );
+      if (!ok) return;
       const n = applyImport(obj.entries);
       render();
-      toast('Imported ' + n + ' keys');
+      toast('Imported ' + n + ' keys', 2400, 'success');
     } catch (e) {
-      toast('Import failed: ' + e.message, 4000);
+      toast('Import failed: ' + e.message, 4000, 'error');
     }
   });
 
@@ -387,12 +410,20 @@
     document.getElementById('importBox').value = '';
   });
 
-  document.getElementById('btnWipeAll').addEventListener('click', () => {
+  document.getElementById('btnWipeAll').addEventListener('click', async () => {
     const scan = scanAll();
     const n = scan.keys;
     if (n === 0) { toast('Nothing to wipe'); return; }
-    if (!confirm('Wipe ALL ' + n + ' Korb-prefixed keys in this browser?\n\nThis will clear every tool\'s saved data. You cannot undo this.')) return;
-    if (!confirm('Really wipe? Last chance. Did you export a backup first?')) return;
+    const first = await korbConfirm(
+      'Wipe ALL ' + n + ' Korb-prefixed keys in this browser? This will clear every tool\'s saved data. You cannot undo this.',
+      { title: 'Wipe all Korb data', okLabel: 'Continue', danger: true }
+    );
+    if (!first) return;
+    const second = await korbConfirm(
+      'Really wipe? Last chance. Did you export a backup first?',
+      { title: 'Final confirmation', okLabel: 'Wipe everything', danger: true }
+    );
+    if (!second) return;
     const toDelete = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -400,7 +431,7 @@
     }
     toDelete.forEach((k) => localStorage.removeItem(k));
     render();
-    toast('Wiped ' + toDelete.length + ' keys');
+    toast('Wiped ' + toDelete.length + ' keys', 2600, 'success');
   });
 
   render();
