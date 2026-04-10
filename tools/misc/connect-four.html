@@ -211,6 +211,7 @@ h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 2px; text-transform: u
       <option value="easy">vs AI (Easy)</option>
       <option value="medium">vs AI (Medium)</option>
       <option value="hard" selected>vs AI (Hard)</option>
+      <option value="impossible">vs Will Abernathy (Impossible)</option>
     </select>
     <button class="btn-undo" id="undoBtn">Undo</button>
     <button class="btn-new" id="newBtn">New Game</button>
@@ -381,7 +382,10 @@ function buildBoard() {
 function initGame(restoreBoard) {
   if (!restoreBoard) {
     board = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
-    currentPlayer = P1;
+    // Will Abernathy moves first on the Impossible mode so the AI has the
+    // mathematically-winning first-player advantage (Connect Four is a
+    // first-player win with perfect play from center).
+    currentPlayer = gameMode === 'impossible' ? P2 : P1;
     gameOver = false;
     moveHistory = [];
     winCells = null;
@@ -391,6 +395,10 @@ function initGame(restoreBoard) {
   renderBoard(!!restoreBoard);
   updateStatus();
   updateScores();
+  if (!restoreBoard && gameMode === 'impossible') {
+    turnText.textContent = 'Will Abernathy thinking...';
+    setTimeout(() => aiMove(), 300);
+  }
 }
 
 function renderBoard(instant) {
@@ -466,7 +474,7 @@ function dropPiece(col, skipAI) {
   // Add to history list
   const li = document.createElement('li');
   li.className = currentPlayer === P1 ? 'move-p1' : 'move-p2';
-  const pLabel = currentPlayer === P1 ? 'P1' : (gameMode === 'pvp' ? 'P2' : 'AI');
+  const pLabel = currentPlayer === P1 ? 'P1' : (gameMode === 'pvp' ? 'P2' : (gameMode === 'impossible' ? 'WA' : 'AI'));
   li.textContent = `#${moveHistory.length} ${pLabel} -> Col ${col + 1}`;
   historyList.prepend(li);
 
@@ -489,7 +497,10 @@ function dropPiece(col, skipAI) {
       highlightWin(wc);
       if (currentPlayer === P1) { scores.p1++; } else { scores.p2++; }
       saveScores(); updateScores();
-      showMessage(currentPlayer === P1 ? 'Player 1 Wins!' : (gameMode === 'pvp' ? 'Player 2 Wins!' : 'AI Wins!'),
+      showMessage(
+        currentPlayer === P1
+          ? 'Player 1 Wins!'
+          : (gameMode === 'pvp' ? 'Player 2 Wins!' : (gameMode === 'impossible' ? 'Will Abernathy Wins!' : 'AI Wins!')),
         currentPlayer === P1 ? 'p1-win' : 'p2-win');
       playWin();
       return;
@@ -504,7 +515,7 @@ function dropPiece(col, skipAI) {
     currentPlayer = currentPlayer === P1 ? P2 : P1;
     updateStatus();
     if (!skipAI && isAITurn()) {
-      turnText.textContent = 'AI thinking...';
+      turnText.textContent = gameMode === 'impossible' ? 'Will Abernathy thinking...' : 'AI thinking...';
       setTimeout(() => aiMove(), 50);
     }
   }, 350);
@@ -558,10 +569,135 @@ function aiMove() {
     col = aiEasy();
   } else if (gameMode === 'medium') {
     col = aiMinimax(4);
+  } else if (gameMode === 'impossible') {
+    col = aiImpossible();
   } else {
     col = aiMinimax(7);
   }
   if (col !== -1) dropPiece(col, true);
+}
+
+// Will Abernathy — iterative-deepening minimax with transposition table.
+// Always opens center, time-capped so depth stays deep but UI stays responsive.
+const TT = new Map();
+function boardKey() {
+  let k = '';
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) k += board[r][c];
+  return k;
+}
+function aiImpossible() {
+  const valid = getValidMoves();
+  if (!valid.length) return -1;
+
+  // Immediate win for AI
+  for (const c of valid) {
+    const r = getLowestRowFast(c);
+    board[r][c] = P2;
+    if (checkWinFast(r, c, P2)) { board[r][c] = EMPTY; return c; }
+    board[r][c] = EMPTY;
+  }
+  // Block immediate human win
+  for (const c of valid) {
+    const r = getLowestRowFast(c);
+    board[r][c] = P1;
+    if (checkWinFast(r, c, P1)) { board[r][c] = EMPTY; return c; }
+    board[r][c] = EMPTY;
+  }
+
+  // Opening book: first move always center.
+  const pieces = board.flat().filter(v => v !== EMPTY).length;
+  if (pieces === 0) return 3;
+  // Second move: if human didn't take center, take it.
+  if (pieces === 1 && board[ROWS - 1][3] === EMPTY) return 3;
+
+  // Iterative deepening minimax with transposition table + alpha-beta.
+  TT.clear();
+  const deadline = performance.now() + 3500; // soft budget
+  let bestCol = valid[0], bestScore = -Infinity;
+  const maxDepth = Math.min(12, ROWS * COLS - pieces);
+
+  for (let d = 4; d <= maxDepth; d++) {
+    let dBestCol = valid[0], dBestScore = -Infinity;
+    let timedOut = false;
+    // Order moves: center-out, but prefer previous best first.
+    const order = [3, 2, 4, 1, 5, 0, 6].filter(c => board[0][c] === EMPTY);
+    if (bestCol !== undefined) {
+      const i = order.indexOf(bestCol);
+      if (i > 0) { order.splice(i, 1); order.unshift(bestCol); }
+    }
+    for (const c of order) {
+      if (performance.now() > deadline) { timedOut = true; break; }
+      const r = getLowestRowFast(c);
+      board[r][c] = P2;
+      const score = minimaxTT(d - 1, -Infinity, Infinity, false, deadline);
+      board[r][c] = EMPTY;
+      if (score === null) { timedOut = true; break; }
+      if (score > dBestScore) { dBestScore = score; dBestCol = c; }
+    }
+    if (!timedOut) { bestCol = dBestCol; bestScore = dBestScore; }
+    else break;
+    // Early exit on forced win/loss
+    if (bestScore > 50000 || bestScore < -50000) break;
+  }
+  return bestCol;
+}
+
+function minimaxTT(depth, alpha, beta, isMax, deadline) {
+  if (performance.now() > deadline) return null;
+  const key = boardKey() + (isMax ? 'M' : 'm') + depth;
+  const cached = TT.get(key);
+  if (cached !== undefined) return cached;
+
+  const validMoves = getValidMoves();
+  if (validMoves.length === 0) { TT.set(key, 0); return 0; }
+
+  // Immediate terminal detection
+  for (const c of validMoves) {
+    const r = getLowestRowFast(c);
+    const player = isMax ? P2 : P1;
+    board[r][c] = player;
+    const won = checkWinFast(r, c, player);
+    board[r][c] = EMPTY;
+    if (won) {
+      const v = isMax ? (100000 + depth) : -(100000 + depth);
+      TT.set(key, v);
+      return v;
+    }
+  }
+  if (depth === 0) {
+    const v = evaluateBoard();
+    TT.set(key, v);
+    return v;
+  }
+
+  let val;
+  if (isMax) {
+    val = -Infinity;
+    for (const c of validMoves) {
+      const r = getLowestRowFast(c);
+      board[r][c] = P2;
+      const s = minimaxTT(depth - 1, alpha, beta, false, deadline);
+      board[r][c] = EMPTY;
+      if (s === null) return null;
+      if (s > val) val = s;
+      if (val > alpha) alpha = val;
+      if (beta <= alpha) break;
+    }
+  } else {
+    val = Infinity;
+    for (const c of validMoves) {
+      const r = getLowestRowFast(c);
+      board[r][c] = P1;
+      const s = minimaxTT(depth - 1, alpha, beta, true, deadline);
+      board[r][c] = EMPTY;
+      if (s === null) return null;
+      if (s < val) val = s;
+      if (val < beta) beta = val;
+      if (beta <= alpha) break;
+    }
+  }
+  TT.set(key, val);
+  return val;
 }
 
 function aiEasy() {
