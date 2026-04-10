@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# ============================================================
+# pre-commit — regenerate sections.json + SEO stubs when any
+# tool HTML file is staged, so they never drift from the real
+# tools/ directory.
+#
+# To activate this hook in your local clone (one time):
+#
+#     git config core.hooksPath .githooks
+#
+# (We deliberately don't touch core.hooksPath automatically —
+# git config changes should be an explicit opt-in.)
+# ============================================================
+set -e
+
+# Only rebuild if a tool file changed. Avoids regenerating on
+# every single commit (docs, readme, config, etc.).
+changed_tools=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^tools/(aviation|civil|misc|hk)/.*\.html$' || true)
+
+if [ -z "$changed_tools" ]; then
+  exit 0
+fi
+
+echo "pre-commit: detected tool file changes, rebuilding sections.json + SEO stubs…"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node not found on PATH; skipping build step."
+  exit 0
+fi
+
+node scripts/build-sections.mjs
+node scripts/build-seo-stubs.mjs
+
+# Stage any generated artifacts that changed, so the commit
+# includes up-to-date stubs and sitemap.
+git add tools/_generated/sections.json sitemap.xml 't' 2>/dev/null || true
+
+exit 0
