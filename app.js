@@ -184,7 +184,6 @@ const SECTIONS = {
     tools: [
       { name: 'Email Client', file: './tools/hk/email-client.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
-      { name: "Kyle's Train Set", file: './tools/hk/kyles-train-set.html' },
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
@@ -211,6 +210,7 @@ const SECTIONS = {
       { name: 'Audiobook Player', file: './tools/misc/audiobook-player.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: 'Battleship', file: './tools/misc/battleship.html' },
+      { name: 'Book Digitizer', file: './tools/misc/book-digitizer.html' },
       { name: 'Chess', file: './tools/misc/chess.html' },
       { name: 'Chinese Checkers', file: './tools/misc/chinese-checkers.html' },
       { name: 'Clock & Stopwatch', file: './tools/misc/clock-stopwatch.html' },
@@ -240,6 +240,7 @@ const SECTIONS = {
       { name: 'Korb Farm Collective', file: './tools/misc/korb-farm-collective.html' },
       { name: 'Korb Mematic', file: './tools/misc/meme-generator.html' },
       { name: 'Korb Terminal', file: './tools/misc/bloomberg-terminal.html' },
+      { name: "Kyle's Train Set", file: './tools/misc/kyles-train-set.html' },
       { name: 'Leadership Forge', file: './tools/misc/leadership-principles.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: "Mary Kay's Recipes", file: './tools/misc/mary-kays-recipes.html' },

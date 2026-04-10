@@ -176,7 +176,7 @@ const META_KEY = 'korb_library_meta';
 const CATEGORIES = ['All','Engineering','Aviation','Technical Manuals','Fiction','Non-Fiction','Reference','Personal','Other'];
 const STATUS_COLORS = {Unread:'#6b7280', Reading:'#00d4ff', Completed:'#10b981'};
 const PLACEHOLDER_COLORS = ['#0d1f3c','#1f0d3c','#0d3c2a','#3c2a0d','#0d2a3c','#2a0d0d','#0d2a0d','#2a2a0d'];
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
 
 let books = [], view = 'library', search = '', catFilter = 'All', sortBy = 'dateAdded', viewMode = 'grid';
 let showUploadPanel = false, selectedBook = null, editMeta = null;
@@ -262,7 +262,7 @@ async function requestPersistence() {
   }
 }
 
-// Verify IndexedDB blobs exist for all metadata entries; remove orphaned metadata
+// Verify IndexedDB blobs exist; flag missing ones but NEVER auto-delete metadata.
 async function verifyIntegrity() {
   if (books.length === 0) return;
   try {
@@ -275,12 +275,12 @@ async function verifyIntegrity() {
       r.onerror = () => rej(r.error);
     });
     const keySet = new Set(allKeys);
-    const before = books.length;
-    books = books.filter(b => keySet.has(b.id));
-    if (books.length < before) {
-      saveMeta();
-      console.warn(`Removed ${before - books.length} orphaned library entries (missing blobs).`);
-    }
+    let missing = 0;
+    books.forEach(b => {
+      if (!keySet.has(b.id)) { b.missingBlob = true; missing++; }
+      else if (b.missingBlob) { delete b.missingBlob; }
+    });
+    if (missing > 0) { saveMeta(); console.warn(`${missing} book(s) have missing file blobs (metadata preserved).`); }
   } catch(e) { console.error('Integrity check failed:', e); }
 }
 
@@ -476,7 +476,7 @@ async function startUpload(file) {
   if (!file) return;
   const ext = file.name.toLowerCase().split('.').pop();
   if (!['pdf','epub'].includes(ext)) { alert('Only PDF and EPUB files are supported.'); return; }
-  if (file.size > MAX_FILE_SIZE) alert(`File is ${formatBytes(file.size)}. May exceed browser storage.`);
+  if (file.size > MAX_FILE_SIZE) { alert(`File is ${formatBytes(file.size)} — exceeds ${formatBytes(MAX_FILE_SIZE)} limit.`); return; }
 
   const title = file.name.replace(/\.pdf$/i,'').replace(/[-_]/g,' ');
   const modal = document.createElement('div');
