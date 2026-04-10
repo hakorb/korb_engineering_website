@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Spirograph | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1018;
+    --surface-2: #0e1520;
+    --border: #1a2535;
+    --cyan: #00d4ff;
+    --orange: #ff6600;
+    --green: #10b981;
+    --red: #ef4444;
+    --gold: #fbbf24;
+    --text: #e2e8f0;
+    --dim: #64748b;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    height: 100%;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 1px;
+  }
+  .title .dim { color: var(--dim); font-weight: 400; }
+  .title .orange { color: var(--orange); }
+  .status {
+    font-size: 10px;
+    color: var(--dim);
+    display: flex;
+    gap: 10px;
+  }
+  .status span b { color: var(--green); font-weight: 500; }
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    background: #020508;
+    border-bottom: 1px solid var(--border);
+    min-height: 0;
+    overflow: hidden;
+  }
+  canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+  }
+  .controls {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    max-height: 48vh;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .controls.collapsed {
+    max-height: 44px;
+    overflow: hidden;
+  }
+  .ctrl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ctrl-title {
+    font-size: 11px;
+    color: var(--orange);
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .btn {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all .15s;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--cyan); color: #000; border-color: var(--cyan); }
+  .btn.primary:hover { background: #33e0ff; color: #000; }
+  .btn.orange { background: var(--orange); color: #000; border-color: var(--orange); }
+  .btn.orange:hover { background: #ff8533; color: #000; }
+  .btn.green { background: var(--green); color: #000; border-color: var(--green); }
+  .btn.red { background: var(--red); color: #000; border-color: var(--red); }
+  .btn.gold { background: var(--gold); color: #000; border-color: var(--gold); }
+  .btn.active { background: var(--cyan); color: #000; border-color: var(--cyan); }
+  .row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .row .btn { flex: 1; min-width: 70px; }
+  .slider-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  @media (min-width: 600px) {
+    .slider-group { grid-template-columns: 1fr 1fr; }
+  }
+  .slider {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: var(--surface-2);
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+  .slider label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .slider label b {
+    color: var(--cyan);
+    font-weight: 500;
+  }
+  .slider input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    outline: none;
+    border-radius: 2px;
+  }
+  .slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--cyan);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .slider input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--cyan);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  .section {
+    margin-bottom: 10px;
+  }
+  .section-title {
+    font-size: 9px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    padding-left: 2px;
+  }
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+  }
+  .swatch {
+    aspect-ratio: 1;
+    border: 2px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .swatch.active { border-color: var(--text); transform: scale(1.1); }
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 5px;
+  }
+  .preset-grid .btn {
+    font-size: 9px;
+    padding: 6px 4px;
+  }
+  .mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+  .saved-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+  }
+  .saved-chip {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    font-size: 9px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .saved-chip:hover { border-color: var(--gold); color: var(--gold); }
+  .saved-chip .x {
+    color: var(--red);
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0 2px;
+  }
+  .checkbox-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    cursor: pointer;
+    background: var(--surface-2);
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    flex: 1;
+    justify-content: center;
+  }
+  .checkbox input { display: none; }
+  .checkbox.on { border-color: var(--cyan); color: var(--cyan); }
+  .checkbox.on::before { content: '[X]'; }
+  .checkbox::before { content: '[ ]'; color: var(--dim); }
+  .checkbox.on::before { color: var(--cyan); }
+  .overlay-info {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(5, 10, 15, .85);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    font-size: 9px;
+    color: var(--dim);
+    border-radius: 3px;
+    pointer-events: none;
+    line-height: 1.5;
+  }
+  .overlay-info b { color: var(--cyan); }
+  .toggle-ctrl {
+    background: var(--surface-2);
+    color: var(--cyan);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="title">
+    <span class="dim">KORB</span> <span class="orange">SPIROGRAPH</span> <span class="dim">// HYPOTROCHOID ENGINE</span>
+  </div>
+  <div class="status">
+    <span>LAYERS <b id="layerCount">1</b></span>
+    <span>θ <b id="thetaVal">0.0</b></span>
+    <span>FPS <b id="fpsVal">--</b></span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="canvas"></canvas>
+    <div class="overlay-info">
+      <div>MODE <b id="modeLabel">HYPOTROCHOID</b></div>
+      <div>R=<b id="RVal">150</b> r=<b id="rVal">40</b> d=<b id="dVal">60</b></div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="ctrl-header">
+      <div class="ctrl-title">// CONTROL PANEL</div>
+      <button class="toggle-ctrl" id="toggleCtrl">[-]</button>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="playBtn">PLAY</button>
+      <button class="btn orange" id="layerBtn">KEEP + NEW</button>
+      <button class="btn red" id="clearBtn">CLEAR</button>
+      <button class="btn gold" id="randomBtn">RANDOMIZE</button>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="saveImgBtn">PNG</button>
+      <button class="btn" id="savePresetBtn">SAVE</button>
+      <button class="btn" id="fsBtn">FULLSCREEN</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">// MODE</div>
+      <div class="mode-toggle">
+        <button class="btn active" id="modeHypo">HYPOTROCHOID</button>
+        <button class="btn" id="modeEpi">EPITROCHOID</button>
+      </div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider">
+        <label>R (FIXED) <b id="R_out">150</b></label>
+        <input type="range" id="R" min="50" max="300" value="150">
+      </div>
+      <div class="slider">
+        <label>r (ROLL) <b id="r_out">40</b></label>
+        <input type="range" id="r" min="10" max="200" value="40">
+      </div>
+      <div class="slider">
+        <label>d (PEN) <b id="d_out">60</b></label>
+        <input type="range" id="d" min="10" max="300" value="60">
+      </div>
+      <div class="slider">
+        <label>SPEED <b id="speed_out">25</b></label>
+        <input type="range" id="speed" min="1" max="100" value="25">
+      </div>
+      <div class="slider">
+        <label>LINE WIDTH <b id="lw_out">1.5</b></label>
+        <input type="range" id="lw" min="1" max="60" step="1" value="15">
+      </div>
+      <div class="slider">
+        <label>TRAIL FADE <b id="fade_out">0</b></label>
+        <input type="range" id="fade" min="0" max="100" value="0">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">// COLOR MODE</div>
+      <div class="row">
+        <button class="btn active" data-cmode="single">SINGLE</button>
+        <button class="btn" data-cmode="rainbow">RAINBOW</button>
+        <button class="btn" data-cmode="gradient">GRADIENT</button>
+        <button class="btn" data-cmode="neon">VFD NEON</button>
+      </div>
+      <div class="color-grid" id="colorGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">// VISUAL</div>
+      <div class="checkbox-row">
+        <div class="checkbox on" id="glowCb">GLOW</div>
+        <div class="checkbox" id="showMechCb">MECHANICS</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">// PRESETS</div>
+      <div class="preset-grid" id="presetGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">// SAVED</div>
+      <div class="saved-presets" id="savedPresets"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('canvasWrap');
+
+  // State
+  const state = {
+    R: 150,
+    r: 40,
+    d: 60,
+    speed: 25,
+    lineWidth: 1.5,
+    fade: 0,
+    mode: 'hypo', // hypo|epi
+    colorMode: 'single',
+    singleColor: '#00d4ff',
+    gradientA: '#00d4ff',
+    gradientB: '#ff6600',
+    glow: true,
+    showMech: false,
+    playing: true,
+    theta: 0,
+    layers: 1,
+    fps: 0,
+    lastPoint: null,
+  };
+
+  const VFD_COLORS = ['#00d4ff','#ff6600','#10b981','#ef4444','#fbbf24','#a855f7','#ec4899','#e2e8f0','#06b6d4','#84cc16','#f97316','#6366f1'];
+
+  // Offscreen canvas for persistent layers
+  let bgCanvas = document.createElement('canvas');
+  let bgCtx = bgCanvas.getContext('2d');
+
+  function resize() {
+    const rect = wrap.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Keep bg contents — resize by drawing old bg into new
+    const old = bgCanvas;
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = canvas.width;
+    bgCanvas.height = canvas.height;
+    bgCtx = bgCanvas.getContext('2d');
+    bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (old.width > 0) {
+      bgCtx.drawImage(old, 0, 0, old.width / dpr, old.height / dpr);
+    }
+    state.lastPoint = null;
+  }
+
+  // Spirograph math
+  function getPoint(theta) {
+    const { R, r, d, mode } = state;
+    if (mode === 'hypo') {
+      const x = (R - r) * Math.cos(theta) + d * Math.cos(((R - r) / r) * theta);
+      const y = (R - r) * Math.sin(theta) - d * Math.sin(((R - r) / r) * theta);
+      return [x, y];
+    } else {
+      const x = (R + r) * Math.cos(theta) - d * Math.cos(((R + r) / r) * theta);
+      const y = (R + r) * Math.sin(theta) - d * Math.sin(((R + r) / r) * theta);
+      return [x, y];
+    }
+  }
+
+  function getColorAt(theta) {
+    const m = state.colorMode;
+    if (m === 'single') return state.singleColor;
+    if (m === 'rainbow') {
+      const hue = (theta * 180 / Math.PI * 2) % 360;
+      return `hsl(${hue},100%,60%)`;
+    }
+    if (m === 'gradient') {
+      const t = (Math.sin(theta * 0.3) + 1) / 2;
+      return lerpColor(state.gradientA, state.gradientB, t);
+    }
+    if (m === 'neon') {
+      const t = (Math.sin(theta * 0.4) + 1) / 2;
+      return lerpColor('#00d4ff', '#ff6600', t);
+    }
+    return '#00d4ff';
+  }
+
+  function hex2rgb(h) {
+    h = h.replace('#','');
+    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+  }
+  function rgb2hex(r,g,b) {
+    return '#' + [r,g,b].map(x => Math.round(x).toString(16).padStart(2,'0')).join('');
+  }
+  function lerpColor(a, b, t) {
+    const ra = hex2rgb(a), rb = hex2rgb(b);
+    return rgb2hex(ra[0]+(rb[0]-ra[0])*t, ra[1]+(rb[1]-ra[1])*t, ra[2]+(rb[2]-ra[2])*t);
+  }
+
+  // Rendering
+  let lastTime = performance.now();
+  let fpsAcc = 0, fpsCount = 0;
+
+  function frame(now) {
+    const dt = Math.min(50, now - lastTime);
+    lastTime = now;
+    fpsAcc += 1000 / dt;
+    fpsCount++;
+    if (fpsCount >= 30) {
+      state.fps = Math.round(fpsAcc / fpsCount);
+      document.getElementById('fpsVal').textContent = state.fps;
+      fpsAcc = 0; fpsCount = 0;
+    }
+
+    // Draw bg (persistent layers + current)
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+
+    // Fade trail on bg
+    if (state.fade > 0) {
+      bgCtx.save();
+      bgCtx.globalCompositeOperation = 'destination-out';
+      bgCtx.fillStyle = `rgba(0,0,0,${state.fade / 2000})`;
+      bgCtx.fillRect(0, 0, w, h);
+      bgCtx.restore();
+    }
+
+    if (state.playing) {
+      const steps = Math.max(1, Math.floor(state.speed / 3) + 1);
+      const dTheta = 0.02 * (state.speed / 25);
+
+      bgCtx.save();
+      bgCtx.translate(w / 2, h / 2);
+      bgCtx.lineCap = 'round';
+      bgCtx.lineJoin = 'round';
+      bgCtx.lineWidth = state.lineWidth;
+      if (state.glow) {
+        bgCtx.shadowBlur = 12;
+      }
+
+      for (let i = 0; i < steps; i++) {
+        const p = getPoint(state.theta);
+        if (state.lastPoint) {
+          bgCtx.beginPath();
+          const color = getColorAt(state.theta);
+          bgCtx.strokeStyle = color;
+          if (state.glow) bgCtx.shadowColor = color;
+          bgCtx.moveTo(state.lastPoint[0], state.lastPoint[1]);
+          bgCtx.lineTo(p[0], p[1]);
+          bgCtx.stroke();
+        }
+        state.lastPoint = p;
+        state.theta += dTheta;
+      }
+      bgCtx.restore();
+      document.getElementById('thetaVal').textContent = state.theta.toFixed(1);
+    }
+
+    // Blit bg to visible
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(bgCanvas, 0, 0, w, h);
+
+    // Mech overlay
+    if (state.showMech) {
+      drawMechanics(w, h);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function drawMechanics(w, h) {
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    const { R, r, d, mode, theta } = state;
+    ctx.strokeStyle = 'rgba(0,212,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    // Fixed circle
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Rolling circle center
+    let cx, cy;
+    if (mode === 'hypo') {
+      cx = (R - r) * Math.cos(theta);
+      cy = (R - r) * Math.sin(theta);
+    } else {
+      cx = (R + r) * Math.cos(theta);
+      cy = (R + r) * Math.sin(theta);
+    }
+    ctx.strokeStyle = 'rgba(255,102,0,0.8)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Pen
+    const p = getPoint(theta);
+    ctx.fillStyle = '#fbbf24';
+    ctx.strokeStyle = 'rgba(251,191,36,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(p[0], p[1]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function clearAll() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    bgCtx.clearRect(0, 0, w, h);
+    state.theta = 0;
+    state.lastPoint = null;
+    state.layers = 1;
+    document.getElementById('layerCount').textContent = '1';
+  }
+
+  function newLayer() {
+    state.theta = 0;
+    state.lastPoint = null;
+    state.layers++;
+    document.getElementById('layerCount').textContent = state.layers;
+    // Randomize a bit for interest
+    randomizeParams(true);
+  }
+
+  function randomizeParams(keepMode) {
+    state.R = 80 + Math.floor(Math.random() * 200);
+    state.r = 15 + Math.floor(Math.random() * 120);
+    state.d = 15 + Math.floor(Math.random() * 200);
+    if (!keepMode) {
+      state.mode = Math.random() < 0.5 ? 'hypo' : 'epi';
+    }
+    syncUI();
+  }
+
+  // Presets
+  const PRESETS = {
+    'ROSE': { R: 150, r: 60, d: 90, mode: 'hypo' },
+    'STAR': { R: 200, r: 40, d: 120, mode: 'hypo' },
+    'MANDALA': { R: 180, r: 45, d: 150, mode: 'hypo' },
+    'CLOVER': { R: 120, r: 30, d: 60, mode: 'hypo' },
+    'PETAL': { R: 160, r: 50, d: 80, mode: 'epi' },
+    'GEAR': { R: 200, r: 65, d: 40, mode: 'epi' },
+    'WEB': { R: 250, r: 23, d: 200, mode: 'hypo' },
+    'HEART': { R: 140, r: 70, d: 140, mode: 'epi' },
+    'NOVA': { R: 220, r: 33, d: 100, mode: 'hypo' },
+    'ATOM': { R: 180, r: 90, d: 180, mode: 'hypo' },
+    'SNOWFLAKE': { R: 200, r: 25, d: 80, mode: 'hypo' },
+    'CORAL': { R: 170, r: 55, d: 170, mode: 'epi' },
+  };
+
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    Object.assign(state, p);
+    syncUI();
+    clearAll();
+  }
+
+  // UI sync
+  function syncUI() {
+    document.getElementById('R').value = state.R;
+    document.getElementById('r').value = state.r;
+    document.getElementById('d').value = state.d;
+    document.getElementById('speed').value = state.speed;
+    document.getElementById('lw').value = Math.round(state.lineWidth * 10);
+    document.getElementById('fade').value = state.fade;
+    document.getElementById('R_out').textContent = state.R;
+    document.getElementById('r_out').textContent = state.r;
+    document.getElementById('d_out').textContent = state.d;
+    document.getElementById('speed_out').textContent = state.speed;
+    document.getElementById('lw_out').textContent = state.lineWidth.toFixed(1);
+    document.getElementById('fade_out').textContent = state.fade;
+    document.getElementById('RVal').textContent = state.R;
+    document.getElementById('rVal').textContent = state.r;
+    document.getElementById('dVal').textContent = state.d;
+    document.getElementById('modeLabel').textContent = state.mode === 'hypo' ? 'HYPOTROCHOID' : 'EPITROCHOID';
+    document.getElementById('modeHypo').classList.toggle('active', state.mode === 'hypo');
+    document.getElementById('modeEpi').classList.toggle('active', state.mode === 'epi');
+  }
+
+  // Wire sliders
+  function wireSlider(id, key, transform) {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      const v = transform ? transform(+el.value) : +el.value;
+      state[key] = v;
+      syncUI();
+    });
+  }
+  wireSlider('R', 'R');
+  wireSlider('r', 'r');
+  wireSlider('d', 'd');
+  wireSlider('speed', 'speed');
+  wireSlider('lw', 'lineWidth', v => v / 10);
+  wireSlider('fade', 'fade');
+
+  // Buttons
+  document.getElementById('playBtn').addEventListener('click', () => {
+    state.playing = !state.playing;
+    document.getElementById('playBtn').textContent = state.playing ? 'PAUSE' : 'PLAY';
+  });
+  document.getElementById('clearBtn').addEventListener('click', clearAll);
+  document.getElementById('layerBtn').addEventListener('click', newLayer);
+  document.getElementById('randomBtn').addEventListener('click', () => { randomizeParams(); clearAll(); });
+  document.getElementById('modeHypo').addEventListener('click', () => { state.mode = 'hypo'; syncUI(); clearAll(); });
+  document.getElementById('modeEpi').addEventListener('click', () => { state.mode = 'epi'; syncUI(); clearAll(); });
+
+  // Color mode
+  document.querySelectorAll('[data-cmode]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-cmode]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      state.colorMode = b.dataset.cmode;
+    });
+  });
+
+  // Color swatches
+  const colorGrid = document.getElementById('colorGrid');
+  VFD_COLORS.forEach((c, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (c === state.singleColor ? ' active' : '');
+    sw.style.background = c;
+    sw.addEventListener('click', () => {
+      state.singleColor = c;
+      document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+      sw.classList.add('active');
+    });
+    colorGrid.appendChild(sw);
+  });
+
+  // Checkboxes
+  function wireCheckbox(id, key) {
+    const el = document.getElementById(id);
+    el.addEventListener('click', () => {
+      state[key] = !state[key];
+      el.classList.toggle('on', state[key]);
+    });
+  }
+  wireCheckbox('glowCb', 'glow');
+  wireCheckbox('showMechCb', 'showMech');
+
+  // Presets
+  const presetGrid = document.getElementById('presetGrid');
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = name;
+    b.addEventListener('click', () => applyPreset(name));
+    presetGrid.appendChild(b);
+  });
+
+  // Save PNG
+  document.getElementById('saveImgBtn').addEventListener('click', () => {
+    // Compose bg on black
+    const out = document.createElement('canvas');
+    out.width = bgCanvas.width;
+    out.height = bgCanvas.height;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#050a0f';
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(bgCanvas, 0, 0);
+    const url = out.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'spirograph_' + Date.now() + '.png';
+    a.click();
+  });
+
+  // Save/load localStorage presets
+  const LS_KEY = 'korb_spirograph_presets';
+  function loadSavedPresets() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+  }
+  function renderSaved() {
+    const container = document.getElementById('savedPresets');
+    container.innerHTML = '';
+    const saved = loadSavedPresets();
+    const keys = Object.keys(saved);
+    if (keys.length === 0) {
+      container.innerHTML = '<div style="font-size:9px;color:var(--dim);">NO SAVED DESIGNS</div>';
+      return;
+    }
+    keys.forEach(name => {
+      const chip = document.createElement('div');
+      chip.className = 'saved-chip';
+      const label = document.createElement('span');
+      label.textContent = name;
+      label.addEventListener('click', () => {
+        Object.assign(state, saved[name]);
+        syncUI();
+        clearAll();
+      });
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = 'x';
+      x.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const s = loadSavedPresets();
+        delete s[name];
+        localStorage.setItem(LS_KEY, JSON.stringify(s));
+        renderSaved();
+      });
+      chip.appendChild(label);
+      chip.appendChild(x);
+      container.appendChild(chip);
+    });
+  }
+  document.getElementById('savePresetBtn').addEventListener('click', () => {
+    const name = prompt('PRESET NAME:');
+    if (!name) return;
+    const saved = loadSavedPresets();
+    saved[name] = {
+      R: state.R, r: state.r, d: state.d,
+      speed: state.speed, lineWidth: state.lineWidth,
+      fade: state.fade, mode: state.mode,
+      colorMode: state.colorMode, singleColor: state.singleColor,
+      glow: state.glow,
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(saved));
+    renderSaved();
+  });
+  renderSaved();
+
+  // Fullscreen
+  document.getElementById('fsBtn').addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  });
+
+  // Controls collapse
+  document.getElementById('toggleCtrl').addEventListener('click', () => {
+    const c = document.getElementById('controls');
+    c.classList.toggle('collapsed');
+    document.getElementById('toggleCtrl').textContent = c.classList.contains('collapsed') ? '[+]' : '[-]';
+    setTimeout(resize, 50);
+  });
+
+  // Init
+  window.addEventListener('resize', resize);
+  resize();
+  syncUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
