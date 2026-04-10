@@ -1521,11 +1521,38 @@ function initReveal() {
   els.forEach(el => observer.observe(el));
 }
 
+// --- Accessibility: announce route changes to screen readers ---
+function announceRoute(label) {
+  const el = document.getElementById('routeAnnouncer');
+  if (!el) return;
+  // Clear then set so SR re-announces even if text hasn't changed
+  el.textContent = '';
+  setTimeout(() => { el.textContent = label; }, 30);
+}
+
+function routeToLabel(route) {
+  if (!route || route === 'home') return 'Home';
+  if (route === 'about') return 'About Korb Engineering';
+  if (route === 'repository') return 'Tool repository';
+  if (route.includes('/')) {
+    const parts = route.split('/');
+    return parts.map((p) => p.replace(/-/g, ' ')).join(' — ');
+  }
+  return route.replace(/-/g, ' ');
+}
+
 // --- Route Handler ---
 function handleRoute() {
 
   const route = getRoute();
   window.scrollTo(0, 0);
+  announceRoute(routeToLabel(route));
+  // Move focus to main for keyboard users after navigation
+  const main = document.getElementById('mainContent');
+  if (main && document.activeElement !== main) {
+    // Defer so renders complete first
+    setTimeout(() => { try { main.focus({ preventScroll: true }); } catch (_) { main.focus(); } }, 0);
+  }
 
   if (route === 'home' || route === '') {
     renderHome();
