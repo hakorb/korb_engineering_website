@@ -513,6 +513,12 @@ function renderHome() {
           and a few gifts for family along the way.
         </p>
       </div>
+      <div class="home-recent" id="homeRecent" hidden>
+        <div class="home-recent-head">
+          <span class="home-recent-label">Recently updated</span>
+        </div>
+        <div class="home-recent-strip" id="homeRecentStrip"></div>
+      </div>
       <div class="home-toolbar">
         <div class="search-bar-wrap">
           <div class="search-bar">
@@ -621,6 +627,48 @@ function renderHome() {
     searchInput.value = '';
     renderResults('');
     searchInput.focus();
+  });
+
+  // Populate "Recently updated" strip from sections.json (async, non-blocking)
+  loadRecency().then(() => {
+    const strip = document.getElementById('homeRecentStrip');
+    const wrap  = document.getElementById('homeRecent');
+    if (!strip || !wrap) return;
+    // Build a slug -> { sectionKey, name } lookup from SECTIONS
+    const slugIndex = {};
+    Object.entries(SECTIONS).forEach(([k, sec]) => {
+      if (!sec || sec.locked) return;
+      (sec.tools || []).forEach((t) => {
+        if (t.type === 'folder') {
+          if (t.locked) return;
+          (t.tools || []).forEach((sub) => {
+            slugIndex[getToolSlug(sub)] = { sectionKey: k, name: sub.name };
+          });
+        } else {
+          slugIndex[getToolSlug(t)] = { sectionKey: k, name: t.name };
+        }
+      });
+    });
+    // Rank by modified date (fresh first), cap 5
+    const recent = Object.entries(_RECENCY)
+      .filter(([slug]) => slugIndex[slug])
+      .map(([slug, iso]) => ({
+        slug, iso, ts: Date.parse(iso) || 0,
+        section: slugIndex[slug].sectionKey,
+        name: slugIndex[slug].name
+      }))
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 5);
+    if (!recent.length) return;
+    strip.innerHTML = recent.map((r) => {
+      const days = Math.max(0, Math.floor((Date.now() - r.ts) / 86400000));
+      const age = days === 0 ? 'today' : (days === 1 ? '1 day ago' : days + ' days ago');
+      return `<a href="#${r.section}/${r.slug}" class="home-recent-item">
+        <span class="home-recent-name">${r.name}</span>
+        <span class="home-recent-age">${age}</span>
+      </a>`;
+    }).join('');
+    wrap.hidden = false;
   });
 
   // Stagger card fade-in
