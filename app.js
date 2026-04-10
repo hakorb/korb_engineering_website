@@ -222,6 +222,7 @@ const SECTIONS = {
       { name: 'DFW Events & Deals', file: './tools/misc/dfw-events.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
       { name: 'Dinner Recommender', file: './tools/misc/dinner-recommender.html' },
+      { name: 'Drawing Challenge', file: './tools/misc/drawing-challenge.html' },
       { name: 'Dungeon Quest', file: './tools/misc/dungeon-quest.html' },
       { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
       { name: 'File Converter', file: './tools/misc/file-converter.html' },
