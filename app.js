@@ -893,8 +893,45 @@ function generateToolDescription(name) {
   return 'Self-contained browser tool — no install or sign-up required.';
 }
 
+// --- Recency metadata (loaded async from tools/_generated/sections.json) ---
+// Maps tool slug -> ISO date string of last file modification. Empty until
+// the async load resolves; renderRepository handles the empty case.
+const _RECENCY = {};
+let _recencyLoaded = false;
+function loadRecency() {
+  if (_recencyLoaded) return Promise.resolve();
+  _recencyLoaded = true;
+  return fetch('./tools/_generated/sections.json', { cache: 'no-cache' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.categories) return;
+      for (const cat of Object.keys(data.categories)) {
+        for (const t of data.categories[cat]) {
+          if (t.slug && t.modified) _RECENCY[t.slug] = t.modified;
+        }
+      }
+      // If the user is on the repository view when data arrives, refresh it
+      if (getRoute() === 'repository') renderRepository();
+    })
+    .catch(() => { /* non-fatal */ });
+}
+
+function recencyChip(slug) {
+  const iso = _RECENCY[slug];
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  let label = '', cls = '';
+  if (days <= 7)      { label = 'Updated this week';    cls = 'repo-chip--new'; }
+  else if (days <= 30){ label = 'Updated this month';   cls = 'repo-chip--fresh'; }
+  else                { return ''; } // older: no chip
+  return `<span class="repo-chip ${cls}" title="${d.toISOString().slice(0,10)}">${label}</span>`;
+}
+
 function renderRepository() {
   ensureStatusVisible();
+  loadRecency();
   const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK' };
   const sectionOrder = ['aviation', 'civil', 'misc', 'hk'];
 
@@ -915,11 +952,13 @@ function renderRepository() {
     const items = tools.map(t => {
       const desc = generateToolDescription(t.name);
       const folderTag = t.folder ? `<span class="repo-folder-tag">${t.folder}</span>` : '';
+      const chip = recencyChip(t.slug);
       return `
         <a href="#${key}/${t.slug}" class="repo-item">
           <div class="repo-item-head">
             <span class="repo-item-name">${t.name}</span>
             ${folderTag}
+            ${chip}
           </div>
           <p class="repo-item-desc">${desc}</p>
         </a>`;
