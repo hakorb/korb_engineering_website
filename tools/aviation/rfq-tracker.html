@@ -84,6 +84,64 @@ const rng=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
 function urgencyColor(due){const d=daysUntil(due);if(d<0)return'#6b7280';if(d<7)return'var(--red)';if(d<=14)return'var(--yellow)';return'var(--green)';}
 function statusLabel(due){const d=daysUntil(due);if(d<0)return'Expired';if(d<7)return'Closing Soon';return'Active';}
 
+// Full RFQ pursuit lifecycle states used across filter, detail panel,
+// bookmarked list, and analytics. Grouped roughly by lifecycle phase.
+const PURSUIT_STATES = [
+  // Pre-bid / qualification
+  'Identified','Reviewing','Go / No-Go','No Bid','Teaming','Pursuing',
+  // Drafting
+  'Drafting SOQ','Drafting Proposal','Internal Review','QA / Red Team',
+  // Submission
+  'Submitted','Addenda Pending','Clarifications',
+  // Evaluation
+  'Shortlisted','Interview Scheduled','Interview Complete','Negotiating','BAFO',
+  // Outcome
+  'Awarded','Contracted','Won','Lost','Protested','Withdrawn','Cancelled','On Hold','Archived'
+];
+// Color buckets for the pursuit badge
+const PURSUIT_COLORS = {
+  'Identified':'slate','Reviewing':'slate','Go / No-Go':'yellow','No Bid':'gray','Teaming':'cyan','Pursuing':'cyan',
+  'Drafting SOQ':'blue','Drafting Proposal':'blue','Internal Review':'blue','QA / Red Team':'blue',
+  'Submitted':'purple','Addenda Pending':'yellow','Clarifications':'yellow',
+  'Shortlisted':'purple','Interview Scheduled':'purple','Interview Complete':'purple','Negotiating':'purple','BAFO':'purple',
+  'Awarded':'green','Contracted':'green','Won':'green',
+  'Lost':'red','Protested':'red','Withdrawn':'gray','Cancelled':'gray','On Hold':'gray','Archived':'gray'
+};
+// Lifecycle phase for grouping in the dropdown
+const PURSUIT_PHASES = [
+  {label:'Pre-Bid', states:['Identified','Reviewing','Go / No-Go','No Bid','Teaming','Pursuing']},
+  {label:'Drafting', states:['Drafting SOQ','Drafting Proposal','Internal Review','QA / Red Team']},
+  {label:'Submitted', states:['Submitted','Addenda Pending','Clarifications']},
+  {label:'Evaluation', states:['Shortlisted','Interview Scheduled','Interview Complete','Negotiating','BAFO']},
+  {label:'Outcome', states:['Awarded','Contracted','Won','Lost','Protested','Withdrawn','Cancelled','On Hold','Archived']}
+];
+function pursuitBadgeStyle(p){
+  if(!p)return '';
+  const c=PURSUIT_COLORS[p]||'cyan';
+  const map={
+    green:'background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)',
+    red:'background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)',
+    yellow:'background:rgba(245,158,11,0.15);color:var(--yellow);border:1px solid rgba(245,158,11,0.3)',
+    cyan:'background:var(--accentDim);color:var(--accent);border:1px solid rgba(0,212,255,0.3)',
+    blue:'background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)',
+    purple:'background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)',
+    slate:'background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.3)',
+    gray:'background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid rgba(107,114,128,0.3)'
+  };
+  return map[c]||map.cyan;
+}
+function pursuitOptions(selected){
+  let html='<option value="">-- None --</option>';
+  PURSUIT_PHASES.forEach(ph=>{
+    html+='<optgroup label="'+ph.label+'">';
+    ph.states.forEach(s=>{
+      html+='<option '+(selected===s?'selected':'')+'>'+s+'</option>';
+    });
+    html+='</optgroup>';
+  });
+  return html;
+}
+
 function generateSeed(){
 const now=Date.now();
 const futureDate=(lo,hi)=>new Date(now+rng(lo,hi)*day).toISOString().slice(0,10);
@@ -121,7 +179,7 @@ bookmarked:false,notes:'',pursuit:''}));
 let data={};
 let tab='all';
 let search='';
-let filters={category:'',location:'',type:'',status:''};
+let filters={category:'',location:'',type:'',status:'',pursuit:''};
 let sortCol='dueDate';
 let sortAsc=true;
 let expandedId=null;
@@ -141,6 +199,7 @@ if(filters.category)r=r.filter(i=>i.category===filters.category);
 if(filters.location)r=r.filter(i=>i.location===filters.location);
 if(filters.type)r=r.filter(i=>i.type===filters.type);
 if(filters.status)r=r.filter(i=>statusLabel(i.dueDate)===filters.status);
+if(filters.pursuit)r=r.filter(i=>(i.pursuit||'')===filters.pursuit);
 return r;
 }
 
@@ -159,12 +218,15 @@ const avgVal=active.length?active.reduce((s,i)=>s+i.value,0)/active.length:0;
 const byCat={};active.forEach(i=>{byCat[i.category]=(byCat[i.category]||0)+1;});
 const bookmarked=items.filter(i=>i.bookmarked);
 const pursued=bookmarked.filter(i=>i.pursuit);
-const won=pursued.filter(i=>i.pursuit==='Won').length;
-const lost=pursued.filter(i=>i.pursuit==='Lost').length;
+const WON_STATES=['Awarded','Contracted','Won'];
+const LOST_STATES=['Lost','Protested'];
+const won=pursued.filter(i=>WON_STATES.indexOf(i.pursuit)!==-1).length;
+const lost=pursued.filter(i=>LOST_STATES.indexOf(i.pursuit)!==-1).length;
+const byPursuit={};pursued.forEach(i=>{byPursuit[i.pursuit]=(byPursuit[i.pursuit]||0)+1;});
 const decided=won+lost;
 const winRate=decided?Math.round(won/decided*100)+'%':'--';
 const totalValue=active.reduce((s,i)=>s+i.value,0);
-return{active:active.length,thisWeek:thisWeek.length,avgVal,byCat,winRate,won,lost,totalPursued:pursued.length,totalValue,bookmarked:bookmarked.length};
+return{active:active.length,thisWeek:thisWeek.length,avgVal,byCat,winRate,won,lost,totalPursued:pursued.length,totalValue,bookmarked:bookmarked.length,byPursuit};
 }
 
 function init(){data=loadData();render();}
@@ -207,8 +269,9 @@ return `<div class="panel">
   <select class="input" onchange="filters.category=this.value;render()"><option value="">All Categories</option>${cats.map(c=>`<option ${filters.category===c?'selected':''}>${c}</option>`).join('')}</select>
   <select class="input" onchange="filters.location=this.value;render()"><option value="">All States</option>${locs.map(l=>`<option ${filters.location===l?'selected':''}>${l}</option>`).join('')}</select>
   <select class="input" onchange="filters.type=this.value;render()"><option value="">All Types</option>${types.map(t=>`<option ${filters.type===t?'selected':''}>${t}</option>`).join('')}</select>
-  <select class="input" onchange="filters.status=this.value;render()"><option value="">All Status</option><option>Active</option><option>Closing Soon</option><option>Expired</option></select>
-  <button class="btn" style="font-size:16px" onclick="search='';filters={category:'',location:'',type:'',status:''};render()">Clear</button>
+  <select class="input" onchange="filters.status=this.value;render()"><option value="">All Deadlines</option><option>Active</option><option>Closing Soon</option><option>Expired</option></select>
+  <select class="input" onchange="filters.pursuit=this.value;render()"><option value="">All Pursuit States</option>${PURSUIT_PHASES.map(ph=>'<optgroup label="'+ph.label+'">'+ph.states.map(s=>'<option '+(filters.pursuit===s?'selected':'')+'>'+s+'</option>').join('')+'</optgroup>').join('')}</select>
+  <button class="btn" style="font-size:16px" onclick="search='';filters={category:'',location:'',type:'',status:'',pursuit:''};render()">Clear</button>
 </div>
 <div style="font-size:10px;color:var(--textDim);margin-bottom:8px">${sorted.length} results</div>
 <div style="overflow-x:auto">
@@ -250,13 +313,9 @@ ${expanded?`<tr><td colspan="9" class="detail-panel">
 <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
   <div class="form-group"><label>Pursuit Status</label>
     <select class="input" onclick="event.stopPropagation()" onchange="updateItem('${i.id}','pursuit',this.value)">
-      <option value="" ${!i.pursuit?'selected':''}>-- None --</option>
-      <option ${i.pursuit==='Pursuing'?'selected':''}>Pursuing</option>
-      <option ${i.pursuit==='Submitted'?'selected':''}>Submitted</option>
-      <option ${i.pursuit==='Won'?'selected':''}>Won</option>
-      <option ${i.pursuit==='Lost'?'selected':''}>Lost</option>
-      <option ${i.pursuit==='No Bid'?'selected':''}>No Bid</option>
+      ${pursuitOptions(i.pursuit)}
     </select>
+    ${i.pursuit?`<span class="badge" style="${pursuitBadgeStyle(i.pursuit)};margin-top:4px;align-self:flex-start">${i.pursuit}</span>`:''}
   </div>
   <div class="form-group"><label>Notes</label>
     <input class="input" value="${i.notes||''}" onclick="event.stopPropagation()" onchange="updateItem('${i.id}','notes',this.value)" placeholder="Add notes...">
@@ -284,14 +343,9 @@ return `<div style="padding:10px;border:1px solid var(--border);border-radius:6p
 </div>
 <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
   <select class="input" style="width:auto" onchange="updateItem('${i.id}','pursuit',this.value)">
-    <option value="" ${!i.pursuit?'selected':''}>-- Status --</option>
-    <option ${i.pursuit==='Pursuing'?'selected':''}>Pursuing</option>
-    <option ${i.pursuit==='Submitted'?'selected':''}>Submitted</option>
-    <option ${i.pursuit==='Won'?'selected':''}>Won</option>
-    <option ${i.pursuit==='Lost'?'selected':''}>Lost</option>
-    <option ${i.pursuit==='No Bid'?'selected':''}>No Bid</option>
+    ${pursuitOptions(i.pursuit)}
   </select>
-  ${i.pursuit?`<span class="badge" style="background:${i.pursuit==='Won'?'rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)':i.pursuit==='Lost'?'rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)':'var(--accentDim);color:var(--accent);border:1px solid rgba(0,212,255,0.3)'}">${i.pursuit}</span>`:''}
+  ${i.pursuit?`<span class="badge" style="${pursuitBadgeStyle(i.pursuit)}">${i.pursuit}</span>`:''}
   <span class="bookmark-star" onclick="toggleBookmark('${i.id}')" style="margin-left:auto">&#9733;</span>
 </div></div>`;}).join('')}</div>`;
 }
@@ -335,7 +389,17 @@ ${Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
     <div style="height:100%;width:${v/maxType*100}%;background:var(--accent);border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:8px;font-weight:700">${v}</div>
   </div>
 </div>`).join('')}
-</div></div></div>`;
+</div></div>
+${(function(){
+  const bp=a.byPursuit||{};
+  const entries=PURSUIT_STATES.map(s=>[s,bp[s]||0]).filter(([,v])=>v>0);
+  if(!entries.length)return '<div style="margin-top:16px;color:var(--textDim);font-size:11px">No pursuit states set yet. Bookmark an RFQ and pick a pursuit state to populate the pipeline.</div>';
+  const maxP=Math.max(...entries.map(([,v])=>v),1);
+  return '<div style="margin-top:16px"><h3 style="font-size:12px;color:var(--accent);margin-bottom:8px">By Pursuit Stage</h3>'+
+    entries.map(([k,v])=>'<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span style="width:140px;font-size:10px">'+k+'</span><div style="flex:1;height:14px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+(v/maxP*100)+'%;'+pursuitBadgeStyle(k)+';border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;font-size:8px;font-weight:700">'+v+'</div></div></div>').join('')+
+    '</div>';
+})()}
+</div>`;
 }
 
 function renderAddForm(){
