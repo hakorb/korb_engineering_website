@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Korb Data Vault</title>
+<meta name="description" content="Export and import all of your korb.engineering tool data — backups for Caddy bags, garden beds, trackers, and every other tool.">
+<link rel="stylesheet" href="../_shared/korb.css">
+<style>
+  body { padding: 24px 16px 80px; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  header.hero h1 {
+    font-size: 1.6rem;
+    margin: 0 0 4px;
+    color: var(--cyan);
+    letter-spacing: 0.02em;
+  }
+  header.hero p { margin: 0 0 24px; color: var(--text-dim); font-size: 14px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-md);
+    padding: 12px;
+  }
+  .stat .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+  .stat .value {
+    font-size: 1.4rem;
+    color: var(--text);
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  table.tools {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.tools th,
+  table.tools td {
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.tools th {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  table.tools td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.tools tr:hover td { background: var(--surface-2); }
+  .muted { color: var(--text-dim); }
+
+  textarea.json {
+    width: 100%;
+    min-height: 180px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-md);
+    padding: 10px;
+    resize: vertical;
+  }
+
+  .warn {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid var(--gold);
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+    color: var(--gold);
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>Korb Data Vault</h1>
+    <p>Back up, restore, and inspect every tool's local data. Your tools store their state in your browser's localStorage under <code class="korb-mono">korb_*</code> keys. This page is the only place that touches all of them.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Overview</h2>
+    <div class="stat-row" id="stats">
+      <div class="stat"><div class="label">Tools with data</div><div class="value" id="statTools">0</div></div>
+      <div class="stat"><div class="label">Keys stored</div><div class="value" id="statKeys">0</div></div>
+      <div class="stat"><div class="label">Total size</div><div class="value" id="statSize">0 B</div></div>
+      <div class="stat"><div class="label">Non-Korb keys</div><div class="value" id="statOther">0</div></div>
+    </div>
+    <div class="toolbar">
+      <button class="korb-btn korb-btn--primary" id="btnExportAll">Export all</button>
+      <button class="korb-btn" id="btnCopy">Copy JSON</button>
+      <button class="korb-btn" id="btnRefresh">Refresh</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Tools with stored data</h2>
+    <div id="toolList"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Import backup</h2>
+    <div class="warn">Importing overwrites existing keys with the same name. Export a backup first if you're not sure. Only keys starting with <code>korb_</code> will be written.</div>
+    <div class="toolbar">
+      <button class="korb-btn" id="btnPickFile">Load file…</button>
+      <input type="file" id="fileInput" accept="application/json,.json" hidden>
+    </div>
+    <textarea class="json" id="importBox" placeholder='Paste exported JSON here, then click "Import" below…'></textarea>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="korb-btn korb-btn--primary" id="btnImport">Import</button>
+      <button class="korb-btn" id="btnValidate">Validate only</button>
+      <button class="korb-btn korb-btn--ghost" id="btnClearBox">Clear box</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Danger zone</h2>
+    <div class="warn">Deleting a tool's data cannot be undone. Export a backup first.</div>
+    <div class="toolbar">
+      <button class="korb-btn korb-btn--danger" id="btnWipeAll">Wipe all Korb data…</button>
+    </div>
+  </div>
+</div>
+
+<div class="korb-toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const PREFIX = 'korb_';
+
+  // ---------- helpers ----------
+  function toast(msg, ms) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('korb-show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('korb-show'), ms || 2200);
+  }
+
+  function humanBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  // All Korb-prefixed localStorage keys, grouped by tool slug.
+  // We treat everything after the prefix up to the next `_` as the tool slug.
+  function scanAll() {
+    const groups = {};
+    let total = 0;
+    let keys = 0;
+    let other = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const v = localStorage.getItem(k) || '';
+      const size = k.length + v.length;
+      total += size;
+      if (!k.startsWith(PREFIX)) { other++; continue; }
+      keys++;
+      const rest = k.slice(PREFIX.length);
+      const sep = rest.indexOf('_');
+      const slug = sep === -1 ? rest : rest.slice(0, sep);
+      if (!groups[slug]) groups[slug] = { slug, keys: 0, size: 0, entries: {} };
+      groups[slug].keys++;
+      groups[slug].size += size;
+      groups[slug].entries[k] = v;
+    }
+    return { groups, total, keys, other };
+  }
+
+  function render() {
+    const scan = scanAll();
+    document.getElementById('statTools').textContent = Object.keys(scan.groups).length;
+    document.getElementById('statKeys').textContent = scan.keys;
+    document.getElementById('statSize').textContent = humanBytes(scan.total);
+    document.getElementById('statOther').textContent = scan.other;
+
+    const list = document.getElementById('toolList');
+    const sorted = Object.values(scan.groups).sort((a, b) => b.size - a.size);
+    if (sorted.length === 0) {
+      list.innerHTML = '<div class="empty">No Korb tool data found in this browser yet. Use a tool, then come back here to back it up.</div>';
+      return;
+    }
+    let html = '<table class="tools"><thead><tr>' +
+      '<th>Tool slug</th><th class="num">Keys</th><th class="num">Size</th><th></th>' +
+      '</tr></thead><tbody>';
+    for (const g of sorted) {
+      html += '<tr>' +
+        '<td class="korb-mono">' + escapeHtml(g.slug) + '</td>' +
+        '<td class="num">' + g.keys + '</td>' +
+        '<td class="num">' + humanBytes(g.size) + '</td>' +
+        '<td style="text-align:right">' +
+          '<button class="korb-btn korb-btn--sm" data-act="export" data-slug="' + escapeHtml(g.slug) + '">Export</button> ' +
+          '<button class="korb-btn korb-btn--sm korb-btn--danger" data-act="delete" data-slug="' + escapeHtml(g.slug) + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    }
+    html += '</tbody></table>';
+    list.innerHTML = html;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function makeExport(filterSlug) {
+    const scan = scanAll();
+    const payload = {
+      app: 'korb.engineering',
+      exported_at: new Date().toISOString(),
+      version: 1,
+      filter: filterSlug || null,
+      entries: {}
+    };
+    for (const g of Object.values(scan.groups)) {
+      if (filterSlug && g.slug !== filterSlug) continue;
+      for (const [k, v] of Object.entries(g.entries)) {
+        payload.entries[k] = v;
+      }
+    }
+    return payload;
+  }
+
+  function downloadJson(obj, filename) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function parseImport(text) {
+    if (!text || !text.trim()) throw new Error('Empty input.');
+    let obj;
+    try { obj = JSON.parse(text); }
+    catch (e) { throw new Error('Not valid JSON: ' + e.message); }
+    if (!obj || typeof obj !== 'object') throw new Error('Expected an object at the top level.');
+    if (!obj.entries || typeof obj.entries !== 'object') {
+      throw new Error('Missing "entries" object. This does not look like a Korb export.');
+    }
+    const count = Object.keys(obj.entries).length;
+    const korbCount = Object.keys(obj.entries).filter((k) => k.startsWith(PREFIX)).length;
+    return { obj, count, korbCount };
+  }
+
+  function applyImport(entries) {
+    let written = 0;
+    for (const [k, v] of Object.entries(entries)) {
+      if (!k.startsWith(PREFIX)) continue;
+      if (typeof v !== 'string') continue;
+      try { localStorage.setItem(k, v); written++; } catch (e) { /* quota */ }
+    }
+    return written;
+  }
+
+  // ---------- wire up ----------
+  document.getElementById('btnRefresh').addEventListener('click', () => { render(); toast('Refreshed'); });
+
+  document.getElementById('btnExportAll').addEventListener('click', () => {
+    const payload = makeExport(null);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadJson(payload, 'korb-backup-' + stamp + '.json');
+    toast('Backup downloaded');
+  });
+
+  document.getElementById('btnCopy').addEventListener('click', async () => {
+    const payload = makeExport(null);
+    const text = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard');
+    } catch (e) {
+      const box = document.getElementById('importBox');
+      box.value = text;
+      toast('Clipboard blocked — JSON placed in import box for copying');
+    }
+  });
+
+  document.getElementById('toolList').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const slug = btn.getAttribute('data-slug');
+    const act = btn.getAttribute('data-act');
+    if (act === 'export') {
+      const payload = makeExport(slug);
+      downloadJson(payload, 'korb-' + slug + '-' + new Date().toISOString().slice(0, 10) + '.json');
+      toast('Exported ' + slug);
+    } else if (act === 'delete') {
+      if (!confirm('Delete all data for "' + slug + '"? This cannot be undone.')) return;
+      const scan = scanAll();
+      const g = scan.groups[slug];
+      if (g) {
+        for (const k of Object.keys(g.entries)) localStorage.removeItem(k);
+        render();
+        toast('Deleted ' + slug);
+      }
+    }
+  });
+
+  document.getElementById('btnPickFile').addEventListener('click', () => document.getElementById('fileInput').click());
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById('importBox').value = String(reader.result || '');
+      toast('Loaded ' + f.name);
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById('btnValidate').addEventListener('click', () => {
+    try {
+      const { count, korbCount } = parseImport(document.getElementById('importBox').value);
+      toast('Valid — ' + korbCount + ' Korb keys (of ' + count + ') ready to import');
+    } catch (e) {
+      toast('Invalid: ' + e.message, 4000);
+    }
+  });
+
+  document.getElementById('btnImport').addEventListener('click', () => {
+    try {
+      const { obj, korbCount } = parseImport(document.getElementById('importBox').value);
+      if (!confirm('Import ' + korbCount + ' Korb keys? This will overwrite any existing keys with the same names.')) return;
+      const n = applyImport(obj.entries);
+      render();
+      toast('Imported ' + n + ' keys');
+    } catch (e) {
+      toast('Import failed: ' + e.message, 4000);
+    }
+  });
+
+  document.getElementById('btnClearBox').addEventListener('click', () => {
+    document.getElementById('importBox').value = '';
+  });
+
+  document.getElementById('btnWipeAll').addEventListener('click', () => {
+    const scan = scanAll();
+    const n = scan.keys;
+    if (n === 0) { toast('Nothing to wipe'); return; }
+    if (!confirm('Wipe ALL ' + n + ' Korb-prefixed keys in this browser?\n\nThis will clear every tool\'s saved data. You cannot undo this.')) return;
+    if (!confirm('Really wipe? Last chance. Did you export a backup first?')) return;
+    const toDelete = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PREFIX)) toDelete.push(k);
+    }
+    toDelete.forEach((k) => localStorage.removeItem(k));
+    render();
+    toast('Wiped ' + toDelete.length + ' keys');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
