@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Olivia's Digital Escape Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050a0f; --surface:#0a1018; --surface2:#0e1520; --border:#1a2535;
+  --cyan:#00d4ff; --orange:#ff6600; --green:#10b981; --red:#ef4444;
+  --gold:#fbbf24; --text:#e2e8f0; --muted:#64748b;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'JetBrains Mono',monospace;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden;}
+body{display:flex;flex-direction:column;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
+button,input,select{font-family:inherit;font-size:16px;color:var(--text);}
+button{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;min-height:44px;cursor:pointer;border-radius:4px;transition:all .15s;}
+button:hover:not(:disabled){border-color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,.3);}
+button:disabled{opacity:.4;cursor:not-allowed;}
+input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--border);padding:10px;border-radius:4px;min-height:44px;width:100%;}
+input:focus{outline:none;border-color:var(--cyan);}
+.hidden{display:none !important;}
+.scanline::before{content:'';position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(transparent 0 2px,rgba(0,212,255,.015) 2px 4px);z-index:9999;}
+
+/* HOME */
+#home{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px 16px 40px;overflow-y:auto;}
+#home h1{color:var(--cyan);font-size:clamp(22px,6vw,38px);text-align:center;text-shadow:0 0 20px rgba(0,212,255,.5);letter-spacing:2px;margin-top:10px;}
+#home .sub{color:var(--muted);margin:8px 0 20px;text-align:center;font-size:14px;}
+.settings-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:16px;width:100%;max-width:700px;}
+.settings-row label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.settings-row select,.settings-row input{margin-top:4px;background:var(--surface);border:1px solid var(--border);padding:8px;border-radius:4px;color:var(--text);}
+.rooms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;width:100%;max-width:900px;}
+.room-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.room-card:hover{transform:translateY(-3px);}
+.room-card.saw:hover{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.4);}
+.room-card.sub:hover{border-color:var(--cyan);box-shadow:0 0 20px rgba(0,212,255,.4);}
+.room-card.nuke:hover{border-color:var(--orange);box-shadow:0 0 20px rgba(255,102,0,.4);}
+.room-card.future{opacity:.5;cursor:not-allowed;border-style:dashed;}
+.room-card h3{font-size:18px;margin-bottom:8px;}
+.room-card.saw h3{color:var(--red);}
+.room-card.sub h3{color:var(--cyan);}
+.room-card.nuke h3{color:var(--orange);}
+.room-card p{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:10px;}
+.room-card .best{font-size:11px;color:var(--gold);}
+.room-art{width:100%;height:90px;margin-bottom:10px;border-radius:4px;background:var(--bg);border:1px solid var(--border);}
+.credits{margin-top:24px;color:var(--muted);font-size:10px;text-align:center;}
+
+/* GAME */
+#game{flex:1;display:none;flex-direction:column;height:100%;}
+#game.active{display:flex;}
+.gheader{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.gheader .rname{flex:1;min-width:120px;font-size:12px;color:var(--cyan);letter-spacing:1px;}
+.gheader .timer{font-size:20px;color:var(--gold);font-weight:700;min-width:78px;text-align:center;}
+.gheader .timer.crit{color:var(--red);animation:flash .8s infinite;}
+@keyframes flash{50%{opacity:.3;}}
+.gheader button{padding:6px 10px;min-height:36px;font-size:11px;}
+.inv-bar{display:flex;gap:6px;padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);min-height:52px;overflow-x:auto;}
+.inv-item{width:36px;height:36px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;background:var(--bg);flex-shrink:0;position:relative;}
+.inv-item.sel{border-color:var(--gold);box-shadow:0 0 10px rgba(251,191,36,.5);}
+.inv-item .tip{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);padding:2px 6px;border-radius:3px;font-size:9px;white-space:nowrap;display:none;color:var(--text);z-index:5;}
+.inv-item:hover .tip{display:block;}
+.scene{flex:1;position:relative;overflow:hidden;background:var(--bg);}
+.scene svg{width:100%;height:100%;display:block;}
+.hotspot{cursor:pointer;}
+.hotspot:hover{filter:brightness(1.3) drop-shadow(0 0 8px currentColor);}
+.log{padding:10px 12px;background:var(--surface);border-top:1px solid var(--border);min-height:70px;max-height:140px;overflow-y:auto;font-size:12px;line-height:1.5;color:var(--text);}
+.log .entry{margin-bottom:6px;padding-left:10px;border-left:2px solid var(--border);}
+.log .entry.sys{border-left-color:var(--cyan);color:var(--cyan);}
+.log .entry.warn{border-left-color:var(--red);color:var(--red);}
+.log .entry.good{border-left-color:var(--green);color:var(--green);}
+
+/* MODAL */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
+.modal .box{background:var(--surface);border:1px solid var(--cyan);border-radius:8px;padding:18px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,212,255,.3);}
+.modal h3{color:var(--cyan);margin-bottom:12px;font-size:16px;}
+.modal .close{float:right;background:transparent;border:1px solid var(--border);padding:4px 10px;min-height:30px;font-size:11px;}
+.modal p{font-size:13px;line-height:1.6;margin-bottom:10px;color:var(--text);}
+.modal .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.modal .code-input{font-size:22px;text-align:center;letter-spacing:6px;}
+
+/* DIGIT LOCK */
+.digit-lock{display:flex;justify-content:center;gap:8px;margin:12px 0;}
+.digit{width:48px;height:64px;background:var(--bg);border:1px solid var(--cyan);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;}
+.digit .up,.digit .dn{position:absolute;font-size:10px;color:var(--cyan);cursor:pointer;padding:4px 10px;}
+.digit .up{top:2px;}.digit .dn{bottom:2px;}
+.digit .val{font-size:26px;color:var(--gold);}
+
+/* CIPHER WHEEL */
+.cwheel-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.cwheel{width:240px;height:240px;position:relative;}
+.cwheel svg{width:100%;height:100%;}
+.cwheel .rotor{transition:transform .4s;}
+
+/* WIRES */
+.wires-box{position:relative;width:100%;max-width:440px;height:260px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin:0 auto;}
+.wires-box svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.wnode{position:absolute;width:28px;height:28px;border-radius:50%;border:2px solid var(--text);display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;background:var(--surface);}
+.wnode.left{left:10px;}.wnode.right{right:10px;}
+
+/* SIMON */
+.simon-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:240px;margin:0 auto;}
+.simon-btn{aspect-ratio:1;border-radius:8px;cursor:pointer;opacity:.55;transition:opacity .15s;border:2px solid var(--border);}
+.simon-btn.on{opacity:1;box-shadow:0 0 30px currentColor;}
+.simon-btn.r{background:#7f1d1d;color:var(--red);}
+.simon-btn.g{background:#064e3b;color:var(--green);}
+.simon-btn.b{background:#0c4a6e;color:var(--cyan);}
+.simon-btn.y{background:#78350f;color:var(--gold);}
+
+/* PIPES */
+.pipe-grid{display:grid;gap:2px;background:var(--border);padding:2px;margin:0 auto;width:fit-content;}
+.pipe-cell{width:44px;height:44px;background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s;}
+.pipe-cell svg{width:40px;height:40px;}
+.pipe-cell.fixed{background:var(--surface2);cursor:default;}
+.pipe-cell.flow svg line,.pipe-cell.flow svg path{stroke:var(--cyan);}
+
+/* CHART WAYPOINTS */
+.chart-box{position:relative;width:100%;max-width:340px;height:280px;margin:0 auto;background:#0d1f2e;border:1px solid var(--cyan);border-radius:6px;overflow:hidden;}
+.chart-wp{position:absolute;width:32px;height:32px;border-radius:50%;background:var(--surface);border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transform:translate(-50%,-50%);color:var(--cyan);}
+.chart-wp.picked{background:var(--cyan);color:var(--bg);}
+
+/* RADIATION SCAN */
+.rad-box{position:relative;width:100%;max-width:360px;height:260px;background:var(--surface2);border:1px solid var(--orange);border-radius:6px;cursor:crosshair;margin:0 auto;}
+.rad-reading{text-align:center;font-size:13px;color:var(--orange);margin-top:8px;}
+
+/* WIN/LOSE */
+.end-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:20px;text-align:center;}
+.end-overlay h2{font-size:32px;color:var(--gold);text-shadow:0 0 20px currentColor;margin-bottom:10px;}
+.end-overlay.loss h2{color:var(--red);}
+.end-overlay .stars{font-size:36px;color:var(--gold);margin:12px 0;}
+.end-overlay p{color:var(--text);margin-bottom:6px;}
+.confetti{position:absolute;width:8px;height:8px;top:-20px;opacity:.9;pointer-events:none;}
+
+.wlv{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(0,212,255,.2),rgba(0,100,160,.5));pointer-events:none;transition:height 1s linear;border-top:2px solid rgba(0,212,255,.6);}
+.warn-light{animation:warn 1.2s infinite;}
+@keyframes warn{50%{fill:var(--red);}}
+
+/* small screens */
+@media (max-width:520px){
+  .gheader .timer{font-size:16px;min-width:62px;}
+  .gheader .rname{font-size:10px;}
+  .digit{width:40px;height:54px;}
+  .digit .val{font-size:22px;}
+}
+</style>
+</head>
+<body class="scanline">
+
+<!-- HOME SCREEN -->
+<div id="home">
+  <h1>OLIVIA'S DIGITAL ESCAPE ROOM</h1>
+  <div class="sub">Can you escape in 30 minutes?</div>
+
+  <div class="settings-row">
+    <label>PLAYER NAME
+      <input type="text" id="playerName" value="Olivia" maxlength="16">
+    </label>
+    <label>DIFFICULTY
+      <select id="difficulty">
+        <option value="40">EASY (40 min)</option>
+        <option value="30" selected>NORMAL (30 min)</option>
+        <option value="20">HARD (20 min)</option>
+      </select>
+    </label>
+    <label>SOUND
+      <select id="soundOn"><option value="1" selected>ON</option><option value="0">OFF</option></select>
+    </label>
+  </div>
+
+  <div class="rooms-grid">
+    <div class="room-card saw" data-room="saw">
+      <svg class="room-art" viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="90" fill="#0a0505"/>
+        <rect x="20" y="30" width="160" height="50" fill="#1a0a0a" stroke="#4a1a1a"/>
+        <circle cx="100" cy="45" r="12" fill="#ef4444" opacity=".3"/>
+        <circle cx="100" cy="45" r="6" fill="#fff"/>
+        <circle cx="97" cy="44" r="1" fill="#000"/><circle cx="103" cy="44" r="1" fill="#000"/>
+        <path d="M95 48 Q100 52 105 48" stroke="#ef4444" fill="none"/>
+        <line x1="30" y1="30" x2="30" y2="80" stroke="#ef4444" stroke-dasharray="2 2"/>
+      </svg>
+      <h3>THE SAW ROOM</h3>
+      <p>Hello, I want to play a game. Escape the trap before time runs out.</p>
+      <div class="best" id="bestSaw">BEST: --:--</div>
+    </div>
+    <div class="room-card sub" data-room="sub">
+      <svg class="room-art" viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="90" fill="#050a15"/>
+        <rect y="55" width="200" height="35" fill="#003355" opacity=".6"/>
+        <ellipse cx="100" cy="50" rx="70" ry="18" fill="#1a2535" stroke="#00d4ff"/>
+        <circle cx="100" cy="50" r="6" fill="#00d4ff" opacity=".8"/>
+        <circle cx="75" cy="50" r="3" fill="#fbbf24"/>
+        <circle cx="125" cy="50" r="3" fill="#fbbf24"/>
+        <line x1="100" y1="32" x2="100" y2="20" stroke="#00d4ff" stroke-width="2"/>
+      </svg>
+      <h3>THE SUBMARINE</h3>
+      <p>Water is rising. Restore systems and surface before you sink.</p>
+      <div class="best" id="bestSub">BEST: --:--</div>
+    </div>
+    <div class="room-card nuke" data-room="nuke">
+      <svg class="room-art" viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="90" fill="#0a0a05"/>
+        <rect x="10" y="20" width="180" height="60" fill="#1a1505" stroke="#ff6600"/>
+        <circle cx="50" cy="45" r="10" fill="#ff6600" opacity=".5"/>
+        <text x="50" y="50" text-anchor="middle" fill="#fff" font-size="10" font-family="monospace">!</text>
+        <rect x="80" y="35" width="100" height="25" fill="#000" stroke="#ff6600"/>
+        <text x="130" y="52" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">T-10:00</text>
+      </svg>
+      <h3>NUCLEAR ARMAGEDDON</h3>
+      <p>Cold War bunker. Disarm the launch before the missiles fly.</p>
+      <div class="best" id="bestNuke">BEST: --:--</div>
+    </div>
+  </div>
+  <div class="credits">A korb.engineering puzzle experience &middot; built for Olivia</div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game">
+  <div class="gheader">
+    <div class="rname" id="roomName">ROOM</div>
+    <div class="timer" id="timer">30:00</div>
+    <button id="btnHint">HINT (3)</button>
+    <button id="btnPause">PAUSE</button>
+    <button id="btnQuit">QUIT</button>
+  </div>
+  <div class="inv-bar" id="invBar"></div>
+  <div class="scene" id="scene"></div>
+  <div class="log" id="log"></div>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modalWrap"></div>
+
+<script>
+/* ============================================================
+   OLIVIA'S DIGITAL ESCAPE ROOM
+============================================================ */
+const LS_PREFIX='korb_escape_olivia_';
+const $=(s)=>document.querySelector(s);
+const $$=(s)=>document.querySelectorAll(s);
+const el=(tag,props={},...kids)=>{const e=document.createElement(tag);Object.assign(e,props);if(props.style)Object.assign(e.style,props.style);for(const k of kids)e.append(k?.nodeType?k:document.createTextNode(k));return e;};
+
+/* ---------- AUDIO (Web Audio synth) ---------- */
+const Audio_={
+  ctx:null,enabled:true,master:null,
+  init(){
+    if(this.ctx)return;
+    try{this.ctx=new (window.AudioContext||window.webkitAudioContext)();this.master=this.ctx.createGain();this.master.gain.value=.22;this.master.connect(this.ctx.destination);}catch(e){}
+  },
+  tone(f,d=.15,type='sine',vol=.3){
+    if(!this.enabled||!this.ctx)return;
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type;o.frequency.value=f;
+    g.gain.setValueAtTime(vol,this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,this.ctx.currentTime+d);
+    o.connect(g);g.connect(this.master);
+    o.start();o.stop(this.ctx.currentTime+d);
+  },
+  click(){this.tone(700,.05,'square',.15);},
+  ok(){this.tone(520,.1,'sine');setTimeout(()=>this.tone(784,.18),90);},
+  bad(){this.tone(180,.25,'sawtooth',.2);setTimeout(()=>this.tone(120,.3,'sawtooth',.2),120);},
+  win(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,.25,'triangle'),i*120));},
+  heartbeat(){this.tone(60,.15,'sine',.4);setTimeout(()=>this.tone(55,.2,'sine',.35),200);},
+  sonar(){this.tone(880,.5,'sine',.3);},
+  siren(){this.tone(440,.2,'square',.2);setTimeout(()=>this.tone(660,.2,'square',.2),220);},
+};
+
+/* ---------- STATE ---------- */
+const State={
+  room:null,time:0,paused:false,hintsLeft:3,hintsUsed:0,difficulty:30,
+  inv:[],solved:new Set(),dead:false,
+  playerName:'Olivia',timerInt:null,ambientInt:null,waterLevel:0,launchCountdown:600,
+};
+
+/* ---------- LOG ---------- */
+function logLine(txt,type=''){
+  const l=$('#log');const e=el('div',{className:'entry '+type},txt);
+  l.appendChild(e);l.scrollTop=l.scrollHeight;
+  while(l.children.length>40)l.removeChild(l.firstChild);
+}
+
+/* ---------- INVENTORY ---------- */
+function addItem(id,icon,name,desc){
+  if(State.inv.find(i=>i.id===id))return;
+  State.inv.push({id,icon,name,desc});
+  renderInv();
+  logLine('[+] Added to inventory: '+name,'good');
+  Audio_.ok();
+}
+function hasItem(id){return State.inv.some(i=>i.id===id);}
+function removeItem(id){State.inv=State.inv.filter(i=>i.id!==id);renderInv();}
+function renderInv(){
+  const bar=$('#invBar');bar.innerHTML='';
+  if(State.inv.length===0){bar.innerHTML='<div style="color:#64748b;font-size:11px;align-self:center">INVENTORY (empty)</div>';return;}
+  State.inv.forEach(it=>{
+    const d=el('div',{className:'inv-item',title:it.name},it.icon);
+    const tip=el('div',{className:'tip'},it.name);d.appendChild(tip);
+    d.onclick=()=>{Audio_.click();showModal(it.name,it.desc);};
+    bar.appendChild(d);
+  });
+}
+
+/* ---------- MODAL ---------- */
+function showModal(title,html,opts={}){
+  Audio_.click();
+  const wrap=$('#modalWrap');wrap.innerHTML='';
+  const bg=el('div',{className:'modal'});
+  const box=el('div',{className:'box'});
+  const close=el('button',{className:'close'},'CLOSE');
+  close.onclick=()=>{wrap.innerHTML='';opts.onClose&&opts.onClose();};
+  const h=el('h3');h.textContent=title;
+  const body=el('div');body.innerHTML=html;
+  box.append(close,h,body);
+  if(opts.build){opts.build(box,()=>{wrap.innerHTML='';});}
+  bg.appendChild(box);wrap.appendChild(bg);
+  bg.addEventListener('click',(e)=>{if(e.target===bg&&!opts.sticky){wrap.innerHTML='';opts.onClose&&opts.onClose();}});
+}
+function closeModal(){$('#modalWrap').innerHTML='';}
+
+/* ---------- TIMER ---------- */
+function startTimer(){
+  clearInterval(State.timerInt);
+  State.timerInt=setInterval(()=>{
+    if(State.paused||State.dead)return;
+    State.time--;
+    updateTimer();
+    if(State.room==='sub'){
+      State.waterLevel=Math.min(100,((State.difficulty*60-State.time)/(State.difficulty*60))*85);
+      const w=document.querySelector('.wlv');if(w)w.style.height=State.waterLevel+'%';
+    }
+    if(State.room==='nuke'){
+      State.launchCountdown--;
+      const lc=document.getElementById('launchClock');
+      if(lc){const m=Math.floor(State.launchCountdown/60),s=State.launchCountdown%60;lc.textContent='T-'+m+':'+String(s).padStart(2,'0');}
+      if(State.launchCountdown<=0){loseGame('LAUNCH DETECTED');return;}
+    }
+    if(State.time<=0){loseGame('TIME EXPIRED');return;}
+  },1000);
+}
+function updateTimer(){
+  const m=Math.floor(State.time/60),s=State.time%60;
+  const t=$('#timer');
+  t.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  if(State.time<=300)t.classList.add('crit');else t.classList.remove('crit');
+}
+
+/* ---------- HINTS ---------- */
+function useHint(){
+  if(State.hintsLeft<=0){logLine('No hints remaining.','warn');return;}
+  State.hintsLeft--;State.hintsUsed++;$('#btnHint').textContent='HINT ('+State.hintsLeft+')';
+  Audio_.click();
+  const hints=ROOM_HINTS[State.room];
+  const level=3-State.hintsLeft;
+  const relevant=hints.find(h=>!State.solved.has(h.puzzle))||hints[hints.length-1];
+  const msg=relevant.levels[Math.min(level-1,relevant.levels.length-1)];
+  showModal('HINT '+level+'/3',`<p>${msg}</p>`);
+}
+
+/* ============================================================
+   ROOM: THE SAW ROOM
+============================================================ */
+const SAW={
+  scene(){
+    return `
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="sawLight" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#2a0a0a"/><stop offset="100%" stop-color="#050000"/>
+    </radialGradient>
+    <pattern id="tile" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <rect width="40" height="40" fill="#0a0505"/>
+      <line x1="0" y1="0" x2="40" y2="0" stroke="#1a0808"/>
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#1a0808"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="500" fill="url(#sawLight)"/>
+  <rect y="400" width="800" height="100" fill="url(#tile)"/>
+  <!-- back wall -->
+  <rect x="0" y="0" width="800" height="400" fill="#0f0808"/>
+  <!-- cracks -->
+  <path d="M0 150 L200 200 L180 280 L50 320" stroke="#2a0505" fill="none" stroke-width="2"/>
+  <path d="M600 50 L650 180 L720 220" stroke="#2a0505" fill="none" stroke-width="2"/>
+  <!-- pipes -->
+  <rect x="40" y="0" width="16" height="400" fill="#331a1a"/>
+  <rect x="740" y="0" width="16" height="400" fill="#331a1a"/>
+  <!-- sink -->
+  <g class="hotspot" id="hs-sink" style="color:#ff6600">
+    <rect x="90" y="220" width="120" height="70" fill="#2a2a2a" stroke="#444"/>
+    <ellipse cx="150" cy="240" rx="40" ry="10" fill="#0a0a0a"/>
+    <text x="150" y="310" text-anchor="middle" fill="#ff6600" font-size="10" font-family="monospace">[SINK]</text>
+  </g>
+  <!-- cassette player -->
+  <g class="hotspot" id="hs-cassette" style="color:#00d4ff">
+    <rect x="260" y="230" width="90" height="60" fill="#1a1a1a" stroke="#666"/>
+    <circle cx="280" cy="258" r="8" fill="#0a0a0a" stroke="#888"/>
+    <circle cx="330" cy="258" r="8" fill="#0a0a0a" stroke="#888"/>
+    <rect x="275" y="272" width="60" height="6" fill="#333"/>
+    <text x="305" y="310" text-anchor="middle" fill="#00d4ff" font-size="10" font-family="monospace">[CASSETTE]</text>
+  </g>
+  <!-- toolbox -->
+  <g class="hotspot" id="hs-toolbox" style="color:#fbbf24">
+    <rect x="400" y="240" width="110" height="55" fill="#3a2a0a" stroke="#fbbf24"/>
+    <rect x="440" y="235" width="30" height="10" fill="#555"/>
+    <circle cx="455" cy="268" r="4" fill="#fbbf24"/>
+    <text x="455" y="310" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">[TOOLBOX]</text>
+  </g>
+  <!-- drawer -->
+  <g class="hotspot" id="hs-drawer" style="color:#10b981">
+    <rect x="560" y="230" width="100" height="60" fill="#1a1a0a" stroke="#10b981"/>
+    <circle cx="610" cy="260" r="5" fill="#10b981"/>
+    <text x="610" y="310" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">[DRAWER]</text>
+  </g>
+  <!-- wall writing -->
+  <g class="hotspot" id="hs-wall" style="color:#ef4444">
+    <rect x="100" y="60" width="230" height="110" fill="none" stroke="#330505" stroke-dasharray="4 3"/>
+    <text x="215" y="90" text-anchor="middle" fill="#661a1a" font-size="16" font-family="monospace">WALL SCRAWL</text>
+    <text x="215" y="115" text-anchor="middle" fill="#441010" font-size="10" font-family="monospace">wqoodh  pqb  nlrbxfcz</text>
+    <text x="215" y="135" text-anchor="middle" fill="#441010" font-size="10" font-family="monospace">(encrypted)</text>
+    <text x="215" y="160" text-anchor="middle" fill="#ef4444" font-size="10" font-family="monospace">[EXAMINE]</text>
+  </g>
+  <!-- jigsaw puppet -->
+  <g class="hotspot" id="hs-puppet" style="color:#fbbf24">
+    <circle cx="620" cy="120" r="35" fill="#e8d5b0"/>
+    <circle cx="605" cy="115" r="5" fill="#ff0000"/>
+    <circle cx="635" cy="115" r="5" fill="#ff0000"/>
+    <path d="M600 135 Q620 150 640 135" stroke="#550000" stroke-width="2" fill="none"/>
+    <path d="M600 135 L595 145 M605 135 L600 148 M635 135 L640 148 M640 135 L645 145" stroke="#550000" stroke-width="1.5"/>
+    <circle cx="615" cy="100" r="3" fill="#000"/><circle cx="625" cy="100" r="3" fill="#000"/>
+    <ellipse cx="620" cy="170" rx="25" ry="8" fill="#1a1a1a"/>
+    <text x="620" y="200" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">[PUPPET]</text>
+  </g>
+  <!-- door -->
+  <g class="hotspot" id="hs-door" style="color:#ef4444">
+    <rect x="340" y="40" width="130" height="210" fill="#0a0303" stroke="#ef4444" stroke-width="3"/>
+    <line x1="340" y1="80" x2="470" y2="80" stroke="#330000" stroke-width="4"/>
+    <line x1="340" y1="120" x2="470" y2="120" stroke="#330000" stroke-width="4"/>
+    <line x1="340" y1="160" x2="470" y2="160" stroke="#330000" stroke-width="4"/>
+    <line x1="340" y1="200" x2="470" y2="200" stroke="#330000" stroke-width="4"/>
+    <circle cx="440" cy="145" r="8" fill="#fbbf24"/>
+    <text x="405" y="270" text-anchor="middle" fill="#ef4444" font-size="11" font-family="monospace">[CHAINED DOOR]</text>
+  </g>
+</svg>`;
+  },
+  puzzles:{
+    sink:{desc:'You peer under the sink. Chalk-scrawled numbers: "7 2 9 4". A cold draft whispers up the drain.',found:'sink_numbers'},
+    cassette:{desc:'A cassette player with a single button.'},
+    toolbox:{desc:'A rusted toolbox. 4-digit padlock.',lock:'7294',reward:()=>{addItem('pliers','🔧','Pliers','Heavy-duty pliers. Good for cutting wire.');addItem('wheel','🎡','Cipher Wheel','A Caesar cipher wheel. Shift by 3.');}},
+    wall:{desc:'Scrawled in the grime: "wqoodh pqb nlrbxfcz". Looks like a code shifted by some amount...'},
+    drawer:{desc:'A drawer with a 4-letter word lock.',wordLock:'TRAP',reward:()=>{showTrapPuzzle();}},
+    puppet:{desc:'A porcelain puppet with a tape-recorder mouth. It creaks open when you press its cheek.',onFirst:()=>{playJigsawIntro();}},
+    door:{desc:'Chains and a final symbol lock. 4 color/symbol positions. Enter the sequence from clues in the room.'}
+  }
+};
+
+function playJigsawIntro(){
+  Audio_.heartbeat();
+  const msg=`"Hello, ${State.playerName}. I want to play a game.<br><br>
+  You are trapped in this room. Around you are tools, clues, and one way out.<br><br>
+  Beneath the sink — numbers in chalk. The toolbox holds what you need to decode the wall.<br>
+  The drawer asks a simple question: what lies beneath the floorboards of every one of my games? A 4-letter word.<br><br>
+  The door will not open without the correct sequence of symbols. The color and order have been hidden in plain sight.<br><br>
+  Make your choice. <b>Live... or die.</b>"`;
+  showModal("JIGSAW'S MESSAGE",`<p>${msg}</p>`);
+  logLine("Cassette plays: 'Hello "+State.playerName+", I want to play a game...'",'warn');
+}
+
+function showTrapPuzzle(){
+  // reverse bear trap disarm = logic puzzle
+  const html=`<p>A metal contraption. A placard: "DISARM ME. Set the 3 switches. Truths:"</p>
+  <ul style="font-size:12px;line-height:1.8;margin:10px 0 14px 16px;color:#fbbf24">
+    <li>If switch A is UP, then B must be DOWN.</li>
+    <li>C is the opposite of A.</li>
+    <li>Exactly two switches must be UP.</li>
+  </ul>
+  <p>Set each switch:</p>
+  <div id="trapSw" style="display:flex;gap:14px;justify-content:center;margin:12px 0"></div>
+  <button id="trapGo" style="width:100%">DISARM</button>`;
+  showModal('REVERSE BEAR TRAP',html,{build:(box,close)=>{
+    const cont=box.querySelector('#trapSw');
+    const state={A:false,B:false,C:false};
+    ['A','B','C'].forEach(k=>{
+      const sw=el('button',{},k+': DOWN');
+      sw.style.minWidth='90px';
+      sw.onclick=()=>{state[k]=!state[k];sw.textContent=k+': '+(state[k]?'UP':'DOWN');sw.style.background=state[k]?'#064e3b':'';Audio_.click();};
+      cont.appendChild(sw);
+    });
+    // Solution: A UP, B DOWN, C DOWN -> only 1 up. Need 2 up.
+    // A DOWN, B ?, C UP (opposite of A). Need 2 up -> B UP. Check: A DOWN so first rule vacuous. C=UP opposite A=DOWN ✓. 2 up ✓.
+    box.querySelector('#trapGo').onclick=()=>{
+      if(!state.A && state.B && state.C){
+        Audio_.win();close();
+        logLine('Trap disarmed. A small brass key drops out.','good');
+        addItem('brasskey','🗝️','Brass Key','Opens the chains on the door.');
+        State.solved.add('trap');
+      } else {
+        Audio_.bad();logLine('The trap whirs menacingly. Wrong setting.','warn');
+      }
+    };
+  }});
+}
+
+function openSawDoor(){
+  // Final color/symbol sequence - revealed clues: sink "7 2 9 4" = positions in color list
+  // Colors hidden in room: pipes=red, puppet=gold, cassette=cyan, drawer=green
+  // The wall cipher (Caesar -3): wqoodh pqb nlrbxfcz -> "thunder sky elemental"? Let's design cleanly.
+  // We'll pick: sequence = RED, GOLD, CYAN, GREEN
+  const html=`<p>The chains require a 4-color sequence. Clues in the room told you the order. Pick 4 colors in order:</p>
+  <div id="colSeq" style="display:flex;gap:6px;justify-content:center;margin:10px 0;min-height:44px">
+    <div class="slot" style="width:44px;height:44px;border:1px solid #1a2535;border-radius:4px"></div>
+    <div class="slot" style="width:44px;height:44px;border:1px solid #1a2535;border-radius:4px"></div>
+    <div class="slot" style="width:44px;height:44px;border:1px solid #1a2535;border-radius:4px"></div>
+    <div class="slot" style="width:44px;height:44px;border:1px solid #1a2535;border-radius:4px"></div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <button data-c="red" style="background:#7f1d1d">RED</button>
+    <button data-c="gold" style="background:#78350f">GOLD</button>
+    <button data-c="cyan" style="background:#0c4a6e">CYAN</button>
+    <button data-c="green" style="background:#064e3b">GREEN</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button id="colReset" style="flex:1">RESET</button>
+    <button id="colGo" style="flex:1;background:#064e3b">SUBMIT</button>
+  </div>`;
+  showModal('CHAINED DOOR',html,{build:(box,close)=>{
+    const slots=box.querySelectorAll('.slot');
+    const colorMap={red:'#ef4444',gold:'#fbbf24',cyan:'#00d4ff',green:'#10b981'};
+    let pos=0,seq=[];
+    box.querySelectorAll('button[data-c]').forEach(b=>{
+      b.onclick=()=>{
+        if(pos>=4)return;
+        const c=b.dataset.c;seq.push(c);slots[pos].style.background=colorMap[c];pos++;Audio_.click();
+      };
+    });
+    box.querySelector('#colReset').onclick=()=>{pos=0;seq=[];slots.forEach(s=>s.style.background='');Audio_.click();};
+    box.querySelector('#colGo').onclick=()=>{
+      const answer=['red','gold','cyan','green'];
+      if(seq.length===4 && seq.every((v,i)=>v===answer[i])){
+        Audio_.win();close();winGame();
+      } else {Audio_.bad();logLine('The chains rattle but hold.','warn');pos=0;seq=[];slots.forEach(s=>s.style.background='');}
+    };
+  }});
+}
+
+function showCipherWheelUI(){
+  if(!hasItem('wheel')){logLine('You need the cipher wheel.','warn');return;}
+  const html=`<p>Use the cipher wheel on the wall text: "wqoodh pqb nlrbxfcz"</p>
+  <p style="font-size:11px;color:#64748b">A Caesar cipher. Rotate inner ring to decode. Try shift of -3.</p>
+  <div style="margin:10px 0">
+    <label>Shift: <input type="number" id="shiftN" value="0" style="width:80px;display:inline-block"></label>
+  </div>
+  <div id="cipherOut" style="font-family:monospace;font-size:14px;color:#fbbf24;text-align:center;padding:12px;background:#0a0a0a;border:1px solid #1a2535;border-radius:4px">wqoodh pqb nlrbxfcz</div>
+  <p style="margin-top:10px;font-size:11px;color:#64748b">Reveal a 4-letter word for the drawer lock.</p>`;
+  showModal('CIPHER WHEEL',html,{build:(box)=>{
+    const inp=box.querySelector('#shiftN');
+    const out=box.querySelector('#cipherOut');
+    const src='wqoodh pqb nlrbxfcz'; // decoded at -3 should give readable
+    // Let's pick source that decodes to "TRAPDOOR AND KEYSTONE" at shift -3
+    // plaintext: "TRAPDOOR AND KEYSTONE"
+    // shift +3: WUDSGRRU DQG NHBVWRQH - use that.
+    const plain='TRAPDOOR AND KEYSTONE';
+    const enc=plain.split('').map(c=>{
+      if(c<'A'||c>'Z')return c;
+      return String.fromCharCode(((c.charCodeAt(0)-65+3)%26)+65);
+    }).join('');
+    out.textContent=enc;
+    inp.oninput=()=>{
+      const s=parseInt(inp.value)||0;
+      const dec=enc.split('').map(c=>{
+        if(c<'A'||c>'Z')return c;
+        return String.fromCharCode(((c.charCodeAt(0)-65+s+260)%26)+65);
+      }).join('');
+      out.textContent=dec;
+      if(dec===plain){
+        out.style.color='#10b981';
+        logLine("Wall decoded: 'TRAPDOOR AND KEYSTONE'. TRAP — the drawer's 4-letter word.",'good');
+        State.solved.add('cipher');
+      } else out.style.color='#fbbf24';
+    };
+  }});
+}
+
+function showDigitLock(code,onOk,title='NUMBER LOCK'){
+  const n=code.length;
+  let digs=new Array(n).fill(0);
+  let html=`<p>Enter the ${n}-digit code:</p><div class="digit-lock">`;
+  for(let i=0;i<n;i++)html+=`<div class="digit"><div class="up" data-i="${i}">▲</div><div class="val" id="d${i}">0</div><div class="dn" data-i="${i}">▼</div></div>`;
+  html+='</div><button id="lockGo" style="width:100%;background:#064e3b">UNLOCK</button>';
+  showModal(title,html,{build:(box,close)=>{
+    box.querySelectorAll('.up').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;digs[i]=(digs[i]+1)%10;box.querySelector('#d'+i).textContent=digs[i];Audio_.click();});
+    box.querySelectorAll('.dn').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;digs[i]=(digs[i]+9)%10;box.querySelector('#d'+i).textContent=digs[i];Audio_.click();});
+    box.querySelector('#lockGo').onclick=()=>{
+      if(digs.join('')===code){Audio_.win();close();onOk();}else{Audio_.bad();logLine('Lock rejected the code.','warn');}
+    };
+  }});
+}
+
+function showWordLock(word,onOk,title='LETTER LOCK'){
+  const html=`<p>Enter the word:</p>
+  <input type="text" id="wl" class="code-input" maxlength="${word.length}" style="text-transform:uppercase">
+  <button id="wlGo" style="width:100%;margin-top:12px;background:#064e3b">UNLOCK</button>`;
+  showModal(title,html,{build:(box,close)=>{
+    box.querySelector('#wl').focus();
+    box.querySelector('#wlGo').onclick=()=>{
+      if(box.querySelector('#wl').value.toUpperCase()===word){Audio_.win();close();onOk();}
+      else{Audio_.bad();logLine('Wrong word.','warn');}
+    };
+  }});
+}
+
+/* ============================================================
+   ROOM: SUBMARINE
+============================================================ */
+const SUB={
+  scene(){
+    return `
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="subLight" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#082030"/><stop offset="100%" stop-color="#020810"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#subLight)"/>
+  <!-- curved hull -->
+  <path d="M0 50 Q400 10 800 50 L800 450 Q400 490 0 450 Z" fill="#0a1520" stroke="#00d4ff" stroke-width="2"/>
+  <!-- rivets -->
+  <g fill="#1a2535">
+    <circle cx="50" cy="60" r="3"/><circle cx="150" cy="40" r="3"/><circle cx="250" cy="30" r="3"/>
+    <circle cx="350" cy="25" r="3"/><circle cx="450" cy="25" r="3"/><circle cx="550" cy="30" r="3"/>
+    <circle cx="650" cy="40" r="3"/><circle cx="750" cy="60" r="3"/>
+    <circle cx="50" cy="440" r="3"/><circle cx="150" cy="460" r="3"/><circle cx="250" cy="470" r="3"/>
+    <circle cx="550" cy="470" r="3"/><circle cx="650" cy="460" r="3"/><circle cx="750" cy="440" r="3"/>
+  </g>
+  <!-- power panel -->
+  <g class="hotspot" id="hs-power" style="color:#fbbf24">
+    <rect x="60" y="100" width="130" height="90" fill="#0a0a0a" stroke="#fbbf24"/>
+    <circle cx="90" cy="130" r="6" fill="#333"/><circle cx="120" cy="130" r="6" fill="#333"/><circle cx="150" cy="130" r="6" fill="#333"/>
+    <text x="125" y="175" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">POWER PANEL</text>
+  </g>
+  <!-- captain's log -->
+  <g class="hotspot" id="hs-log" style="color:#00d4ff">
+    <rect x="230" y="110" width="110" height="70" fill="#1a1a0a" stroke="#00d4ff"/>
+    <rect x="240" y="120" width="90" height="4" fill="#555"/>
+    <rect x="240" y="130" width="80" height="4" fill="#555"/>
+    <rect x="240" y="140" width="70" height="4" fill="#555"/>
+    <text x="285" y="170" text-anchor="middle" fill="#00d4ff" font-size="10" font-family="monospace">CAPT LOG</text>
+  </g>
+  <!-- safe -->
+  <g class="hotspot" id="hs-safe" style="color:#10b981">
+    <rect x="380" y="100" width="90" height="90" fill="#0a0a0a" stroke="#10b981"/>
+    <circle cx="425" cy="145" r="14" fill="#1a1a1a" stroke="#10b981"/>
+    <line x1="425" y1="135" x2="425" y2="155" stroke="#10b981"/>
+    <text x="425" y="180" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">SAFE</text>
+  </g>
+  <!-- sonar -->
+  <g class="hotspot" id="hs-sonar" style="color:#00d4ff">
+    <circle cx="540" cy="140" r="35" fill="#0a1520" stroke="#00d4ff" stroke-width="2"/>
+    <circle cx="540" cy="140" r="25" fill="none" stroke="#00d4ff" opacity=".5"/>
+    <circle cx="540" cy="140" r="15" fill="none" stroke="#00d4ff" opacity=".3"/>
+    <line x1="540" y1="140" x2="560" y2="120" stroke="#10b981" stroke-width="2"/>
+    <text x="540" y="200" text-anchor="middle" fill="#00d4ff" font-size="10" font-family="monospace">SONAR</text>
+  </g>
+  <!-- valves -->
+  <g class="hotspot" id="hs-valves" style="color:#ff6600">
+    <circle cx="640" cy="140" r="18" fill="none" stroke="#ff6600" stroke-width="3"/>
+    <line x1="622" y1="140" x2="658" y2="140" stroke="#ff6600" stroke-width="3"/>
+    <line x1="640" y1="122" x2="640" y2="158" stroke="#ff6600" stroke-width="3"/>
+    <text x="640" y="195" text-anchor="middle" fill="#ff6600" font-size="10" font-family="monospace">VALVES</text>
+  </g>
+  <!-- ballast math -->
+  <g class="hotspot" id="hs-ballast" style="color:#fbbf24">
+    <rect x="700" y="115" width="70" height="60" fill="#0a0a0a" stroke="#fbbf24"/>
+    <text x="735" y="140" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">BALLAST</text>
+    <text x="735" y="155" text-anchor="middle" fill="#fbbf24" font-size="8" font-family="monospace">CTRL</text>
+    <text x="735" y="195" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">BALLAST</text>
+  </g>
+  <!-- chart -->
+  <g class="hotspot" id="hs-chart" style="color:#10b981">
+    <rect x="230" y="220" width="150" height="90" fill="#0d1f2e" stroke="#10b981"/>
+    <path d="M240 260 L260 240 L290 250 L320 270 L360 260" stroke="#10b981" fill="none"/>
+    <circle cx="260" cy="240" r="3" fill="#fbbf24"/>
+    <circle cx="320" cy="270" r="3" fill="#fbbf24"/>
+    <text x="305" y="300" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">NAV CHART</text>
+  </g>
+  <!-- periscope -->
+  <g class="hotspot" id="hs-peri" style="color:#ff6600">
+    <rect x="420" y="220" width="60" height="90" fill="#1a2535" stroke="#ff6600"/>
+    <circle cx="450" cy="250" r="18" fill="#0a0a0a" stroke="#ff6600"/>
+    <line x1="432" y1="250" x2="468" y2="250" stroke="#ff6600"/>
+    <line x1="450" y1="232" x2="450" y2="268" stroke="#ff6600"/>
+    <text x="450" y="300" text-anchor="middle" fill="#ff6600" font-size="10" font-family="monospace">PERISCOPE</text>
+  </g>
+  <!-- hatch -->
+  <g class="hotspot" id="hs-hatch" style="color:#ef4444">
+    <circle cx="560" cy="270" r="45" fill="#0a0a0a" stroke="#ef4444" stroke-width="3"/>
+    <rect x="540" y="268" width="40" height="4" fill="#ef4444"/>
+    <circle cx="560" cy="270" r="10" fill="#1a0a0a" stroke="#ef4444"/>
+    <text x="560" y="335" text-anchor="middle" fill="#ef4444" font-size="10" font-family="monospace">ESCAPE HATCH</text>
+  </g>
+  <!-- rising water -->
+  <div class="wlv" style="height:0%"></div>
+</svg>
+<div class="wlv" style="height:0%;position:absolute"></div>`;
+  }
+};
+
+function showPowerWires(){
+  const html=`<p>Connect matching colors (L to R). Click a left node then a right node to wire them.</p>
+  <div class="wires-box" id="wires">
+    <svg id="wsvg"></svg>
+    <div class="wnode left" data-id="L1" style="top:30px;background:#7f1d1d">R</div>
+    <div class="wnode left" data-id="L2" style="top:90px;background:#064e3b">G</div>
+    <div class="wnode left" data-id="L3" style="top:150px;background:#0c4a6e">B</div>
+    <div class="wnode left" data-id="L4" style="top:210px;background:#78350f">Y</div>
+    <div class="wnode right" data-id="R1" style="top:60px;background:#0c4a6e">B</div>
+    <div class="wnode right" data-id="R2" style="top:120px;background:#7f1d1d">R</div>
+    <div class="wnode right" data-id="R3" style="top:180px;background:#78350f">Y</div>
+    <div class="wnode right" data-id="R4" style="top:230px;background:#064e3b">G</div>
+  </div>
+  <button id="wreset" style="width:100%;margin-top:10px">RESET</button>`;
+  showModal('POWER COUPLING',html,{build:(box,close)=>{
+    const svg=box.querySelector('#wsvg');
+    svg.innerHTML='';
+    const connections=[];let pending=null;
+    const targets={L1:'R2',L2:'R4',L3:'R1',L4:'R3'};
+    const pos={L1:{x:24,y:44},L2:{x:24,y:104},L3:{x:24,y:164},L4:{x:24,y:224},R1:{x:404,y:74},R2:{x:404,y:134},R3:{x:404,y:194},R4:{x:404,y:244}};
+    function draw(){
+      svg.innerHTML='';
+      svg.setAttribute('viewBox','0 0 440 260');
+      connections.forEach(c=>{
+        const ns='http://www.w3.org/2000/svg';
+        const p=document.createElementNS(ns,'line');
+        p.setAttribute('x1',pos[c.a].x);p.setAttribute('y1',pos[c.a].y);
+        p.setAttribute('x2',pos[c.b].x);p.setAttribute('y2',pos[c.b].y);
+        p.setAttribute('stroke',c.ok?'#10b981':'#ef4444');p.setAttribute('stroke-width','3');
+        svg.appendChild(p);
+      });
+    }
+    box.querySelectorAll('.wnode').forEach(n=>{
+      n.onclick=()=>{
+        const id=n.dataset.id;Audio_.click();
+        if(!pending){pending=id;n.style.outline='2px solid #fbbf24';return;}
+        if(pending===id){pending=null;n.style.outline='';return;}
+        if((pending[0]==='L'&&id[0]==='L')||(pending[0]==='R'&&id[0]==='R')){
+          box.querySelectorAll('.wnode').forEach(x=>x.style.outline='');pending=id;n.style.outline='2px solid #fbbf24';return;
+        }
+        const a=pending[0]==='L'?pending:id;const b=pending[0]==='L'?id:pending;
+        const ok=targets[a]===b;
+        connections.push({a,b,ok});pending=null;box.querySelectorAll('.wnode').forEach(x=>x.style.outline='');
+        draw();
+        if(Object.keys(targets).every(k=>connections.find(c=>c.a===k&&c.ok))){
+          Audio_.win();setTimeout(()=>{close();logLine('Power restored! Lights flicker on.','good');State.solved.add('power');},300);
+        }
+      };
+    });
+    box.querySelector('#wreset').onclick=()=>{connections.length=0;draw();};
+  }});
+}
+
+function showCaptainLog(){
+  const html=`<div style="background:#0a0a0a;padding:14px;border:1px solid #00d4ff;font-size:12px;line-height:1.7" id="logTxt"></div>
+  <p style="margin-top:10px;font-size:11px;color:#64748b">Clue: the safe code is hidden in the log.</p>`;
+  showModal("CAPTAIN'S LOG",html,{build:(box)=>{
+    const t=box.querySelector('#logTxt');
+    const text=`DAY 1: Dove to 200m. All systems nominal.
+DAY 4: Lost radio. Used call sign 5-1-8-3.
+DAY 7: Bearing 047. Three fish on sonar.
+DAY 9: Crew sick. Rations halved.
+DAY 12: Hull groans. Starboard compartment flooding.
+DAY 14: I hide this log in the console. If you find it, the safe code is the call sign. Godspeed.`;
+    let i=0;
+    function type(){if(i<text.length){t.innerHTML+=text[i]===`\n`?'<br>':text[i];i++;setTimeout(type,18);}}
+    type();
+  }});
+}
+
+function showValvesPuzzle(){
+  // 3 valves, each 0-3 quarter turns. Clues from "gauges" (log): order = 2,1,3 and values = 2,3,1
+  const html=`<p>Three valves. Each rotates 0-3 clicks. The pressure gauges read: V1=<b>2</b>, V2=<b>3</b>, V3=<b>1</b>. Set them to match.</p>
+  <div style="display:flex;gap:14px;justify-content:center;margin:16px 0" id="valvesC"></div>
+  <button id="vGo" style="width:100%;background:#064e3b">ENGAGE PUMPS</button>`;
+  showModal('VALVE CONTROL',html,{build:(box,close)=>{
+    const c=box.querySelector('#valvesC');const state=[0,0,0];
+    [1,2,3].forEach((v,i)=>{
+      const w=el('div',{style:{textAlign:'center'}});
+      const b=el('button',{textContent:'V'+v+': 0'});b.style.minWidth='80px';
+      b.onclick=()=>{state[i]=(state[i]+1)%4;b.textContent='V'+v+': '+state[i];Audio_.click();};
+      w.appendChild(b);c.appendChild(w);
+    });
+    box.querySelector('#vGo').onclick=()=>{
+      if(state[0]===2&&state[1]===3&&state[2]===1){Audio_.win();close();logLine('Bilge pumps engaged. Water rise slowed.','good');State.waterLevel=Math.max(0,State.waterLevel-15);State.solved.add('valves');addItem('key2','🔑','Hatch Key','Part of the escape hatch lock.');}
+      else{Audio_.bad();logLine('Pumps stall. Wrong valve settings.','warn');}
+    };
+  }});
+}
+
+function showSonarMorse(){
+  // Play "HATCH" in Morse
+  const MORSE={H:'....',A:'.-',T:'-',C:'-.-.'};
+  const html=`<p>Sonar is picking up a rhythmic ping. Listen carefully and type what you hear (a 5-letter word).</p>
+  <button id="playMorse" style="width:100%;margin:10px 0">▶ PLAY SIGNAL</button>
+  <div id="dots" style="font-size:22px;text-align:center;color:#00d4ff;min-height:30px;letter-spacing:6px"></div>
+  <input type="text" id="mans" class="code-input" maxlength="5" placeholder="?????" style="text-transform:uppercase;margin-top:10px">
+  <button id="mgo" style="width:100%;margin-top:10px;background:#064e3b">SUBMIT</button>
+  <p style="margin-top:8px;font-size:10px;color:#64748b">Legend: .- = A &nbsp; -... = B &nbsp; -.-. = C &nbsp; H = .... &nbsp; T = - &nbsp; also needs E (.) S (...)</p>`;
+  showModal('SONAR MORSE',html,{build:(box,close)=>{
+    const word='HATCH';
+    const full=word.split('').map(l=>MORSE[l]).join(' / ');
+    box.querySelector('#playMorse').onclick=async()=>{
+      box.querySelector('#dots').textContent='';
+      for(const c of full){
+        if(c==='.'){Audio_.tone(700,.1,'sine');box.querySelector('#dots').textContent+='.';await new Promise(r=>setTimeout(r,180));}
+        else if(c==='-'){Audio_.tone(700,.3,'sine');box.querySelector('#dots').textContent+='-';await new Promise(r=>setTimeout(r,380));}
+        else if(c===' '){box.querySelector('#dots').textContent+=' ';await new Promise(r=>setTimeout(r,200));}
+        else if(c==='/'){box.querySelector('#dots').textContent+=' / ';await new Promise(r=>setTimeout(r,400));}
+      }
+    };
+    box.querySelector('#mgo').onclick=()=>{
+      if(box.querySelector('#mans').value.toUpperCase()===word){Audio_.win();close();logLine("Sonar message: 'HATCH'. Noted for escape.",'good');State.solved.add('sonar');}
+      else{Audio_.bad();}
+    };
+  }});
+}
+
+function showBallastMath(){
+  const html=`<p>BALLAST CALCULATOR: A tank holds 1200 liters. You dumped 450 liters. Fuel cell weighs 180 kg. Water weight per liter = 1 kg.</p>
+  <p>Calculate total buoyancy offset: <b>(1200 - 450) + 180 = ?</b></p>
+  <input type="number" id="math1" class="code-input" placeholder="???">
+  <button id="mgo" style="width:100%;margin-top:10px;background:#064e3b">SUBMIT</button>`;
+  showModal('BALLAST CALC',html,{build:(box,close)=>{
+    box.querySelector('#mgo').onclick=()=>{
+      if(parseInt(box.querySelector('#math1').value)===930){Audio_.win();close();logLine('Ballast balanced. Sub stabilizing.','good');State.solved.add('ballast');State.waterLevel=Math.max(0,State.waterLevel-10);}
+      else{Audio_.bad();logLine('Wrong.','warn');}
+    };
+  }});
+}
+
+function showChartPlot(){
+  // waypoints must be clicked in order: from captain's log "Bearing 047" and "Three fish"
+  const html=`<p>Plot the course. Click waypoints in the order dictated by the captain's log clues (hint: bearing 047, then three fish, then surface).</p>
+  <div class="chart-box" id="chartB"></div>
+  <button id="creset" style="width:100%;margin-top:10px">RESET</button>`;
+  showModal('NAV CHART',html,{build:(box,close)=>{
+    const b=box.querySelector('#chartB');
+    // Put 5 waypoints; correct order: A,C,D,E (4 picks)
+    const wps=[
+      {id:'A',x:20,y:80,correct:1},
+      {id:'B',x:60,y:30,correct:0},
+      {id:'C',x:50,y:55,correct:2},
+      {id:'D',x:80,y:50,correct:3},
+      {id:'E',x:75,y:20,correct:4},
+    ];
+    let step=1;
+    wps.forEach(w=>{
+      const d=el('div',{className:'chart-wp',textContent:w.id});
+      d.style.left=w.x+'%';d.style.top=w.y+'%';
+      d.onclick=()=>{
+        if(w.correct===step){d.classList.add('picked');step++;Audio_.click();
+          if(step>4){Audio_.win();close();logLine('Course plotted. New heading locked.','good');State.solved.add('chart');addItem('coords','🧭','Coordinates','Surface bearings: 23-47-82.');}
+        } else {Audio_.bad();logLine('Wrong waypoint. Reset.','warn');step=1;box.querySelectorAll('.chart-wp').forEach(x=>x.classList.remove('picked'));}
+      };
+      b.appendChild(d);
+    });
+    box.querySelector('#creset').onclick=()=>{step=1;box.querySelectorAll('.chart-wp').forEach(x=>x.classList.remove('picked'));};
+  }});
+}
+
+function showPeriscope(){
+  const html=`<p>You peer through the periscope. Through the waves you glimpse constellations forming a pattern. 4 stars form digits:</p>
+  <svg viewBox="0 0 300 200" style="width:100%;max-width:300px;display:block;margin:12px auto;background:#020818;border:1px solid #00d4ff;border-radius:6px">
+    <circle cx="50" cy="60" r="3" fill="#fff"/><circle cx="55" cy="90" r="3" fill="#fff"/><circle cx="40" cy="110" r="3" fill="#fff"/>
+    <circle cx="120" cy="40" r="3" fill="#fff"/><circle cx="100" cy="80" r="3" fill="#fff"/>
+    <circle cx="180" cy="50" r="3" fill="#fff"/><circle cx="200" cy="90" r="3" fill="#fff"/><circle cx="170" cy="110" r="3" fill="#fff"/>
+    <circle cx="250" cy="70" r="3" fill="#fff"/>
+    <!-- highlight 4 -->
+    <circle cx="50" cy="60" r="8" fill="none" stroke="#fbbf24" stroke-width="1"/>
+    <text x="50" y="45" text-anchor="middle" fill="#fbbf24" font-size="10">2</text>
+    <circle cx="120" cy="40" r="8" fill="none" stroke="#fbbf24" stroke-width="1"/>
+    <text x="120" y="25" text-anchor="middle" fill="#fbbf24" font-size="10">3</text>
+    <circle cx="200" cy="90" r="8" fill="none" stroke="#fbbf24" stroke-width="1"/>
+    <text x="200" y="115" text-anchor="middle" fill="#fbbf24" font-size="10">4</text>
+    <circle cx="250" cy="70" r="8" fill="none" stroke="#fbbf24" stroke-width="1"/>
+    <text x="250" y="55" text-anchor="middle" fill="#fbbf24" font-size="10">7</text>
+  </svg>
+  <p>Read the highlighted coordinates. They form the final hatch code.</p>`;
+  showModal('PERISCOPE',html);
+}
+
+/* ============================================================
+   ROOM: NUCLEAR ARMAGEDDON
+============================================================ */
+const NUKE={
+  scene(){
+    return `
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="nLight" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1a0f05"/><stop offset="100%" stop-color="#050300"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#nLight)"/>
+  <rect y="380" width="800" height="120" fill="#0a0805"/>
+  <!-- console -->
+  <rect x="60" y="320" width="680" height="80" fill="#1a1a0a" stroke="#ff6600"/>
+  <!-- monitor -->
+  <g class="hotspot" id="hs-monitor" style="color:#10b981">
+    <rect x="80" y="100" width="180" height="120" fill="#0a0a0a" stroke="#10b981" stroke-width="2"/>
+    <rect x="90" y="110" width="160" height="100" fill="#030503"/>
+    <text x="170" y="140" text-anchor="middle" fill="#10b981" font-size="9" font-family="monospace">01000110 01001001</text>
+    <text x="170" y="155" text-anchor="middle" fill="#10b981" font-size="9" font-family="monospace">01010010 01000101</text>
+    <text x="170" y="230" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">MONITOR</text>
+  </g>
+  <!-- binder -->
+  <g class="hotspot" id="hs-binder" style="color:#fbbf24">
+    <rect x="300" y="130" width="80" height="90" fill="#3a2a0a" stroke="#fbbf24"/>
+    <rect x="305" y="135" width="70" height="8" fill="#fbbf24" opacity=".5"/>
+    <text x="340" y="180" text-anchor="middle" fill="#fbbf24" font-size="9" font-family="monospace">PROTOCOL</text>
+    <text x="340" y="240" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">BINDER</text>
+  </g>
+  <!-- reactor -->
+  <g class="hotspot" id="hs-reactor" style="color:#ff6600">
+    <circle cx="450" cy="160" r="35" fill="#1a0a0a" stroke="#ff6600" stroke-width="2"/>
+    <circle cx="450" cy="160" r="20" fill="#330505" class="warn-light"/>
+    <circle cx="450" cy="160" r="8" fill="#ff6600"/>
+    <text x="450" y="220" text-anchor="middle" fill="#ff6600" font-size="10" font-family="monospace">REACTOR</text>
+  </g>
+  <!-- geiger area -->
+  <g class="hotspot" id="hs-geiger" style="color:#fbbf24">
+    <rect x="520" y="120" width="90" height="90" fill="#1a1a05" stroke="#fbbf24"/>
+    <circle cx="565" cy="150" r="14" fill="#0a0a0a" stroke="#fbbf24"/>
+    <line x1="565" y1="150" x2="573" y2="142" stroke="#ef4444"/>
+    <text x="565" y="180" text-anchor="middle" fill="#fbbf24" font-size="9" font-family="monospace">GEIGER</text>
+    <text x="565" y="230" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="monospace">SCANNER</text>
+  </g>
+  <!-- keys -->
+  <g class="hotspot" id="hs-keys" style="color:#00d4ff">
+    <rect x="650" y="140" width="90" height="60" fill="#0a0a0a" stroke="#00d4ff"/>
+    <g fill="#00d4ff">
+      <circle cx="665" cy="170" r="4"/><circle cx="685" cy="170" r="4"/><circle cx="705" cy="170" r="4"/>
+      <circle cx="675" cy="185" r="4"/><circle cx="700" cy="185" r="4"/>
+    </g>
+    <text x="695" y="225" text-anchor="middle" fill="#00d4ff" font-size="10" font-family="monospace">KEY RACK</text>
+  </g>
+  <!-- launch console -->
+  <g class="hotspot" id="hs-launch" style="color:#ef4444">
+    <rect x="280" y="330" width="240" height="60" fill="#2a0505" stroke="#ef4444" stroke-width="2"/>
+    <circle cx="320" cy="360" r="10" fill="#ef4444" class="warn-light"/>
+    <text x="400" y="355" text-anchor="middle" fill="#fbbf24" font-size="12" font-family="monospace" id="launchClock">T-10:00</text>
+    <text x="400" y="378" text-anchor="middle" fill="#ef4444" font-size="10" font-family="monospace">LAUNCH CONSOLE</text>
+  </g>
+  <!-- pipes for reactor cooling -->
+  <g class="hotspot" id="hs-pipes" style="color:#00d4ff">
+    <rect x="80" y="250" width="180" height="50" fill="#0a0a0a" stroke="#00d4ff"/>
+    <line x1="90" y1="275" x2="250" y2="275" stroke="#00d4ff" stroke-width="2"/>
+    <text x="170" y="320" text-anchor="middle" fill="#00d4ff" font-size="10" font-family="monospace">COOLING PIPES</text>
+  </g>
+  <!-- elevator door -->
+  <g class="hotspot" id="hs-elev" style="color:#10b981">
+    <rect x="650" y="240" width="90" height="140" fill="#0a0a0a" stroke="#10b981" stroke-width="2"/>
+    <rect x="655" y="245" width="80" height="130" fill="#1a1a1a"/>
+    <line x1="695" y1="245" x2="695" y2="375" stroke="#10b981"/>
+    <text x="695" y="395" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">ELEVATOR</text>
+  </g>
+</svg>`;
+  }
+};
+
+function showBinder(){
+  const html=`<p>The protocol binder is dusty. Inside you find:</p>
+  <div style="background:#0a0a0a;padding:12px;border:1px solid #fbbf24;font-size:11px;line-height:1.6">
+  <b>OVERRIDE PROTOCOL — PROJECT SENTINEL</b><br><br>
+  To abort launch, override code required.<br>
+  Override code structure: [BINARY] + [GEIGER] + [KEYS]<br><br>
+  The binary message on Monitor-A is English.<br>
+  The Geiger scanner reports a 3-digit contamination count.<br>
+  Two of the 5 numbered keys must be selected — use the deduction log.<br><br>
+  Binary decodes to a 4-letter word. Combine all clues at the launch console.
+  </div>`;
+  showModal('PROTOCOL BINDER',html);
+  logLine('You read the protocol binder.','sys');
+  State.solved.add('binder');
+}
+
+function showBinaryMonitor(){
+  // 01000110 01001001 01010010 01000101 -> FIRE
+  const html=`<p>Monitor displays:</p>
+  <div style="font-family:monospace;font-size:13px;text-align:center;color:#10b981;padding:12px;background:#020503;border:1px solid #10b981">01000110 01001001 01010010 01000101</div>
+  <p style="margin-top:10px">Decode as ASCII (8-bit binary to letters). Type the decoded 4-letter word:</p>
+  <input type="text" id="binAns" class="code-input" maxlength="4" style="text-transform:uppercase">
+  <button id="binGo" style="width:100%;margin-top:10px;background:#064e3b">SUBMIT</button>
+  <p style="font-size:10px;color:#64748b;margin-top:8px">Tip: 01000001 = A, 01000010 = B, 01000011 = C ...</p>`;
+  showModal('MONITOR-A',html,{build:(box,close)=>{
+    box.querySelector('#binGo').onclick=()=>{
+      if(box.querySelector('#binAns').value.toUpperCase()==='FIRE'){Audio_.win();close();logLine('Binary decoded: FIRE. Word noted.','good');State.solved.add('binary');addItem('word','📝','Code Word','Decoded word: FIRE');}
+      else{Audio_.bad();}
+    };
+  }});
+}
+
+function showGeiger(){
+  const html=`<p>Scan the room for radiation hotspots. Move your finger/cursor around - watch the counter. Find 3 hotspots to reveal 3 digits.</p>
+  <div class="rad-box" id="radB"></div>
+  <div class="rad-reading" id="radR">COUNT: 0 CPM</div>
+  <div id="radNums" style="text-align:center;font-size:22px;color:#fbbf24;margin-top:10px;letter-spacing:8px">_ _ _</div>`;
+  showModal('GEIGER SCAN',html,{build:(box,close)=>{
+    const b=box.querySelector('#radB');
+    const spots=[{x:40,y:60,v:4},{x:250,y:80,v:9},{x:180,y:200,v:2}];
+    const found=new Set();
+    function update(mx,my){
+      let maxC=0,hit=null;
+      spots.forEach((s,i)=>{
+        const d=Math.hypot(mx-s.x,my-s.y);
+        const c=Math.max(0,1200-d*8);
+        if(c>maxC){maxC=c;hit=i;}
+      });
+      box.querySelector('#radR').textContent='COUNT: '+Math.floor(maxC)+' CPM';
+      if(maxC>900&&hit!=null&&!found.has(hit)){
+        found.add(hit);Audio_.tone(900,.15,'square');
+        logLine('Hotspot found. Digit: '+spots[hit].v,'good');
+        const nums=[null,null,null];spots.forEach((s,i)=>{if(found.has(i))nums[i]=s.v;});
+        box.querySelector('#radNums').textContent=nums.map(n=>n==null?'_':n).join(' ');
+        if(found.size===3){
+          setTimeout(()=>{close();logLine('Geiger reading: 4 9 2','good');State.solved.add('geiger');addItem('geiger','☢','Geiger Reading','Contamination count: 492');},600);
+        }
+      }
+    }
+    b.addEventListener('mousemove',(e)=>{const r=b.getBoundingClientRect();update(e.clientX-r.left,e.clientY-r.top);});
+    b.addEventListener('touchmove',(e)=>{const r=b.getBoundingClientRect();const t=e.touches[0];update(t.clientX-r.left,t.clientY-r.top);e.preventDefault();},{passive:false});
+  }});
+}
+
+function showReactorPipes(){
+  const html=`<p>Route coolant from the LEFT inlet to the RIGHT reactor. Click cells to rotate pipes.</p>
+  <div class="pipe-grid" id="pg" style="grid-template-columns:repeat(5,1fr)"></div>
+  <button id="pcheck" style="width:100%;margin-top:12px;background:#064e3b">CHECK FLOW</button>`;
+  showModal('COOLANT ROUTING',html,{build:(box,close)=>{
+    // 3x5 grid. Inlet left middle, outlet right middle. Simple: all straight horizontal pipes in middle row
+    const rows=3,cols=5;
+    const grid=[];
+    // pipe types: 0 none,1 horizontal,2 vertical,3 elbow NE,4 elbow NW,5 elbow SE,6 elbow SW
+    // Simpler puzzle: toggle between horizontal/none to build path
+    for(let r=0;r<rows;r++){grid.push(new Array(cols).fill(0));}
+    // fix inlet/outlet
+    grid[1][0]=1;grid[1][cols-1]=1;
+    const pg=box.querySelector('#pg');
+    function render(){
+      pg.innerHTML='';
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+        const cell=el('div',{className:'pipe-cell'});
+        if((r===1&&c===0)||(r===1&&c===cols-1))cell.classList.add('fixed');
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('viewBox','0 0 40 40');
+        if(grid[r][c]===1){
+          const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+          l.setAttribute('x1','0');l.setAttribute('y1','20');l.setAttribute('x2','40');l.setAttribute('y2','20');
+          l.setAttribute('stroke','#00d4ff');l.setAttribute('stroke-width','6');svg.appendChild(l);
+        } else if(grid[r][c]===2){
+          const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+          l.setAttribute('x1','20');l.setAttribute('y1','0');l.setAttribute('x2','20');l.setAttribute('y2','40');
+          l.setAttribute('stroke','#00d4ff');l.setAttribute('stroke-width','6');svg.appendChild(l);
+        }
+        cell.appendChild(svg);
+        if(!((r===1&&c===0)||(r===1&&c===cols-1))){
+          cell.onclick=()=>{grid[r][c]=(grid[r][c]+1)%3;Audio_.click();render();};
+        }
+        pg.appendChild(cell);
+      }
+    }
+    render();
+    box.querySelector('#pcheck').onclick=()=>{
+      // require middle row all =1
+      const ok=grid[1].every(v=>v===1);
+      if(ok){Audio_.win();close();logLine('Coolant flowing. Reactor stabilized.','good');State.solved.add('reactor');}
+      else{Audio_.bad();logLine('Flow broken. Check the path.','warn');}
+    };
+  }});
+}
+
+function showKeyLogic(){
+  const html=`<p>Five numbered keys. Protocol states the two correct keys per these truths:</p>
+  <ul style="font-size:12px;line-height:1.7;margin:10px 0 14px 16px;color:#fbbf24">
+    <li>Key 1 and Key 5 cannot both be used.</li>
+    <li>Key 2 is used if and only if Key 4 is NOT used.</li>
+    <li>Key 3 is always used.</li>
+    <li>Exactly 2 keys must be selected.</li>
+  </ul>
+  <div id="keyBtns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"></div>
+  <button id="kgo" style="width:100%;margin-top:12px;background:#064e3b">CONFIRM</button>`;
+  // Key 3 must be used; total 2, so exactly one other. Rule 2: 2 xor 4. Both 2 and 4 are valid choices alone. Rule 1: 1 & 5 not both (only one at most, since total 2 allows). We need unique answer — add: Key 1 must be used with Key 4 or not at all.
+  // Actually rule 3 + total 2 = {3, X}. X in {1,2,4,5}. Rule 2 with single other X: if X=2, 4 not used ok. If X=4, 2 not used ok. If X=1 or 5, rule 2 says 2<->not 4 -> neither used -> ok, but 2 not used means 4 used — contradiction. So X must be 2 or 4. Need to narrow further. Add rule: "Key 4 is used" -> makes answer {3,4}.
+  const html2=`<p>Five numbered keys. Protocol states the two correct keys per these truths:</p>
+  <ul style="font-size:12px;line-height:1.7;margin:10px 0 14px 16px;color:#fbbf24">
+    <li>Exactly 2 keys must be selected.</li>
+    <li>Key 3 is always used.</li>
+    <li>Key 4 must be used.</li>
+    <li>Key 1 and Key 5 cannot both be used.</li>
+  </ul>
+  <div id="keyBtns" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"></div>
+  <button id="kgo" style="width:100%;margin-top:12px;background:#064e3b">CONFIRM</button>`;
+  showModal('KEY DEDUCTION',html2,{build:(box,close)=>{
+    const bts=box.querySelector('#keyBtns');
+    const sel=new Set();
+    for(let i=1;i<=5;i++){
+      const b=el('button',{textContent:'KEY '+i});
+      b.style.minWidth='70px';
+      b.onclick=()=>{if(sel.has(i)){sel.delete(i);b.style.background='';}else{sel.add(i);b.style.background='#064e3b';}Audio_.click();};
+      bts.appendChild(b);
+    }
+    box.querySelector('#kgo').onclick=()=>{
+      if(sel.size===2&&sel.has(3)&&sel.has(4)){Audio_.win();close();logLine('Keys 3 & 4 selected. Added to console.','good');State.solved.add('keys');addItem('keys','🔐','Keys 3+4','The two authorized override keys.');}
+      else{Audio_.bad();logLine('Incorrect key selection.','warn');}
+    };
+  }});
+}
+
+function showLaunchConsole(){
+  // Need binary+geiger+keys solved first
+  if(!State.solved.has('binary')||!State.solved.has('geiger')||!State.solved.has('keys')){
+    logLine('Console locked. Need binary, geiger, and keys first.','warn');return;
+  }
+  const html=`<p>Enter OVERRIDE CODE. Format: [4-letter word from monitor][3-digit geiger reading]</p>
+  <input type="text" id="ovC" class="code-input" maxlength="7" style="text-transform:uppercase" placeholder="FIRE000">
+  <button id="ovGo" style="width:100%;margin-top:10px;background:#064e3b">OVERRIDE</button>`;
+  showModal('OVERRIDE CODE',html,{build:(box,close)=>{
+    box.querySelector('#ovGo').onclick=()=>{
+      if(box.querySelector('#ovC').value.toUpperCase()==='FIRE492'){
+        Audio_.win();close();logLine('OVERRIDE ACCEPTED. Begin disarm sequence.','good');
+        State.solved.add('override');
+        showSimonDisarm();
+      } else {Audio_.bad();logLine('OVERRIDE REJECTED.','warn');}
+    };
+  }});
+}
+
+function showSimonDisarm(){
+  const html=`<p>Watch the sequence. Repeat it. Succeed 4 rounds to disarm.</p>
+  <div class="simon-grid" id="sg">
+    <div class="simon-btn r" data-i="0"></div>
+    <div class="simon-btn g" data-i="1"></div>
+    <div class="simon-btn b" data-i="2"></div>
+    <div class="simon-btn y" data-i="3"></div>
+  </div>
+  <div id="simStatus" style="text-align:center;margin-top:10px;color:#fbbf24">Round 1</div>`;
+  showModal('DISARM SEQUENCE',html,{sticky:true,build:(box,close)=>{
+    const btns=box.querySelectorAll('.simon-btn');
+    const freqs=[220,330,440,550];
+    let seq=[],input=[],round=0,playing=false;
+    function flash(i,dur=400){
+      btns[i].classList.add('on');Audio_.tone(freqs[i],dur/1000,'sine');
+      setTimeout(()=>btns[i].classList.remove('on'),dur);
+    }
+    async function play(){
+      playing=true;input=[];
+      for(let i=0;i<seq.length;i++){flash(seq[i],Math.max(200,500-round*40));await new Promise(r=>setTimeout(r,Math.max(300,600-round*40)));}
+      playing=false;
+    }
+    async function next(){
+      round++;box.querySelector('#simStatus').textContent='Round '+round+'/4';
+      seq.push(Math.floor(Math.random()*4));
+      await new Promise(r=>setTimeout(r,400));
+      await play();
+    }
+    btns.forEach(b=>b.onclick=()=>{
+      if(playing)return;
+      const i=+b.dataset.i;flash(i,200);input.push(i);
+      if(input[input.length-1]!==seq[input.length-1]){Audio_.bad();logLine('Disarm failed. Sequence reset.','warn');seq=[];round=0;setTimeout(next,600);return;}
+      if(input.length===seq.length){
+        if(round>=4){Audio_.win();close();logLine('DISARMED. Launch aborted.','good');State.solved.add('disarm');State.launchCountdown=999999;finalRiddle();return;}
+        setTimeout(next,600);
+      }
+    });
+    next();
+  }});
+}
+
+function finalRiddle(){
+  const html=`<p>The elevator activates but asks a final riddle:</p>
+  <p style="color:#fbbf24;font-style:italic;padding:10px;background:#0a0a0a;border-left:3px solid #fbbf24">
+  "I have cities but no houses. Mountains but no trees. Water but no fish. I am folded and I am held. What am I?"</p>
+  <input type="text" id="rAns" class="code-input" placeholder="?" style="text-transform:lowercase">
+  <button id="rGo" style="width:100%;margin-top:10px;background:#064e3b">ANSWER</button>`;
+  showModal('ELEVATOR RIDDLE',html,{sticky:true,build:(box,close)=>{
+    box.querySelector('#rGo').onclick=()=>{
+      const v=box.querySelector('#rAns').value.toLowerCase().trim();
+      if(v==='map'||v==='a map'||v==='the map'){Audio_.win();close();winGame();}
+      else{Audio_.bad();logLine('Wrong answer.','warn');}
+    };
+  }});
+}
+
+/* ============================================================
+   HINT SYSTEMS
+============================================================ */
+const ROOM_HINTS={
+  saw:[
+    {puzzle:'toolbox',levels:['Look under the sink.','There are chalk numbers: 7 2 9 4.','Toolbox code is 7294.']},
+    {puzzle:'cipher',levels:['Use the cipher wheel on the wall.','It is a Caesar cipher.','Shift by -3.']},
+    {puzzle:'drawer',levels:['Decode the wall writing first.','The wall reveals two words.','The drawer word is TRAP.']},
+    {puzzle:'trap',levels:['Read the 3 truths carefully.','Switch A must be DOWN.','A=DOWN, B=UP, C=UP.']},
+    {puzzle:'door',levels:['4 colors in the room — pipes, puppet, cassette, drawer.','Each is a different color.','Order: RED, GOLD, CYAN, GREEN.']},
+  ],
+  sub:[
+    {puzzle:'power',levels:['Match color to color.','The left column labels show the color.','R->R, G->G, B->B, Y->Y.']},
+    {puzzle:'safe',levels:["Read the captain's log.","The log mentions a call sign.",'Safe code is 5183.']},
+    {puzzle:'sonar',levels:['Listen to the Morse pings.','It spells a short English word.','The word is HATCH.']},
+    {puzzle:'valves',levels:['Set valves to gauge readings.','V1=2, V2=3, V3=1.','Click each valve that many times.']},
+    {puzzle:'chart',levels:['Plot waypoints in order.','Start at A (SW), A → C → D → E.','The order is A, C, D, E.']},
+    {puzzle:'ballast',levels:['1200 minus 450 plus 180.','Equals 930.','The answer is 930.']},
+  ],
+  nuke:[
+    {puzzle:'binder',levels:['Click the protocol binder.','It tells you how to override.','Binary + Geiger + Keys.']},
+    {puzzle:'binary',levels:['8-bit ASCII binary.','01000110 = F','The word is FIRE.']},
+    {puzzle:'geiger',levels:['Move around the Geiger box.','Find 3 hotspots.','The digits are 4, 9, 2.']},
+    {puzzle:'keys',levels:['Read all 4 constraints.','Keys 3 and 4 are required.','Select ONLY keys 3 and 4.']},
+    {puzzle:'override',levels:['Combine word + geiger.','FIRE + 492.','Enter FIRE492.']},
+    {puzzle:'disarm',levels:['Watch the Simon sequence.','Repeat exactly.','You need 4 rounds.']},
+  ]
+};
+
+/* ============================================================
+   HOTSPOT WIRING PER ROOM
+============================================================ */
+function wireSaw(){
+  document.getElementById('hs-sink').onclick=()=>{logLine(SAW.puzzles.sink.desc,'sys');showModal('UNDER SINK','<p>Chalked on the pipe: <span style="color:#fbbf24;font-size:22px;letter-spacing:8px">7 2 9 4</span></p><p>A 4-digit sequence. Could be a combination?</p>');};
+  document.getElementById('hs-cassette').onclick=()=>{if(!State.solved.has('intro')){State.solved.add('intro');playJigsawIntro();}else showModal('CASSETTE',"<p>The tape has already played. Silence now.</p>");};
+  document.getElementById('hs-toolbox').onclick=()=>{
+    if(State.solved.has('toolbox')){logLine('The toolbox is already open.','sys');return;}
+    showDigitLock('7294',()=>{State.solved.add('toolbox');logLine('Toolbox opens. Pliers and a cipher wheel inside.','good');SAW.puzzles.toolbox.reward();});
+  };
+  document.getElementById('hs-wall').onclick=()=>{
+    if(!hasItem('wheel')){showModal('WALL SCRAWL','<p>"wqoodh pqb nlrbxfcz" — you cannot read this without a cipher tool.</p>');return;}
+    showCipherWheelUI();
+  };
+  document.getElementById('hs-drawer').onclick=()=>{
+    if(State.solved.has('drawer')){logLine('The drawer is already open.','sys');return;}
+    showWordLock('TRAP',()=>{State.solved.add('drawer');logLine('Drawer opens. A reverse bear trap mechanism inside!','good');showTrapPuzzle();});
+  };
+  document.getElementById('hs-puppet').onclick=()=>{
+    showModal('JIGSAW PUPPET',"<p>The puppet's head tilts. Its eyes gleam <b style='color:#fbbf24'>GOLD</b>.</p><p style='font-size:11px;color:#64748b'>Note the color. It may be part of the door sequence.</p>");
+  };
+  document.getElementById('hs-door').onclick=()=>{
+    if(!hasItem('brasskey')){logLine('The chains are tight. You need a key first.','warn');return;}
+    openSawDoor();
+  };
+  logLine('You awaken in a damp, dim room. A cassette player sits nearby. You must find a way out.','sys');
+  logLine('Hint: click objects to examine them.','sys');
+  // ambient heartbeat
+  State.ambientInt=setInterval(()=>{if(!State.paused&&!State.dead)Audio_.heartbeat();},4000);
+}
+
+function wireSub(){
+  document.getElementById('hs-power').onclick=()=>{
+    if(State.solved.has('power')){logLine('Power already restored.','sys');return;}
+    showPowerWires();
+  };
+  document.getElementById('hs-log').onclick=()=>showCaptainLog();
+  document.getElementById('hs-safe').onclick=()=>{
+    if(State.solved.has('safe')){logLine('Safe already open.','sys');return;}
+    showDigitLock('5183',()=>{State.solved.add('safe');logLine('Safe opens. Compass and nautical chart inside.','good');addItem('compass','🧭','Compass','Pointing true north.');addItem('chart','🗺','Chart','Unplotted nautical chart.');});
+  };
+  document.getElementById('hs-sonar').onclick=()=>{
+    if(!State.solved.has('power')){logLine('Sonar is dead. Restore power first.','warn');return;}
+    showSonarMorse();
+  };
+  document.getElementById('hs-valves').onclick=()=>{
+    if(State.solved.has('valves')){logLine('Valves already set.','sys');return;}
+    showValvesPuzzle();
+  };
+  document.getElementById('hs-ballast').onclick=()=>{
+    if(State.solved.has('ballast')){logLine('Ballast already balanced.','sys');return;}
+    showBallastMath();
+  };
+  document.getElementById('hs-chart').onclick=()=>{
+    if(!hasItem('chart')){logLine('You need the nautical chart from the safe.','warn');return;}
+    if(State.solved.has('chart')){logLine('Course already plotted.','sys');return;}
+    showChartPlot();
+  };
+  document.getElementById('hs-peri').onclick=()=>showPeriscope();
+  document.getElementById('hs-hatch').onclick=()=>{
+    const req=['power','safe','sonar','valves','chart','ballast'];
+    const missing=req.filter(r=>!State.solved.has(r));
+    if(missing.length){logLine('Hatch locked. Still need: '+missing.join(', '),'warn');return;}
+    showDigitLock('2347',()=>{winGame();},'HATCH LOCK (4 digits from periscope)');
+  };
+  logLine('Water drips. The sub groans. You must surface before it floods.','sys');
+  logLine('Restore power, plot a course, and reach the hatch.','sys');
+  State.waterLevel=5;
+  const w=document.querySelector('.wlv');if(w)w.style.height='5%';
+  State.ambientInt=setInterval(()=>{if(!State.paused&&!State.dead)Audio_.sonar();},6000);
+}
+
+function wireNuke(){
+  document.getElementById('hs-monitor').onclick=()=>{showBinaryMonitor();};
+  document.getElementById('hs-binder').onclick=()=>{showBinder();};
+  document.getElementById('hs-reactor').onclick=()=>{logLine('The reactor core pulses ominously.','warn');};
+  document.getElementById('hs-geiger').onclick=()=>{
+    if(State.solved.has('geiger')){logLine('Already scanned.','sys');return;}
+    showGeiger();
+  };
+  document.getElementById('hs-keys').onclick=()=>{
+    if(State.solved.has('keys')){logLine('Keys already selected.','sys');return;}
+    if(!State.solved.has('binder')){logLine('Consult the protocol binder first.','warn');return;}
+    showKeyLogic();
+  };
+  document.getElementById('hs-pipes').onclick=()=>{
+    if(State.solved.has('reactor')){logLine('Cooling already routed.','sys');return;}
+    showReactorPipes();
+  };
+  document.getElementById('hs-launch').onclick=()=>showLaunchConsole();
+  document.getElementById('hs-elev').onclick=()=>{
+    if(!State.solved.has('disarm')){logLine('Elevator locked. Stop the launch first.','warn');return;}
+    finalRiddle();
+  };
+  State.launchCountdown=State.difficulty*60+60;
+  logLine('Sirens wail. A launch countdown pulses on the console. You must abort.','warn');
+  logLine('Start with the protocol binder.','sys');
+  State.ambientInt=setInterval(()=>{if(!State.paused&&!State.dead)Audio_.siren();},5000);
+}
+
+/* ============================================================
+   ROOM START / END
+============================================================ */
+function startRoom(room){
+  Audio_.init();
+  State.room=room;State.inv=[];State.solved=new Set();State.dead=false;
+  State.hintsLeft=3;State.hintsUsed=0;State.paused=false;
+  State.difficulty=parseInt($('#difficulty').value);
+  State.time=State.difficulty*60;
+  State.playerName=$('#playerName').value.trim()||'Olivia';
+  Audio_.enabled=$('#soundOn').value==='1';
+  $('#home').style.display='none';
+  $('#game').classList.add('active');
+  $('#btnHint').textContent='HINT (3)';
+  $('#btnPause').textContent='PAUSE';
+  $('#log').innerHTML='';
+  renderInv();
+  updateTimer();
+  if(room==='saw'){$('#roomName').textContent='THE SAW ROOM';$('#scene').innerHTML=SAW.scene();wireSaw();}
+  if(room==='sub'){$('#roomName').textContent='THE SUBMARINE';$('#scene').innerHTML=SUB.scene();wireSub();}
+  if(room==='nuke'){$('#roomName').textContent='NUCLEAR ARMAGEDDON';$('#scene').innerHTML=NUKE.scene();wireNuke();}
+  startTimer();
+}
+
+function stopAmbient(){if(State.ambientInt){clearInterval(State.ambientInt);State.ambientInt=null;}}
+
+function winGame(){
+  clearInterval(State.timerInt);stopAmbient();State.dead=true;
+  Audio_.win();setTimeout(()=>Audio_.win(),400);
+  const elapsed=State.difficulty*60-State.time;
+  const m=Math.floor(elapsed/60),s=elapsed%60;
+  const best=localStorage.getItem(LS_PREFIX+State.room);
+  let isBest=false;
+  if(!best||elapsed<parseInt(best)){localStorage.setItem(LS_PREFIX+State.room,elapsed);isBest=true;}
+  localStorage.setItem(LS_PREFIX+State.room+'_name',State.playerName);
+  let stars=5;
+  if(elapsed>State.difficulty*60*.5)stars--;
+  if(State.hintsUsed>0)stars--;
+  if(State.hintsUsed>1)stars--;
+  if(elapsed>State.difficulty*60*.75)stars--;
+  stars=Math.max(1,stars);
+  const overlay=el('div',{className:'end-overlay'});
+  overlay.innerHTML=`<h2>YOU ESCAPED</h2>
+    <p style="color:#00d4ff">Well done, ${State.playerName}.</p>
+    <div class="stars">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</div>
+    <p>Time: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</p>
+    <p>Hints used: ${State.hintsUsed}/3</p>
+    ${isBest?'<p style="color:#fbbf24">NEW PERSONAL BEST!</p>':''}
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button id="endHome">MAIN MENU</button>
+      <button id="endReplay">REPLAY</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  // confetti
+  for(let i=0;i<60;i++){
+    const c=el('div',{className:'confetti'});
+    c.style.left=Math.random()*100+'%';
+    c.style.background=['#00d4ff','#fbbf24','#10b981','#ff6600','#ef4444'][Math.floor(Math.random()*5)];
+    c.style.animation='fall '+(2+Math.random()*2)+'s ease-in '+Math.random()+'s forwards';
+    overlay.appendChild(c);
+  }
+  overlay.querySelector('#endHome').onclick=()=>{overlay.remove();goHome();};
+  overlay.querySelector('#endReplay').onclick=()=>{const r=State.room;overlay.remove();startRoom(r);};
+}
+
+function loseGame(reason){
+  clearInterval(State.timerInt);stopAmbient();State.dead=true;
+  Audio_.bad();setTimeout(()=>Audio_.bad(),300);
+  const overlay=el('div',{className:'end-overlay loss'});
+  overlay.innerHTML=`<h2>GAME OVER</h2>
+    <p style="color:#ef4444">${reason}</p>
+    <p>You failed to escape, ${State.playerName}.</p>
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button id="endHome">MAIN MENU</button>
+      <button id="endReplay">RETRY</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#endHome').onclick=()=>{overlay.remove();goHome();};
+  overlay.querySelector('#endReplay').onclick=()=>{const r=State.room;overlay.remove();startRoom(r);};
+}
+
+function goHome(){
+  clearInterval(State.timerInt);stopAmbient();
+  $('#game').classList.remove('active');
+  $('#home').style.display='flex';
+  State.room=null;
+  loadBests();
+}
+
+function loadBests(){
+  [['saw','#bestSaw'],['sub','#bestSub'],['nuke','#bestNuke']].forEach(([k,sel])=>{
+    const v=localStorage.getItem(LS_PREFIX+k);
+    if(v){const m=Math.floor(v/60),s=v%60;$(sel).textContent='BEST: '+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
+    else $(sel).textContent='BEST: --:--';
+  });
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('click',()=>Audio_.init(),{once:true});
+document.querySelectorAll('.room-card[data-room]').forEach(c=>{
+  c.onclick=()=>{Audio_.init();Audio_.click();startRoom(c.dataset.room);};
+});
+$('#btnHint').onclick=useHint;
+$('#btnPause').onclick=()=>{State.paused=!State.paused;$('#btnPause').textContent=State.paused?'RESUME':'PAUSE';logLine(State.paused?'Paused.':'Resumed.','sys');};
+$('#btnQuit').onclick=()=>{if(confirm('Quit this room? Progress will be lost.'))goHome();};
+loadBests();
+
+// inject keyframes for confetti
+const sty=document.createElement('style');
+sty.textContent='@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:0;}}';
+document.head.appendChild(sty);
+</script>
+</body>
+</html>

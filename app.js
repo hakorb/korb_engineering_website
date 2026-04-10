@@ -251,6 +251,7 @@ const SECTIONS = {
       { name: 'Music Library', file: './tools/misc/music-library.html' },
       { name: 'Moving Specialist Invoice', file: './tools/misc/moving-invoice.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
+      { name: "Olivia's Digital Escape Room", file: './tools/misc/olivias-digital-escape-room.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
       { name: 'Painting Studio', file: './tools/misc/painting-studio.html' },
       { name: 'Territory Wars', file: './tools/misc/paper-io.html' },
