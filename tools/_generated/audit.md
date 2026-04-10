@@ -1,6 +1,6 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-10T18:30:56.798Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
@@ -14,7 +14,7 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 |---|---:|
 | `[polish]` | 232 |
 | `[a11y]` | 399 |
-| `[deps]` | 21 |
+| `[deps]` | 10 |
 | `[storage]` | 51 |
 
 ## aviation (55 of 55 with findings)
@@ -40,7 +40,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/Star_Fox_Lite.html
 - `[a11y]` no <meta name="description">
-- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/aviation/ada-compliance-checker.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -302,7 +301,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
-- `[deps]` external CDN: cdnjs.cloudflare.com
 - `[storage]` localStorage key not prefixed korb_: etam_inspection_data
 
 ### tools/civil/HECRASOpen.html
@@ -363,7 +361,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/digital-twin-repository.html
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
-- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/civil/dwg-viewer.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -483,7 +480,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
-- `[deps]` external CDN: cdnjs.cloudflare.com, unpkg.com
 
 ### tools/civil/policy-writer.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -513,7 +509,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/scope-creep-counselor.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
-- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/civil/scope-gap-detector.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -581,7 +576,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/2d-to-3d-generator.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
-- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/misc/3d-print-library.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -713,7 +707,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
-- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/misc/dinner-recommender.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -736,7 +729,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert() (prefer KorbUI)
-- `[deps]` external CDN: unpkg.com
 - `[storage]` localStorage key not prefixed korb_: dq_autosave, dq_save_
 
 ### tools/misc/ebook-reader.html
@@ -756,7 +748,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert() (prefer KorbUI)
-- `[deps]` external CDN: cdn.jsdelivr.net
 
 ### tools/misc/flowchart-maker.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -907,7 +898,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
-- `[deps]` external CDN: cdnjs.cloudflare.com
 - `[storage]` localStorage key not prefixed korb_: movingInvoices
 
 ### tools/misc/muscle-atlas.html
@@ -1056,7 +1046,6 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/the-void.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
-- `[deps]` external CDN: unpkg.com
 
 ### tools/misc/tic-tac-toe.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
@@ -1161,7 +1150,7 @@ _Generated 2026-04-10T18:29:15.553Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/hk/korb-metadata-scrubber.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
 - `[a11y]` no <meta name="description">
-- `[deps]` external CDN: cdn.jsdelivr.net, unpkg.com, cdnjs.cloudflare.com
+- `[deps]` external CDN: cdn.jsdelivr.net, cdnjs.cloudflare.com
 
 ### tools/hk/meeting-adversary.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)

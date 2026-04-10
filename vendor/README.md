@@ -19,6 +19,12 @@ From any tool under `tools/<category>/<tool>.html`:
 |---|---|---|---|---|
 | `jspdf-2.5.1.umd.min.js` | jsPDF | 2.5.1 | https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js | 356 KB |
 | `jszip-3.10.1.min.js` | JSZip | 3.10.1 | https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js | 95 KB |
+| `three-r128.min.js` | three.js | r128 | https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js | 589 KB |
+| `pdf-3.11.174.min.js` | PDF.js | 3.11.174 | https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js | 313 KB |
+| `pdf.worker-3.11.174.min.js` | PDF.js worker | 3.11.174 | https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js | 1062 KB |
+| `pdf-lib-1.17.1.min.js` | pdf-lib | 1.17.1 | https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js | 513 KB |
+| `html2pdf-0.10.1.bundle.min.js` | html2pdf.js | 0.10.1 | https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js | 885 KB |
+| `peerjs-1.5.4.min.js` | PeerJS | 1.5.4 | https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js | 91 KB |
 
 ## Pinning policy
 
