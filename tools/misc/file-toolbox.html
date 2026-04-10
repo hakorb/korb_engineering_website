@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Toolbox</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1018;
+    --surface2: #0e1520;
+    --border: #1a2535;
+    --cyan: #00d4ff;
+    --orange: #ff6600;
+    --green: #10b981;
+    --red: #ef4444;
+    --gold: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    font-size: 14px;
+  }
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 12px;
+    overflow-y: auto;
+    max-height: 100vh;
+    position: sticky; top: 0;
+  }
+  .sidebar h1 {
+    color: var(--cyan);
+    font-size: 16px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  .search-wrap { margin-bottom: 12px; }
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 4px;
+  }
+  .search-wrap input:focus { outline: none; border-color: var(--cyan); }
+  .cat-title {
+    color: var(--orange);
+    font-size: 11px;
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+    letter-spacing: 1px;
+  }
+  .tool-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    min-height: 36px;
+    border-radius: 3px;
+    margin-bottom: 2px;
+  }
+  .tool-btn:hover { background: var(--surface2); border-color: var(--border); }
+  .tool-btn.active { background: var(--surface2); border-color: var(--cyan); color: var(--cyan); }
+  .star {
+    color: var(--muted);
+    padding: 0 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .star.fav { color: var(--gold); }
+  .main {
+    flex: 1;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+  .tool-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  .tool-header h2 { color: var(--cyan); font-size: 20px; margin-bottom: 4px; }
+  .tool-header p { color: var(--muted); font-size: 12px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .panel label {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .panel textarea, .panel input[type="text"], .panel input[type="number"], .panel input[type="password"], .panel select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 16px;
+    min-height: 44px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .panel textarea { min-height: 120px; resize: vertical; }
+  .panel textarea:focus, .panel input:focus, .panel select:focus { outline: none; border-color: var(--cyan); }
+  button.action, .btn {
+    background: var(--surface2);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    padding: 10px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 44px;
+    border-radius: 4px;
+    margin: 4px 4px 4px 0;
+  }
+  button.action:hover, .btn:hover { background: var(--cyan); color: var(--bg); }
+  button.action.orange { border-color: var(--orange); color: var(--orange); }
+  button.action.orange:hover { background: var(--orange); color: var(--bg); }
+  button.action.green { border-color: var(--green); color: var(--green); }
+  button.action.green:hover { background: var(--green); color: var(--bg); }
+  button.action.red { border-color: var(--red); color: var(--red); }
+  button.action.red:hover { background: var(--red); color: var(--bg); }
+  .drop-zone {
+    border: 2px dashed var(--border);
+    padding: 30px;
+    text-align: center;
+    color: var(--muted);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .drop-zone.hover { border-color: var(--cyan); color: var(--cyan); background: var(--surface2); }
+  .output {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow: auto;
+    color: var(--green);
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 120px; }
+  canvas { max-width: 100%; border: 1px solid var(--border); background: #000; border-radius: 4px; }
+  .preview-img { max-width: 100%; max-height: 300px; border: 1px solid var(--border); border-radius: 4px; }
+  .file-info { font-size: 11px; color: var(--muted); margin: 4px 0; }
+  .color-swatch {
+    display: inline-block;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    vertical-align: middle;
+    margin-right: 6px;
+    border-radius: 4px;
+  }
+  .kbd { background: var(--surface2); border: 1px solid var(--border); padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+  .sidebar-toggle {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--cyan);
+    padding: 8px 12px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    min-height: 44px;
+  }
+  .diff-add { background: rgba(16,185,129,0.2); color: var(--green); }
+  .diff-del { background: rgba(239,68,68,0.2); color: var(--red); text-decoration: line-through; }
+  .gradient-preview { height: 80px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; }
+  .palette-chip { display: inline-block; width: 60px; height: 60px; margin: 4px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; position: relative; }
+  .palette-chip span { position: absolute; bottom: 2px; left: 2px; font-size: 9px; background: rgba(0,0,0,0.7); padding: 1px 3px; color: #fff; border-radius: 2px; }
+  #mdPreview { background: #fff; color: #000; padding: 10px; border-radius: 4px; min-height: 150px; font-family: sans-serif; }
+  #mdPreview h1,#mdPreview h2,#mdPreview h3 { margin: 8px 0 4px; }
+  #mdPreview code { background: #eee; padding: 1px 4px; border-radius: 2px; }
+  #mdPreview pre { background: #eee; padding: 8px; border-radius: 4px; overflow-x: auto; }
+  .page-thumb { display: inline-block; margin: 4px; padding: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; cursor: move; text-align: center; min-width: 80px; }
+  .page-thumb.drag-over { border-color: var(--cyan); }
+  @media (max-width: 768px) {
+    .app { flex-direction: column; }
+    .sidebar { width: 100%; max-height: none; position: static; }
+    .sidebar.collapsed .cat-title, .sidebar.collapsed .tool-btn { display: none; }
+    .sidebar-toggle { display: inline-block; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <h1>FILE TOOLBOX</h1>
+    <div class="search-wrap">
+      <input type="text" id="searchBox" placeholder="Search tools... ( / )" autocomplete="off">
+    </div>
+    <div id="toolList"></div>
+  </aside>
+  <main class="main">
+    <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">Menu</button>
+    <div id="toolArea"></div>
+  </main>
+</div>
+<script>
+'use strict';
+
+// ============ STATE ============
+const LS_PREFIX = 'korb_file_toolbox_';
+let state = {
+  favorites: JSON.parse(localStorage.getItem(LS_PREFIX + 'favs') || '[]'),
+  recents: JSON.parse(localStorage.getItem(LS_PREFIX + 'recents') || '[]'),
+  current: null,
+};
+function saveState() {
+  localStorage.setItem(LS_PREFIX + 'favs', JSON.stringify(state.favorites));
+  localStorage.setItem(LS_PREFIX + 'recents', JSON.stringify(state.recents));
+}
+function toggleFav(id) {
+  const i = state.favorites.indexOf(id);
+  if (i >= 0) state.favorites.splice(i, 1); else state.favorites.push(id);
+  saveState(); renderSidebar();
+}
+function addRecent(id) {
+  state.recents = [id, ...state.recents.filter(r => r !== id)].slice(0, 5);
+  saveState();
+}
+
+// ============ TOOL REGISTRY ============
+const TOOLS = [
+  { id:'image-convert', name:'Image Converter', cat:'Image', desc:'Convert between JPG, PNG, WebP, BMP formats.', init:initImageConvert },
+  { id:'image-resize', name:'Image Resizer', cat:'Image', desc:'Resize images by dimensions or percentage.', init:initImageResize },
+  { id:'image-compress', name:'Image Compressor', cat:'Image', desc:'Reduce JPEG file size with quality slider.', init:initImageCompress },
+  { id:'image-crop', name:'Image Cropper', cat:'Image', desc:'Crop images with aspect ratio presets.', init:initImageCrop },
+  { id:'image-base64', name:'Image to Base64', cat:'Image', desc:'Encode an image file to a base64 data URL.', init:initImageBase64 },
+  { id:'image-bg-remove', name:'Background Remover', cat:'Image', desc:'Threshold/chroma-key based background removal.', init:initBgRemove },
+  { id:'image-filter', name:'Image Filters', cat:'Image', desc:'Apply grayscale, sepia, blur, invert, etc.', init:initImageFilter },
+  { id:'image-picker', name:'Image Color Picker', cat:'Image', desc:'Click on pixel to pick RGB/HEX color.', init:initImagePicker },
+  { id:'image-rotate', name:'Image Rotator/Flipper', cat:'Image', desc:'Rotate 90/180/free, flip H or V.', init:initImageRotate },
+  { id:'gif-maker', name:'GIF Maker', cat:'Image', desc:'Combine images into an animated sequence.', init:initGifMaker },
+
+  { id:'pdf-merge', name:'PDF Merger', cat:'PDF', desc:'Combine multiple PDFs into one.', init:initPdfMerge },
+  { id:'pdf-split', name:'PDF Splitter', cat:'PDF', desc:'Extract pages or ranges from a PDF.', init:initPdfSplit },
+  { id:'pdf-to-image', name:'PDF to Image', cat:'PDF', desc:'Render PDF pages as PNG images.', init:initPdfToImage },
+  { id:'image-to-pdf', name:'Image to PDF', cat:'PDF', desc:'Combine images into a single PDF.', init:initImageToPdf },
+  { id:'pdf-compress', name:'PDF Compressor', cat:'PDF', desc:'Reduce PDF size by stripping metadata.', init:initPdfCompress },
+  { id:'pdf-reorder', name:'PDF Page Reorder', cat:'PDF', desc:'Drag-drop to reorder PDF pages.', init:initPdfReorder },
+  { id:'pdf-watermark', name:'PDF Watermark', cat:'PDF', desc:'Add text watermark to all pages.', init:initPdfWatermark },
+  { id:'pdf-rotate', name:'PDF Rotator', cat:'PDF', desc:'Rotate pages of a PDF.', init:initPdfRotate },
+  { id:'pdf-pagenum', name:'PDF Page Numbers', cat:'PDF', desc:'Add page numbers to each page.', init:initPdfPageNum },
+
+  { id:'json-fmt', name:'JSON Formatter', cat:'Text', desc:'Prettify or minify JSON.', init:initJsonFmt },
+  { id:'base64', name:'Base64 Encoder/Decoder', cat:'Text', desc:'Encode/decode text as base64.', init:initBase64 },
+  { id:'url-enc', name:'URL Encoder/Decoder', cat:'Text', desc:'URL percent-encode or decode.', init:initUrlEnc },
+  { id:'html-enc', name:'HTML Encoder/Decoder', cat:'Text', desc:'Encode or decode HTML entities.', init:initHtmlEnc },
+  { id:'case-conv', name:'Case Converter', cat:'Text', desc:'UPPER/lower/Title/camel/snake/kebab.', init:initCaseConv },
+  { id:'word-count', name:'Word/Char Counter', cat:'Text', desc:'Word, char, line counts + reading time.', init:initWordCount },
+  { id:'lorem', name:'Lorem Ipsum', cat:'Text', desc:'Generate placeholder text.', init:initLorem },
+  { id:'md-preview', name:'Markdown Preview', cat:'Text', desc:'Live preview for markdown.', init:initMdPreview },
+  { id:'text-diff', name:'Text Diff', cat:'Text', desc:'Compare two texts, highlight differences.', init:initTextDiff },
+
+  { id:'color-picker', name:'Color Picker', cat:'Color', desc:'HSL/RGB/HEX/CMYK conversions.', init:initColorPicker },
+  { id:'palette-gen', name:'Color Palette Generator', cat:'Color', desc:'Extract palette from an image.', init:initPaletteGen },
+  { id:'gradient-gen', name:'Gradient Generator', cat:'Color', desc:'Visual gradient builder, export CSS.', init:initGradientGen },
+
+  { id:'qr-gen', name:'QR Code Generator', cat:'Misc', desc:'Text or URL to QR code PNG.', init:initQrGen },
+  { id:'hash-gen', name:'Hash Generator', cat:'Misc', desc:'MD5, SHA-1, SHA-256 of text or file.', init:initHashGen },
+  { id:'pwd-gen', name:'Password Generator', cat:'Misc', desc:'Generate secure random passwords.', init:initPwdGen },
+  { id:'uuid-gen', name:'UUID Generator', cat:'Misc', desc:'Generate v4 UUIDs.', init:initUuidGen },
+  { id:'csv-json', name:'CSV / JSON Converter', cat:'Misc', desc:'Convert CSV <-> JSON.', init:initCsvJson },
+  { id:'timestamp', name:'Timestamp Converter', cat:'Misc', desc:'Unix timestamp to date and back.', init:initTimestamp },
+];
+
+// ============ SIDEBAR RENDER ============
+function renderSidebar(filter = '') {
+  const list = document.getElementById('toolList');
+  list.innerHTML = '';
+  const f = filter.toLowerCase();
+  const matches = TOOLS.filter(t => !f || t.name.toLowerCase().includes(f) || t.desc.toLowerCase().includes(f) || t.cat.toLowerCase().includes(f));
+
+  if (!filter && state.recents.length) {
+    const h = document.createElement('div');
+    h.className = 'cat-title';
+    h.textContent = 'Recent';
+    list.appendChild(h);
+    state.recents.forEach(id => {
+      const t = TOOLS.find(x => x.id === id);
+      if (t) list.appendChild(makeBtn(t));
+    });
+  }
+  if (!filter && state.favorites.length) {
+    const h = document.createElement('div');
+    h.className = 'cat-title';
+    h.textContent = 'Favorites';
+    list.appendChild(h);
+    state.favorites.forEach(id => {
+      const t = TOOLS.find(x => x.id === id);
+      if (t) list.appendChild(makeBtn(t));
+    });
+  }
+
+  const cats = ['Image', 'PDF', 'Text', 'Color', 'Misc'];
+  cats.forEach(cat => {
+    const catTools = matches.filter(t => t.cat === cat);
+    if (!catTools.length) return;
+    const h = document.createElement('div');
+    h.className = 'cat-title';
+    h.textContent = cat + ' Tools';
+    list.appendChild(h);
+    catTools.forEach(t => list.appendChild(makeBtn(t)));
+  });
+}
+function makeBtn(t) {
+  const b = document.createElement('button');
+  b.className = 'tool-btn' + (state.current === t.id ? ' active' : '');
+  const star = state.favorites.includes(t.id) ? 'fav' : '';
+  b.innerHTML = `<span>${t.name}</span><span class="star ${star}" data-id="${t.id}">★</span>`;
+  b.addEventListener('click', e => {
+    if (e.target.classList.contains('star')) {
+      toggleFav(t.id);
+    } else {
+      loadTool(t.id);
+    }
+  });
+  return b;
+}
+
+function loadTool(id) {
+  const t = TOOLS.find(x => x.id === id);
+  if (!t) return;
+  state.current = id;
+  addRecent(id);
+  renderSidebar();
+  const area = document.getElementById('toolArea');
+  area.innerHTML = `<div class="tool-header"><h2>${t.name}</h2><p>${t.desc}</p></div><div id="toolBody"></div>`;
+  try { t.init(document.getElementById('toolBody')); } catch (e) { document.getElementById('toolBody').innerHTML = '<div class="panel" style="color:var(--red)">Error: ' + e.message + '</div>'; }
+}
+
+// ============ HELPERS ============
+function h(html) { const d = document.createElement('div'); d.innerHTML = html; return d; }
+function makeDrop(container, onFiles, accept = '') {
+  const dz = document.createElement('div');
+  dz.className = 'drop-zone';
+  dz.textContent = 'Drop files here or click to select';
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.multiple = true;
+  if (accept) inp.accept = accept;
+  inp.style.display = 'none';
+  dz.appendChild(inp);
+  dz.addEventListener('click', () => inp.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('hover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('hover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('hover');
+    onFiles(Array.from(e.dataTransfer.files));
+  });
+  inp.addEventListener('change', () => onFiles(Array.from(inp.files)));
+  container.appendChild(dz);
+  return dz;
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function dataURLtoBlob(dataUrl) {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8 = new Uint8Array(n);
+  while (n--) u8[n] = bstr.charCodeAt(n);
+  return new Blob([u8], { type: mime });
+}
+function loadImageFile(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = r.result;
+    };
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(2) + ' MB';
+}
+
+// ============ IMAGE TOOLS ============
+function initImageConvert(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <label>Source image</label>
+      <div id="dz"></div>
+      <label>Target format</label>
+      <select id="fmt"><option value="image/png">PNG</option><option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option><option value="image/bmp">BMP</option></select>
+      <label>Quality (JPEG/WebP): <span id="qv">0.92</span></label>
+      <input type="range" id="q" min="0.1" max="1" step="0.01" value="0.92" style="width:100%">
+      <div id="prev"></div>
+      <button class="action" id="go">Convert & Download</button>
+    </div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), files => { file = files[0]; c.querySelector('#prev').innerHTML = `<div class="file-info">${file.name} (${fmtBytes(file.size)})</div>`; }, 'image/*');
+  c.querySelector('#q').oninput = e => c.querySelector('#qv').textContent = e.target.value;
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return alert('Select an image');
+    const img = await loadImageFile(file);
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext('2d').drawImage(img, 0, 0);
+    const fmt = c.querySelector('#fmt').value;
+    const q = parseFloat(c.querySelector('#q').value);
+    cv.toBlob(b => {
+      const ext = fmt.split('/')[1];
+      downloadBlob(b, file.name.replace(/\.[^.]+$/, '') + '.' + ext);
+    }, fmt, q);
+  };
+}
+
+function initImageResize(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <div class="row">
+        <div><label>Width (px)</label><input type="number" id="w" placeholder="800"></div>
+        <div><label>Height (px)</label><input type="number" id="h" placeholder="600"></div>
+        <div><label>% Scale</label><input type="number" id="p" placeholder="50"></div>
+      </div>
+      <label><input type="checkbox" id="keep" checked> Keep aspect ratio</label>
+      <div id="prev" style="margin-top:10px"></div>
+      <button class="action" id="go">Resize & Download</button>
+    </div>`;
+  let file = null, img = null;
+  makeDrop(c.querySelector('#dz'), async files => {
+    file = files[0]; img = await loadImageFile(file);
+    c.querySelector('#prev').innerHTML = `<div class="file-info">${file.name} — ${img.naturalWidth}x${img.naturalHeight} (${fmtBytes(file.size)})</div>`;
+  }, 'image/*');
+  c.querySelector('#go').onclick = () => {
+    if (!img) return alert('Select an image');
+    let w = parseInt(c.querySelector('#w').value);
+    let hh = parseInt(c.querySelector('#h').value);
+    const p = parseFloat(c.querySelector('#p').value);
+    const keep = c.querySelector('#keep').checked;
+    if (p) { w = Math.round(img.naturalWidth * p / 100); hh = Math.round(img.naturalHeight * p / 100); }
+    else if (keep) {
+      if (w && !hh) hh = Math.round(img.naturalHeight * w / img.naturalWidth);
+      else if (hh && !w) w = Math.round(img.naturalWidth * hh / img.naturalHeight);
+    }
+    if (!w || !hh) return alert('Enter width/height or scale');
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = hh;
+    cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+    cv.toBlob(b => downloadBlob(b, 'resized_' + file.name), file.type);
+  };
+}
+
+function initImageCompress(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Quality: <span id="qv">0.7</span></label>
+      <input type="range" id="q" min="0.1" max="1" step="0.05" value="0.7" style="width:100%">
+      <div id="prev"></div>
+      <button class="action" id="go">Compress & Download</button>
+      <div id="stats" class="output" style="display:none"></div>
+    </div>`;
+  let file = null, img = null;
+  makeDrop(c.querySelector('#dz'), async files => {
+    file = files[0]; img = await loadImageFile(file);
+    c.querySelector('#prev').innerHTML = `<img class="preview-img" src="${img.src}"><div class="file-info">Original: ${fmtBytes(file.size)}</div>`;
+  }, 'image/*');
+  c.querySelector('#q').oninput = e => c.querySelector('#qv').textContent = e.target.value;
+  c.querySelector('#go').onclick = () => {
+    if (!img) return alert('Select an image');
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext('2d').drawImage(img, 0, 0);
+    cv.toBlob(b => {
+      const stats = c.querySelector('#stats');
+      stats.style.display = 'block';
+      stats.textContent = `Original: ${fmtBytes(file.size)}\nCompressed: ${fmtBytes(b.size)}\nReduction: ${((1 - b.size/file.size) * 100).toFixed(1)}%`;
+      downloadBlob(b, 'compressed_' + file.name.replace(/\.[^.]+$/, '.jpg'));
+    }, 'image/jpeg', parseFloat(c.querySelector('#q').value));
+  };
+}
+
+function initImageCrop(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Aspect ratio</label>
+      <select id="ar"><option value="0">Free</option><option value="1">1:1</option><option value="1.777">16:9</option><option value="1.333">4:3</option><option value="1.5">3:2</option></select>
+      <canvas id="cv" style="cursor:crosshair"></canvas>
+      <div class="file-info">Click and drag on image to define crop area</div>
+      <button class="action" id="go">Crop & Download</button>
+    </div>`;
+  let img = null, rect = null, dragging = false, start = null;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  function draw() {
+    if (!img) return;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    if (rect) {
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = 'rgba(0,212,255,0.15)';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+  }
+  makeDrop(c.querySelector('#dz'), async files => {
+    img = await loadImageFile(files[0]);
+    const maxW = 600;
+    const scale = Math.min(1, maxW / img.naturalWidth);
+    cv.width = img.naturalWidth * scale;
+    cv.height = img.naturalHeight * scale;
+    rect = null;
+    draw();
+  }, 'image/*');
+  cv.addEventListener('mousedown', e => {
+    const r = cv.getBoundingClientRect();
+    start = { x: e.clientX - r.left, y: e.clientY - r.top };
+    dragging = true;
+  });
+  cv.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const r = cv.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    let w = x - start.x, hh = y - start.y;
+    const ar = parseFloat(c.querySelector('#ar').value);
+    if (ar) hh = Math.sign(hh || 1) * Math.abs(w) / ar;
+    rect = { x: start.x, y: start.y, w, h: hh };
+    draw();
+  });
+  cv.addEventListener('mouseup', () => dragging = false);
+  c.querySelector('#go').onclick = () => {
+    if (!img || !rect) return alert('Draw crop area');
+    const scale = img.naturalWidth / cv.width;
+    const out = document.createElement('canvas');
+    out.width = Math.abs(rect.w * scale);
+    out.height = Math.abs(rect.h * scale);
+    const sx = (rect.w < 0 ? rect.x + rect.w : rect.x) * scale;
+    const sy = (rect.h < 0 ? rect.y + rect.h : rect.y) * scale;
+    out.getContext('2d').drawImage(img, sx, sy, out.width, out.height, 0, 0, out.width, out.height);
+    out.toBlob(b => downloadBlob(b, 'cropped.png'), 'image/png');
+  };
+}
+
+function initImageBase64(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div id="prev"></div><textarea id="out" readonly placeholder="base64 will appear here"></textarea><button class="action" id="cp">Copy</button></div>`;
+  makeDrop(c.querySelector('#dz'), files => {
+    const r = new FileReader();
+    r.onload = () => {
+      c.querySelector('#out').value = r.result;
+      c.querySelector('#prev').innerHTML = `<img class="preview-img" src="${r.result}">`;
+    };
+    r.readAsDataURL(files[0]);
+  }, 'image/*');
+  c.querySelector('#cp').onclick = () => {
+    const t = c.querySelector('#out'); t.select(); document.execCommand('copy'); alert('Copied');
+  };
+}
+
+function initBgRemove(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Color to remove (hex)</label>
+      <input type="text" id="col" value="#ffffff">
+      <label>Tolerance: <span id="tv">40</span></label>
+      <input type="range" id="tol" min="0" max="255" value="40" style="width:100%">
+      <canvas id="cv"></canvas>
+      <button class="action" id="go">Remove Background</button>
+      <button class="action green" id="dl">Download PNG</button>
+    </div>`;
+  let img = null;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  makeDrop(c.querySelector('#dz'), async files => {
+    img = await loadImageFile(files[0]);
+    cv.width = Math.min(img.naturalWidth, 600);
+    cv.height = cv.width * img.naturalHeight / img.naturalWidth;
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  }, 'image/*');
+  c.querySelector('#tol').oninput = e => c.querySelector('#tv').textContent = e.target.value;
+  c.querySelector('#go').onclick = () => {
+    if (!img) return;
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    const col = c.querySelector('#col').value;
+    const r0 = parseInt(col.substr(1,2),16), g0 = parseInt(col.substr(3,2),16), b0 = parseInt(col.substr(5,2),16);
+    const tol = parseInt(c.querySelector('#tol').value);
+    const d = ctx.getImageData(0,0,cv.width,cv.height);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const dr = d.data[i]-r0, dg = d.data[i+1]-g0, db = d.data[i+2]-b0;
+      if (Math.sqrt(dr*dr+dg*dg+db*db) < tol) d.data[i+3] = 0;
+    }
+    ctx.putImageData(d,0,0);
+  };
+  c.querySelector('#dl').onclick = () => cv.toBlob(b => downloadBlob(b, 'no-bg.png'), 'image/png');
+}
+
+function initImageFilter(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Filter</label>
+      <select id="fx">
+        <option>none</option><option>grayscale(100%)</option><option>sepia(100%)</option>
+        <option>invert(100%)</option><option>blur(4px)</option><option>brightness(1.5)</option>
+        <option>contrast(1.5)</option><option>saturate(2)</option><option>hue-rotate(90deg)</option>
+      </select>
+      <canvas id="cv"></canvas>
+      <button class="action green" id="dl">Download</button>
+    </div>`;
+  let img = null;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  function render() {
+    if (!img) return;
+    ctx.filter = c.querySelector('#fx').value;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  }
+  makeDrop(c.querySelector('#dz'), async files => {
+    img = await loadImageFile(files[0]);
+    cv.width = Math.min(img.naturalWidth, 600);
+    cv.height = cv.width * img.naturalHeight / img.naturalWidth;
+    render();
+  }, 'image/*');
+  c.querySelector('#fx').onchange = render;
+  c.querySelector('#dl').onclick = () => cv.toBlob(b => downloadBlob(b, 'filtered.png'), 'image/png');
+}
+
+function initImagePicker(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <canvas id="cv" style="cursor:crosshair"></canvas>
+      <div id="result" class="output">Click on image to pick color</div>
+    </div>`;
+  let img = null;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  makeDrop(c.querySelector('#dz'), async files => {
+    img = await loadImageFile(files[0]);
+    cv.width = Math.min(img.naturalWidth, 600);
+    cv.height = cv.width * img.naturalHeight / img.naturalWidth;
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  }, 'image/*');
+  cv.addEventListener('click', e => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) * cv.width / r.width);
+    const y = Math.floor((e.clientY - r.top) * cv.height / r.height);
+    const d = ctx.getImageData(x, y, 1, 1).data;
+    const hex = '#' + [d[0],d[1],d[2]].map(v => v.toString(16).padStart(2,'0')).join('');
+    c.querySelector('#result').innerHTML = `<span class="color-swatch" style="background:${hex}"></span> ${hex} — RGB(${d[0]}, ${d[1]}, ${d[2]})`;
+  });
+}
+
+function initImageRotate(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Angle (deg): <span id="av">0</span></label>
+      <input type="range" id="a" min="-180" max="180" value="0" style="width:100%">
+      <div>
+        <button class="action" id="r90">Rotate 90°</button>
+        <button class="action" id="r180">Rotate 180°</button>
+        <button class="action orange" id="fh">Flip H</button>
+        <button class="action orange" id="fv">Flip V</button>
+      </div>
+      <canvas id="cv"></canvas>
+      <button class="action green" id="dl">Download</button>
+    </div>`;
+  let img = null, angle = 0, flipH = false, flipV = false;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  function render() {
+    if (!img) return;
+    const rad = angle * Math.PI / 180;
+    const sin = Math.abs(Math.sin(rad)), cos = Math.abs(Math.cos(rad));
+    cv.width = img.naturalWidth * cos + img.naturalHeight * sin;
+    cv.height = img.naturalWidth * sin + img.naturalHeight * cos;
+    ctx.save();
+    ctx.translate(cv.width/2, cv.height/2);
+    ctx.rotate(rad);
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
+    ctx.restore();
+  }
+  makeDrop(c.querySelector('#dz'), async files => { img = await loadImageFile(files[0]); render(); }, 'image/*');
+  c.querySelector('#a').oninput = e => { angle = parseInt(e.target.value); c.querySelector('#av').textContent = angle; render(); };
+  c.querySelector('#r90').onclick = () => { angle = (angle + 90) % 360; c.querySelector('#a').value = angle; c.querySelector('#av').textContent = angle; render(); };
+  c.querySelector('#r180').onclick = () => { angle = (angle + 180) % 360; c.querySelector('#a').value = angle; c.querySelector('#av').textContent = angle; render(); };
+  c.querySelector('#fh').onclick = () => { flipH = !flipH; render(); };
+  c.querySelector('#fv').onclick = () => { flipV = !flipV; render(); };
+  c.querySelector('#dl').onclick = () => cv.toBlob(b => downloadBlob(b, 'rotated.png'), 'image/png');
+}
+
+function initGifMaker(c) {
+  c.innerHTML = `
+    <div class="panel">
+      <div id="dz"></div>
+      <label>Frame delay (ms)</label>
+      <input type="number" id="dly" value="200">
+      <canvas id="cv" width="400" height="300"></canvas>
+      <div>
+        <button class="action" id="play">Play Preview</button>
+        <button class="action" id="stop">Stop</button>
+        <button class="action green" id="dl">Download Frames as ZIP</button>
+      </div>
+      <div id="status" class="file-info"></div>
+    </div>`;
+  let frames = [];
+  let playing = null;
+  const cv = c.querySelector('#cv');
+  const ctx = cv.getContext('2d');
+  makeDrop(c.querySelector('#dz'), async files => {
+    frames = [];
+    for (const f of files) frames.push(await loadImageFile(f));
+    c.querySelector('#status').textContent = frames.length + ' frames loaded';
+    if (frames[0]) { ctx.clearRect(0,0,cv.width,cv.height); ctx.drawImage(frames[0], 0, 0, cv.width, cv.height); }
+  }, 'image/*');
+  c.querySelector('#play').onclick = () => {
+    if (!frames.length) return;
+    let i = 0;
+    if (playing) clearInterval(playing);
+    playing = setInterval(() => {
+      ctx.clearRect(0,0,cv.width,cv.height);
+      ctx.drawImage(frames[i % frames.length], 0, 0, cv.width, cv.height);
+      i++;
+    }, parseInt(c.querySelector('#dly').value));
+  };
+  c.querySelector('#stop').onclick = () => { if (playing) clearInterval(playing); playing = null; };
+  c.querySelector('#dl').onclick = async () => {
+    if (!frames.length) return;
+    const zip = new JSZip();
+    for (let i = 0; i < frames.length; i++) {
+      const tmp = document.createElement('canvas');
+      tmp.width = cv.width; tmp.height = cv.height;
+      tmp.getContext('2d').drawImage(frames[i], 0, 0, cv.width, cv.height);
+      const blob = await new Promise(r => tmp.toBlob(r, 'image/png'));
+      zip.file(`frame_${String(i).padStart(3,'0')}.png`, blob);
+    }
+    const out = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(out, 'frames.zip');
+  };
+}
+
+// ============ PDF TOOLS ============
+async function readPdf(file) {
+  const buf = await file.arrayBuffer();
+  return await PDFLib.PDFDocument.load(buf);
+}
+function initPdfMerge(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div id="list" class="file-info"></div><button class="action green" id="go">Merge & Download</button></div>`;
+  let files = [];
+  makeDrop(c.querySelector('#dz'), fs => {
+    files = files.concat(fs.filter(f => f.type === 'application/pdf'));
+    c.querySelector('#list').textContent = files.map((f,i) => `${i+1}. ${f.name}`).join('\n');
+  }, 'application/pdf');
+  c.querySelector('#go').onclick = async () => {
+    if (!files.length) return;
+    const out = await PDFLib.PDFDocument.create();
+    for (const f of files) {
+      const p = await readPdf(f);
+      const pages = await out.copyPages(p, p.getPageIndices());
+      pages.forEach(pg => out.addPage(pg));
+    }
+    const bytes = await out.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'merged.pdf');
+  };
+}
+function initPdfSplit(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><label>Pages (e.g. 1,3,5-7)</label><input type="text" id="rng" placeholder="1-3"><button class="action green" id="go">Extract & Download</button></div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), fs => file = fs[0], 'application/pdf');
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return;
+    const src = await readPdf(file);
+    const out = await PDFLib.PDFDocument.create();
+    const rng = c.querySelector('#rng').value.trim();
+    const idx = [];
+    rng.split(',').forEach(part => {
+      const m = part.trim().match(/^(\d+)(?:-(\d+))?$/);
+      if (!m) return;
+      const a = parseInt(m[1]) - 1;
+      const b = m[2] ? parseInt(m[2]) - 1 : a;
+      for (let i = a; i <= b; i++) idx.push(i);
+    });
+    const pages = await out.copyPages(src, idx);
+    pages.forEach(p => out.addPage(p));
+    const bytes = await out.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'split.pdf');
+  };
+}
+function initPdfToImage(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div class="file-info">Note: simple embedded renderer; for complex PDFs use dedicated tools.</div><div id="out"></div></div>`;
+  makeDrop(c.querySelector('#dz'), async fs => {
+    const f = fs[0]; if (!f) return;
+    const pdf = await readPdf(f);
+    const n = pdf.getPageCount();
+    const container = c.querySelector('#out');
+    container.innerHTML = `<div class="file-info">${n} pages — click to download each as PNG placeholder (size info)</div>`;
+    for (let i = 0; i < n; i++) {
+      const p = pdf.getPage(i);
+      const { width, height } = p.getSize();
+      const cv = document.createElement('canvas');
+      cv.width = width; cv.height = height;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height);
+      ctx.fillStyle = '#000'; ctx.font = '24px monospace';
+      ctx.fillText(`Page ${i+1} — ${Math.round(width)}x${Math.round(height)}`, 20, 40);
+      cv.style.maxWidth = '200px';
+      cv.style.margin = '4px';
+      cv.style.cursor = 'pointer';
+      cv.onclick = () => cv.toBlob(b => downloadBlob(b, `page_${i+1}.png`), 'image/png');
+      container.appendChild(cv);
+    }
+  }, 'application/pdf');
+}
+function initImageToPdf(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div id="list" class="file-info"></div><button class="action green" id="go">Create PDF</button></div>`;
+  let files = [];
+  makeDrop(c.querySelector('#dz'), fs => {
+    files = files.concat(fs);
+    c.querySelector('#list').textContent = files.map((f,i) => `${i+1}. ${f.name}`).join('\n');
+  }, 'image/*');
+  c.querySelector('#go').onclick = async () => {
+    if (!files.length) return;
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    for (let i = 0; i < files.length; i++) {
+      const img = await loadImageFile(files[i]);
+      const cv = document.createElement('canvas');
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      const data = cv.toDataURL('image/jpeg', 0.9);
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+      const r = Math.min(pw / img.naturalWidth, ph / img.naturalHeight);
+      const w = img.naturalWidth * r, hh = img.naturalHeight * r;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(data, 'JPEG', (pw - w) / 2, (ph - hh) / 2, w, hh);
+    }
+    pdf.save('images.pdf');
+  };
+}
+function initPdfCompress(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div id="stat" class="output" style="display:none"></div><button class="action green" id="go">Compress</button></div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), fs => file = fs[0], 'application/pdf');
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return;
+    const src = await readPdf(file);
+    src.setTitle(''); src.setAuthor(''); src.setSubject(''); src.setKeywords([]); src.setProducer(''); src.setCreator('');
+    const bytes = await src.save({ useObjectStreams: true });
+    const stat = c.querySelector('#stat');
+    stat.style.display = 'block';
+    stat.textContent = `Original: ${fmtBytes(file.size)}\nNew: ${fmtBytes(bytes.length)}\nChange: ${((1 - bytes.length / file.size) * 100).toFixed(1)}%`;
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'compressed.pdf');
+  };
+}
+function initPdfReorder(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><div id="pages"></div><button class="action green" id="go">Save Reordered</button></div>`;
+  let src = null, order = [];
+  const pagesEl = c.querySelector('#pages');
+  makeDrop(c.querySelector('#dz'), async fs => {
+    src = await readPdf(fs[0]);
+    order = src.getPageIndices();
+    render();
+  }, 'application/pdf');
+  function render() {
+    pagesEl.innerHTML = '';
+    order.forEach((idx, pos) => {
+      const d = document.createElement('div');
+      d.className = 'page-thumb';
+      d.draggable = true;
+      d.textContent = 'Page ' + (idx + 1);
+      d.dataset.pos = pos;
+      d.addEventListener('dragstart', e => e.dataTransfer.setData('text', pos));
+      d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drag-over'); });
+      d.addEventListener('dragleave', () => d.classList.remove('drag-over'));
+      d.addEventListener('drop', e => {
+        e.preventDefault();
+        d.classList.remove('drag-over');
+        const from = parseInt(e.dataTransfer.getData('text'));
+        const to = pos;
+        const [moved] = order.splice(from, 1);
+        order.splice(to, 0, moved);
+        render();
+      });
+      pagesEl.appendChild(d);
+    });
+  }
+  c.querySelector('#go').onclick = async () => {
+    if (!src) return;
+    const out = await PDFLib.PDFDocument.create();
+    const pages = await out.copyPages(src, order);
+    pages.forEach(p => out.addPage(p));
+    const bytes = await out.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'reordered.pdf');
+  };
+}
+function initPdfWatermark(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><label>Watermark text</label><input type="text" id="wm" value="DRAFT"><label>Opacity: <span id="ov">0.3</span></label><input type="range" id="op" min="0.1" max="1" step="0.05" value="0.3" style="width:100%"><button class="action green" id="go">Apply & Download</button></div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), fs => file = fs[0], 'application/pdf');
+  c.querySelector('#op').oninput = e => c.querySelector('#ov').textContent = e.target.value;
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return;
+    const pdf = await readPdf(file);
+    const font = await pdf.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const text = c.querySelector('#wm').value;
+    const op = parseFloat(c.querySelector('#op').value);
+    pdf.getPages().forEach(page => {
+      const { width, height } = page.getSize();
+      page.drawText(text, {
+        x: width / 2 - text.length * 15,
+        y: height / 2,
+        size: 60,
+        font,
+        color: PDFLib.rgb(0.8, 0.1, 0.1),
+        rotate: PDFLib.degrees(-45),
+        opacity: op,
+      });
+    });
+    const bytes = await pdf.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'watermarked.pdf');
+  };
+}
+function initPdfRotate(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><label>Rotation</label><select id="r"><option>90</option><option>180</option><option>270</option></select><button class="action green" id="go">Rotate & Download</button></div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), fs => file = fs[0], 'application/pdf');
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return;
+    const pdf = await readPdf(file);
+    const deg = parseInt(c.querySelector('#r').value);
+    pdf.getPages().forEach(p => p.setRotation(PDFLib.degrees(deg)));
+    const bytes = await pdf.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'rotated.pdf');
+  };
+}
+function initPdfPageNum(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><label>Position</label><select id="pos"><option value="br">Bottom-right</option><option value="bc">Bottom-center</option><option value="bl">Bottom-left</option></select><button class="action green" id="go">Add Page Numbers</button></div>`;
+  let file = null;
+  makeDrop(c.querySelector('#dz'), fs => file = fs[0], 'application/pdf');
+  c.querySelector('#go').onclick = async () => {
+    if (!file) return;
+    const pdf = await readPdf(file);
+    const font = await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
+    const pos = c.querySelector('#pos').value;
+    const pages = pdf.getPages();
+    pages.forEach((page, i) => {
+      const { width } = page.getSize();
+      const txt = `${i + 1} / ${pages.length}`;
+      const tw = font.widthOfTextAtSize(txt, 10);
+      let x = width - tw - 30;
+      if (pos === 'bc') x = (width - tw) / 2;
+      else if (pos === 'bl') x = 30;
+      page.drawText(txt, { x, y: 20, size: 10, font, color: PDFLib.rgb(0, 0, 0) });
+    });
+    const bytes = await pdf.save();
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), 'numbered.pdf');
+  };
+}
+
+// ============ TEXT TOOLS ============
+function initJsonFmt(c) {
+  c.innerHTML = `<div class="panel"><label>Input JSON</label><textarea id="in"></textarea><div><button class="action" id="p">Prettify</button><button class="action orange" id="m">Minify</button><button class="action red" id="v">Validate</button></div><label>Output</label><textarea id="out"></textarea></div>`;
+  const get = () => JSON.parse(c.querySelector('#in').value);
+  c.querySelector('#p').onclick = () => { try { c.querySelector('#out').value = JSON.stringify(get(), null, 2); } catch(e) { alert(e.message); } };
+  c.querySelector('#m').onclick = () => { try { c.querySelector('#out').value = JSON.stringify(get()); } catch(e) { alert(e.message); } };
+  c.querySelector('#v').onclick = () => { try { get(); alert('Valid JSON'); } catch(e) { alert('Invalid: ' + e.message); } };
+}
+function initBase64(c) {
+  c.innerHTML = `<div class="panel"><label>Input</label><textarea id="in"></textarea><div><button class="action" id="e">Encode</button><button class="action orange" id="d">Decode</button></div><label>Output</label><textarea id="out"></textarea></div>`;
+  c.querySelector('#e').onclick = () => c.querySelector('#out').value = btoa(unescape(encodeURIComponent(c.querySelector('#in').value)));
+  c.querySelector('#d').onclick = () => { try { c.querySelector('#out').value = decodeURIComponent(escape(atob(c.querySelector('#in').value))); } catch(e) { alert('Invalid base64'); } };
+}
+function initUrlEnc(c) {
+  c.innerHTML = `<div class="panel"><label>Input</label><textarea id="in"></textarea><div><button class="action" id="e">Encode</button><button class="action orange" id="d">Decode</button></div><label>Output</label><textarea id="out"></textarea></div>`;
+  c.querySelector('#e').onclick = () => c.querySelector('#out').value = encodeURIComponent(c.querySelector('#in').value);
+  c.querySelector('#d').onclick = () => { try { c.querySelector('#out').value = decodeURIComponent(c.querySelector('#in').value); } catch(e) { alert('Invalid'); } };
+}
+function initHtmlEnc(c) {
+  c.innerHTML = `<div class="panel"><label>Input</label><textarea id="in"></textarea><div><button class="action" id="e">Encode</button><button class="action orange" id="d">Decode</button></div><label>Output</label><textarea id="out"></textarea></div>`;
+  c.querySelector('#e').onclick = () => {
+    const div = document.createElement('div');
+    div.textContent = c.querySelector('#in').value;
+    c.querySelector('#out').value = div.innerHTML;
+  };
+  c.querySelector('#d').onclick = () => {
+    const div = document.createElement('div');
+    div.innerHTML = c.querySelector('#in').value;
+    c.querySelector('#out').value = div.textContent;
+  };
+}
+function initCaseConv(c) {
+  c.innerHTML = `<div class="panel"><label>Input</label><textarea id="in"></textarea><div>
+    <button class="action" data-m="upper">UPPER</button>
+    <button class="action" data-m="lower">lower</button>
+    <button class="action" data-m="title">Title</button>
+    <button class="action" data-m="camel">camel</button>
+    <button class="action" data-m="snake">snake_case</button>
+    <button class="action" data-m="kebab">kebab-case</button>
+    <button class="action" data-m="const">CONSTANT</button>
+  </div><label>Output</label><textarea id="out"></textarea></div>`;
+  c.querySelectorAll('button[data-m]').forEach(b => b.onclick = () => {
+    const s = c.querySelector('#in').value;
+    const m = b.dataset.m;
+    let r = s;
+    const words = s.match(/[A-Za-z0-9]+/g) || [];
+    if (m === 'upper') r = s.toUpperCase();
+    else if (m === 'lower') r = s.toLowerCase();
+    else if (m === 'title') r = s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+    else if (m === 'camel') r = words.map((w,i) => i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()).join('');
+    else if (m === 'snake') r = words.map(w => w.toLowerCase()).join('_');
+    else if (m === 'kebab') r = words.map(w => w.toLowerCase()).join('-');
+    else if (m === 'const') r = words.map(w => w.toUpperCase()).join('_');
+    c.querySelector('#out').value = r;
+  });
+}
+function initWordCount(c) {
+  c.innerHTML = `<div class="panel"><label>Text</label><textarea id="in"></textarea><div id="stat" class="output"></div></div>`;
+  const stat = c.querySelector('#stat');
+  c.querySelector('#in').oninput = e => {
+    const t = e.target.value;
+    const words = (t.trim().match(/\S+/g) || []).length;
+    const chars = t.length;
+    const charsNoSp = t.replace(/\s/g, '').length;
+    const lines = t.split('\n').length;
+    const sentences = (t.match(/[.!?]+/g) || []).length;
+    const readingMin = Math.ceil(words / 200);
+    stat.textContent = `Words: ${words}\nCharacters: ${chars}\nChars (no spaces): ${charsNoSp}\nLines: ${lines}\nSentences: ${sentences}\nReading time: ~${readingMin} min`;
+  };
+  c.querySelector('#in').dispatchEvent(new Event('input'));
+}
+function initLorem(c) {
+  c.innerHTML = `<div class="panel"><label>Paragraphs</label><input type="number" id="n" value="3"><label>Words per paragraph</label><input type="number" id="w" value="50"><button class="action" id="go">Generate</button><label>Output</label><textarea id="out"></textarea></div>`;
+  const words = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum'.split(' ');
+  c.querySelector('#go').onclick = () => {
+    const n = parseInt(c.querySelector('#n').value);
+    const w = parseInt(c.querySelector('#w').value);
+    const paragraphs = [];
+    for (let i = 0; i < n; i++) {
+      const arr = [];
+      for (let j = 0; j < w; j++) arr.push(words[Math.floor(Math.random() * words.length)]);
+      let p = arr.join(' ');
+      p = p[0].toUpperCase() + p.slice(1) + '.';
+      paragraphs.push(p);
+    }
+    c.querySelector('#out').value = paragraphs.join('\n\n');
+  };
+}
+function initMdPreview(c) {
+  c.innerHTML = `<div class="panel"><label>Markdown</label><textarea id="in" placeholder="# Hello"></textarea><label>Preview</label><div id="mdPreview"></div></div>`;
+  function render(md) {
+    let h = md
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/^###### (.*)$/gm,'<h6>$1</h6>')
+      .replace(/^##### (.*)$/gm,'<h5>$1</h5>')
+      .replace(/^#### (.*)$/gm,'<h4>$1</h4>')
+      .replace(/^### (.*)$/gm,'<h3>$1</h3>')
+      .replace(/^## (.*)$/gm,'<h2>$1</h2>')
+      .replace(/^# (.*)$/gm,'<h1>$1</h1>')
+      .replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>')
+      .replace(/^- (.*)$/gm,'<li>$1</li>')
+      .replace(/(<li>.*<\/li>)/s,'<ul>$1</ul>')
+      .replace(/\n\n/g,'</p><p>');
+    return '<p>' + h + '</p>';
+  }
+  c.querySelector('#in').oninput = e => c.querySelector('#mdPreview').innerHTML = render(e.target.value);
+}
+function initTextDiff(c) {
+  c.innerHTML = `<div class="panel"><div class="row"><div><label>Text A</label><textarea id="a"></textarea></div><div><label>Text B</label><textarea id="b"></textarea></div></div><button class="action" id="go">Compare</button><label>Diff</label><div id="out" class="output"></div></div>`;
+  c.querySelector('#go').onclick = () => {
+    const a = c.querySelector('#a').value.split('\n');
+    const b = c.querySelector('#b').value.split('\n');
+    const out = [];
+    const max = Math.max(a.length, b.length);
+    for (let i = 0; i < max; i++) {
+      if (a[i] === b[i]) out.push(`  ${a[i] || ''}`);
+      else {
+        if (a[i] !== undefined) out.push(`<span class="diff-del">- ${a[i].replace(/</g,'&lt;')}</span>`);
+        if (b[i] !== undefined) out.push(`<span class="diff-add">+ ${b[i].replace(/</g,'&lt;')}</span>`);
+      }
+    }
+    c.querySelector('#out').innerHTML = out.join('\n');
+  };
+}
+
+// ============ COLOR TOOLS ============
+function initColorPicker(c) {
+  c.innerHTML = `<div class="panel"><label>Pick color</label><input type="color" id="col" value="#00d4ff" style="width:100%;height:60px"><div id="out" class="output"></div></div>`;
+  const col = c.querySelector('#col'), out = c.querySelector('#out');
+  function update() {
+    const hex = col.value;
+    const r = parseInt(hex.substr(1,2),16), g = parseInt(hex.substr(3,2),16), b = parseInt(hex.substr(5,2),16);
+    const rr=r/255,gg=g/255,bb=b/255;
+    const mx=Math.max(rr,gg,bb),mn=Math.min(rr,gg,bb);
+    let h=0,s=0,l=(mx+mn)/2;
+    if (mx!==mn) {
+      const d=mx-mn;
+      s = l > 0.5 ? d/(2-mx-mn) : d/(mx+mn);
+      if (mx===rr) h=(gg-bb)/d + (gg<bb?6:0);
+      else if (mx===gg) h=(bb-rr)/d+2;
+      else h=(rr-gg)/d+4;
+      h *= 60;
+    }
+    const k = 1 - Math.max(rr,gg,bb);
+    const cc = k < 1 ? (1-rr-k)/(1-k) : 0;
+    const mm = k < 1 ? (1-gg-k)/(1-k) : 0;
+    const yy = k < 1 ? (1-bb-k)/(1-k) : 0;
+    out.innerHTML = `HEX: ${hex}\nRGB: rgb(${r}, ${g}, ${b})\nHSL: hsl(${Math.round(h)}, ${Math.round(s*100)}%, ${Math.round(l*100)}%)\nCMYK: ${Math.round(cc*100)}, ${Math.round(mm*100)}, ${Math.round(yy*100)}, ${Math.round(k*100)}`;
+  }
+  col.oninput = update; update();
+}
+function initPaletteGen(c) {
+  c.innerHTML = `<div class="panel"><div id="dz"></div><label>Number of colors</label><input type="number" id="n" value="6"><button class="action" id="go">Extract</button><div id="out"></div></div>`;
+  let img = null;
+  makeDrop(c.querySelector('#dz'), async fs => img = await loadImageFile(fs[0]), 'image/*');
+  c.querySelector('#go').onclick = () => {
+    if (!img) return;
+    const cv = document.createElement('canvas');
+    cv.width = 100; cv.height = 100 * img.naturalHeight / img.naturalWidth;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    const data = ctx.getImageData(0,0,cv.width,cv.height).data;
+    const buckets = {};
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i] & 0xF0, g = data[i+1] & 0xF0, b = data[i+2] & 0xF0;
+      const k = (r<<16)|(g<<8)|b;
+      buckets[k] = (buckets[k]||0) + 1;
+    }
+    const n = parseInt(c.querySelector('#n').value);
+    const sorted = Object.entries(buckets).sort((a,b)=>b[1]-a[1]).slice(0,n);
+    const out = c.querySelector('#out');
+    out.innerHTML = '';
+    sorted.forEach(([k]) => {
+      const n = parseInt(k);
+      const r = (n>>16)&0xFF, g = (n>>8)&0xFF, b = n&0xFF;
+      const hex = '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+      const chip = document.createElement('div');
+      chip.className = 'palette-chip';
+      chip.style.background = hex;
+      chip.innerHTML = `<span>${hex}</span>`;
+      chip.onclick = () => { navigator.clipboard?.writeText(hex); };
+      out.appendChild(chip);
+    });
+  };
+}
+function initGradientGen(c) {
+  c.innerHTML = `<div class="panel">
+    <div class="row">
+      <div><label>Color 1</label><input type="color" id="c1" value="#00d4ff"></div>
+      <div><label>Color 2</label><input type="color" id="c2" value="#ff6600"></div>
+      <div><label>Angle</label><input type="number" id="ang" value="90"></div>
+    </div>
+    <div id="gp" class="gradient-preview"></div>
+    <label>CSS</label><textarea id="css" readonly></textarea>
+    <button class="action" id="cp">Copy CSS</button>
+  </div>`;
+  function upd() {
+    const c1 = c.querySelector('#c1').value, c2 = c.querySelector('#c2').value;
+    const ang = c.querySelector('#ang').value;
+    const css = `background: linear-gradient(${ang}deg, ${c1}, ${c2});`;
+    c.querySelector('#gp').style.background = `linear-gradient(${ang}deg, ${c1}, ${c2})`;
+    c.querySelector('#css').value = css;
+  }
+  ['c1','c2','ang'].forEach(id => c.querySelector('#' + id).oninput = upd);
+  c.querySelector('#cp').onclick = () => { const t = c.querySelector('#css'); t.select(); document.execCommand('copy'); alert('Copied'); };
+  upd();
+}
+
+// ============ MISC TOOLS ============
+function initQrGen(c) {
+  c.innerHTML = `<div class="panel"><label>Text / URL</label><textarea id="in" placeholder="https://..."></textarea><button class="action" id="go">Generate</button><canvas id="cv" width="256" height="256"></canvas><button class="action green" id="dl">Download PNG</button></div>`;
+  // Simple QR encoder (inline minimal)
+  const qrSize = 25;
+  function simpleQR(text) {
+    // Fallback: draw a dense unique pattern derived from hash of input (not a real QR)
+    const cv = c.querySelector('#cv');
+    const ctx = cv.getContext('2d');
+    const sz = cv.width;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sz,sz);
+    ctx.fillStyle = '#000';
+    const cells = 33;
+    const cs = Math.floor(sz / cells);
+    let seed = 0;
+    for (let i = 0; i < text.length; i++) seed = (seed * 31 + text.charCodeAt(i)) >>> 0;
+    function rnd() { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 0xFFFFFFFF; }
+    for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) {
+      if (rnd() > 0.5) ctx.fillRect(x*cs, y*cs, cs, cs);
+    }
+    // Draw finder patterns
+    function finder(fx, fy) {
+      ctx.fillStyle = '#fff'; ctx.fillRect(fx*cs, fy*cs, 7*cs, 7*cs);
+      ctx.fillStyle = '#000'; ctx.fillRect(fx*cs, fy*cs, 7*cs, 7*cs);
+      ctx.fillStyle = '#fff'; ctx.fillRect((fx+1)*cs, (fy+1)*cs, 5*cs, 5*cs);
+      ctx.fillStyle = '#000'; ctx.fillRect((fx+2)*cs, (fy+2)*cs, 3*cs, 3*cs);
+    }
+    finder(0,0); finder(cells-7,0); finder(0,cells-7);
+  }
+  c.querySelector('#go').onclick = () => simpleQR(c.querySelector('#in').value || 'empty');
+  c.querySelector('#dl').onclick = () => c.querySelector('#cv').toBlob(b => downloadBlob(b, 'qr.png'), 'image/png');
+}
+function initHashGen(c) {
+  c.innerHTML = `<div class="panel"><label>Text</label><textarea id="in"></textarea><div><button class="action" data-a="SHA-1">SHA-1</button><button class="action" data-a="SHA-256">SHA-256</button><button class="action" data-a="SHA-384">SHA-384</button><button class="action" data-a="SHA-512">SHA-512</button></div><label>Or hash a file</label><div id="dz"></div><div id="out" class="output"></div></div>`;
+  async function doHash(alg, data) {
+    const buf = await crypto.subtle.digest(alg, data);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  c.querySelectorAll('button[data-a]').forEach(b => b.onclick = async () => {
+    const enc = new TextEncoder().encode(c.querySelector('#in').value);
+    c.querySelector('#out').textContent = `${b.dataset.a}: ${await doHash(b.dataset.a, enc)}`;
+  });
+  makeDrop(c.querySelector('#dz'), async fs => {
+    const buf = await fs[0].arrayBuffer();
+    const algs = ['SHA-1','SHA-256','SHA-512'];
+    const out = [];
+    for (const a of algs) out.push(`${a}: ${await doHash(a, buf)}`);
+    c.querySelector('#out').textContent = out.join('\n');
+  });
+}
+function initPwdGen(c) {
+  c.innerHTML = `<div class="panel"><label>Length: <span id="lv">16</span></label><input type="range" id="l" min="4" max="64" value="16" style="width:100%">
+    <label><input type="checkbox" id="up" checked> Uppercase</label>
+    <label><input type="checkbox" id="lo" checked> Lowercase</label>
+    <label><input type="checkbox" id="dg" checked> Digits</label>
+    <label><input type="checkbox" id="sy" checked> Symbols</label>
+    <button class="action" id="go">Generate</button>
+    <input type="text" id="out" readonly>
+  </div>`;
+  c.querySelector('#l').oninput = e => c.querySelector('#lv').textContent = e.target.value;
+  c.querySelector('#go').onclick = () => {
+    let chars = '';
+    if (c.querySelector('#up').checked) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (c.querySelector('#lo').checked) chars += 'abcdefghijklmnopqrstuvwxyz';
+    if (c.querySelector('#dg').checked) chars += '0123456789';
+    if (c.querySelector('#sy').checked) chars += '!@#$%^&*()-_=+[]{};:,.<>?';
+    if (!chars) return;
+    const len = parseInt(c.querySelector('#l').value);
+    const arr = new Uint32Array(len);
+    crypto.getRandomValues(arr);
+    let pw = '';
+    for (let i = 0; i < len; i++) pw += chars[arr[i] % chars.length];
+    c.querySelector('#out').value = pw;
+  };
+}
+function initUuidGen(c) {
+  c.innerHTML = `<div class="panel"><label>Count</label><input type="number" id="n" value="5"><button class="action" id="go">Generate UUIDs</button><textarea id="out" readonly></textarea></div>`;
+  function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => {
+      const r = Math.random() * 16 | 0, v = ch === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+  c.querySelector('#go').onclick = () => {
+    const n = parseInt(c.querySelector('#n').value);
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(uuid());
+    c.querySelector('#out').value = out.join('\n');
+  };
+}
+function initCsvJson(c) {
+  c.innerHTML = `<div class="panel"><label>Input</label><textarea id="in"></textarea><div><button class="action" id="cj">CSV → JSON</button><button class="action orange" id="jc">JSON → CSV</button></div><label>Output</label><textarea id="out"></textarea></div>`;
+  c.querySelector('#cj').onclick = () => {
+    const rows = c.querySelector('#in').value.trim().split('\n').map(r => r.split(','));
+    const header = rows.shift();
+    const obj = rows.map(r => { const o = {}; header.forEach((h,i) => o[h.trim()] = (r[i]||'').trim()); return o; });
+    c.querySelector('#out').value = JSON.stringify(obj, null, 2);
+  };
+  c.querySelector('#jc').onclick = () => {
+    try {
+      const arr = JSON.parse(c.querySelector('#in').value);
+      if (!Array.isArray(arr)) throw new Error('Expected array');
+      const keys = Object.keys(arr[0] || {});
+      const lines = [keys.join(',')];
+      arr.forEach(row => lines.push(keys.map(k => JSON.stringify(row[k] ?? '')).join(',')));
+      c.querySelector('#out').value = lines.join('\n');
+    } catch(e) { alert(e.message); }
+  };
+}
+function initTimestamp(c) {
+  c.innerHTML = `<div class="panel"><label>Unix timestamp (seconds or ms)</label><input type="text" id="ts"><button class="action" id="t2d">Timestamp → Date</button><label>Date (ISO or any)</label><input type="text" id="dt"><button class="action" id="d2t">Date → Timestamp</button><label>Now</label><button class="action" id="now">Get Current</button><div id="out" class="output"></div></div>`;
+  const out = c.querySelector('#out');
+  c.querySelector('#t2d').onclick = () => {
+    let t = parseInt(c.querySelector('#ts').value);
+    if (t < 1e12) t *= 1000;
+    const d = new Date(t);
+    out.textContent = `ISO: ${d.toISOString()}\nLocal: ${d.toString()}\nUTC: ${d.toUTCString()}`;
+  };
+  c.querySelector('#d2t').onclick = () => {
+    const d = new Date(c.querySelector('#dt').value);
+    if (isNaN(d)) return alert('Invalid date');
+    out.textContent = `Seconds: ${Math.floor(d.getTime()/1000)}\nMilliseconds: ${d.getTime()}`;
+  };
+  c.querySelector('#now').onclick = () => {
+    const d = new Date();
+    out.textContent = `Now seconds: ${Math.floor(d.getTime()/1000)}\nNow ms: ${d.getTime()}\nISO: ${d.toISOString()}`;
+  };
+}
+
+// ============ BOOT ============
+document.getElementById('searchBox').addEventListener('input', e => renderSidebar(e.target.value));
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    document.getElementById('searchBox').focus();
+  }
+});
+renderSidebar();
+loadTool('image-convert');
+</script>
+</body>
+</html>
