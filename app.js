@@ -185,6 +185,7 @@ const SECTIONS = {
       { name: 'Email Client', file: './tools/hk/email-client.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
+      { name: 'Korb Zoo Tycoon', file: './tools/hk/zoo-tycoon.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
       { name: 'Travel Planner', file: './tools/hk/travel-planner.html' },
