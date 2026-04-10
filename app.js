@@ -133,6 +133,7 @@ const SECTIONS = {
       { name: 'Constraint Optimizer', file: './tools/hk/constraint-optimizer.html' },
       { name: 'Content Calendar', file: './tools/hk/content-calendar.html' },
       { name: 'Decision Journal', file: './tools/hk/decision-journal.html' },
+      { name: 'Digital Twin Repository', file: './tools/civil/digital-twin-repository.html' },
       { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
       { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
       { name: 'Earthwork & Grading Calculator', file: './tools/civil/earthwork-grading-calculator.html' },
@@ -209,6 +210,7 @@ const SECTIONS = {
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "AJ's Synthesizer", file: './tools/misc/ajs-synthesizer.html' },
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
+      { name: 'App Idea Generator', file: './tools/misc/app-idea-generator.html' },
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
       { name: 'Audiobook Player', file: './tools/misc/audiobook-player.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
@@ -234,14 +236,17 @@ const SECTIONS = {
       { name: 'File Converter', file: './tools/misc/file-converter.html' },
       { name: 'File Toolbox', file: './tools/misc/file-toolbox.html' },
       { name: 'Flowchart Maker', file: './tools/misc/flowchart-maker.html' },
+      { name: 'Formula Forge', file: './tools/misc/formula-forge.html' },
       { name: 'Frisco Weather', file: './tools/misc/frisco-weather.html' },
       { name: 'Frogger', file: './tools/misc/frogger.html' },
+      { name: 'Game Deal Hunter', file: './tools/misc/game-deal-hunter.html' },
       { name: 'Guitar Tuner', file: './tools/misc/guitar-tuner.html' },
       { name: 'Habit Tracker', file: './tools/misc/habit-tracker.html' },
       { name: "Harrison's Blog", file: './tools/misc/harrisons-blog.html' },
       { name: "Hendryx's Social Skills", file: './tools/misc/hendryxs-social-skills.html' },
       { name: 'Home Improvements Guide', file: './tools/misc/home-improvements.html' },
       { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
+      { name: 'Inbox Sandbox', file: './tools/misc/inbox-sandbox.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
@@ -261,6 +266,7 @@ const SECTIONS = {
       { name: 'Mind Map', file: './tools/misc/mind-map.html' },
       { name: 'Minesweeper', file: './tools/misc/minesweeper.html' },
       { name: 'Moving Specialist Invoice', file: './tools/misc/moving-invoice.html' },
+      { name: 'Muscle Atlas', file: './tools/misc/muscle-atlas.html' },
       { name: 'Music Library', file: './tools/misc/music-library.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: "Olivia's Digital Escape Room", file: './tools/misc/olivias-digital-escape-room.html' },
@@ -297,6 +303,7 @@ const SECTIONS = {
       { name: 'Tip Calculator', file: './tools/misc/tip-calculator.html' },
       { name: 'Typing Test', file: './tools/misc/typing-test.html' },
       { name: 'Vector Drawing', file: './tools/misc/vector-drawing.html' },
+      { name: 'Vintage Web Game Vault', file: './tools/misc/vintage-web-game-vault.html' },
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },
       { name: 'World Explorer', file: './tools/misc/world-explorer.html' },
       { name: 'Word Puzzle', file: './tools/misc/word-puzzle.html' },
@@ -479,13 +486,19 @@ function renderHome() {
   main.innerHTML = `
     <section class="landing">
       <h1 class="sr-only">Korb Engineering — Free Aviation &amp; Civil Engineering Tools</h1>
-      <div class="search-bar-wrap">
-        <div class="search-bar">
-          <span class="search-icon">${SEARCH_SVG}</span>
-          <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false" inputmode="search">
-          <button class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+      <div class="home-toolbar">
+        <div class="search-bar-wrap">
+          <div class="search-bar">
+            <span class="search-icon">${SEARCH_SVG}</span>
+            <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false" inputmode="search">
+            <button class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+          </div>
+          <div class="search-results" id="searchResults"></div>
         </div>
-        <div class="search-results" id="searchResults"></div>
+        <a href="#repository" class="repo-btn" aria-label="Open Tool Repository">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/><path d="M8 8h6M8 12h8M8 16h5"/></svg>
+          <span>Tool Repository</span>
+        </a>
       </div>
       <div class="category-grid" id="categoryGrid">${cards}</div>
       <div class="landing-about">
@@ -592,6 +605,144 @@ function renderHome() {
       el.style.opacity = '1';
       el.style.transform = 'translateY(0)';
     }, i * 80 + 60);
+  });
+}
+
+// --- Tool Repository (categorized index of all tools) ---
+function generateToolDescription(name) {
+  const n = name.toLowerCase();
+  const rules = [
+    [/wind rose|pavement|airport|runway|taxiway|hangar|alp|navaid|approach|departure|airspace|atc|aviation|aircraft|fbo|airnav|altitude|fuel/, 'Aviation-focused tool for airport planning, design, or operations.'],
+    [/hec-ras|hec-hms|hydraul|hydrolog|drainage|stormwater|watershed|epanet|water/, 'Hydrology / hydraulics analysis with chartable results.'],
+    [/cad|dwg|brl/, 'CAD-style geometry tool that runs in the browser.'],
+    [/recipe|meal|food|copycat|kitchen/, 'Cooking and recipe utility.'],
+    [/workout|muscle|exercise|fitness/, 'Fitness reference and workout planning.'],
+    [/calculator|calc\b/, 'Quick interactive calculator with formatted output.'],
+    [/estimator/, 'Estimating worksheet with itemized line items and totals.'],
+    [/tracker/, 'Tracks records over time with persistent local storage.'],
+    [/manager|management/, 'Organize records with filters and detail views.'],
+    [/planner|planning/, 'Plan and schedule items across a timeline.'],
+    [/checklist/, 'Step-by-step checklist with progress tracking.'],
+    [/report/, 'Structured form that produces a printable report.'],
+    [/converter|convert/, 'Convert values between common units and formats.'],
+    [/viewer/, 'Browser-based viewer for the file format.'],
+    [/editor/, 'In-browser editor with live preview and export.'],
+    [/generator|maker|forge/, 'Generates output from your inputs — no install required.'],
+    [/timer|stopwatch|pomodoro|metronome/, 'Configurable timer with start/stop/reset controls.'],
+    [/checker|validator|inspector/, 'Validates inputs against requirements and flags issues.'],
+    [/chess|sudoku|tetris|2048|minesweeper|crossword|solitaire|checkers|game|arcade|tycoon|escape/, 'Browser game playable on desktop or mobile.'],
+    [/board|kanban/, 'Visual board for organizing items into columns.'],
+    [/diagram|chart|graph|map/, 'Visualize data with interactive diagrams.'],
+    [/finder|search|explorer|atlas|library|repository|vault/, 'Browse and search a curated dataset.'],
+  ];
+  for (const [re, desc] of rules) if (re.test(n)) return desc;
+  return 'Self-contained browser tool — no install or sign-up required.';
+}
+
+function renderRepository() {
+  ensureStatusVisible();
+  const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK' };
+  const sectionOrder = ['aviation', 'civil', 'misc', 'hk'];
+
+  const sectionsHtml = sectionOrder.map(key => {
+    const sec = SECTIONS[key];
+    if (!sec || sec.locked) return '';
+    const tools = [];
+    sec.tools.forEach(t => {
+      if (t.type === 'folder') {
+        if (t.locked) return;
+        t.tools.forEach(sub => tools.push({ name: sub.name, slug: getToolSlug(sub), folder: t.name }));
+      } else {
+        tools.push({ name: t.name, slug: getToolSlug(t), folder: null });
+      }
+    });
+    if (!tools.length) return '';
+    tools.sort((a, b) => a.name.localeCompare(b.name));
+    const items = tools.map(t => {
+      const desc = generateToolDescription(t.name);
+      const folderTag = t.folder ? `<span class="repo-folder-tag">${t.folder}</span>` : '';
+      return `
+        <a href="#${key}/${t.slug}" class="repo-item">
+          <div class="repo-item-head">
+            <span class="repo-item-name">${t.name}</span>
+            ${folderTag}
+          </div>
+          <p class="repo-item-desc">${desc}</p>
+        </a>`;
+    }).join('');
+    return `
+      <section class="repo-section" id="repo-${key}">
+        <header class="repo-section-head">
+          <h2 class="repo-section-title">${sectionLabels[key] || key}</h2>
+          <span class="repo-section-count">${tools.length} tool${tools.length === 1 ? '' : 's'}</span>
+        </header>
+        <div class="repo-grid">${items}</div>
+      </section>`;
+  }).join('');
+
+  const totalTools = sectionOrder.reduce((sum, key) => {
+    const sec = SECTIONS[key];
+    if (!sec || sec.locked) return sum;
+    let n = 0;
+    sec.tools.forEach(t => {
+      if (t.type === 'folder') { if (!t.locked) n += t.tools.length; }
+      else n++;
+    });
+    return sum + n;
+  }, 0);
+
+  const navLinks = sectionOrder
+    .filter(k => SECTIONS[k] && !SECTIONS[k].locked)
+    .map(k => `<a href="#repo-${k}" class="repo-nav-link">${sectionLabels[k] || k}</a>`)
+    .join('');
+
+  main.innerHTML = `
+    <section class="repository-page">
+      <div class="section-hero">
+        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+      </div>
+      <div class="repo-header reveal">
+        <h1 class="repo-title">Tool Repository</h1>
+        <p class="repo-subtitle">${totalTools} free browser tools across aviation, civil engineering, productivity, and games. Click any tool to open it.</p>
+        <div class="repo-filter-wrap">
+          <input type="text" id="repoFilter" class="repo-filter-input" placeholder="Filter tools..." autocomplete="off" spellcheck="false">
+        </div>
+        <nav class="repo-nav">${navLinks}</nav>
+      </div>
+      ${sectionsHtml}
+    </section>
+  `;
+
+  initReveal();
+
+  // In-page anchor scroll for category jump links
+  main.querySelectorAll('.repo-nav-link').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href').slice(1);
+      const target = document.getElementById(id);
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  const filter = document.getElementById('repoFilter');
+  filter.addEventListener('input', () => {
+    const q = filter.value.trim().toLowerCase();
+    document.querySelectorAll('.repo-section').forEach(sec => {
+      let visible = 0;
+      sec.querySelectorAll('.repo-item').forEach(item => {
+        const name = item.querySelector('.repo-item-name').textContent.toLowerCase();
+        const desc = item.querySelector('.repo-item-desc').textContent.toLowerCase();
+        const match = !q || name.includes(q) || desc.includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      sec.style.display = visible ? '' : 'none';
+      const count = sec.querySelector('.repo-section-count');
+      if (count) count.textContent = `${visible} tool${visible === 1 ? '' : 's'}`;
+    });
   });
 }
 
@@ -1126,6 +1277,8 @@ function handleRoute() {
     renderHome();
   } else if (route === 'about') {
     renderAboutPage();
+  } else if (route === 'repository') {
+    renderRepository();
   } else if (route.includes('/')) {
     // Tool-level route: section/tool-slug
     const slashIdx = route.indexOf('/');
