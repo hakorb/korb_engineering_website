@@ -1,6 +1,6 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-10T18:25:39.808Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
@@ -12,7 +12,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 | Tag | Count |
 |---|---:|
-| `[mobile]` | 15 |
 | `[polish]` | 232 |
 | `[a11y]` | 399 |
 | `[deps]` | 46 |
@@ -331,7 +330,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/bid-express.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
@@ -379,7 +377,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native alert() (prefer KorbUI)
 
 ### tools/civil/digital-twin-repository.html
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
 - `[deps]` external CDN: cdnjs.cloudflare.com
@@ -439,7 +436,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/geospatial-tools.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 
 ### tools/civil/harrison-latex-editor.html
@@ -498,7 +494,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/pci-inspector.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), confirm(), prompt() (prefer KorbUI)
 
@@ -721,7 +716,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/dev-toolkit.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 
 ### tools/misc/dfw-earth-day-game.html
@@ -735,7 +729,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/dice-roller.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native alert(), prompt() (prefer KorbUI)
 
@@ -795,7 +788,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
 ### tools/misc/formula-forge.html
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 
@@ -809,7 +801,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` no <meta name="description">
 
 ### tools/misc/game-deal-hunter.html
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/guitar-tuner.html
@@ -923,7 +914,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/mexican-grocery-guide.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -946,7 +936,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[storage]` localStorage key not prefixed korb_: movingInvoices
 
 ### tools/misc/muscle-atlas.html
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 
@@ -981,13 +970,11 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/photo-forge.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
 ### tools/misc/piano.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 
 ### tools/misc/pixel-art-editor.html
@@ -1020,7 +1007,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/retro-arcade.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -1103,7 +1089,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/tip-calculator.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
@@ -1136,7 +1121,6 @@ _Generated 2026-04-10T18:19:41.446Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/world-explorer.html
 - `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
-- `[mobile]` input font-size appears <16px (iOS will zoom)
 - `[a11y]` no <meta name="description">
 - `[a11y]` uses native confirm() (prefer KorbUI)
 

@@ -68,11 +68,32 @@ function checkTool(rel, html, bytes) {
     findings.push({ tag: 'polish', msg: 'viewport lacks viewport-fit=cover (safe-area insets unused)' });
   }
 
-  // Cheap check: look for CSS rules that set input font-size below 16px.
-  // Only flags the obvious ones; a false negative is OK here.
-  const smallInputFont = /input[^{]*\{[^}]*font-size\s*:\s*(1[0-5]|[0-9])(px|pt)/i.test(html);
-  if (smallInputFont) {
-    findings.push({ tag: 'mobile', msg: 'input font-size appears <16px (iOS will zoom)' });
+  // CSS-scoped check: only look at content inside <style>...</style>,
+  // and only flag `input { ... font-size: <16px ... }` rules. We exclude
+  // rules that *only* target non-text input types (range, color,
+  // checkbox, radio, file, submit, button, reset, image) because those
+  // do not trigger iOS zoom on focus.
+  const NON_TEXT_TYPES = new Set(['range', 'color', 'checkbox', 'radio', 'file', 'submit', 'button', 'reset', 'image', 'hidden']);
+  const styleBlocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join('\n');
+  if (styleBlocks) {
+    const ruleRe = /(?:^|[\s,{};])(input\b[^{}]{0,120})\{([^{}]{0,400})\}/g;
+    const smallRe = /font-size\s*:\s*(?:(1[0-5])(px|pt)|([0-9])(px|pt))\b/;
+    let r, hit = false;
+    while ((r = ruleRe.exec(styleBlocks)) !== null) {
+      const selectorGroup = r[1];
+      const body = r[2];
+      if (!smallRe.test(body)) continue;
+      // Split the selector group on commas, look at each input selector
+      // and decide whether at least one could hit a text-entry field.
+      const parts = selectorGroup.split(',').map((s) => s.trim()).filter((s) => /(^|\s)input\b/.test(s));
+      const anyTextEntry = parts.some((p) => {
+        const typeMatches = [...p.matchAll(/\[\s*type\s*=\s*["']?([a-z]+)["']?\s*\]/gi)].map((m) => m[1].toLowerCase());
+        if (typeMatches.length === 0) return true; // bare `input` — assume text-entry possible
+        return typeMatches.some((t) => !NON_TEXT_TYPES.has(t));
+      });
+      if (anyTextEntry) { hit = true; break; }
+    }
+    if (hit) findings.push({ tag: 'mobile', msg: 'input font-size appears <16px (iOS will zoom)' });
   }
 
   // --- a11y / metadata ---
