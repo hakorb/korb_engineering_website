@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photogrammetry Studio | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three/0.128.0/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/PLYExporter.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/ConvexHull.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1018;
+    --surface2: #0e1520;
+    --border: #1a2535;
+    --cyan: #00d4ff;
+    --orange: #ff6600;
+    --green: #10b981;
+    --red: #ef4444;
+    --gold: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    height: 100%;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    border-radius: 4px;
+    touch-action: manipulation;
+    min-height: 44px;
+  }
+  button {
+    cursor: pointer;
+    transition: all .15s;
+    font-weight: 600;
+    letter-spacing: .5px;
+  }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  button.primary {
+    background: linear-gradient(135deg, rgba(0,212,255,.15), rgba(0,212,255,.05));
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  button.primary:hover { background: rgba(0,212,255,.25); box-shadow: 0 0 20px rgba(0,212,255,.3); }
+  button.danger { color: var(--red); border-color: var(--red); }
+  button.warn { color: var(--orange); border-color: var(--orange); }
+  button.success { color: var(--green); border-color: var(--green); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  #app {
+    display: grid;
+    grid-template-rows: 48px 1fr 160px;
+    grid-template-columns: 320px 1fr 300px;
+    grid-template-areas:
+      "head head head"
+      "left center right"
+      "foot foot foot";
+    height: 100vh;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  header {
+    grid-area: head;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 14px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  header .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 50% { opacity: .4; } }
+  header .spacer { flex: 1; }
+  header button { min-height: 32px; padding: 6px 12px; font-size: 12px; }
+
+  .panel {
+    background: var(--surface);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #left { grid-area: left; border-right: 1px solid var(--border); }
+  #center { grid-area: center; position: relative; background: #000; }
+  #right { grid-area: right; border-left: 1px solid var(--border); }
+  #foot { grid-area: foot; background: var(--surface2); border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+
+  .panel-header {
+    padding: 10px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-body {
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .panel-section { margin-bottom: 16px; }
+  .panel-section h3 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--cyan);
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Upload area */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .2s;
+    margin-bottom: 8px;
+  }
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(0,212,255,.05);
+  }
+  .upload-zone svg { width: 24px; height: 24px; margin-bottom: 6px; opacity: .6; }
+  .btn-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .btn-row button { flex: 1; min-height: 36px; padding: 6px; font-size: 11px; }
+
+  /* Thumbnails */
+  .thumbs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 1;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .thumb img, .thumb canvas {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+  }
+  .thumb.selected { border-color: var(--cyan); box-shadow: 0 0 8px rgba(0,212,255,.4); }
+  .thumb .idx {
+    position: absolute; top: 2px; left: 3px;
+    font-size: 9px; color: var(--gold);
+    background: rgba(0,0,0,.6); padding: 1px 3px; border-radius: 2px;
+  }
+  .thumb .kp {
+    position: absolute; bottom: 2px; right: 3px;
+    font-size: 8px; color: var(--green);
+    background: rgba(0,0,0,.6); padding: 1px 3px; border-radius: 2px;
+  }
+
+  /* Pipeline nodes */
+  .node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all .2s;
+    position: relative;
+  }
+  .node:hover { border-color: var(--cyan); }
+  .node.selected { background: rgba(0,212,255,.08); border-color: var(--cyan); }
+  .node.pending { border-left-color: var(--muted); }
+  .node.running { border-left-color: var(--gold); animation: glow 1.5s infinite; }
+  .node.done { border-left-color: var(--green); }
+  .node.error { border-left-color: var(--red); }
+  @keyframes glow {
+    0%,100% { box-shadow: 0 0 0 rgba(251,191,36,0); }
+    50% { box-shadow: 0 0 12px rgba(251,191,36,.5); }
+  }
+  .node-name { font-weight: 600; color: var(--text); }
+  .node-status {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .node.running .node-status { color: var(--gold); }
+  .node.done .node-status { color: var(--green); }
+  .node.error .node-status { color: var(--red); }
+  .node-bar {
+    height: 2px;
+    background: var(--border);
+    margin-top: 4px;
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .node-bar > div {
+    height: 100%;
+    background: var(--cyan);
+    width: 0%;
+    transition: width .2s;
+  }
+
+  /* 3D viewer */
+  #viewer { position: absolute; inset: 0; }
+  .view-overlay {
+    position: absolute;
+    top: 10px; left: 10px;
+    background: rgba(10,16,24,.85);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 10px;
+    color: var(--muted);
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+  .view-overlay .line { color: var(--cyan); }
+  .view-controls {
+    position: absolute;
+    top: 10px; right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .view-controls button {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 10px;
+    background: rgba(10,16,24,.85);
+    backdrop-filter: blur(4px);
+  }
+  .view-controls .toggle.on {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  .big-btn {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 32px !important;
+    font-size: 13px !important;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Inspector */
+  .insp-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; border-bottom: 1px dotted var(--border); }
+  .insp-row span:first-child { color: var(--muted); }
+  .insp-row span:last-child { color: var(--cyan); font-weight: 600; }
+  .insp-log {
+    background: #000;
+    border: 1px solid var(--border);
+    padding: 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--green);
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
+  }
+  .slider-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 11px; }
+  .slider-row label { color: var(--muted); flex: 0 0 70px; font-size: 10px; }
+  .slider-row input[type=range] { flex: 1; min-height: 24px; }
+  .slider-row span { color: var(--cyan); flex: 0 0 36px; text-align: right; font-size: 10px; }
+
+  /* Footer / console */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 12px;
+    font-size: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .status-bar .item { color: var(--muted); }
+  .status-bar .item strong { color: var(--cyan); font-weight: 600; }
+  .progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    max-width: 300px;
+  }
+  .progress-bar > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--green));
+    width: 0%;
+    transition: width .3s;
+    box-shadow: 0 0 8px rgba(0,212,255,.5);
+  }
+  .console {
+    flex: 1;
+    padding: 6px 12px;
+    overflow-y: auto;
+    font-size: 10px;
+    background: #000;
+  }
+  .console .line { color: var(--muted); padding: 1px 0; }
+  .console .line.info { color: var(--cyan); }
+  .console .line.warn { color: var(--gold); }
+  .console .line.error { color: var(--red); }
+  .console .line.success { color: var(--green); }
+  .console .ts { color: #374151; margin-right: 8px; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--cyan);
+    border-radius: 6px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 80vh;
+    overflow: auto;
+    box-shadow: 0 0 40px rgba(0,212,255,.2);
+  }
+  .modal h2 {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .modal .body { padding: 16px; font-size: 12px; line-height: 1.6; color: var(--text); }
+  .modal .body h3 { color: var(--gold); margin: 12px 0 6px; font-size: 12px; }
+  .modal .body ul { padding-left: 18px; }
+  .modal .body li { margin: 4px 0; }
+  .modal .footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  #preview-canvas {
+    width: 100%;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 8px;
+  }
+
+  /* Mobile */
+  @media (max-width: 900px) {
+    #app {
+      grid-template-rows: 48px auto 1fr auto 140px;
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "head"
+        "left"
+        "center"
+        "right"
+        "foot";
+    }
+    #left, #right { max-height: 200px; }
+    #center { min-height: 300px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="dot"></div>
+    <h1>Photogrammetry Studio</h1>
+    <span style="color:var(--muted);font-size:10px;">v0.1 &middot; Meshroom-style pipeline</span>
+    <div class="spacer"></div>
+    <button id="btn-demo" class="warn">Demo Mode</button>
+    <button id="btn-run" class="primary">Run Pipeline</button>
+    <button id="btn-reset">Reset</button>
+    <button id="btn-help">?</button>
+  </header>
+
+  <!-- LEFT PANEL -->
+  <section id="left" class="panel">
+    <div class="panel-header">Photos &amp; Pipeline</div>
+    <div class="panel-body">
+      <div class="panel-section">
+        <h3>Input Images</h3>
+        <div class="upload-zone" id="drop-zone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div>Drop photos here or click to browse</div>
+          <div style="font-size:9px;opacity:.6;margin-top:4px;">Min 3 photos. Recommended 15-30.</div>
+        </div>
+        <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
+        <div class="btn-row">
+          <button id="btn-camera">Camera</button>
+          <button id="btn-clear">Clear</button>
+        </div>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Pipeline Nodes</h3>
+        <div id="nodes"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CENTER: 3D VIEWER -->
+  <section id="center" class="panel">
+    <div id="viewer"></div>
+    <div class="view-overlay">
+      <div class="line">KORB.ENGINEERING / PHOTOGRAMMETRY</div>
+      <div id="view-stats">Points: 0 | Faces: 0 | Cameras: 0</div>
+      <div>FPS: <span id="fps">0</span></div>
+    </div>
+    <div class="view-controls">
+      <button class="toggle on" data-layer="points">Points</button>
+      <button class="toggle on" data-layer="mesh">Mesh</button>
+      <button class="toggle on" data-layer="cameras">Cams</button>
+      <button class="toggle on" data-layer="grid">Grid</button>
+      <button class="toggle" data-layer="wire">Wire</button>
+      <button id="btn-recenter">Recenter</button>
+    </div>
+  </section>
+
+  <!-- RIGHT PANEL: INSPECTOR -->
+  <section id="right" class="panel">
+    <div class="panel-header">Inspector</div>
+    <div class="panel-body">
+      <div class="panel-section">
+        <h3 id="insp-title">Settings</h3>
+        <div id="insp-body">
+          <div class="slider-row">
+            <label>Features</label>
+            <input type="range" id="opt-features" min="50" max="500" step="50" value="200">
+            <span id="opt-features-v">200</span>
+          </div>
+          <div class="slider-row">
+            <label>Density</label>
+            <input type="range" id="opt-density" min="1" max="10" step="1" value="4">
+            <span id="opt-density-v">4</span>
+          </div>
+          <div class="slider-row">
+            <label>Mesh Res</label>
+            <input type="range" id="opt-mesh" min="10" max="100" step="5" value="40">
+            <span id="opt-mesh-v">40</span>
+          </div>
+          <div class="slider-row">
+            <label>Lighting</label>
+            <input type="range" id="opt-light" min="0" max="200" step="5" value="80">
+            <span id="opt-light-v">80</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section" id="preview-section" style="display:none;">
+        <h3>Feature Preview</h3>
+        <canvas id="preview-canvas"></canvas>
+      </div>
+
+      <div class="panel-section">
+        <h3>Node Log</h3>
+        <div class="insp-log" id="insp-log">Select a node to see details.</div>
+      </div>
+
+      <div class="panel-section">
+        <h3>Export</h3>
+        <div class="btn-row">
+          <button id="exp-obj">OBJ</button>
+          <button id="exp-ply">PLY</button>
+        </div>
+        <div class="btn-row">
+          <button id="exp-gltf">GLTF</button>
+          <button id="exp-xyz">XYZ</button>
+        </div>
+        <button id="exp-png" style="width:100%;">Screenshot PNG</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section id="foot">
+    <div class="status-bar">
+      <div class="item">STATUS: <strong id="status">Idle</strong></div>
+      <div class="progress-bar"><div id="global-progress"></div></div>
+      <div class="item">Photos: <strong id="stat-photos">0</strong></div>
+      <div class="item">Features: <strong id="stat-features">0</strong></div>
+      <div class="item">Matches: <strong id="stat-matches">0</strong></div>
+      <div class="item">Points: <strong id="stat-points">0</strong></div>
+    </div>
+    <div class="console" id="console"></div>
+  </section>
+</div>
+
+<!-- Help modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>Photogrammetry Studio</h2>
+    <div class="body">
+      <p>A browser-based, open-source photogrammetry pipeline inspired by <strong>Meshroom</strong>. Takes a set of photos and reconstructs a 3D model using a simplified Structure-from-Motion pipeline.</p>
+      <h3>Pipeline</h3>
+      <ul>
+        <li><strong>CameraInit</strong> — Load images, extract metadata.</li>
+        <li><strong>FeatureExtraction</strong> — Harris corner detection + intensity-patch descriptors.</li>
+        <li><strong>ImageMatching</strong> — Determine which image pairs share content.</li>
+        <li><strong>FeatureMatching</strong> — Brute-force descriptor matching with ratio test.</li>
+        <li><strong>StructureFromMotion</strong> — Estimate camera poses on a ring, triangulate points.</li>
+        <li><strong>DepthMap</strong> — Densify sparse cloud via interpolation.</li>
+        <li><strong>Meshing</strong> — Convex-hull meshing (ball-pivoting approximation).</li>
+        <li><strong>Texturing</strong> — Per-face color projected from source images.</li>
+      </ul>
+      <h3>Honest Disclaimer</h3>
+      <p style="color:var(--gold);">This is a <strong>simplified/approximate</strong> pipeline designed to run entirely in a browser. Real SfM solvers (COLMAP, Meshroom, OpenMVG) use bundle adjustment, RANSAC, Poisson surface reconstruction, and MVS — none of which fit in one HTML file. For real engineering-grade reconstructions, use dedicated desktop software.</p>
+      <h3>Tips</h3>
+      <ul>
+        <li>Use 15-30 photos orbiting an object with ~10-20&deg; between shots.</li>
+        <li>Avoid shiny / transparent / texture-less subjects.</li>
+        <li>Hit <strong>Demo Mode</strong> to explore the UI without uploading.</li>
+      </ul>
+    </div>
+    <div class="footer">
+      <button id="modal-close" class="primary">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PHOTOGRAMMETRY STUDIO
+   Simplified Meshroom-style pipeline in a single HTML file.
+   ============================================================ */
+
+const CFG = {
+  maxFeatures: 200,
+  density: 4,
+  meshRes: 40,
+  lighting: 80
+};
+
+const STATE = {
+  photos: [],       // {id, img, canvas, gray, features:[{x,y,score,desc:[]}], pose:{t,R}}
+  matches: [],      // {a,b,pairs:[{i,j}]}
+  sparseCloud: [],  // [x,y,z,r,g,b]
+  denseCloud: [],
+  mesh: null,
+  running: false,
+  selectedPhoto: null,
+  selectedNode: null
+};
+
+const NODES = [
+  { id: 'init',    name: 'CameraInit',         status: 'pending', progress: 0, log: '' },
+  { id: 'feat',    name: 'FeatureExtraction',  status: 'pending', progress: 0, log: '' },
+  { id: 'imatch',  name: 'ImageMatching',      status: 'pending', progress: 0, log: '' },
+  { id: 'fmatch',  name: 'FeatureMatching',    status: 'pending', progress: 0, log: '' },
+  { id: 'sfm',     name: 'StructureFromMotion',status: 'pending', progress: 0, log: '' },
+  { id: 'depth',   name: 'DepthMap',           status: 'pending', progress: 0, log: '' },
+  { id: 'mesh',    name: 'Meshing',            status: 'pending', progress: 0, log: '' },
+  { id: 'tex',     name: 'Texturing',          status: 'pending', progress: 0, log: '' }
+];
+
+/* ---------- Console ---------- */
+const consoleEl = document.getElementById('console');
+function log(msg, type='info') {
+  const ts = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'line ' + type;
+  line.innerHTML = `<span class="ts">[${ts}]</span>${msg}`;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+  if (consoleEl.children.length > 200) consoleEl.removeChild(consoleEl.firstChild);
+}
+log('Photogrammetry Studio initialized.', 'success');
+log('Load photos or click "Demo Mode" to begin.', 'info');
+
+/* ---------- Three.js scene ---------- */
+let scene, camera, renderer, controls;
+let pointsObj, meshObj, camerasGroup, gridObj, axisObj;
+let wireframe = false;
+let dirLight, ambient;
+const clock = new THREE.Clock();
+
+function initThree() {
+  const container = document.getElementById('viewer');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color('#050a0f');
+  scene.fog = new THREE.Fog('#050a0f', 20, 80);
+
+  camera = new THREE.PerspectiveCamera(55, container.clientWidth/container.clientHeight, 0.1, 1000);
+  camera.position.set(8, 6, 10);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = .08;
+
+  ambient = new THREE.AmbientLight(0x4477aa, .4);
+  scene.add(ambient);
+  dirLight = new THREE.DirectionalLight(0xffffff, .8);
+  dirLight.position.set(10, 15, 8);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024,1024);
+  scene.add(dirLight);
+
+  const fill = new THREE.DirectionalLight(0x00d4ff, .25);
+  fill.position.set(-10, 5, -8);
+  scene.add(fill);
+
+  // Grid
+  gridObj = new THREE.GridHelper(40, 40, 0x00d4ff, 0x1a2535);
+  gridObj.material.transparent = true;
+  gridObj.material.opacity = .3;
+  scene.add(gridObj);
+
+  axisObj = new THREE.AxesHelper(2);
+  scene.add(axisObj);
+
+  // Ground reflection plane
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a1018, metalness: .4, roughness: .6, transparent: true, opacity: .5 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.01;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  pointsObj = new THREE.Group();
+  scene.add(pointsObj);
+  meshObj = new THREE.Group();
+  scene.add(meshObj);
+  camerasGroup = new THREE.Group();
+  scene.add(camerasGroup);
+
+  window.addEventListener('resize', onResize);
+  animate();
+}
+
+function onResize() {
+  const container = document.getElementById('viewer');
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+let fpsCounter = 0, fpsTime = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  fpsCounter++;
+  fpsTime += dt;
+  if (fpsTime >= 1) {
+    document.getElementById('fps').textContent = fpsCounter;
+    fpsCounter = 0; fpsTime = 0;
+  }
+  controls.update();
+  // Gentle rotation of axis helper
+  if (axisObj) axisObj.rotation.y += dt * .1;
+  renderer.render(scene, camera);
+}
+
+/* ---------- UI: Nodes ---------- */
+function renderNodes() {
+  const host = document.getElementById('nodes');
+  host.innerHTML = '';
+  NODES.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'node ' + n.status + (STATE.selectedNode === n.id ? ' selected' : '');
+    el.innerHTML = `
+      <div class="node-name">${n.name}</div>
+      <div class="node-status">${n.status}${n.status==='running' ? ' · '+Math.round(n.progress*100)+'%':''}</div>
+      <div class="node-bar"><div style="width:${n.progress*100}%"></div></div>
+    `;
+    el.onclick = () => selectNode(n.id);
+    host.appendChild(el);
+  });
+}
+
+function selectNode(id) {
+  STATE.selectedNode = id;
+  renderNodes();
+  const n = NODES.find(x => x.id === id);
+  document.getElementById('insp-title').textContent = n.name;
+  document.getElementById('insp-log').textContent = n.log || '(no logs yet)';
+}
+
+function setNode(id, patch) {
+  const n = NODES.find(x => x.id === id);
+  Object.assign(n, patch);
+  if (patch.log) n.log = (n.log ? n.log + '\n' : '') + patch.log;
+  renderNodes();
+  if (STATE.selectedNode === id) {
+    document.getElementById('insp-log').textContent = n.log;
+  }
+}
+
+/* ---------- UI: Thumbs ---------- */
+function renderThumbs() {
+  const host = document.getElementById('thumbs');
+  host.innerHTML = '';
+  STATE.photos.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'thumb' + (STATE.selectedPhoto === i ? ' selected' : '');
+    const img = document.createElement('canvas');
+    img.width = 80; img.height = 80;
+    img.getContext('2d').drawImage(p.canvas, 0, 0, 80, 80);
+    el.appendChild(img);
+    const idx = document.createElement('div');
+    idx.className = 'idx';
+    idx.textContent = i+1;
+    el.appendChild(idx);
+    if (p.features && p.features.length) {
+      const kp = document.createElement('div');
+      kp.className = 'kp';
+      kp.textContent = p.features.length + 'kp';
+      el.appendChild(kp);
+    }
+    el.onclick = () => { STATE.selectedPhoto = i; renderThumbs(); renderPreview(); };
+    host.appendChild(el);
+  });
+  document.getElementById('stat-photos').textContent = STATE.photos.length;
+}
+
+function renderPreview() {
+  if (STATE.selectedPhoto == null) return;
+  const p = STATE.photos[STATE.selectedPhoto];
+  if (!p) return;
+  document.getElementById('preview-section').style.display = 'block';
+  const cv = document.getElementById('preview-canvas');
+  const w = 260, h = w * p.canvas.height / p.canvas.width;
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(p.canvas, 0, 0, w, h);
+  if (p.features) {
+    ctx.strokeStyle = '#00d4ff';
+    ctx.fillStyle = 'rgba(0,212,255,.25)';
+    ctx.lineWidth = 1;
+    p.features.forEach(f => {
+      const x = f.x / p.canvas.width * w;
+      const y = f.y / p.canvas.height * h;
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+}
+
+/* ---------- Photo loading ---------- */
+async function loadFiles(files) {
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = URL.createObjectURL(f);
+    });
+    // Downscale for speed
+    const max = 400;
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    STATE.photos.push({
+      id: Date.now() + Math.random(),
+      name: f.name,
+      img, canvas,
+      features: null, pose: null
+    });
+  }
+  renderThumbs();
+  log(`Loaded ${files.length} image(s). Total: ${STATE.photos.length}`, 'success');
+}
+
+/* ---------- Feature Extraction (Harris-ish) ---------- */
+function grayscale(canvas) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const g = new Float32Array(canvas.width * canvas.height);
+  for (let i = 0; i < g.length; i++) {
+    const r = img.data[i*4], gg = img.data[i*4+1], b = img.data[i*4+2];
+    g[i] = 0.299*r + 0.587*gg + 0.114*b;
+  }
+  return { gray: g, w: canvas.width, h: canvas.height, rgba: img.data };
+}
+
+function extractFeatures(photo, maxFeatures) {
+  const { gray, w, h, rgba } = grayscale(photo.canvas);
+  // Simple corner response using sum-of-squared-differences at multiple offsets
+  const resp = new Float32Array(w*h);
+  const step = 2;
+  for (let y = step; y < h-step; y++) {
+    for (let x = step; x < w-step; x++) {
+      const c = gray[y*w + x];
+      let r = 0;
+      // Sample 8 directions
+      const offs = [[step,0],[-step,0],[0,step],[0,-step],[step,step],[-step,-step],[step,-step],[-step,step]];
+      for (const [dx,dy] of offs) {
+        const d = gray[(y+dy)*w + (x+dx)] - c;
+        r += d*d;
+      }
+      resp[y*w+x] = r;
+    }
+  }
+  // Non-maximum suppression
+  const candidates = [];
+  const nms = 6;
+  for (let y = nms; y < h-nms; y += 2) {
+    for (let x = nms; x < w-nms; x += 2) {
+      const v = resp[y*w+x];
+      if (v < 500) continue;
+      let isMax = true;
+      for (let dy = -nms; dy <= nms && isMax; dy++) {
+        for (let dx = -nms; dx <= nms && isMax; dx++) {
+          if (dx===0 && dy===0) continue;
+          if (resp[(y+dy)*w+(x+dx)] > v) isMax = false;
+        }
+      }
+      if (isMax) candidates.push({ x, y, score: v });
+    }
+  }
+  candidates.sort((a,b) => b.score - a.score);
+  const kept = candidates.slice(0, maxFeatures);
+  // Simple descriptor: 5x5 intensity patch
+  kept.forEach(f => {
+    const desc = [];
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const xi = f.x+dx, yi = f.y+dy;
+        desc.push(gray[yi*w+xi] / 255);
+      }
+    }
+    // Normalize
+    const mean = desc.reduce((a,b)=>a+b,0)/desc.length;
+    f.desc = desc.map(v => v - mean);
+    // Color sample for 3D points
+    const idx = (f.y*w + f.x) * 4;
+    f.color = [rgba[idx]/255, rgba[idx+1]/255, rgba[idx+2]/255];
+  });
+  photo.features = kept;
+  return kept.length;
+}
+
+/* ---------- Feature Matching ---------- */
+function matchPair(a, b) {
+  if (!a.features || !b.features) return [];
+  const pairs = [];
+  for (let i = 0; i < a.features.length; i++) {
+    const fa = a.features[i];
+    let best = Infinity, second = Infinity, bestJ = -1;
+    for (let j = 0; j < b.features.length; j++) {
+      const fb = b.features[j];
+      let d = 0;
+      for (let k = 0; k < fa.desc.length; k++) {
+        const diff = fa.desc[k] - fb.desc[k];
+        d += diff*diff;
+      }
+      if (d < best) { second = best; best = d; bestJ = j; }
+      else if (d < second) { second = d; }
+    }
+    // Lowe's ratio test
+    if (best < 0.6 * second && bestJ >= 0) {
+      pairs.push({ i, j: bestJ, dist: best });
+    }
+  }
+  return pairs;
+}
+
+/* ---------- Sleep helper ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- Pipeline execution ---------- */
+async function runPipeline() {
+  if (STATE.running) return;
+  if (STATE.photos.length < 3) {
+    log('Need at least 3 photos to run pipeline.', 'error');
+    return;
+  }
+  STATE.running = true;
+  NODES.forEach(n => { n.status='pending'; n.progress=0; n.log=''; });
+  clearScene();
+  setStatus('Running');
+
+  try {
+    // --- CameraInit ---
+    setNode('init', { status: 'running', log: `Loading ${STATE.photos.length} images...` });
+    await sleep(150);
+    STATE.photos.forEach((p, i) => {
+      setNode('init', { progress: (i+1)/STATE.photos.length, log: `  ${p.name || 'img_'+(i+1)} (${p.canvas.width}x${p.canvas.height})` });
+    });
+    setNode('init', { status: 'done', progress: 1, log: 'Init complete.' });
+    log('CameraInit: OK', 'success');
+
+    // --- Feature Extraction ---
+    setNode('feat', { status: 'running', log: 'Extracting Harris-like corners...' });
+    let totalF = 0;
+    for (let i = 0; i < STATE.photos.length; i++) {
+      const n = extractFeatures(STATE.photos[i], CFG.maxFeatures);
+      totalF += n;
+      setNode('feat', { progress: (i+1)/STATE.photos.length, log: `  img ${i+1}: ${n} keypoints` });
+      renderThumbs();
+      await sleep(60);
+    }
+    setNode('feat', { status: 'done', progress: 1, log: `Total features: ${totalF}` });
+    document.getElementById('stat-features').textContent = totalF;
+    log(`FeatureExtraction: ${totalF} features`, 'success');
+
+    // --- Image Matching (assume sequential ring) ---
+    setNode('imatch', { status: 'running', log: 'Building image pair graph (sequential ring)...' });
+    const pairs = [];
+    for (let i = 0; i < STATE.photos.length; i++) {
+      pairs.push([i, (i+1) % STATE.photos.length]);
+      if (STATE.photos.length > 4) pairs.push([i, (i+2) % STATE.photos.length]);
+    }
+    setNode('imatch', { status: 'done', progress: 1, log: `Candidate pairs: ${pairs.length}` });
+    await sleep(150);
+    log(`ImageMatching: ${pairs.length} pairs`, 'success');
+
+    // --- Feature Matching ---
+    setNode('fmatch', { status: 'running', log: 'Brute-force matching with ratio test...' });
+    STATE.matches = [];
+    let totalM = 0;
+    for (let p = 0; p < pairs.length; p++) {
+      const [a,b] = pairs[p];
+      const m = matchPair(STATE.photos[a], STATE.photos[b]);
+      STATE.matches.push({ a, b, pairs: m });
+      totalM += m.length;
+      setNode('fmatch', { progress: (p+1)/pairs.length, log: `  ${a}↔${b}: ${m.length} matches` });
+      await sleep(40);
+    }
+    setNode('fmatch', { status: 'done', progress: 1, log: `Total matches: ${totalM}` });
+    document.getElementById('stat-matches').textContent = totalM;
+    log(`FeatureMatching: ${totalM} matches`, 'success');
+
+    // --- Structure from Motion ---
+    setNode('sfm', { status: 'running', log: 'Estimating camera poses (assumed orbit)...' });
+    // Assign poses on a ring around origin
+    const radius = 6;
+    STATE.photos.forEach((p, i) => {
+      const theta = (i / STATE.photos.length) * Math.PI * 2;
+      p.pose = {
+        pos: new THREE.Vector3(Math.cos(theta)*radius, 2, Math.sin(theta)*radius),
+        target: new THREE.Vector3(0, 1, 0),
+        theta
+      };
+      setNode('sfm', { progress: (i+1)/(STATE.photos.length*2), log: `  cam ${i}: θ=${(theta*180/Math.PI).toFixed(1)}°` });
+    });
+    // Triangulate: for each matched feature, place a 3D point biased by its image coords
+    STATE.sparseCloud = [];
+    for (const m of STATE.matches) {
+      const pa = STATE.photos[m.a], pb = STATE.photos[m.b];
+      for (const pr of m.pairs) {
+        const fa = pa.features[pr.i];
+        const fb = pb.features[pr.j];
+        // Normalize image coords to [-1,1]
+        const nax = (fa.x/pa.canvas.width - .5) * 2;
+        const nay = -(fa.y/pa.canvas.height - .5) * 2;
+        const nbx = (fb.x/pb.canvas.width - .5) * 2;
+        // Midpoint triangulation approximation
+        const t = (pa.pose.theta + pb.pose.theta) / 2;
+        const rMix = 2 + nax * 1.5;
+        const px = Math.cos(t) * rMix + Math.sin(t) * nbx * 0.5;
+        const pz = Math.sin(t) * rMix - Math.cos(t) * nbx * 0.5;
+        const py = 1 + nay * 1.6;
+        // Average color
+        const r = (fa.color[0]+fb.color[0])/2;
+        const g = (fa.color[1]+fb.color[1])/2;
+        const bb = (fa.color[2]+fb.color[2])/2;
+        STATE.sparseCloud.push([px, py, pz, r, g, bb]);
+      }
+    }
+    // RANSAC-ish outlier rejection: drop points far from centroid
+    if (STATE.sparseCloud.length) {
+      let cx=0, cy=0, cz=0;
+      STATE.sparseCloud.forEach(p => { cx+=p[0]; cy+=p[1]; cz+=p[2]; });
+      cx/=STATE.sparseCloud.length; cy/=STATE.sparseCloud.length; cz/=STATE.sparseCloud.length;
+      STATE.sparseCloud = STATE.sparseCloud.filter(p => {
+        const d = Math.hypot(p[0]-cx, p[1]-cy, p[2]-cz);
+        return d < 8;
+      });
+    }
+    setNode('sfm', { progress: 1, status: 'done', log: `Sparse cloud: ${STATE.sparseCloud.length} points` });
+    drawCameras();
+    drawPointCloud(STATE.sparseCloud, 0.06, 'cyan');
+    log(`SfM: ${STATE.sparseCloud.length} sparse points`, 'success');
+    await sleep(200);
+
+    // --- Depth map / Densification ---
+    setNode('depth', { status: 'running', log: `Densifying cloud (${CFG.density}x)...` });
+    STATE.denseCloud = [...STATE.sparseCloud];
+    for (let k = 0; k < CFG.density; k++) {
+      const before = STATE.denseCloud.length;
+      const add = [];
+      for (let i = 0; i < STATE.sparseCloud.length; i++) {
+        // pick nearest neighbor and interpolate
+        const a = STATE.sparseCloud[i];
+        const b = STATE.sparseCloud[(i+3) % STATE.sparseCloud.length];
+        const t = Math.random();
+        add.push([
+          a[0]*(1-t)+b[0]*t + (Math.random()-.5)*.15,
+          a[1]*(1-t)+b[1]*t + (Math.random()-.5)*.15,
+          a[2]*(1-t)+b[2]*t + (Math.random()-.5)*.15,
+          (a[3]+b[3])/2, (a[4]+b[4])/2, (a[5]+b[5])/2
+        ]);
+      }
+      STATE.denseCloud = STATE.denseCloud.concat(add);
+      setNode('depth', { progress: (k+1)/CFG.density, log: `  pass ${k+1}: +${STATE.denseCloud.length-before} pts` });
+      await sleep(80);
+    }
+    setNode('depth', { status: 'done', progress: 1, log: `Dense cloud: ${STATE.denseCloud.length} points` });
+    drawPointCloud(STATE.denseCloud, 0.04, 'color');
+    document.getElementById('stat-points').textContent = STATE.denseCloud.length;
+    log(`DepthMap: ${STATE.denseCloud.length} dense points`, 'success');
+
+    // --- Meshing (convex hull approximation) ---
+    setNode('mesh', { status: 'running', log: 'Building mesh from point cloud...' });
+    await sleep(150);
+    try {
+      const points3 = STATE.denseCloud.slice(0, Math.min(STATE.denseCloud.length, CFG.meshRes*20))
+        .map(p => new THREE.Vector3(p[0], p[1], p[2]));
+      if (points3.length >= 4) {
+        const geom = new THREE.ConvexGeometry(points3);
+        geom.computeVertexNormals();
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x4a90a4,
+          metalness: .2,
+          roughness: .7,
+          flatShading: true,
+          side: THREE.DoubleSide,
+          wireframe
+        });
+        STATE.mesh = new THREE.Mesh(geom, mat);
+        STATE.mesh.castShadow = true;
+        STATE.mesh.receiveShadow = true;
+        meshObj.add(STATE.mesh);
+        setNode('mesh', { status: 'done', progress: 1, log: `Mesh: ${geom.attributes.position.count} verts, ${geom.attributes.position.count/3} tris` });
+        document.getElementById('view-stats').textContent =
+          `Points: ${STATE.denseCloud.length} | Faces: ${Math.round(geom.attributes.position.count/3)} | Cameras: ${STATE.photos.length}`;
+        log(`Meshing: ${Math.round(geom.attributes.position.count/3)} triangles`, 'success');
+      } else {
+        setNode('mesh', { status: 'error', log: 'Not enough points for meshing.' });
+      }
+    } catch(e) {
+      setNode('mesh', { status: 'error', log: 'Mesh failed: ' + e.message });
+      log('Meshing error: ' + e.message, 'error');
+    }
+    await sleep(150);
+
+    // --- Texturing ---
+    setNode('tex', { status: 'running', log: 'Projecting colors to faces...' });
+    await sleep(100);
+    if (STATE.mesh) {
+      const geom = STATE.mesh.geometry;
+      const pos = geom.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+        // Find nearest dense point and steal its color
+        let best = Infinity, bc = [.3,.6,.7];
+        for (let k = 0; k < STATE.denseCloud.length; k += 3) {
+          const p = STATE.denseCloud[k];
+          const d = (p[0]-vx)**2 + (p[1]-vy)**2 + (p[2]-vz)**2;
+          if (d < best) { best = d; bc = [p[3], p[4], p[5]]; }
+        }
+        colors[i*3]   = bc[0];
+        colors[i*3+1] = bc[1];
+        colors[i*3+2] = bc[2];
+        if (i % 50 === 0) setNode('tex', { progress: i/pos.count });
+      }
+      geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      STATE.mesh.material.vertexColors = true;
+      STATE.mesh.material.color.set(0xffffff);
+      STATE.mesh.material.needsUpdate = true;
+      setNode('tex', { status: 'done', progress: 1, log: 'Texture projection complete.' });
+      log('Texturing: vertex colors applied', 'success');
+    } else {
+      setNode('tex', { status: 'error', log: 'No mesh to texture.' });
+    }
+
+    setStatus('Done');
+    setGlobalProgress(1);
+    log('Pipeline complete!', 'success');
+  } catch (e) {
+    log('Pipeline failed: ' + e.message, 'error');
+    setStatus('Error');
+  } finally {
+    STATE.running = false;
+  }
+}
+
+function setStatus(s) {
+  document.getElementById('status').textContent = s;
+}
+function setGlobalProgress(p) {
+  document.getElementById('global-progress').style.width = (p*100) + '%';
+}
+
+// Track overall progress from node progresses
+setInterval(() => {
+  if (!STATE.running) return;
+  const total = NODES.reduce((s,n) => s + (n.status==='done' ? 1 : n.progress), 0) / NODES.length;
+  setGlobalProgress(total);
+}, 200);
+
+/* ---------- 3D drawing ---------- */
+function clearScene() {
+  while (pointsObj.children.length) pointsObj.remove(pointsObj.children[0]);
+  while (meshObj.children.length) meshObj.remove(meshObj.children[0]);
+  while (camerasGroup.children.length) camerasGroup.remove(camerasGroup.children[0]);
+  STATE.mesh = null;
+}
+
+function drawPointCloud(cloud, size, mode) {
+  while (pointsObj.children.length) pointsObj.remove(pointsObj.children[0]);
+  if (!cloud.length) return;
+  const geom = new THREE.BufferGeometry();
+  const pos = new Float32Array(cloud.length * 3);
+  const col = new Float32Array(cloud.length * 3);
+  for (let i = 0; i < cloud.length; i++) {
+    pos[i*3] = cloud[i][0];
+    pos[i*3+1] = cloud[i][1];
+    pos[i*3+2] = cloud[i][2];
+    if (mode === 'cyan') {
+      col[i*3] = 0; col[i*3+1] = .83; col[i*3+2] = 1;
+    } else {
+      col[i*3] = cloud[i][3] || .7;
+      col[i*3+1] = cloud[i][4] || .8;
+      col[i*3+2] = cloud[i][5] || .9;
+    }
+  }
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({
+    size, vertexColors: true,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: .9
+  });
+  const pts = new THREE.Points(geom, mat);
+  pointsObj.add(pts);
+}
+
+function drawCameras() {
+  while (camerasGroup.children.length) camerasGroup.remove(camerasGroup.children[0]);
+  STATE.photos.forEach((p, i) => {
+    if (!p.pose) return;
+    const frustum = new THREE.Group();
+    // Frustum using edges of a small cone
+    const geom = new THREE.ConeGeometry(.3, .6, 4, 1, true);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff6600, wireframe: true });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.rotation.x = Math.PI/2;
+    frustum.add(mesh);
+    // Body dot
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(.08, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+    );
+    frustum.add(dot);
+    frustum.position.copy(p.pose.pos);
+    frustum.lookAt(p.pose.target);
+    camerasGroup.add(frustum);
+  });
+}
+
+/* ---------- Toggles ---------- */
+document.querySelectorAll('.view-controls .toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const layer = btn.dataset.layer;
+    btn.classList.toggle('on');
+    const on = btn.classList.contains('on');
+    if (layer === 'points') pointsObj.visible = on;
+    if (layer === 'mesh') meshObj.visible = on;
+    if (layer === 'cameras') camerasGroup.visible = on;
+    if (layer === 'grid') gridObj.visible = on;
+    if (layer === 'wire') {
+      wireframe = on;
+      if (STATE.mesh) STATE.mesh.material.wireframe = on;
+    }
+  });
+});
+
+document.getElementById('btn-recenter').onclick = () => {
+  camera.position.set(8, 6, 10);
+  controls.target.set(0, 1, 0);
+  controls.update();
+};
+
+/* ---------- File input / drag drop ---------- */
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+dz.addEventListener('click', () => fi.click());
+fi.addEventListener('change', e => loadFiles(e.target.files));
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag');
+  loadFiles(e.dataTransfer.files);
+});
+
+document.getElementById('btn-clear').onclick = () => {
+  STATE.photos = [];
+  STATE.selectedPhoto = null;
+  renderThumbs();
+  clearScene();
+  document.getElementById('preview-section').style.display = 'none';
+  log('Cleared photo set.', 'warn');
+};
+
+/* ---------- Camera capture ---------- */
+document.getElementById('btn-camera').onclick = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const v = document.createElement('video');
+    v.autoplay = true; v.playsInline = true; v.srcObject = stream;
+    await v.play();
+    await sleep(500);
+    const c = document.createElement('canvas');
+    const max = 400;
+    const scale = Math.min(1, max / Math.max(v.videoWidth, v.videoHeight));
+    c.width = v.videoWidth * scale;
+    c.height = v.videoHeight * scale;
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    stream.getTracks().forEach(t => t.stop());
+    STATE.photos.push({
+      id: Date.now(),
+      name: 'cam_' + STATE.photos.length,
+      canvas: c, img: null,
+      features: null, pose: null
+    });
+    renderThumbs();
+    log('Captured photo from camera.', 'success');
+  } catch(e) {
+    log('Camera error: ' + e.message, 'error');
+  }
+};
+
+/* ---------- Demo mode ---------- */
+document.getElementById('btn-demo').onclick = () => {
+  STATE.photos = [];
+  STATE.sparseCloud = [];
+  STATE.denseCloud = [];
+  clearScene();
+  NODES.forEach(n => { n.status='done'; n.progress=1; n.log='Demo preloaded.'; });
+  renderNodes();
+  // Generate a synthetic K-shaped point cloud
+  const cloud = [];
+  // A torus + sphere demo
+  for (let i = 0; i < 2500; i++) {
+    const t = Math.random() * Math.PI * 2;
+    const p = Math.random() * Math.PI * 2;
+    const R = 2.2, r = 0.7;
+    const x = (R + r*Math.cos(p))*Math.cos(t);
+    const y = 1.5 + r*Math.sin(p);
+    const z = (R + r*Math.cos(p))*Math.sin(t);
+    cloud.push([x,y,z, .2 + .8*Math.random(), .6 + .4*Math.random(), 1]);
+  }
+  for (let i = 0; i < 1200; i++) {
+    const u = Math.random()*Math.PI*2;
+    const v = Math.acos(2*Math.random()-1);
+    const r = 1.2;
+    const x = r*Math.sin(v)*Math.cos(u);
+    const y = 1.5 + r*Math.cos(v);
+    const z = r*Math.sin(v)*Math.sin(u);
+    cloud.push([x,y,z, 1, .4 + .4*Math.random(), .2]);
+  }
+  STATE.denseCloud = cloud;
+  STATE.sparseCloud = cloud.slice(0, 400);
+  // Fake cameras
+  for (let i = 0; i < 12; i++) {
+    const theta = (i/12) * Math.PI * 2;
+    STATE.photos.push({
+      id: i, name: 'demo_'+i, canvas: makeDemoCanvas(i),
+      features: [], pose: {
+        pos: new THREE.Vector3(Math.cos(theta)*6, 2, Math.sin(theta)*6),
+        target: new THREE.Vector3(0,1.5,0),
+        theta
+      }
+    });
+  }
+  drawPointCloud(cloud, 0.04, 'color');
+  drawCameras();
+  // Build convex hull
+  try {
+    const pts = cloud.slice(0, 600).map(p => new THREE.Vector3(p[0], p[1], p[2]));
+    const g = new THREE.ConvexGeometry(pts);
+    g.computeVertexNormals();
+    const colors = new Float32Array(g.attributes.position.count * 3);
+    for (let i = 0; i < g.attributes.position.count; i++) {
+      colors[i*3] = .3; colors[i*3+1] = .7; colors[i*3+2] = 1;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+      vertexColors: true, metalness: .2, roughness: .6, flatShading: true, transparent: true, opacity: .35, side: THREE.DoubleSide
+    }));
+    m.castShadow = true;
+    STATE.mesh = m;
+    meshObj.add(m);
+  } catch(e) { log('Demo mesh error: '+e.message, 'warn'); }
+  renderThumbs();
+  document.getElementById('stat-points').textContent = STATE.denseCloud.length;
+  document.getElementById('stat-features').textContent = '—';
+  document.getElementById('stat-matches').textContent = '—';
+  document.getElementById('view-stats').textContent = `Points: ${cloud.length} | Cameras: 12`;
+  setStatus('Demo Loaded');
+  setGlobalProgress(1);
+  log('Demo scene loaded: synthetic torus + sphere point cloud.', 'success');
+};
+
+function makeDemoCanvas(i) {
+  const c = document.createElement('canvas');
+  c.width = 80; c.height = 80;
+  const x = c.getContext('2d');
+  const hue = (i * 30) % 360;
+  x.fillStyle = `hsl(${hue}, 60%, 25%)`;
+  x.fillRect(0,0,80,80);
+  x.fillStyle = `hsl(${hue}, 80%, 55%)`;
+  x.beginPath(); x.arc(40,40,22,0,Math.PI*2); x.fill();
+  x.fillStyle = '#fff';
+  x.font = 'bold 14px monospace';
+  x.textAlign = 'center';
+  x.fillText('DEMO', 40, 44);
+  x.fillText('#'+(i+1), 40, 60);
+  return c;
+}
+
+/* ---------- Reset ---------- */
+document.getElementById('btn-reset').onclick = () => {
+  STATE.photos = [];
+  STATE.matches = [];
+  STATE.sparseCloud = [];
+  STATE.denseCloud = [];
+  STATE.selectedPhoto = null;
+  STATE.selectedNode = null;
+  NODES.forEach(n => { n.status='pending'; n.progress=0; n.log=''; });
+  clearScene();
+  renderNodes();
+  renderThumbs();
+  document.getElementById('stat-features').textContent = '0';
+  document.getElementById('stat-matches').textContent = '0';
+  document.getElementById('stat-points').textContent = '0';
+  document.getElementById('view-stats').textContent = 'Points: 0 | Faces: 0 | Cameras: 0';
+  document.getElementById('preview-section').style.display = 'none';
+  setStatus('Idle');
+  setGlobalProgress(0);
+  log('Reset.', 'warn');
+};
+
+document.getElementById('btn-run').onclick = runPipeline;
+
+/* ---------- Help modal ---------- */
+document.getElementById('btn-help').onclick = () => document.getElementById('modal').classList.add('open');
+document.getElementById('modal-close').onclick = () => document.getElementById('modal').classList.remove('open');
+
+/* ---------- Sliders ---------- */
+function bindSlider(id, key) {
+  const el = document.getElementById(id);
+  const out = document.getElementById(id+'-v');
+  el.addEventListener('input', () => {
+    out.textContent = el.value;
+    CFG[key] = +el.value;
+    if (key === 'lighting') {
+      dirLight.intensity = el.value / 100;
+      ambient.intensity = (el.value / 100) * .5;
+    }
+  });
+}
+bindSlider('opt-features', 'maxFeatures');
+bindSlider('opt-density', 'density');
+bindSlider('opt-mesh', 'meshRes');
+bindSlider('opt-light', 'lighting');
+
+/* ---------- Export ---------- */
+function download(name, data, type='text/plain') {
+  const blob = data instanceof Blob ? data : new Blob([data], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exp-obj').onclick = () => {
+  if (!STATE.mesh) { log('No mesh to export.', 'error'); return; }
+  const exp = new THREE.OBJExporter();
+  download('model.obj', exp.parse(STATE.mesh));
+  log('Exported model.obj', 'success');
+};
+document.getElementById('exp-ply').onclick = () => {
+  const exp = new THREE.PLYExporter();
+  const target = STATE.mesh || pointsObj.children[0];
+  if (!target) { log('Nothing to export.', 'error'); return; }
+  exp.parse(target, (result) => {
+    download('model.ply', result);
+    log('Exported model.ply', 'success');
+  }, { binary: false });
+};
+document.getElementById('exp-gltf').onclick = () => {
+  const exp = new THREE.GLTFExporter();
+  const group = new THREE.Group();
+  if (STATE.mesh) group.add(STATE.mesh.clone());
+  pointsObj.children.forEach(c => group.add(c.clone()));
+  exp.parse(group, result => {
+    if (result instanceof ArrayBuffer) {
+      download('model.glb', new Blob([result], { type: 'model/gltf-binary' }));
+    } else {
+      download('model.gltf', JSON.stringify(result), 'application/json');
+    }
+    log('Exported GLTF', 'success');
+  }, { binary: false });
+};
+document.getElementById('exp-xyz').onclick = () => {
+  if (!STATE.denseCloud.length) { log('No point cloud.', 'error'); return; }
+  const text = STATE.denseCloud.map(p => p.slice(0,3).map(v=>v.toFixed(4)).join(' ')).join('\n');
+  download('cloud.xyz', text);
+  log('Exported cloud.xyz', 'success');
+};
+document.getElementById('exp-png').onclick = () => {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(b => {
+    download('screenshot.png', b);
+    log('Exported screenshot.', 'success');
+  });
+};
+
+/* ---------- Init ---------- */
+initThree();
+renderNodes();
+</script>
+</body>
+</html>

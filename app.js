@@ -90,6 +90,7 @@ const SECTIONS = {
       { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
       { name: 'Performance Spec', file: './tools/aviation/performance-spec-tool.html' },
       { name: 'PERT Calculator', file: './tools/aviation/pert-calculator.html' },
+      { name: 'Photogrammetry Studio', file: './tools/aviation/photogrammetry-studio.html' },
       { name: 'Pomodoro Timer', file: './tools/misc/pomodoro-timer.html' },
       { name: 'Pre-Flight Checklist', file: './tools/aviation/pre-flight-checklist.html' },
       { name: 'Construction Commander', file: './tools/aviation/procore-project-manager.html' },
