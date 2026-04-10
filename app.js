@@ -213,6 +213,7 @@ const SECTIONS = {
       { name: 'Book Digitizer', file: './tools/misc/book-digitizer.html' },
       { name: 'Chess', file: './tools/misc/chess.html' },
       { name: 'Chinese Checkers', file: './tools/misc/chinese-checkers.html' },
+      { name: 'Clicker Counter', file: './tools/misc/clicker-counter.html' },
       { name: 'Clock & Stopwatch', file: './tools/misc/clock-stopwatch.html' },
       { name: 'Color Palette', file: './tools/misc/color-palette.html' },
       { name: 'Connect Four', file: './tools/misc/connect-four.html' },

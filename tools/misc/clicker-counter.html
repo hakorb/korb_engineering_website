@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>Clicker Counter — Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1018;
+    --surface-2: #0e1520;
+    --border: #1a2535;
+    --cyan: #00d4ff;
+    --orange: #ff6600;
+    --green: #10b981;
+    --red: #ef4444;
+    --gold: #fbbf24;
+    --text: #e2e8f0;
+    --dim: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+  }
+  .title .dot { color: var(--orange); }
+  .controls {
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 10px 14px;
+    min-height: 44px;
+    min-width: 44px;
+    border-radius: 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn:active { transform: scale(0.95); }
+  .btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .btn.gold:hover { border-color: var(--gold); color: var(--gold); }
+  .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0, 212, 255, 0.08); }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .stat {
+    text-align: center;
+    min-width: 70px;
+  }
+  .stat-label {
+    font-size: 9px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+  .stat-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .stat-value.cps { color: var(--orange); }
+  .stat-value.best { color: var(--gold); }
+  .stat-value.step { color: var(--green); }
+
+  .main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .click-area {
+    position: relative;
+    width: min(85vw, 85vh, 480px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #0e1520, #050a0f 70%);
+    border: 2px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.06s ease-out, border-color 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+  }
+  .click-area::before {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    border-radius: 50%;
+    border: 1px dashed var(--border);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .click-area:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 0 60px rgba(0, 212, 255, 0.15);
+  }
+  .click-area.pressed {
+    transform: scale(0.96);
+    border-color: var(--cyan);
+    box-shadow: 0 0 80px rgba(0, 212, 255, 0.35), inset 0 0 40px rgba(0, 212, 255, 0.15);
+  }
+  .count {
+    font-size: clamp(48px, 14vw, 120px);
+    font-weight: 700;
+    color: var(--cyan);
+    text-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    z-index: 2;
+    transition: transform 0.08s ease-out;
+  }
+  .count.bump { animation: bump 0.15s ease-out; }
+  @keyframes bump {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+  .tap-hint {
+    position: absolute;
+    bottom: 16%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    pointer-events: none;
+  }
+  .ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--cyan);
+    pointer-events: none;
+    opacity: 0;
+  }
+  .ring.pulse { animation: pulse 0.6s ease-out; }
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 0.8; border-width: 3px; }
+    100% { transform: scale(1.25); opacity: 0; border-width: 1px; }
+  }
+
+  .float {
+    position: absolute;
+    pointer-events: none;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--orange);
+    text-shadow: 0 0 14px rgba(255, 102, 0, 0.6);
+    animation: floatUp 0.9s ease-out forwards;
+    z-index: 3;
+  }
+  @keyframes floatUp {
+    0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+    20% { transform: translate(-50%, -20px) scale(1.1); opacity: 1; }
+    100% { transform: translate(-50%, -90px) scale(0.9); opacity: 0; }
+  }
+
+  .particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--cyan);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .milestone {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: rgba(5, 10, 15, 0.95);
+    border: 2px solid var(--gold);
+    border-radius: 10px;
+    padding: 20px 32px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 0 60px rgba(251, 191, 36, 0.4);
+  }
+  .milestone.show { animation: milestoneIn 1.8s ease-out forwards; }
+  @keyframes milestoneIn {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    15% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    25% { transform: translate(-50%, -50%) scale(1); }
+    80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+  }
+  .milestone-label {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .milestone-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gold);
+  }
+
+  .bottom {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .step-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 0 8px;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .step-label {
+    font-size: 9px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title">korb<span class="dot">.</span>engineering · clicker counter</div>
+  <div class="controls">
+    <button class="btn" id="soundBtn" title="Sound on/off">♪ ON</button>
+    <button class="btn" id="hapticBtn" title="Haptic on/off">▓ ON</button>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Count</div>
+    <div class="stat-value" id="statCount">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">CPS</div>
+    <div class="stat-value cps" id="statCps">0.0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Best CPS</div>
+    <div class="stat-value best" id="statBest">0.0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Step</div>
+    <div class="stat-value step" id="statStep">+1</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Total Ever</div>
+    <div class="stat-value" id="statTotal">0</div>
+  </div>
+</div>
+
+<div class="main" id="main">
+  <div class="click-area" id="clickArea">
+    <div class="ring" id="ring"></div>
+    <div class="count" id="count">0</div>
+    <div class="tap-hint">TAP TO COUNT</div>
+    <div class="milestone" id="milestone">
+      <div class="milestone-label" id="msLabel">MILESTONE</div>
+      <div class="milestone-value" id="msValue">0</div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn" id="minusBtn">− Undo</button>
+  <div class="step-controls">
+    <span class="step-label">Step:</span>
+    <button class="btn" data-step="1">1</button>
+    <button class="btn" data-step="5">5</button>
+    <button class="btn" data-step="10">10</button>
+    <button class="btn" data-step="100">100</button>
+  </div>
+  <button class="btn danger" id="resetBtn">Reset</button>
+</div>
+
+<script>
+(() => {
+  const STORAGE_KEY = 'korb_clicker_counter';
+  const clickArea = document.getElementById('clickArea');
+  const countEl = document.getElementById('count');
+  const ring = document.getElementById('ring');
+  const milestone = document.getElementById('milestone');
+  const msLabel = document.getElementById('msLabel');
+  const msValue = document.getElementById('msValue');
+  const statCount = document.getElementById('statCount');
+  const statCps = document.getElementById('statCps');
+  const statBest = document.getElementById('statBest');
+  const statStep = document.getElementById('statStep');
+  const statTotal = document.getElementById('statTotal');
+  const minusBtn = document.getElementById('minusBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const hapticBtn = document.getElementById('hapticBtn');
+
+  const saved = (() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  })();
+
+  let count = saved.count || 0;
+  let total = saved.total || 0;
+  let bestCps = saved.bestCps || 0;
+  let step = saved.step || 1;
+  let soundOn = saved.soundOn !== false;
+  let hapticOn = saved.hapticOn !== false;
+  const clickTimes = [];
+  let lastMilestone = saved.lastMilestone || 0;
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        count, total, bestCps, step, soundOn, hapticOn, lastMilestone
+      }));
+    } catch {}
+  }
+
+  // Audio
+  let audioCtx = null;
+  function audio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch { return null; }
+    }
+    return audioCtx;
+  }
+  function click() {
+    if (!soundOn) return;
+    const ctx = audio();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    // Pitch rises slightly with speed
+    const recent = clickTimes.filter(x => Date.now() - x < 1000).length;
+    const pitch = 600 + Math.min(recent * 20, 400);
+    osc.frequency.setValueAtTime(pitch, t);
+    osc.frequency.exponentialRampToValueAtTime(pitch * 0.6, t + 0.08);
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.1);
+  }
+  function milestoneSfx() {
+    if (!soundOn) return;
+    const ctx = audio();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    [0, 0.08, 0.16].forEach((d, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523 + i * 200, t + d);
+      g.gain.setValueAtTime(0.15, t + d);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.25);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(t + d);
+      osc.stop(t + d + 0.3);
+    });
+  }
+
+  function haptic(ms) {
+    if (hapticOn && navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  function render() {
+    countEl.textContent = count.toLocaleString();
+    statCount.textContent = count.toLocaleString();
+    statTotal.textContent = total.toLocaleString();
+    statBest.textContent = bestCps.toFixed(1);
+    statStep.textContent = '+' + step;
+  }
+
+  function updateCps() {
+    const now = Date.now();
+    while (clickTimes.length && now - clickTimes[0] > 1000) clickTimes.shift();
+    const cps = clickTimes.length;
+    statCps.textContent = cps.toFixed(1);
+    if (cps > bestCps) { bestCps = cps; statBest.textContent = bestCps.toFixed(1); }
+  }
+  setInterval(updateCps, 100);
+
+  function showFloat(x, y, text) {
+    const f = document.createElement('div');
+    f.className = 'float';
+    f.textContent = text;
+    f.style.left = x + 'px';
+    f.style.top = y + 'px';
+    document.getElementById('main').appendChild(f);
+    setTimeout(() => f.remove(), 900);
+  }
+
+  function particleBurst(x, y) {
+    const main = document.getElementById('main');
+    for (let i = 0; i < 6; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
+      const dist = 30 + Math.random() * 40;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      p.style.background = i % 2 ? 'var(--cyan)' : 'var(--orange)';
+      main.appendChild(p);
+      p.animate([
+        { transform: 'translate(0,0)', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 }
+      ], { duration: 600, easing: 'ease-out' });
+      setTimeout(() => p.remove(), 600);
+    }
+  }
+
+  function checkMilestone() {
+    const milestones = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+    for (const m of milestones) {
+      if (count >= m && lastMilestone < m) {
+        lastMilestone = m;
+        msLabel.textContent = 'MILESTONE REACHED';
+        msValue.textContent = m.toLocaleString();
+        milestone.classList.remove('show');
+        void milestone.offsetWidth;
+        milestone.classList.add('show');
+        milestoneSfx();
+        haptic([30, 40, 30, 40, 60]);
+        return;
+      }
+    }
+  }
+
+  function doClick(e) {
+    count += step;
+    total += step;
+    clickTimes.push(Date.now());
+
+    const rect = clickArea.getBoundingClientRect();
+    const mainRect = document.getElementById('main').getBoundingClientRect();
+    let px, py;
+    if (e && e.touches && e.touches[0]) {
+      px = e.touches[0].clientX - mainRect.left;
+      py = e.touches[0].clientY - mainRect.top;
+    } else if (e && e.clientX) {
+      px = e.clientX - mainRect.left;
+      py = e.clientY - mainRect.top;
+    } else {
+      px = rect.left - mainRect.left + rect.width / 2;
+      py = rect.top - mainRect.top + rect.height / 2;
+    }
+
+    showFloat(px, py, '+' + step);
+    particleBurst(px, py);
+
+    ring.classList.remove('pulse');
+    void ring.offsetWidth;
+    ring.classList.add('pulse');
+
+    countEl.classList.remove('bump');
+    void countEl.offsetWidth;
+    countEl.classList.add('bump');
+
+    clickArea.classList.add('pressed');
+    setTimeout(() => clickArea.classList.remove('pressed'), 80);
+
+    click();
+    haptic(8);
+    render();
+    checkMilestone();
+    save();
+  }
+
+  // Input handlers — use pointerdown for low latency, dedupe touch/mouse
+  let lastClickAt = 0;
+  function handle(e) {
+    const now = performance.now();
+    if (now - lastClickAt < 20) return; // debounce dupes only
+    lastClickAt = now;
+    doClick(e);
+    e.preventDefault();
+  }
+  clickArea.addEventListener('pointerdown', handle);
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      doClick();
+    } else if (e.code === 'Backspace') {
+      e.preventDefault();
+      undo();
+    }
+  });
+
+  function undo() {
+    if (count <= 0) return;
+    count = Math.max(0, count - step);
+    total = Math.max(0, total - step);
+    haptic(15);
+    render();
+    save();
+  }
+  minusBtn.addEventListener('click', undo);
+
+  resetBtn.addEventListener('click', () => {
+    if (count === 0) return;
+    if (!confirm('Reset current count to 0? (Lifetime total and best CPS preserved.)')) return;
+    count = 0;
+    lastMilestone = 0;
+    haptic(50);
+    render();
+    save();
+  });
+
+  document.querySelectorAll('[data-step]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      step = parseInt(btn.dataset.step, 10);
+      document.querySelectorAll('[data-step]').forEach(b => b.classList.toggle('active', b === btn));
+      render();
+      save();
+    });
+    if (parseInt(btn.dataset.step, 10) === step) btn.classList.add('active');
+  });
+
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '♪ ON' : '♪ OFF';
+    soundBtn.classList.toggle('active', soundOn);
+    save();
+  });
+  if (soundOn) soundBtn.classList.add('active');
+
+  hapticBtn.addEventListener('click', () => {
+    hapticOn = !hapticOn;
+    hapticBtn.textContent = hapticOn ? '▓ ON' : '▓ OFF';
+    hapticBtn.classList.toggle('active', hapticOn);
+    save();
+  });
+  if (hapticOn) hapticBtn.classList.add('active');
+
+  render();
+})();
+</script>
+</body>
+</html>
