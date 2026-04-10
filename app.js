@@ -260,6 +260,7 @@ const SECTIONS = {
       { name: 'Mandala Maker', file: './tools/misc/mandala-maker.html' },
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
       { name: "Mary Kay's Recipes", file: './tools/misc/mary-kays-recipes.html' },
+      { name: 'Meal Plan Architect', file: './tools/misc/meal-plan-architect.html' },
       { name: 'Memory Match', file: './tools/misc/memory-match.html' },
       { name: 'Metronome', file: './tools/misc/metronome.html' },
       { name: 'Mexican Grocery Guide', file: './tools/misc/mexican-grocery-guide.html' },
