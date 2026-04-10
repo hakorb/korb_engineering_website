@@ -65,8 +65,8 @@ button{-webkit-touch-callout:none;user-select:none;}
 .header .sub{font-size:.9em;color:var(--muted);margin-top:3px;font-weight:400;}
 .header-controls{position:absolute;top:8px;right:10px;display:flex;gap:5px;}
 .header-controls button{background:rgba(201,168,76,.15);color:var(--gold);border-radius:8px;
-  width:38px;height:38px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  min-width:48px;min-height:48px;}
+  padding:0 10px;height:48px;font-size:.82em;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  min-width:48px;min-height:48px;letter-spacing:.3px;}
 .header-controls button:active{background:var(--gold);color:#2c1215;}
 .header-controls button.active{background:var(--gold);color:#2c1215;}
 .change-course-btn{position:absolute;top:8px;left:10px;background:rgba(201,168,76,.15);
@@ -255,12 +255,14 @@ button{-webkit-touch-callout:none;user-select:none;}
 .golfer-active-label strong{color:var(--gold);}
 
 /* --- CLUB DISTANCE EDITOR --- */
-.club-editor{font-size:.85em;}
-.club-editor-row{display:flex;align-items:center;gap:6px;margin:4px 0;}
-.club-editor-row label{min-width:85px;font-weight:600;}
-.club-editor-row input{width:70px;height:38px;border-radius:6px;border:1.5px solid var(--border);
-  padding:0 8px;text-align:center;background:var(--panel);color:var(--text);font-size:1em;}
-.club-editor-row span{font-size:.8em;color:var(--muted);}
+.club-editor{font-size:1em;margin-top:8px;}
+.club-editor-row{display:flex;align-items:center;gap:10px;margin:8px 0;padding:4px 0;}
+.club-editor-row label{min-width:110px;font-weight:700;font-size:1.05em;}
+.club-editor-row input{width:96px;height:52px;border-radius:10px;border:2px solid var(--border);
+  padding:0 10px;text-align:center;background:var(--panel);color:var(--text);font-size:1.2em;font-weight:700;}
+.club-editor-row input:focus{border-color:var(--gold);}
+.club-editor-row span{font-size:.95em;color:var(--muted);font-weight:600;}
+.club-editor-help{font-size:.9em;color:var(--muted);margin:6px 0 10px;line-height:1.5;}
 
 /* --- GPS PANEL --- */
 .gps-panel{background:var(--gold-light);border:1.5px solid var(--gold-dim);border-radius:var(--radius);
@@ -332,8 +334,8 @@ select option{background:var(--panel);color:var(--text);}
     <h1 id="headerCourseName">War Admiral</h1>
     <div class="sub" id="headerCourseSub">GlenRiddle Golf Club</div>
     <div class="header-controls">
-      <button onclick="toggleContrast()" title="High Contrast" id="btnContrast">&#9681;</button>
-      <button onclick="toggleXL()" title="Large Text" id="btnXL">A+</button>
+      <button onclick="toggleContrast()" title="High Contrast Mode" id="btnContrast">CONTRAST</button>
+      <button onclick="toggleXL()" title="Larger Text" id="btnXL">BIG TEXT</button>
     </div>
   </div>
 
@@ -391,7 +393,8 @@ select option{background:var(--panel);color:var(--text);}
       <h2>&#127943; Club Calculator</h2>
       <div class="calc-row">
         <label>Distance (yds)</label>
-        <input type="number" id="calcDist" placeholder="150" min="0" max="700" inputmode="numeric"/>
+        <input type="number" id="calcDist" placeholder="150" min="0" max="700" inputmode="numeric"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();calcClub();}"/>
       </div>
       <div class="calc-row">
         <label>Elevation</label>
@@ -423,12 +426,18 @@ select option{background:var(--panel);color:var(--text);}
         </select>
       </div>
       <div class="round-actions">
-        <button class="btn-primary" onclick="calcClub()">Calculate</button>
+        <button class="btn-primary" onclick="calcClub()" style="font-size:1.15em;">&#9971; Tell Me My Club</button>
+      </div>
+      <div class="calc-help" style="font-size:.92em;color:var(--muted);line-height:1.55;margin-top:6px;text-align:center;">
+        Type the distance to the flag, pick your conditions,<br>then tap the button above.
       </div>
       <div class="calc-result hidden" id="calcResult">
+        <div style="font-size:.85em;opacity:.75;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">Plays Like</div>
         <div class="dist" id="calcAdjDist"></div>
+        <div style="font-size:.9em;opacity:.75;margin:6px 0 2px;">Recommended Club</div>
         <div class="club" id="calcClubName"></div>
         <div class="detail" id="calcDetail"></div>
+        <div class="detail" id="calcReason" style="margin-top:6px;font-weight:600;"></div>
       </div>
     </div>
     <div class="card">
@@ -436,6 +445,10 @@ select option{background:var(--panel);color:var(--text);}
       <div id="golferProfiles"></div>
       <div id="golferForm" class="hidden"></div>
       <div class="golfer-active-label" id="golferActiveLabel"></div>
+      <div class="club-editor-help">
+        Set each club to the distance you <em>actually</em> hit it (not the best you ever did).
+        Tap the number, type, and the change saves automatically.
+      </div>
       <div class="club-editor" id="clubEditor"></div>
       <div class="round-actions" style="margin-top:8px;">
         <button class="btn-secondary" onclick="resetClubs()">Reset to Defaults</button>
@@ -1273,21 +1286,39 @@ function updateMarkBtn(){
   }
 }
 
+// Pick the club whose "carry" distance is the CLOSEST match to the target.
+// Prior version had a +10 yd tolerance on a descending sort which made it
+// recommend one club too many (e.g. 160 yd shot → 6-iron instead of 7-iron
+// because 170 <= 170 matched first). This version finds the club with the
+// smallest |club.dist - target|, ties broken by the LONGER club (classic
+// caddy advice: "one more club never killed anybody").
 function recommendClub(dist){
-  const sorted = [...clubs].sort((a,b)=>b.dist-a.dist);
-  for(const c of sorted){
-    if(c.dist <= dist + 10) return c;
+  if(!clubs || !clubs.length) return null;
+  let best = null;
+  let bestDiff = Infinity;
+  for(const c of clubs){
+    const diff = Math.abs(c.dist - dist);
+    if(diff < bestDiff || (diff === bestDiff && best && c.dist > best.dist)){
+      bestDiff = diff;
+      best = c;
+    }
   }
-  return sorted[sorted.length-1];
+  return best;
 }
 
 /* ============================= CLUB CALCULATOR ============================= */
 function calcClub(){
-  let dist = parseFloat(document.getElementById('calcDist').value);
-  if(!dist || dist<=0) return;
-  const elev = parseInt(document.getElementById('calcElev').value);
-  const wind = parseInt(document.getElementById('calcWind').value);
-  const lie = parseInt(document.getElementById('calcLie').value);
+  const distEl = document.getElementById('calcDist');
+  let dist = parseFloat(distEl.value);
+  if(!dist || dist<=0){
+    distEl.focus();
+    distEl.style.borderColor = 'var(--red)';
+    setTimeout(()=>{ distEl.style.borderColor = ''; }, 1500);
+    return;
+  }
+  const elev = parseInt(document.getElementById('calcElev').value) || 0;
+  const wind = parseInt(document.getElementById('calcWind').value) || 0;
+  const lie = parseInt(document.getElementById('calcLie').value) || 0;
 
   let adj = dist;
   adj += dist * (elev * 0.05);
@@ -1299,11 +1330,30 @@ function calcClub(){
   document.getElementById('calcAdjDist').textContent = adj + ' yds';
   const golferCalcTag = activeGolferId ? ' (' + golferDisplayName(golferProfiles.find(p=>p.id===activeGolferId)) + "'s bag)" : '';
   document.getElementById('calcClubName').textContent = club ? club.name + golferCalcTag : 'Beyond range';
+
+  // Human-readable adjustment summary
   let details = [];
-  if(elev!==0) details.push(elev>0?'Uphill':'Downhill');
-  if(wind!==0) details.push(wind>0?'Into wind':'Helping wind');
-  if(lie!==0) details.push(lie>0?'Rough':'Tee');
-  document.getElementById('calcDetail').textContent = details.length ? 'Adjusted for: '+details.join(', ') : 'No adjustments';
+  if(elev!==0) details.push((elev>0?'uphill':'downhill') + (Math.abs(elev)===2?' (steep)':''));
+  if(wind!==0) details.push((wind>0?'into wind':'helping wind') + (Math.abs(wind)===2?' (strong)':''));
+  if(lie!==0) details.push(lie>0?(Math.abs(lie)===2?'deep rough':'rough'):'tee');
+  document.getElementById('calcDetail').textContent = details.length ? 'Adjusted for: '+details.join(', ') : 'No adjustments — fairway, calm, level';
+
+  // Plain-English reasoning line
+  let reason = '';
+  if(club){
+    const diff = adj - club.dist;
+    if(Math.abs(diff) <= 3){
+      reason = 'Stock ' + club.name + '. Smooth swing.';
+    } else if(diff > 0){
+      reason = 'A little more than stock — swing firm, or go up half a club.';
+    } else {
+      reason = 'A touch less than stock — swing easy, or choke down.';
+    }
+    if(wind>0) reason += ' Extra club helps hold its line into the wind.';
+  } else {
+    reason = 'Out of range for your bag. Lay up and wedge it close.';
+  }
+  document.getElementById('calcReason').textContent = reason;
   document.getElementById('calcResult').classList.remove('hidden');
 }
 
@@ -1314,8 +1364,9 @@ function buildClubEditor(){
   clubs.forEach((c,i) => {
     html += `<div class="club-editor-row">
       <label>${c.name}</label>
-      <input type="number" value="${c.dist}" inputmode="numeric" onchange="updateClubDist(${i},this.value)"/>
-      <span>yds</span>
+      <input type="number" value="${c.dist}" inputmode="numeric" min="0" max="400"
+        onchange="updateClubDist(${i},this.value)" oninput="updateClubDist(${i},this.value)"/>
+      <span>yards</span>
     </div>`;
   });
   document.getElementById('clubEditor').innerHTML = html;
