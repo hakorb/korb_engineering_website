@@ -223,6 +223,7 @@ const SECTIONS = {
       { name: 'Clock & Stopwatch', file: './tools/misc/clock-stopwatch.html' },
       { name: 'Color Palette', file: './tools/misc/color-palette.html' },
       { name: 'Connect Four', file: './tools/misc/connect-four.html' },
+      { name: 'Copycat Kitchen', file: './tools/misc/copycat-kitchen.html' },
       { name: 'Crossword', file: './tools/misc/crossword.html' },
       { name: 'Dev Toolkit', file: './tools/misc/dev-toolkit.html' },
       { name: 'DFW Events & Deals', file: './tools/misc/dfw-events.html' },
