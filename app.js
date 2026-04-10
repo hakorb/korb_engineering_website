@@ -184,6 +184,7 @@ const SECTIONS = {
     tools: [
       { name: 'Email Client', file: './tools/hk/email-client.html' },
       { name: 'Family Coordination', file: './tools/hk/family-coordination.html' },
+      { name: "Kyle's Train Set", file: './tools/hk/kyles-train-set.html' },
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
@@ -230,6 +231,7 @@ const SECTIONS = {
       { name: 'Guitar Tuner', file: './tools/misc/guitar-tuner.html' },
       { name: 'Habit Tracker', file: './tools/misc/habit-tracker.html' },
       { name: "Harrison's Blog", file: './tools/misc/harrisons-blog.html' },
+      { name: "Hendryx's Social Skills", file: './tools/misc/hendryxs-social-skills.html' },
       { name: 'Home Improvements Guide', file: './tools/misc/home-improvements.html' },
       { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
