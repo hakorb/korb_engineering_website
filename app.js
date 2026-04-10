@@ -489,9 +489,30 @@ function renderHome() {
 
   ensureStatusVisible();
 
+  // Live tool count across all non-locked sections (for the pitch line)
+  let homeToolCount = 0;
+  Object.values(SECTIONS).forEach((sec) => {
+    if (!sec || sec.locked) return;
+    (sec.tools || []).forEach((t) => {
+      if (t.type === 'folder') { if (!t.locked) homeToolCount += (t.tools || []).length; }
+      else homeToolCount++;
+    });
+  });
+
   main.innerHTML = `
     <section class="landing">
       <h1 class="sr-only">Korb Engineering — Free Aviation &amp; Civil Engineering Tools</h1>
+      <div class="home-pitch reveal" aria-label="About this site">
+        <p class="home-pitch-line">
+          <span class="home-pitch-count">${homeToolCount}+</span>
+          self-contained, mobile-first tools.
+          Built by one engineer, in the browser, with no signups and no tracking.
+        </p>
+        <p class="home-pitch-sub">
+          Aviation &amp; civil work I actually use, productivity tools I actually open,
+          and a few gifts for family along the way.
+        </p>
+      </div>
       <div class="home-toolbar">
         <div class="search-bar-wrap">
           <div class="search-bar">
