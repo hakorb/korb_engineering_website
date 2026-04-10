@@ -206,6 +206,7 @@ const SECTIONS = {
       { name: '2001: A D&D Odyssey', file: './tools/misc/dnd-odyssey.html' },
       { name: '2048', file: './tools/misc/2048.html' },
       { name: '2D to 3D Generator', file: './tools/misc/2d-to-3d-generator.html' },
+      { name: 'Age of Castles', file: './tools/misc/age-of-castles.html' },
       { name: '3D Print Library', file: './tools/misc/3d-print-library.html' },
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "AJ's Synthesizer", file: './tools/misc/ajs-synthesizer.html' },
