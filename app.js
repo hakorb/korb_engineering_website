@@ -440,11 +440,12 @@ function ensureStatusVisible() {
 }
 
 // Section search bar HTML template
-const SECTION_SEARCH_HTML = `<div class="section-search-wrap">
+const SECTION_SEARCH_HTML = `<div class="section-search-wrap" role="search">
+  <label for="sectionSearch" class="sr-only">Search tools in this folder</label>
   <div class="section-search-bar">
-    <span class="search-icon">${SEARCH_SVG}</span>
-    <input type="text" class="section-search-input" id="sectionSearch" placeholder="Search this folder..." autocomplete="off" spellcheck="false" inputmode="search">
-    <button class="search-clear" id="sectionSearchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+    <span class="search-icon" aria-hidden="true">${SEARCH_SVG}</span>
+    <input type="text" class="section-search-input" id="sectionSearch" placeholder="Search this folder..." autocomplete="off" spellcheck="false" inputmode="search" aria-describedby="sectionSearchEmpty">
+    <button type="button" class="search-clear" id="sectionSearchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
   </div>
 </div>`;
 
@@ -461,7 +462,9 @@ function initSectionSearch() {
     main.querySelectorAll('.tool-grid-card').forEach(card => {
       const name = card.querySelector('.tool-grid-name').textContent.toLowerCase();
       const match = !q || name.includes(q) || fuzzyMatch(q, name) > 0;
-      card.style.display = match ? '' : 'none';
+      // Hide the <li> wrapper (or the card itself if it's still a direct child)
+      const host = card.closest('.tool-grid-cell') || card;
+      host.style.display = match ? '' : 'none';
       if (match) visibleCount++;
     });
     empty.style.display = visibleCount === 0 ? 'block' : 'none';
@@ -531,21 +534,22 @@ function renderHome() {
         </div>
         <div class="home-recent-strip" id="homeRecentStrip"></div>
       </div>
-      <div class="home-toolbar">
+      <div class="home-toolbar" role="search">
         <div class="search-bar-wrap">
+          <label for="toolSearch" class="sr-only">Search all tools</label>
           <div class="search-bar">
-            <span class="search-icon">${SEARCH_SVG}</span>
-            <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false" inputmode="search">
-            <button class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
+            <span class="search-icon" aria-hidden="true">${SEARCH_SVG}</span>
+            <input type="text" class="search-input" id="toolSearch" placeholder="Search tools..." autocomplete="off" spellcheck="false" inputmode="search" aria-controls="searchResults" aria-autocomplete="list">
+            <button type="button" class="search-clear" id="searchClear" aria-label="Clear search" style="display:none">${CLEAR_SVG}</button>
           </div>
-          <div class="search-results" id="searchResults"></div>
+          <div class="search-results" id="searchResults" role="listbox" aria-label="Search results"></div>
         </div>
         <a href="#repository" class="repo-btn" aria-label="Open Tool Repository">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/><path d="M8 8h6M8 12h8M8 16h5"/></svg>
           <span>Tool Repository</span>
         </a>
       </div>
-      <div class="category-grid" id="categoryGrid">${cards}</div>
+      <nav class="category-grid" id="categoryGrid" aria-label="Tool categories">${cards}</nav>
       <div class="landing-about">
         <a href="#about" class="about-btn">About</a>
       </div>
@@ -1074,7 +1078,7 @@ function renderRepository() {
   main.innerHTML = `
     <section class="repository-page">
       <div class="section-hero">
-        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+        <a href="#" class="back-link reveal" aria-label="Back to home">${BACK_SVG}</a>
       </div>
       <div class="repo-header reveal">
         <h1 class="repo-title">Tool Repository</h1>
@@ -1143,7 +1147,7 @@ function renderSection(key) {
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
-        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+        <a href="#" class="back-link reveal" aria-label="Back to home">${BACK_SVG}</a>
       </div>
       <div class="empty-section reveal">
         <div class="empty-icon">${sec.icon}</div>
@@ -1168,31 +1172,38 @@ function renderToolGrid(key, sec) {
   const lockIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
   const folderIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>`;
 
+  const total = sec.tools.length;
   const cards = sec.tools.map((tool, i) => {
     const isFolder = tool.type === 'folder';
     const icon = isFolder ? (tool.locked ? lockIcon : folderIcon) : ARROW_SVG;
     const extraClass = isFolder ? ' tool-folder-card' : '';
+    const safeName = escapeHtml(tool.name);
+    const roleLabel = isFolder ? (tool.locked ? 'locked folder' : 'folder') : 'tool';
+    const ariaLabel = escapeHtml(`${tool.name}, ${roleLabel}, ${i + 1} of ${total}`);
     return `
-    <a href="#" class="tool-grid-card${extraClass} reveal" data-section="${key}" data-tool-index="${i}">
-      <span class="tool-grid-name">${tool.name}</span>
-      ${icon}
-    </a>
+    <li role="listitem" class="tool-grid-cell">
+      <a href="#" class="tool-grid-card${extraClass} reveal" data-section="${escapeHtml(key)}" data-tool-index="${i}" aria-label="${ariaLabel}">
+        <span class="tool-grid-name">${safeName}</span>
+        ${icon}
+      </a>
+    </li>
   `;
   }).join('');
 
   const sectionLabels = { aviation: 'Aviation', civil: 'Civil Engineering', misc: 'Miscellaneous', hk: 'HK' };
   const folderTitle = sectionLabels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+  const safeTitle = escapeHtml(folderTitle);
 
   main.innerHTML = `
-    <section class="section-page">
+    <section class="section-page" aria-labelledby="sectionFolderTitle">
       <div class="section-hero">
-        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+        <a href="#" class="back-link reveal" aria-label="Back to home">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
-        <div class="section-folder-title">${folderTitle}</div>
+        <h2 class="section-folder-title" id="sectionFolderTitle">${safeTitle}</h2>
         ${SECTION_SEARCH_HTML}
-        <div class="tool-grid">${cards}</div>
-        <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>
+        <ul class="tool-grid" role="list" aria-label="${safeTitle} tools">${cards}</ul>
+        <div class="section-search-empty" id="sectionSearchEmpty" role="status" aria-live="polite" style="display:none">No tools match your search</div>
       </div>
     </section>
   `;
@@ -1233,7 +1244,7 @@ function renderFolderPasswordGate(sectionKey, sec, folder) {
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
-        <a href="#" class="back-link" id="folderGateBack">${BACK_SVG}</a>
+        <a href="#" class="back-link" id="folderGateBack" aria-label="Back to section">${BACK_SVG}</a>
       </div>
       <div class="password-gate">
         <div class="gate-box">
@@ -1280,23 +1291,32 @@ function renderFolderPasswordGate(sectionKey, sec, folder) {
 
 // --- Subfolder tool grid ---
 function renderSubfolderGrid(sectionKey, sec, folder) {
-  const cards = folder.tools.map((tool, i) => `
-    <a href="#" class="tool-grid-card reveal" data-folder-tool-index="${i}">
-      <span class="tool-grid-name">${tool.name}</span>
-      ${ARROW_SVG}
-    </a>
-  `).join('');
+  const total = folder.tools.length;
+  const folderTitle = folder.name || 'Subfolder';
+  const safeTitle = escapeHtml(folderTitle);
+  const cards = folder.tools.map((tool, i) => {
+    const safeName = escapeHtml(tool.name);
+    const ariaLabel = escapeHtml(`${tool.name}, tool, ${i + 1} of ${total}`);
+    return `
+    <li role="listitem" class="tool-grid-cell">
+      <a href="#" class="tool-grid-card reveal" data-folder-tool-index="${i}" aria-label="${ariaLabel}">
+        <span class="tool-grid-name">${safeName}</span>
+        ${ARROW_SVG}
+      </a>
+    </li>
+  `;
+  }).join('');
 
   main.innerHTML = `
-    <section class="section-page">
+    <section class="section-page" aria-labelledby="subfolderTitle">
       <div class="section-hero">
-        <a href="#" class="back-link reveal" id="subfolderBack">${BACK_SVG}</a>
+        <a href="#" class="back-link reveal" id="subfolderBack" aria-label="Back to section">${BACK_SVG}</a>
       </div>
       <div class="tool-grid-container">
-        <div class="section-folder-title">${folder.name || 'Subfolder'}</div>
+        <h2 class="section-folder-title" id="subfolderTitle">${safeTitle}</h2>
         ${SECTION_SEARCH_HTML}
-        <div class="tool-grid">${cards}</div>
-        <div class="section-search-empty" id="sectionSearchEmpty" style="display:none">No tools match your search</div>
+        <ul class="tool-grid" role="list" aria-label="${safeTitle} tools">${cards}</ul>
+        <div class="section-search-empty" id="sectionSearchEmpty" role="status" aria-live="polite" style="display:none">No tools match your search</div>
       </div>
     </section>
   `;
@@ -1413,7 +1433,7 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, sectionKey)}
-      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" aria-label="${safeName} tool" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
 
@@ -1452,7 +1472,7 @@ function renderToolEmbed(key, sec, tool) {
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, key)}
-      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" aria-label="${safeName} tool" loading="lazy" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
 
@@ -1494,7 +1514,7 @@ function renderAboutPage() {
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
-        <a href="#" class="back-link reveal">${BACK_SVG}</a>
+        <a href="#" class="back-link reveal" aria-label="Back to home">${BACK_SVG}</a>
       </div>
       <div class="about-content reveal">
         <h1 class="about-heading" style="display:flex;justify-content:center;"><span style="width:80px;height:100px;color:var(--vfd-cyan);">${K_LOGO_SVG}</span></h1>
@@ -1590,7 +1610,7 @@ function renderPasswordGate(key, sec) {
   main.innerHTML = `
     <section class="section-page">
       <div class="section-hero">
-        <a href="#" class="back-link" id="gateBack">${BACK_SVG}</a>
+        <a href="#" class="back-link" id="gateBack" aria-label="Back to home">${BACK_SVG}</a>
       </div>
       <div class="password-gate">
         <div class="gate-box">
