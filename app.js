@@ -900,7 +900,7 @@ const TOOL_DESCRIPTIONS = {
   'Markdown Editor': 'Split-pane markdown editor with live preview, outline, and HTML export.',
   "Mary Kay's Recipes": 'Curated family recipe collection with handwritten-style cards and prep notes.',
   'Meal Plan Architect': 'Plan weekly meals around nutrition goals and generate a consolidated grocery list.',
-  'Mechanical Football': 'Retro handheld LED football simulator: red dash field, run or pass, field goals, four quarters.',
+  'Mechanical Football': 'Tudor-style vibrating-field electric football: position and rotate bases, flip the switch, and watch the physics.',
   'Memory Match': 'Flip cards to find matching pairs with themed decks and a move counter.',
   'Metronome': 'Practice tempo tool with tap, subdivisions, accent patterns, and setlists.',
   'Mexican Grocery Guide': 'Reference guide to ingredients and brands found in Mexican grocery stores.',
