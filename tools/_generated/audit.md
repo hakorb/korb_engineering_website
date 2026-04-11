@@ -1,11 +1,11 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-11T02:11:19.861Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-11T16:33:39.932Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **249**
-- Clean (no findings): **103**
+- Total tools scanned: **250**
+- Clean (no findings): **104**
 - With findings:       **146**
 
 ### Findings by tag
@@ -249,7 +249,7 @@ _Generated 2026-04-11T02:11:19.861Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (59 of 117 with findings)
+## misc (59 of 118 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
