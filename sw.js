@@ -14,9 +14,9 @@
    Bump CACHE_VERSION whenever the shell changes significantly.
    ============================================================ */
 
-// Bumped to v2 after SECURITY-REVIEW M5 (LRU cap, https guard, audit sweep).
-const CACHE_VERSION = 'korb-shell-v2';
-const TOOL_CACHE    = 'korb-tools-v2';
+// v3: bust cached shell CSS to fix skip-link visibility regression.
+const CACHE_VERSION = 'korb-shell-v3';
+const TOOL_CACHE    = 'korb-tools-v3';
 
 // LRU cap on the tool cache. 228 tools * a few hundred KB each would blow
 // past the browser's per-origin quota on mobile. Keep the 30 most recently
