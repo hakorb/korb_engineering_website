@@ -9,6 +9,17 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// --- Security: HTML escape for anything interpolated into template strings
+// that will become innerHTML. Used for tool.name / tool.file in the iframe
+// embed paths. SECTIONS is hand-maintained so this is defense-in-depth, but
+// the auto-generated subfolder data and future dynamic sources make this
+// worth having. SECURITY-REVIEW M3. ---
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 // --- Header K logo SVG (reused for Civil Engineering tile) ---
 // Charlemagne / Carolingian inspired K with serif details
 const K_LOGO_SVG = `<svg viewBox="0 0 85 100" fill="currentColor" aria-hidden="true">
@@ -41,7 +52,7 @@ const SECTIONS = {
       { name: 'ADA Compliance Checker', file: './tools/aviation/ada-compliance-checker.html' },
       { name: 'AI Meeting Note Taker', file: './tools/aviation/ai-meeting-note-taker.html' },
       { name: 'Aircraft Maintenance Calculator', file: './tools/aviation/aircraft-maintenance-calculator.html' },
-      { name: 'Airfield Atlas', file: './tools/aviation/airnav-explorer.html' },
+      { name: 'Airfield Info', file: './tools/aviation/airnav-explorer.html' },
       { name: "Airport Manager's Friend", file: './tools/aviation/airport-managers-friend.html' },
       { name: 'ALP Guidance', file: './tools/aviation/alp-tracker.html' },
       { name: 'Altitude Calculator', file: './tools/aviation/altitude-calculator.html' },
@@ -692,7 +703,7 @@ const TOOL_DESCRIPTIONS = {
   'ADA Compliance Checker': 'Audit terminal and facility layouts against ADA clearance, slope, and signage requirements.',
   'AI Meeting Note Taker': 'Record and transcribe meetings, then summarize decisions, action items, and owners.',
   'Aircraft Maintenance Calculator': 'Track hour-based and cycle-based inspection intervals and project next maintenance due dates.',
-  'Airfield Atlas': 'Search US airports for frequencies, runways, fuel prices, and nearby navaids.',
+  'Airfield Info': 'Search US airports for frequencies, runways, fuel prices, and nearby navaids.',
   "Airport Manager's Friend": 'Daily dashboard for airport managers covering NOTAMs, tenant logs, fuel, and field inspections.',
   'ALP Guidance': 'Walk through FAA Airport Layout Plan update requirements with sheet-by-sheet guidance.',
   'Altitude Calculator': 'Compute pressure, density, and true altitude from temperature, altimeter setting, and field elevation.',
@@ -1386,6 +1397,15 @@ function initInfoPanel() {
 
 // --- Subfolder tool embed (back goes to subfolder, not section) ---
 function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
+  // NOTE on sandbox: the iframe below carries both allow-scripts AND
+  // allow-same-origin, which per the HTML spec means sandbox provides NO
+  // origin isolation — the framed tool runs with full same-origin access
+  // to the parent shell. This is intentional: the tools read/write their
+  // own localStorage under the korb_ prefix, need File API, etc., and we
+  // own every tool in the repo. The sandbox attribute here is effectively
+  // a layout/UX hint, not a security boundary. See SECURITY-REVIEW M1.
+  const safeFile = escapeHtml(tool.file);
+  const safeName = escapeHtml(tool.name);
   main.innerHTML = `
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
@@ -1393,7 +1413,7 @@ function renderSubfolderToolEmbed(sectionKey, sec, folder, tool) {
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, sectionKey)}
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
 
@@ -1420,6 +1440,10 @@ const HELIX_LOADER_HTML = `<div class="helix-loader" id="helixLoader">
 function renderToolEmbed(key, sec, tool) {
   const hs = document.getElementById('homeStatus');
   if (hs) hs.style.display = 'none';
+  // sandbox note: see renderSubfolderToolEmbed above. allow-scripts +
+  // allow-same-origin means this is NOT a security boundary.
+  const safeFile = escapeHtml(tool.file);
+  const safeName = escapeHtml(tool.name);
   main.innerHTML = `
     <section class="section-page tool-embed-page">
       <div class="tool-topbar">
@@ -1428,7 +1452,7 @@ function renderToolEmbed(key, sec, tool) {
         <button type="button" class="info-btn" aria-label="Operating Instructions">${INFO_SVG}</button>
       </div>
       ${getToolInstructionsHTML(tool, key)}
-      <iframe class="tool-iframe" src="${tool.file}" title="${tool.name}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
+      <iframe class="tool-iframe" src="${safeFile}" title="${safeName}" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" allow="geolocation; microphone; camera; clipboard-write; display-capture" allowfullscreen></iframe>
     </section>
   `;
 

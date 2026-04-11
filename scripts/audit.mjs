@@ -19,6 +19,7 @@
                     (cdnjs, unpkg, jsdelivr, googleapis — fonts are OK)
      - [storage]    uses localStorage without a korb_ prefix
      - [size]       file larger than 500 KB
+     - [xss]        .innerHTML write near localStorage/JSON.parse
 
    Usage:
      node scripts/audit.mjs
@@ -156,6 +157,33 @@ function checkTool(rel, html, bytes) {
   // --- size ---
   if (bytes > 500 * 1024) {
     findings.push({ tag: 'size', msg: 'file > 500 KB (' + (bytes / 1024).toFixed(0) + ' KB)' });
+  }
+
+  // --- xss: innerHTML writes fed by localStorage / JSON.parse ---
+  // Not a perfect check — it's a heuristic that looks inside each inline
+  // script block for any line that assigns to innerHTML AND references
+  // localStorage or JSON.parse within ~200 chars of that assignment. It
+  // catches the common "load saved state → dump into the DOM" pattern
+  // without chasing values across function boundaries. Follow up with
+  // a human read before rewriting anything. SECURITY-REVIEW L1.
+  const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((m) => m[1]);
+  let xssHit = false;
+  for (const s of scripts) {
+    const innerHits = [...s.matchAll(/\.innerHTML\s*(?:=|\+=)/g)];
+    for (const h of innerHits) {
+      const start = Math.max(0, h.index - 200);
+      const end   = Math.min(s.length, h.index + 200);
+      const window_ = s.slice(start, end);
+      if (/localStorage|JSON\.parse/.test(window_)) { xssHit = true; break; }
+    }
+    if (xssHit) break;
+  }
+  if (xssHit) {
+    findings.push({
+      tag: 'xss',
+      msg: 'innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent'
+    });
   }
 
   return findings;

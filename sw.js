@@ -14,8 +14,28 @@
    Bump CACHE_VERSION whenever the shell changes significantly.
    ============================================================ */
 
-const CACHE_VERSION = 'korb-shell-v1';
-const TOOL_CACHE    = 'korb-tools-v1';
+// Bumped to v2 after SECURITY-REVIEW M5 (LRU cap, https guard, audit sweep).
+const CACHE_VERSION = 'korb-shell-v2';
+const TOOL_CACHE    = 'korb-tools-v2';
+
+// LRU cap on the tool cache. 228 tools * a few hundred KB each would blow
+// past the browser's per-origin quota on mobile. Keep the 30 most recently
+// opened tools; the rest fall through to network.
+const TOOL_CACHE_MAX = 30;
+
+async function trimCache(cacheName, maxEntries) {
+  try {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    if (keys.length <= maxEntries) return;
+    // Oldest first (FIFO approximation — no per-entry timestamp in the
+    // Cache API, but Request order is insertion order in practice).
+    const excess = keys.length - maxEntries;
+    for (let i = 0; i < excess; i++) {
+      await cache.delete(keys[i]);
+    }
+  } catch (e) { /* ignore */ }
+}
 
 const SHELL_ASSETS = [
   './',
@@ -55,6 +75,11 @@ self.addEventListener('fetch', (event) => {
   // fonts, APIs, or analytics even accidentally.
   if (url.origin !== self.location.origin) return;
 
+  // Only cache over https (or localhost for dev). Caching plaintext http
+  // responses would let a network-level attacker poison the shell.
+  const isSecure = url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (!isSecure) return;
+
   const isToolHtml = url.pathname.includes('/tools/') && url.pathname.endsWith('.html');
   const isShellAsset = SHELL_ASSETS.some((p) => {
     const full = new URL(p, self.location.origin).pathname;
@@ -79,7 +104,9 @@ self.addEventListener('fetch', (event) => {
       caches.open(TOOL_CACHE).then((cache) =>
         cache.match(req).then((hit) => {
           const fetchPromise = fetch(req).then((res) => {
-            if (res && res.status === 200) cache.put(req, res.clone());
+            if (res && res.status === 200) {
+              cache.put(req, res.clone()).then(() => trimCache(TOOL_CACHE, TOOL_CACHE_MAX));
+            }
             return res;
           }).catch(() => hit);
           return hit || fetchPromise;

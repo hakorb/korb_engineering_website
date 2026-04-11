@@ -32,6 +32,13 @@ const SECTIONS  = join(ROOT, 'tools', '_generated', 'sections.json');
 const OUT_DIR   = join(ROOT, 't');
 const SITE      = 'https://korb.engineering';
 
+// Categories that must NEVER appear in /t/ stubs or sitemap.xml. The hk
+// section is gated by a client-side password in app.js; emitting its
+// URLs to public SEO indexes would advertise paths the static host can't
+// actually protect. The build-sections.mjs script already excludes them
+// from sections.json, so this is belt-and-suspenders. See SECURITY-REVIEW H1.
+const PRIVATE_CATEGORIES = new Set(['hk']);
+
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -145,6 +152,7 @@ async function main() {
   let wrote = 0;
 
   for (const [category, tools] of Object.entries(data.categories || {})) {
+    if (PRIVATE_CATEGORIES.has(category)) continue;
     const catDir = join(OUT_DIR, category);
     await mkdir(catDir, { recursive: true });
     for (const t of tools) {

@@ -28,7 +28,16 @@ const ROOT       = join(__dirname, '..');
 const TOOLS_DIR  = join(ROOT, 'tools');
 const OUT_DIR    = join(TOOLS_DIR, '_generated');
 const OUT_FILE   = join(OUT_DIR, 'sections.json');
-const CATEGORIES = ['aviation', 'civil', 'misc', 'hk'];
+
+// Public categories — emitted to sections.json, sitemap, and SEO stubs.
+// HK is intentionally excluded: it's a personal section gated behind a
+// client-side password in app.js, and emitting its tool URLs to public
+// indexes (sections.json, sitemap.xml, /t/) would advertise paths that
+// the GitHub Pages static host cannot actually protect. The hk SECTIONS
+// entry in app.js still works at runtime; it's just no longer publicly
+// enumerable. See SECURITY-REVIEW notes (H1).
+const CATEGORIES = ['aviation', 'civil', 'misc'];
+const PRIVATE_CATEGORIES = ['hk'];
 
 // --- Overrides & cleanup ---------------------------------------------
 // Some tool files have generic or misleading <title>s. Map filename →

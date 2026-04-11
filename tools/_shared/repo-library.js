@@ -32,15 +32,31 @@
     } catch (e) { return null; }
   }
 
+  // Hard limits so a malicious or malformed manifest can't exhaust memory or
+  // smuggle executable payloads into the file input. Extensions mirror the
+  // guessType() map below. Paths must be simple relative segments under the
+  // tool's own content folder — no `..`, no leading `/`, no URL schemes.
+  var MAX_BYTES = 50 * 1024 * 1024; // 50 MB per item
+  var ALLOWED_EXT = /\.(mp3|m4a|m4b|wav|ogg|flac|mp4|webm|mov|m4v|epub|pdf|jpg|jpeg|png|webp|json)$/i;
+
   async function fetchAsFile(slug, item) {
-    if (!item || !item.file) return null;
-    const url = /^https?:/i.test(item.file)
-      ? item.file
-      : '../../content/' + slug + '/' + item.file;
+    if (!item || typeof item.file !== 'string') return null;
+    // Reject path traversal, absolute paths, and anything that looks like a
+    // URL scheme (http:, data:, javascript:, file:, etc.). We intentionally
+    // do NOT support remote manifests — content must live in the repo.
+    if (item.file.indexOf('..') !== -1) return null;
+    if (item.file.charAt(0) === '/' || item.file.charAt(0) === '\\') return null;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(item.file)) return null;
+    if (!ALLOWED_EXT.test(item.file)) return null;
+    var url = '../../content/' + slug + '/' + item.file;
     try {
       const r = await fetch(url, { cache: 'no-cache' });
       if (!r.ok) return null;
+      // Pre-check Content-Length so we don't start buffering a huge file.
+      var len = parseInt(r.headers.get('content-length') || '0', 10);
+      if (len && len > MAX_BYTES) return null;
       const blob = await r.blob();
+      if (blob.size > MAX_BYTES) return null;
       const filename = item.file.split('/').pop();
       // File constructor available in all modern browsers
       try {

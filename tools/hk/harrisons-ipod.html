@@ -1149,21 +1149,39 @@ async function loadRepoManifest() {
     }
   } catch (e) { /* silent — folder may be empty or offline */ }
 }
+// Hard cap so a runaway manifest can't eat the browser's IndexedDB quota.
+// SECURITY-REVIEW L2.
+const REPO_SYNC_MAX_BYTES = 200 * 1024 * 1024; // 200 MB total per sync
+const REPO_SYNC_ITEM_MAX  = 50  * 1024 * 1024; // 50 MB per item
+const REPO_SYNC_ALLOWED_EXT = /\.(mp3|m4a|m4b|wav|ogg|flac)$/i;
+
 async function syncRepoLibrary() {
   if (!repoManifest) return;
   const status = document.getElementById('upload-status');
   const have = new Set(songs.map(s => (s.filename || '').toLowerCase()));
-  let added = 0, skipped = 0, failed = 0;
+  let added = 0, skipped = 0, failed = 0, totalBytes = 0;
   for (const item of repoManifest.items) {
-    if (!item || !item.file) { failed++; continue; }
-    const url = /^https?:/i.test(item.file) ? item.file : '../../content/harrisons-ipod/' + item.file;
+    if (!item || typeof item.file !== 'string') { failed++; continue; }
+    // Path validation — no traversal, no schemes, audio extensions only.
+    if (item.file.indexOf('..') !== -1 || item.file.charAt(0) === '/') { failed++; continue; }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(item.file)) { failed++; continue; }
+    if (!REPO_SYNC_ALLOWED_EXT.test(item.file)) { failed++; continue; }
+    const url = '../../content/harrisons-ipod/' + item.file;
     const filename = item.file.split('/').pop();
     if (have.has(filename.toLowerCase())) { skipped++; continue; }
+    if (totalBytes >= REPO_SYNC_MAX_BYTES) {
+      status.textContent = 'Stopped: sync budget (200 MB) reached';
+      break;
+    }
     status.textContent = 'Fetching: ' + filename + '...';
     try {
       const resp = await fetch(url, { cache: 'no-cache' });
       if (!resp.ok) { failed++; continue; }
+      const cl = parseInt(resp.headers.get('content-length') || '0', 10);
+      if (cl && cl > REPO_SYNC_ITEM_MAX) { failed++; continue; }
       const blob = await resp.blob();
+      if (blob.size > REPO_SYNC_ITEM_MAX) { failed++; continue; }
+      totalBytes += blob.size;
       const parsed = (item.title && item.artist)
         ? { title: item.title, artist: item.artist }
         : parseFilename(filename);

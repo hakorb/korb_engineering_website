@@ -1,12 +1,12 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-11T02:11:19.861Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **248**
-- Clean (no findings): **123**
-- With findings:       **125**
+- Total tools scanned: **249**
+- Clean (no findings): **103**
+- With findings:       **146**
 
 ### Findings by tag
 
@@ -14,10 +14,13 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 |---|---:|
 | `[a11y]` | 125 |
 
-## aviation (31 of 55 with findings)
+## aviation (38 of 55 with findings)
 
 ### tools/aviation/360-to-bim.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/aviation/KorbPhotogrammetrySuite.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/ada-compliance-checker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -31,6 +34,9 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/aviation/airnav-explorer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/aviation/alp-tracker.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/aviation/aviation-fuel-pricing.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -42,9 +48,13 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/critical-path-method.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/dbe-calculator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/aviation/design-aircraft-repository.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/flight-time-logger.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -63,12 +73,17 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/megger-test-report.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/metal-building-selector.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
+### tools/aviation/metar-decoder.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/aviation/npv-irr-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/omni-calculator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -78,9 +93,11 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/pert-calculator.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/pipe-sizing-tool.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/pre-flight-checklist.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -90,26 +107,40 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/proposal-scope-fee.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/punch-list.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/resource-leveling.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/rfq-tracker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/aviation/roi-calculator.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
+### tools/aviation/survey-proposal-tool.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/aviation/swot-analysis.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/takeoff-landing-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
 ### tools/aviation/weight-balance-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
-## civil (28 of 56 with findings)
+### tools/aviation/wind-rose-generator.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
+## civil (34 of 56 with findings)
 
 ### tools/civil/DailyFieldReport.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -119,9 +150,11 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/bid-express.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/claim-dispute-drafter.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/clause-comparison.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -131,6 +164,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/construction-estimator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/digital-twin-repository.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -153,6 +187,9 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/harrison-latex-editor.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 
+### tools/civil/hec-hms.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/civil/invoice-generator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -161,6 +198,9 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/meeting-minutes.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/civil/openfoam-cfd.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/openproject.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -171,20 +211,34 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/pdf-editor.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/civil/policy-writer.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
+### tools/civil/rfp-response-generator.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/civil/risk-register.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/civil/root-cause-analyzer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/scope-gap-detector.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/civil/soil-classification-tool.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
+### tools/civil/spreadsheet-interpreter.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/stakeholder-matrix.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/civil/survey-coordinate-converter.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/trend-synthesis.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -195,7 +249,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (52 of 116 with findings)
+## misc (59 of 117 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -211,6 +265,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/app-idea-generator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/aprende-spanish.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -221,11 +276,20 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/build-your-own-korb-site.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/checkers.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/misc/clicker-counter.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/connect-four.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/misc/copycat-kitchen.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/dev-toolkit.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/dfw-events.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -236,8 +300,14 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/digital-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/dinner-recommender.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/misc/dnd-odyssey.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/dungeon-quest.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/ebook-reader.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -247,6 +317,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/formula-forge.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/game-deal-hunter.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -280,9 +351,11 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/legal-advisor.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/mandala-maker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/markdown-editor.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -292,12 +365,14 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/meal-plan-architect.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/memory-match.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/mexican-grocery-guide.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/mind-map.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -307,6 +382,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/moving-invoice.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/muscle-atlas.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
@@ -326,6 +402,9 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/pixel-art-editor.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/pomodoro-timer.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/misc/retro-arcade.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -334,12 +413,17 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/spinner-wheel.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/spirograph.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/spreadsheet-tool.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/text-to-speech.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/tip-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
@@ -353,7 +437,10 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/world-explorer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## hk (14 of 21 with findings)
+## hk (15 of 21 with findings)
+
+### tools/hk/constraint-optimizer.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/hk/content-calendar.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -372,6 +459,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/hk/negotiation-simulator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/hk/pre-mortem-generator.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -387,6 +475,7 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/hk/threat-identifier.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/hk/travel-planner.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -396,3 +485,4 @@ _Generated 2026-04-11T01:49:19.620Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/hk/zoo-tycoon.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
