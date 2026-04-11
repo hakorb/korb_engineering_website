@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Korb Engineering — Mechanical Football — a retro LED handheld football simulator in your browser. No signup, no downloads, works on mobile.">
+<title>Korb Engineering — Mechanical Football</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET
+============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:#0a0a0a;color:#e8e8e8;
+  font-family:'JetBrains Mono','Courier New',monospace;
+  font-size:16px;line-height:1.5;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;
+}
+a{color:#ff5233;text-decoration:none}
+
+/* ============================================================
+   DEVICE SHELL — styled like a 70s handheld
+============================================================ */
+.device{
+  width:100%;max-width:520px;
+  background:linear-gradient(180deg,#3a2318 0%,#2a1810 30%,#1d110a 100%);
+  border:2px solid #4a2e1e;
+  border-radius:22px;
+  padding:20px 18px 22px;
+  box-shadow:
+    0 20px 50px rgba(0,0,0,.7),
+    inset 0 2px 4px rgba(255,180,120,.08),
+    inset 0 -4px 12px rgba(0,0,0,.5);
+  position:relative;
+}
+.device::before{
+  content:'';position:absolute;inset:8px;
+  border:1px solid rgba(255,200,140,.06);
+  border-radius:16px;pointer-events:none;
+}
+
+/* Brand plate */
+.brand{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;padding:0 6px;
+}
+.brand-name{
+  font-weight:700;letter-spacing:3px;
+  color:#ffb060;font-size:11px;text-transform:uppercase;
+  text-shadow:0 1px 0 rgba(0,0,0,.8);
+}
+.brand-model{
+  font-weight:600;letter-spacing:2px;
+  color:#c88840;font-size:9px;text-transform:uppercase;
+}
+
+/* ============================================================
+   STAT BAR — segmented LED readouts
+============================================================ */
+.stat-bar{
+  background:#0a0300;
+  border:1px solid #1a0a00;
+  border-radius:6px;
+  padding:8px 10px;margin-bottom:10px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px 10px;
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.9);
+}
+.stat{display:flex;flex-direction:column;align-items:center;gap:1px}
+.stat-label{
+  font-size:8px;letter-spacing:1.5px;text-transform:uppercase;
+  color:#663322;font-weight:700;
+}
+.stat-val{
+  font-family:'JetBrains Mono',monospace;
+  font-size:18px;font-weight:700;
+  color:#ff3515;
+  text-shadow:
+    0 0 3px rgba(255,60,30,.9),
+    0 0 10px rgba(255,60,30,.6),
+    0 0 20px rgba(255,60,30,.3);
+  letter-spacing:1px;min-height:22px;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ============================================================
+   PLAYFIELD — LED dash grid
+============================================================ */
+.field-wrap{
+  background:#0a0300;
+  border:2px solid #140700;
+  border-radius:8px;
+  padding:14px 10px;
+  box-shadow:
+    inset 0 4px 12px rgba(0,0,0,.95),
+    inset 0 -2px 6px rgba(0,0,0,.8);
+  position:relative;
+  overflow:hidden;
+}
+.field-wrap::before{
+  /* scanline effect */
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
+  pointer-events:none;
+}
+/* End zones markers */
+.field-wrap::after{
+  content:'';position:absolute;
+  top:14px;bottom:14px;right:10px;width:3px;
+  background:linear-gradient(180deg,rgba(255,60,30,.15),rgba(255,60,30,.02),rgba(255,60,30,.15));
+  border-left:1px dashed rgba(255,60,30,.25);
+  pointer-events:none;
+}
+.field{
+  display:grid;
+  grid-template-rows:repeat(3,1fr);
+  gap:8px;
+  position:relative;
+  z-index:1;
+}
+.row{
+  display:grid;
+  grid-template-columns:repeat(9,1fr);
+  gap:6px;
+}
+.cell{
+  aspect-ratio:1.4 / 1;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+/* The horizontal dash — LED off by default */
+.dash{
+  width:72%;height:14%;min-height:3px;
+  background:#1a0600;
+  border-radius:1px;
+  transition:none;
+}
+.dash.on{
+  background:#ff3515;
+  box-shadow:
+    0 0 4px #ff3515,
+    0 0 10px rgba(255,60,30,.8),
+    0 0 18px rgba(255,60,30,.4);
+}
+.dash.player{
+  background:#ff6040;
+  box-shadow:
+    0 0 6px #ff6040,
+    0 0 16px rgba(255,100,60,1),
+    0 0 30px rgba(255,120,80,.6);
+  animation:blink 0.8s steps(2,end) infinite;
+}
+.dash.def{
+  background:#c02010;
+  box-shadow:
+    0 0 3px #c02010,
+    0 0 8px rgba(200,50,20,.7);
+}
+.dash.ball{
+  /* the ball carrier */
+  background:#ffaa30;
+  box-shadow:
+    0 0 6px #ffaa30,
+    0 0 18px rgba(255,180,50,1),
+    0 0 32px rgba(255,200,80,.6);
+  animation:blink 0.45s steps(2,end) infinite;
+}
+.dash.flash{
+  background:#ffffff;
+  box-shadow:
+    0 0 8px #ffffff,
+    0 0 24px rgba(255,255,255,1),
+    0 0 48px rgba(255,240,200,.8);
+}
+@keyframes blink{
+  0%,50%{opacity:1}
+  51%,100%{opacity:.2}
+}
+
+/* Yard line marker under field */
+.yard-bar{
+  margin-top:10px;padding:4px 0;
+  background:#0a0300;border-radius:4px;
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;color:#884422;font-weight:700;letter-spacing:1px;
+  justify-content:center;
+}
+.yard-bar .y-mark{color:#ff5233;text-shadow:0 0 6px rgba(255,80,50,.7)}
+
+/* ============================================================
+   CONTROLS
+============================================================ */
+.ctrl-bar{
+  margin-top:16px;
+  display:grid;
+  grid-template-columns:1fr 1.4fr 1fr;
+  gap:12px;
+}
+.dpad{
+  display:grid;
+  grid-template-columns:repeat(3,40px);
+  grid-template-rows:repeat(3,40px);
+  gap:4px;justify-content:center;align-content:center;
+}
+.dpad button{
+  background:linear-gradient(180deg,#3a2418,#241008);
+  border:1px solid #4a2e1e;
+  border-radius:6px;
+  color:#ffb060;font-family:inherit;font-size:14px;font-weight:700;
+  cursor:pointer;
+  box-shadow:
+    0 2px 0 #1a0a00,
+    inset 0 1px 0 rgba(255,200,140,.15);
+  transition:transform .06s,box-shadow .06s;
+}
+.dpad button:active,.dpad button.hold{
+  transform:translateY(1px);
+  box-shadow:0 1px 0 #1a0a00,inset 0 1px 4px rgba(0,0,0,.6);
+  background:linear-gradient(180deg,#241008,#3a2418);
+  color:#ff3515;
+}
+.dpad button:disabled{opacity:.3;cursor:not-allowed}
+.dpad .spacer{visibility:hidden}
+
+.play-btns{
+  display:flex;flex-direction:column;gap:8px;justify-content:center;
+}
+.play-btns button{
+  background:linear-gradient(180deg,#4a1e0e,#2a1008);
+  border:1px solid #5a2818;
+  border-radius:6px;
+  color:#ffcc80;font-family:inherit;font-size:11px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:10px 8px;min-height:44px;cursor:pointer;
+  box-shadow:
+    0 2px 0 #1a0700,
+    inset 0 1px 0 rgba(255,200,140,.15);
+  transition:transform .06s,box-shadow .06s;
+}
+.play-btns button:hover{color:#ff5233}
+.play-btns button:active{
+  transform:translateY(1px);
+  box-shadow:0 1px 0 #1a0700,inset 0 1px 4px rgba(0,0,0,.6);
+}
+.play-btns button:disabled{opacity:.3;cursor:not-allowed}
+.play-btns .mode-btn{
+  background:linear-gradient(180deg,#3a2418,#241008);
+  border-color:#4a2e1e;color:#ffb060;
+}
+.play-btns .snap-btn{
+  background:linear-gradient(180deg,#0e4a2a,#082a16);
+  border-color:#186a3a;color:#9affc0;
+}
+.play-btns .snap-btn:hover{color:#d0ffdc}
+.play-btns .kick-btn{
+  background:linear-gradient(180deg,#4a3a0e,#2a2008);
+  border-color:#6a541a;color:#ffdc70;
+}
+
+/* ============================================================
+   MESSAGE TICKER
+============================================================ */
+.msg{
+  margin-top:12px;
+  background:#0a0300;
+  border:1px solid #1a0a00;
+  border-radius:6px;
+  padding:8px 12px;min-height:32px;
+  font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  color:#ffcc80;font-weight:600;text-align:center;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.9);
+}
+.msg.flash{
+  color:#fff;
+  text-shadow:0 0 8px rgba(255,255,255,.8);
+  animation:msgflash .5s ease;
+}
+@keyframes msgflash{
+  0%{background:#ff3515}
+  100%{background:#0a0300}
+}
+
+/* ============================================================
+   SETTINGS BAR
+============================================================ */
+.settings{
+  margin-top:10px;
+  display:flex;gap:8px;justify-content:center;flex-wrap:wrap;
+  font-size:10px;color:#884422;letter-spacing:1px;
+  text-transform:uppercase;
+}
+.settings button{
+  background:transparent;border:1px solid #3a2418;
+  color:#c88840;font-family:inherit;font-size:10px;
+  padding:6px 10px;border-radius:4px;cursor:pointer;
+  letter-spacing:1px;text-transform:uppercase;font-weight:700;
+  min-height:32px;
+}
+.settings button:hover{border-color:#ffb060;color:#ffcc80}
+.settings button.on{
+  background:#3a2418;border-color:#ffb060;color:#ffcc80;
+}
+
+/* ============================================================
+   HELP
+============================================================ */
+.help{
+  max-width:520px;width:100%;
+  margin-top:16px;padding:14px 16px;
+  background:#111;border:1px solid #222;border-radius:8px;
+  font-size:12px;color:#aaa;line-height:1.6;
+}
+.help h3{
+  font-size:11px;color:#ffb060;letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:8px;font-weight:700;
+}
+.help b{color:#ffcc80}
+.help kbd{
+  display:inline-block;padding:1px 6px;
+  background:#222;border:1px solid #333;border-radius:3px;
+  font-family:inherit;font-size:11px;color:#ffb060;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+footer{
+  margin-top:18px;
+  font-size:10px;color:#555;letter-spacing:2px;
+  text-transform:uppercase;text-align:center;
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media (max-width:480px){
+  body{padding:8px}
+  .device{padding:14px 12px 16px}
+  .stat-val{font-size:16px}
+  .ctrl-bar{grid-template-columns:1fr 1.2fr 1fr;gap:8px}
+  .dpad{grid-template-columns:repeat(3,38px);grid-template-rows:repeat(3,38px)}
+  .play-btns button{font-size:10px;padding:8px 6px}
+}
+@media (prefers-reduced-motion:reduce){
+  .dash.player,.dash.ball{animation:none!important;opacity:1}
+  .msg.flash{animation:none}
+}
+</style>
+</head>
+<body>
+
+<div class="device" role="application" aria-label="Mechanical Football game">
+
+  <div class="brand">
+    <span class="brand-name">Korb Engineering</span>
+    <span class="brand-model">Model KE-2026 · Football</span>
+  </div>
+
+  <!-- Stat readouts -->
+  <div class="stat-bar" aria-live="polite">
+    <div class="stat"><span class="stat-label">Qtr</span><span class="stat-val" id="st-qtr">1</span></div>
+    <div class="stat"><span class="stat-label">Time</span><span class="stat-val" id="st-time">15:00</span></div>
+    <div class="stat"><span class="stat-label">Down</span><span class="stat-val" id="st-down">1st</span></div>
+    <div class="stat"><span class="stat-label">To Go</span><span class="stat-val" id="st-togo">10</span></div>
+    <div class="stat"><span class="stat-label">Home</span><span class="stat-val" id="st-home">0</span></div>
+    <div class="stat"><span class="stat-label">Away</span><span class="stat-val" id="st-away">0</span></div>
+  </div>
+
+  <!-- Playfield -->
+  <div class="field-wrap">
+    <div class="field" id="field" aria-label="Football playfield"></div>
+  </div>
+
+  <!-- Yard bar -->
+  <div class="yard-bar">
+    BALL ON <span class="y-mark" id="st-ball">H 20</span> &nbsp;·&nbsp;
+    POSS <span class="y-mark" id="st-poss">HOME</span>
+  </div>
+
+  <!-- Controls -->
+  <div class="ctrl-bar">
+    <div class="dpad" aria-label="Movement controls">
+      <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+      <button id="b-up"   aria-label="Move up">▲</button>
+      <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+      <button id="b-left" aria-label="Move back">◀</button>
+      <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+      <button id="b-right" aria-label="Move forward">▶</button>
+      <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+      <button id="b-down" aria-label="Move down">▼</button>
+      <button class="spacer" aria-hidden="true" tabindex="-1"></button>
+    </div>
+    <div class="play-btns">
+      <button class="mode-btn" id="b-mode" aria-label="Toggle run or pass">RUN / PASS</button>
+      <button class="snap-btn" id="b-snap" aria-label="Snap the ball">SNAP ▶</button>
+      <button class="kick-btn" id="b-kick" aria-label="Kick">KICK</button>
+    </div>
+    <div class="dpad" style="grid-template-columns:1fr;grid-template-rows:repeat(3,40px);gap:6px">
+      <button id="b-status" aria-label="Show game status">STATUS</button>
+      <button id="b-reset" aria-label="New game">NEW</button>
+      <button id="b-sound" aria-label="Toggle sound">♪ ON</button>
+    </div>
+  </div>
+
+  <!-- Message ticker -->
+  <div class="msg" id="msg" aria-live="polite">Press SNAP ▶ to start the play</div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <button id="set-easy" class="on">Easy</button>
+    <button id="set-pro">Pro</button>
+    <button id="set-all">All-Pro</button>
+  </div>
+
+</div>
+
+<div class="help">
+  <h3>How to play</h3>
+  <p><b>Press SNAP ▶</b> to begin a play. You're on offense — the bright blinking dash in the left column is your ball carrier. The dimmer red dashes are defenders closing in.</p>
+  <p><b>Run mode (default):</b> Use <kbd>▶</kbd> to sprint forward. Each yard advances the ball. Use <kbd>▲</kbd>/<kbd>▼</kbd> to dodge between rows. If a defender lands on your cell, you're <b>tackled</b>.</p>
+  <p><b>Pass mode:</b> Toggle <kbd>RUN / PASS</kbd> before snap. After snap, press <kbd>▶</kbd> to throw — the ball streaks downfield. If it reaches the end zone line without being intercepted by a defender in its path, it's complete for a big gain.</p>
+  <p><b>Kick:</b> Use <kbd>KICK</kbd> to attempt a field goal (from ~40 yards or closer of the end zone) or to punt. Strategy matters on 4th down.</p>
+  <p><b>Scoring:</b> Advance 10 yards for a first down. Reach the opponent end zone for a 7-point touchdown. Four 2-minute quarters. Keyboard: arrow keys or <kbd>WASD</kbd>, <kbd>Space</kbd> to snap, <kbd>K</kbd> to kick, <kbd>M</kbd> to toggle run/pass.</p>
+</div>
+
+<footer>© Korb Engineering — Handheld simulation · No batteries required</footer>
+
+<script>
+'use strict';
+(function(){
+
+/* ============================================================
+   SOUND ENGINE — tiny Web Audio beeper
+============================================================ */
+let AC=null, soundOn=true;
+function audio(){ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} return AC; }
+function beep(freq,dur,type){
+  if(!soundOn) return;
+  const ctx=audio(); if(!ctx) return;
+  try{
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type||'square'; o.frequency.value=freq;
+    g.gain.value=0; o.connect(g); g.connect(ctx.destination);
+    const t=ctx.currentTime;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.12,t+0.005);
+    g.gain.linearRampToValueAtTime(0,t+dur);
+    o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function sMove(){ beep(880,0.04,'square'); }
+function sTackle(){ beep(180,0.25,'sawtooth'); setTimeout(()=>beep(110,0.2,'sawtooth'),60); }
+function sTD(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'square'),i*140)); }
+function sFG(){ beep(659,0.12,'triangle'); setTimeout(()=>beep(880,0.18,'triangle'),120); }
+function sKick(){ beep(300,0.08,'triangle'); setTimeout(()=>beep(220,0.1,'triangle'),60); }
+function sFirst(){ beep(880,0.08,'triangle'); setTimeout(()=>beep(1320,0.12,'triangle'),80); }
+function sWhistle(){ beep(1600,0.04,'sine'); setTimeout(()=>beep(1400,0.04,'sine'),50); setTimeout(()=>beep(1600,0.08,'sine'),110); }
+function sBuzzer(){ beep(140,0.6,'sawtooth'); }
+function sSnap(){ beep(520,0.05,'square'); }
+
+/* ============================================================
+   GAME STATE
+============================================================ */
+const ROWS=3, COLS=9;
+const DIFF={
+  easy:{defenders:3,defMoveP:0.15,defReflex:0.45,intChance:0.15},
+  pro: {defenders:3,defMoveP:0.30,defReflex:0.65,intChance:0.25},
+  all: {defenders:4,defMoveP:0.45,defReflex:0.80,intChance:0.35},
+};
+let difficulty='easy';
+
+const G={
+  ballOn:20,          // 1..99 where 1..49 = home side, 50 = midfield, 51..99 = opp side
+  poss:'HOME',        // HOME offense, AWAY offense
+  down:1,
+  toGo:10,
+  quarter:1,
+  timeLeft:120,       // seconds per quarter
+  homeScore:0,
+  awayScore:0,
+  snapped:false,
+  mode:'run',         // run | pass
+  player:{r:1,c:0},
+  defs:[],
+  playYards:0,
+  playStartBall:20,
+  ball:null,          // for pass animation {r,c}
+  tickT:null,
+  clockT:null,
+  gameOver:false,
+  kickoff:true,
+};
+
+/* ============================================================
+   DOM
+============================================================ */
+const field=document.getElementById('field');
+const cells=[]; // [r][c] -> dash element
+function buildField(){
+  field.innerHTML='';
+  for(let r=0;r<ROWS;r++){
+    const row=document.createElement('div'); row.className='row';
+    cells[r]=[];
+    for(let c=0;c<COLS;c++){
+      const cell=document.createElement('div'); cell.className='cell';
+      const d=document.createElement('div'); d.className='dash';
+      cell.appendChild(d); row.appendChild(cell);
+      cells[r][c]=d;
+    }
+    field.appendChild(row);
+  }
+}
+buildField();
+
+const $=id=>document.getElementById(id);
+
+/* ============================================================
+   RENDER
+============================================================ */
+function render(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    cells[r][c].className='dash';
+  }
+  // Defenders
+  G.defs.forEach(d=>{
+    if(cells[d.r]&&cells[d.r][d.c]) cells[d.r][d.c].classList.add('on','def');
+  });
+  // Ball in flight (pass)
+  if(G.ball){
+    const el=cells[G.ball.r]&&cells[G.ball.r][G.ball.c];
+    if(el){ el.className='dash on ball'; }
+  }
+  // Player
+  if(G.player && G.snapped){
+    const el=cells[G.player.r]&&cells[G.player.r][G.player.c];
+    if(el){ el.className='dash on player'; }
+  }
+  // Stats
+  $('st-qtr').textContent=G.quarter;
+  $('st-time').textContent=fmtTime(G.timeLeft);
+  $('st-down').textContent=ordinal(G.down);
+  $('st-togo').textContent=G.toGo>=(100-G.ballOn)&&G.poss==='HOME'?'Goal':
+                          G.toGo>=G.ballOn&&G.poss==='AWAY'?'Goal':G.toGo;
+  $('st-home').textContent=G.homeScore;
+  $('st-away').textContent=G.awayScore;
+  $('st-ball').textContent=ballLabel();
+  $('st-poss').textContent=G.poss;
+}
+function ballLabel(){
+  // Show side + yard-line (football convention: 50 is midfield)
+  if(G.ballOn===50) return '50';
+  if(G.poss==='HOME'){
+    if(G.ballOn<50) return 'H '+G.ballOn;
+    return 'A '+(100-G.ballOn);
+  }else{
+    if(G.ballOn<50) return 'A '+G.ballOn;
+    return 'H '+(100-G.ballOn);
+  }
+}
+function ordinal(n){ return n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th'; }
+function fmtTime(s){
+  s=Math.max(0,Math.floor(s));
+  const m=Math.floor(s/60), ss=s%60;
+  return m+':'+(ss<10?'0':'')+ss;
+}
+
+/* ============================================================
+   MESSAGE
+============================================================ */
+let msgT=null;
+function msg(t,flash){
+  const el=$('msg');
+  el.textContent=t;
+  el.classList.remove('flash');
+  if(flash){ void el.offsetWidth; el.classList.add('flash'); }
+  clearTimeout(msgT);
+}
+
+/* ============================================================
+   CLOCK
+============================================================ */
+function startClock(){
+  if(G.clockT||G.gameOver) return;
+  G.clockT=setInterval(()=>{
+    if(!G.snapped){ clearInterval(G.clockT); G.clockT=null; return; }
+    G.timeLeft-=1;
+    if(G.timeLeft<=0){
+      G.timeLeft=0; render();
+      endQuarter();
+      return;
+    }
+    render();
+  },1000);
+}
+function stopClock(){ if(G.clockT){ clearInterval(G.clockT); G.clockT=null; } }
+
+function endQuarter(){
+  stopClock(); stopPlay();
+  sBuzzer();
+  if(G.quarter>=4){
+    G.gameOver=true;
+    let w='TIE GAME';
+    if(G.homeScore>G.awayScore) w='HOME WINS '+G.homeScore+'-'+G.awayScore;
+    else if(G.awayScore>G.homeScore) w='AWAY WINS '+G.awayScore+'-'+G.homeScore;
+    msg('END OF GAME · '+w,true);
+    render();
+    return;
+  }
+  G.quarter+=1;
+  G.timeLeft=120;
+  msg('END OF QUARTER — START Q'+G.quarter,true);
+  render();
+}
+
+/* ============================================================
+   DEFENDER SETUP
+============================================================ */
+function placeDefenders(){
+  const d=DIFF[difficulty];
+  G.defs=[];
+  const used=new Set();
+  // Spread across cols 3..7 mostly; 1..2 defenders may be close
+  const spots=[];
+  for(let tries=0;tries<200 && G.defs.length<d.defenders;tries++){
+    const r=Math.floor(Math.random()*ROWS);
+    const c=2+Math.floor(Math.random()*(COLS-2));
+    const k=r+','+c;
+    if(used.has(k)) continue;
+    // don't spawn on player
+    if(r===G.player.r && c===G.player.c) continue;
+    used.add(k);
+    G.defs.push({r,c});
+  }
+}
+
+/* ============================================================
+   PLAY START
+============================================================ */
+function snap(){
+  if(G.gameOver) return;
+  if(G.snapped) return;
+  G.snapped=true;
+  G.player={r:1,c:0};
+  G.playYards=0;
+  G.playStartBall=G.ballOn;
+  G.ball=null;
+  placeDefenders();
+  sSnap();
+  msg(G.mode==='pass'?'PASS PLAY — PRESS ▶ TO THROW':'RUN PLAY — USE ARROWS');
+  render();
+  startPlayTicker();
+  startClock();
+}
+
+function startPlayTicker(){
+  stopPlay();
+  const d=DIFF[difficulty];
+  G.tickT=setInterval(()=>{
+    if(!G.snapped) return;
+    // Defenders have a chance to move each tick, biased toward player
+    G.defs.forEach(def=>{
+      if(Math.random()<d.defMoveP){
+        // move toward player
+        const dr=Math.sign(G.player.r-def.r);
+        const dc=Math.sign(G.player.c-def.c);
+        // randomize a bit
+        let nr=def.r, nc=def.c;
+        if(Math.random()<0.6 && dc!==0) nc+=dc;
+        else if(dr!==0) nr+=dr;
+        else if(dc!==0) nc+=dc;
+        nr=Math.max(0,Math.min(ROWS-1,nr));
+        nc=Math.max(0,Math.min(COLS-1,nc));
+        // avoid stacking
+        if(!G.defs.some(o=>o!==def&&o.r===nr&&o.c===nc)){
+          def.r=nr; def.c=nc;
+        }
+      }
+    });
+    // Collision check
+    if(G.defs.some(d=>d.r===G.player.r&&d.c===G.player.c)){
+      tackle();
+    }
+    render();
+  },700);
+}
+function stopPlay(){ if(G.tickT){ clearInterval(G.tickT); G.tickT=null; } }
+
+/* ============================================================
+   MOVEMENT
+============================================================ */
+function move(dr,dc){
+  if(!G.snapped||G.gameOver) return;
+  if(G.mode==='pass' && dc>0 && G.ball===null){ throwPass(); return; }
+  let nr=G.player.r+dr, nc=G.player.c+dc;
+  nr=Math.max(0,Math.min(ROWS-1,nr));
+  // Forward past the right edge = big gain + defenders shift left (simulating field scroll)
+  if(nc>=COLS){
+    // "breakaway" — advance 1 yard and pull defenders left
+    G.playYards+=1;
+    updateBallFromYards();
+    sMove();
+    // shift defenders left
+    G.defs.forEach(d=>{ d.c=Math.max(0,d.c-1); });
+    // chance to spawn a new defender at right
+    if(Math.random()<0.35){
+      const r=Math.floor(Math.random()*ROWS);
+      if(!G.defs.some(d=>d.r===r&&d.c===COLS-1))
+        G.defs.push({r,c:COLS-1});
+    }
+    // If defender now on player → tackle
+    if(G.defs.some(d=>d.r===G.player.r&&d.c===G.player.c)){
+      render(); tackle(); return;
+    }
+    render();
+    checkScore();
+    return;
+  }
+  // Normal move
+  if(nc<0) nc=0;
+  // If stepping onto a defender → tackle
+  if(G.defs.some(d=>d.r===nr&&d.c===nc)){
+    G.player={r:nr,c:nc};
+    render();
+    tackle();
+    return;
+  }
+  const gained=nc>G.player.c?1:0;
+  G.player={r:nr,c:nc};
+  if(gained){ G.playYards+=1; updateBallFromYards(); }
+  sMove();
+  render();
+  checkScore();
+}
+
+function updateBallFromYards(){
+  // playYards measured as yards gained (if HOME) or lost (for AWAY offense the sign flips)
+  if(G.poss==='HOME') G.ballOn=G.playStartBall+G.playYards;
+  else G.ballOn=G.playStartBall-G.playYards;
+  G.ballOn=Math.max(0,Math.min(100,G.ballOn));
+}
+
+/* ============================================================
+   PASS MECHANIC
+============================================================ */
+function throwPass(){
+  if(G.ball!==null) return;
+  sKick(); // throw sound
+  G.ball={r:G.player.r,c:G.player.c+1};
+  render();
+  const d=DIFF[difficulty];
+  const iv=setInterval(()=>{
+    if(!G.snapped){ clearInterval(iv); return; }
+    // interception if defender in ball cell
+    if(G.defs.some(x=>x.r===G.ball.r&&x.c===G.ball.c)){
+      clearInterval(iv);
+      if(Math.random()<d.intChance){
+        G.ball=null;
+        msg('INTERCEPTION! TURNOVER',true);
+        sTackle();
+        setTimeout(turnover,1200);
+        return;
+      }else{
+        // deflected incomplete
+        G.ball=null;
+        msg('INCOMPLETE — BATTED DOWN');
+        sTackle();
+        setTimeout(endPlayIncomplete,900);
+        return;
+      }
+    }
+    G.ball.c+=1;
+    if(G.ball.c>=COLS){
+      // caught! gains 15-40 yards
+      clearInterval(iv);
+      const gain=15+Math.floor(Math.random()*26);
+      G.playYards=gain;
+      updateBallFromYards();
+      G.ball=null;
+      msg('CAUGHT! +'+gain+' YARDS',true);
+      sFirst();
+      setTimeout(()=>{ commitPlay(); },900);
+      return;
+    }
+    render();
+  },120);
+}
+function endPlayIncomplete(){
+  // Down used, no yards gained
+  G.playYards=0;
+  commitPlay();
+}
+
+/* ============================================================
+   TACKLE / COMMIT PLAY
+============================================================ */
+function tackle(){
+  stopPlay();
+  sTackle();
+  const gain=G.playYards;
+  msg('TACKLED — '+(gain>=0?'+':'')+gain+' YARDS');
+  setTimeout(commitPlay,900);
+}
+
+function commitPlay(){
+  stopPlay(); stopClock();
+  G.snapped=false;
+  // Update ball, down, togo
+  const gain=G.playYards;
+  // Scoring check
+  if(G.poss==='HOME' && G.ballOn>=100){
+    scoreTD(); return;
+  }
+  if(G.poss==='AWAY' && G.ballOn<=0){
+    scoreTD(); return;
+  }
+  // Safety: if pushed back behind own goal line
+  if(G.poss==='HOME' && G.ballOn<=0){ safety(); return; }
+  if(G.poss==='AWAY' && G.ballOn>=100){ safety(); return; }
+
+  G.toGo-=gain;
+  if(G.toGo<=0){
+    G.down=1; G.toGo=Math.min(10, G.poss==='HOME'?(100-G.ballOn):G.ballOn);
+    msg('FIRST DOWN!',true); sFirst();
+  }else{
+    G.down+=1;
+    if(G.down>4){
+      msg('TURNOVER ON DOWNS',true);
+      sTackle();
+      setTimeout(turnover,1200);
+      return;
+    }
+  }
+  render();
+  if(G.timeLeft<=0){ endQuarter(); return; }
+}
+
+/* ============================================================
+   SCORING
+============================================================ */
+function scoreTD(){
+  stopPlay(); stopClock();
+  G.snapped=false;
+  sTD();
+  msg('TOUCHDOWN!',true);
+  if(G.poss==='HOME') G.homeScore+=7;
+  else G.awayScore+=7;
+  // flash field
+  flashField();
+  setTimeout(()=>{
+    // flip possession, new drive at opponent 20
+    flipPoss(20);
+    render();
+  },1600);
+}
+function safety(){
+  stopPlay(); stopClock(); G.snapped=false;
+  sBuzzer();
+  if(G.poss==='HOME') G.awayScore+=2;
+  else G.homeScore+=2;
+  msg('SAFETY — 2 POINTS',true);
+  setTimeout(()=>{ flipPoss(20); render(); },1500);
+}
+function turnover(){
+  stopPlay(); stopClock(); G.snapped=false;
+  flipPoss(G.ballOn);
+  render();
+}
+function flipPoss(newBall){
+  G.poss=G.poss==='HOME'?'AWAY':'HOME';
+  // ball-on is from whichever team's perspective: we invert
+  // Our ballOn scale is 0..100 where 0=home goal, 100=away goal
+  // If turnover, ballOn stays the same in absolute field terms
+  if(newBall!==G.ballOn){
+    // Fresh start at newBall from possessor's OWN 20
+    if(G.poss==='HOME') G.ballOn=newBall;
+    else G.ballOn=100-newBall;
+  }
+  G.down=1;
+  G.toGo=Math.min(10, G.poss==='HOME'?(100-G.ballOn):G.ballOn);
+  if(G.toGo<=0) G.toGo=10;
+  msg(G.poss+' BALL — 1st & '+G.toGo);
+}
+
+/* ============================================================
+   KICK — field goal or punt
+============================================================ */
+function kick(){
+  if(G.snapped||G.gameOver) return;
+  // distance to end zone (goal posts ~ opp end zone)
+  const dist=G.poss==='HOME'?(100-G.ballOn):G.ballOn;
+  // FG try: if within ~45 yards of end zone (kick length = dist + 17 yards)
+  const fgYds=dist+17;
+  if(fgYds<=55){
+    // attempt FG
+    sKick();
+    const pct=fgYds<=30?0.95:fgYds<=40?0.80:fgYds<=50?0.55:0.35;
+    setTimeout(()=>{
+      if(Math.random()<pct){
+        if(G.poss==='HOME') G.homeScore+=3; else G.awayScore+=3;
+        msg('FIELD GOAL IS GOOD! ('+fgYds+'yd)',true); sFG();
+        flashField();
+        setTimeout(()=>{ flipPoss(20); render(); },1400);
+      }else{
+        msg('NO GOOD — ('+fgYds+'yd) TURNOVER',true); sTackle();
+        setTimeout(()=>{ flipPoss(G.ballOn); render(); },1200);
+      }
+    },500);
+  }else{
+    // Punt
+    sKick();
+    const puntDist=35+Math.floor(Math.random()*15);
+    let newBallAbs;
+    if(G.poss==='HOME') newBallAbs=Math.min(95,G.ballOn+puntDist);
+    else newBallAbs=Math.max(5,G.ballOn-puntDist);
+    G.ballOn=newBallAbs;
+    msg('PUNT — '+puntDist+' YARDS',true);
+    setTimeout(()=>{ flipPoss(G.ballOn); render(); },1200);
+  }
+}
+
+/* ============================================================
+   EFFECTS
+============================================================ */
+function flashField(){
+  let on=true, n=0;
+  const iv=setInterval(()=>{
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      cells[r][c].className=on?'dash on flash':'dash';
+    }
+    on=!on; n++;
+    if(n>=6){ clearInterval(iv); render(); }
+  },120);
+}
+
+/* ============================================================
+   CONTROLS
+============================================================ */
+$('b-up').addEventListener('click',()=>move(-1,0));
+$('b-down').addEventListener('click',()=>move(1,0));
+$('b-left').addEventListener('click',()=>move(0,-1));
+$('b-right').addEventListener('click',()=>move(0,1));
+$('b-snap').addEventListener('click',snap);
+$('b-kick').addEventListener('click',kick);
+
+$('b-mode').addEventListener('click',()=>{
+  if(G.snapped) return;
+  G.mode=G.mode==='run'?'pass':'run';
+  msg('MODE: '+(G.mode==='run'?'RUN PLAY':'PASS PLAY'));
+  $('b-mode').textContent=G.mode==='run'?'RUN / PASS':'PASS / RUN';
+});
+$('b-status').addEventListener('click',()=>{
+  msg(ordinal(G.down)+' & '+G.toGo+' · BALL ON '+ballLabel()+' · Q'+G.quarter+' '+fmtTime(G.timeLeft));
+});
+$('b-reset').addEventListener('click',()=>{
+  if(confirm('Start a new game?')){ newGame(); }
+});
+$('b-sound').addEventListener('click',()=>{
+  soundOn=!soundOn;
+  $('b-sound').textContent=soundOn?'♪ ON':'♪ OFF';
+});
+
+// Difficulty
+function setDiff(d){
+  difficulty=d;
+  ['easy','pro','all'].forEach(x=>$('set-'+x).classList.toggle('on',x===d));
+  msg('DIFFICULTY: '+(d==='easy'?'EASY':d==='pro'?'PRO':'ALL-PRO'));
+}
+$('set-easy').addEventListener('click',()=>setDiff('easy'));
+$('set-pro').addEventListener('click',()=>setDiff('pro'));
+$('set-all').addEventListener('click',()=>setDiff('all'));
+
+// Keyboard
+window.addEventListener('keydown',e=>{
+  const k=e.key;
+  if(k==='ArrowUp'||k==='w'||k==='W'){ move(-1,0); e.preventDefault(); }
+  else if(k==='ArrowDown'||k==='s'||k==='S'){ move(1,0); e.preventDefault(); }
+  else if(k==='ArrowLeft'||k==='a'||k==='A'){ move(0,-1); e.preventDefault(); }
+  else if(k==='ArrowRight'||k==='d'||k==='D'){ move(0,1); e.preventDefault(); }
+  else if(k===' '){ if(!G.snapped) snap(); e.preventDefault(); }
+  else if(k==='k'||k==='K'){ kick(); }
+  else if(k==='m'||k==='M'){ $('b-mode').click(); }
+});
+
+/* ============================================================
+   NEW GAME
+============================================================ */
+function newGame(){
+  stopPlay(); stopClock();
+  G.ballOn=20; G.poss='HOME'; G.down=1; G.toGo=10;
+  G.quarter=1; G.timeLeft=120;
+  G.homeScore=0; G.awayScore=0;
+  G.snapped=false; G.mode='run';
+  G.player={r:1,c:0}; G.defs=[]; G.ball=null;
+  G.playYards=0; G.gameOver=false;
+  msg('NEW GAME — HOME BALL · PRESS SNAP ▶');
+  render();
+}
+
+/* ============================================================
+   SCORE / CHECK
+============================================================ */
+function checkScore(){
+  if(G.poss==='HOME' && G.ballOn>=100){ scoreTD(); }
+  if(G.poss==='AWAY' && G.ballOn<=0){ scoreTD(); }
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+newGame();
+
+})();
+</script>
+</body>
+</html>
