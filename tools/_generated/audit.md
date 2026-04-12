@@ -1,18 +1,18 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-12T02:05:24.237Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **252**
+- Total tools scanned: **254**
 - Clean (no findings): **104**
-- With findings:       **148**
+- With findings:       **150**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[a11y]` | 127 |
+| `[a11y]` | 128 |
 
 ## aviation (38 of 55 with findings)
 
@@ -140,7 +140,7 @@ _Generated 2026-04-12T02:05:24.237Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/aviation/wind-rose-generator.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
-## civil (34 of 56 with findings)
+## civil (36 of 58 with findings)
 
 ### tools/civil/DailyFieldReport.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -220,6 +220,10 @@ _Generated 2026-04-12T02:05:24.237Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/risk-register.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/civil/roomrecon-3d.html
+- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/civil/root-cause-analyzer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
@@ -236,6 +240,9 @@ _Generated 2026-04-12T02:05:24.237Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/stakeholder-matrix.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/civil/stockpile-volume-scanner.html
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/survey-coordinate-converter.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent

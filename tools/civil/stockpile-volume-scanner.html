@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Stockpile Volume Scanner | Korb Engineering — scan a soil pile with your phone's GPS, compute cubic yards and haul-away truck count, right in the browser.">
+<title>Stockpile Volume Scanner | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../vendor/leaflet-1.9.4.css">
+<script src="../../vendor/leaflet-1.9.4.js"></script>
+<script src="../../vendor/three-r128.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --cyan:#00d4ff;--orange:#ff9900;--green:#10b981;--red:#ef4444;--amber:#fbbf24;
+  --text:#e2e8f0;--dim:#8892a4;--bright:#f8fafc;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;overflow:hidden}
+input,select,button,textarea{font-family:inherit;font-size:16px}
+button{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:10px 14px;border-radius:6px;min-height:44px;transition:border-color .15s,color .15s,background .15s}
+button:hover{border-color:var(--cyan);color:var(--cyan)}
+button.primary{background:rgba(0,212,255,.14);border-color:var(--cyan);color:var(--cyan)}
+button.warn{background:rgba(255,153,0,.14);border-color:var(--orange);color:var(--orange)}
+button.danger{background:rgba(239,68,68,.12);border-color:var(--red);color:var(--red)}
+button.ghost{background:transparent}
+button[disabled]{opacity:.4;cursor:not-allowed}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;width:100%;min-height:44px;font-size:16px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+#app{display:grid;grid-template-rows:auto 1fr auto;height:100vh;width:100vw}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:15px;color:var(--cyan);font-weight:700;letter-spacing:.05em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .tabs{display:flex;gap:4px;flex-wrap:wrap}
+header .tabs button{font-size:12px;padding:6px 12px;min-height:36px}
+header .tabs button.active{background:rgba(0,212,255,.14);border-color:var(--cyan);color:var(--cyan)}
+
+main{position:relative;overflow:hidden;background:#000}
+.pane{position:absolute;inset:0;display:none;overflow:hidden}
+.pane.active{display:block}
+
+#map{position:absolute;inset:0}
+.leaflet-container{background:#0a1018;font-family:'JetBrains Mono',monospace}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface2);color:var(--text);border:1px solid var(--cyan)}
+
+#walk-overlay{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(10,16,24,.88);border:1px solid var(--border);border-radius:8px;padding:10px 12px;backdrop-filter:blur(6px);display:flex;flex-direction:column;gap:8px;pointer-events:auto;z-index:1000}
+.walk-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px}
+.walk-stats .s{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 8px;text-align:center}
+.walk-stats .s .k{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px}
+.walk-stats .s .v{color:var(--cyan);font-size:13px;font-weight:700}
+.walk-controls{display:flex;gap:6px;flex-wrap:wrap}
+.walk-controls button{flex:1;min-width:100px}
+@media (max-width:640px){.walk-stats{grid-template-columns:repeat(2,1fr)}.walk-controls button{flex:1 1 calc(50% - 3px);min-width:0}}
+
+#manual-pane{padding:16px;overflow-y:auto;background:var(--surface)}
+#manual-pane h2{color:var(--cyan);font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+#manual-pane .grp{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px}
+#manual-pane .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+#manual-pane .row.single{grid-template-columns:1fr}
+#manual-pane .row.triple{grid-template-columns:1fr 1fr 1fr}
+#manual-pane .help{color:var(--dim);font-size:11px;margin-top:4px}
+
+#three-view{position:absolute;inset:0}
+#three-view canvas{display:block;width:100%;height:100%}
+#three-hud{position:absolute;top:8px;left:8px;background:rgba(10,16,24,.88);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--dim);pointer-events:none}
+#three-hud .k{color:var(--cyan)}
+
+#results{padding:16px;overflow-y:auto;background:var(--surface)}
+.result-hero{background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(255,153,0,.05));border:1px solid var(--cyan);border-radius:10px;padding:18px;margin-bottom:14px;text-align:center}
+.result-hero .big{font-size:38px;color:var(--cyan);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.result-hero .unit{color:var(--dim);font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+.result-hero .sub{margin-top:10px;font-size:13px;color:var(--text)}
+.result-hero .sub strong{color:var(--orange)}
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.result-grid .cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.result-grid .cell .k{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.result-grid .cell .v{color:var(--text);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.truck-row{display:flex;gap:3px;flex-wrap:wrap;margin:10px 0}
+.truck-row .t{width:36px;height:22px;background:var(--surface2);border:1px solid var(--orange);border-radius:3px;position:relative}
+.truck-row .t::after{content:'';position:absolute;right:-6px;top:4px;width:6px;height:14px;background:var(--orange);border-radius:0 2px 2px 0}
+.pile-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.pile-list li{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}
+.pile-list li button{min-height:32px;padding:4px 8px;font-size:11px}
+
+footer{background:var(--surface);border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+footer .status{flex:1;font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+footer .status .ok{color:var(--green)}
+footer .status .bad{color:var(--red)}
+footer .status .warn{color:var(--amber)}
+footer button{padding:6px 12px;min-height:36px;font-size:12px}
+
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(10,16,24,.96);border:1px solid var(--cyan);color:var(--cyan);padding:10px 16px;border-radius:6px;font-size:13px;z-index:10000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+#back-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;min-height:36px;font-size:12px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;gap:6px}
+#back-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+details{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+details summary{cursor:pointer;color:var(--cyan);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+details[open] summary{margin-bottom:8px}
+.kbd{font-size:10px;color:var(--dim);margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <a id="back-btn" href="../../index.html#civil" aria-label="Back to Civil tools">&#8592; Back</a>
+    <h1>Stockpile Volume Scanner</h1>
+    <nav class="tabs" aria-label="Mode">
+      <button data-pane="walk" class="active">GPS Walk</button>
+      <button data-pane="manual">Manual</button>
+      <button data-pane="three">3D View</button>
+      <button data-pane="results">Results</button>
+    </nav>
+  </header>
+  <main>
+    <!-- GPS walk pane -->
+    <section id="pane-walk" class="pane active" aria-label="GPS perimeter walk">
+      <div id="map"></div>
+      <div id="walk-overlay">
+        <div class="walk-stats" aria-live="polite">
+          <div class="s"><div class="k">Points</div><div class="v" id="stat-points">0</div></div>
+          <div class="s"><div class="k">Perimeter</div><div class="v" id="stat-perimeter">0 ft</div></div>
+          <div class="s"><div class="k">Area</div><div class="v" id="stat-area">0 ft&sup2;</div></div>
+          <div class="s"><div class="k">GPS &plusmn;</div><div class="v" id="stat-acc">—</div></div>
+        </div>
+        <div class="walk-controls">
+          <button id="btn-start-gps" class="primary">Start GPS</button>
+          <button id="btn-mark" disabled>Drop Point</button>
+          <button id="btn-undo" disabled>Undo</button>
+          <button id="btn-close-poly" disabled>Close Polygon</button>
+          <button id="btn-reset" class="danger ghost" disabled>Reset</button>
+        </div>
+        <div class="kbd">Walk the perimeter of the pile and tap <strong>Drop Point</strong> at each corner. Close the polygon to compute volume.</div>
+      </div>
+    </section>
+
+    <!-- Manual entry pane -->
+    <section id="pane-manual" class="pane" aria-label="Manual entry">
+      <div id="manual-pane">
+        <h2>Pile geometry</h2>
+
+        <div class="grp">
+          <label for="shape">Pile shape</label>
+          <select id="shape">
+            <option value="cone">Conical (round pile, pointed top) — factor 1/3</option>
+            <option value="dome">Dome (rounded top) — factor 2/3</option>
+            <option value="frustum">Truncated cone / frustum (flat top)</option>
+            <option value="prism">Triangular prism / windrow ridge — factor 1/2</option>
+            <option value="trap">Trapezoidal windrow (flat top) — factor 2/3</option>
+            <option value="block">Rectangular block — factor 1.0</option>
+            <option value="irregular">Irregular polygon (use GPS walk outline)</option>
+          </select>
+          <div class="help">Shape factor is multiplied by base area &times; height.</div>
+        </div>
+
+        <div class="grp" id="grp-dims">
+          <label>Dimensions (feet)</label>
+          <div class="row triple">
+            <div><label for="d-length">Length</label><input type="number" id="d-length" step="0.1" min="0" value="20"></div>
+            <div><label for="d-width">Width</label><input type="number" id="d-width" step="0.1" min="0" value="12"></div>
+            <div><label for="d-height">Height</label><input type="number" id="d-height" step="0.1" min="0" value="8"></div>
+          </div>
+          <div class="row" id="frustum-row" style="display:none">
+            <div><label for="d-top-l">Top length</label><input type="number" id="d-top-l" step="0.1" min="0" value="10"></div>
+            <div><label for="d-top-w">Top width</label><input type="number" id="d-top-w" step="0.1" min="0" value="6"></div>
+          </div>
+          <div class="help" id="dims-help">Length &times; Width is the base; Height is the peak height above the ground.</div>
+        </div>
+
+        <div class="grp">
+          <label>Height (when using GPS walk polygon)</label>
+          <div class="row">
+            <div><label for="poly-height">Peak height (ft)</label><input type="number" id="poly-height" step="0.1" min="0" value="8"></div>
+            <div><label for="poly-shape">Shape factor</label>
+              <select id="poly-shape">
+                <option value="0.333">Cone / pyramid (1/3)</option>
+                <option value="0.5">Triangular ridge (1/2)</option>
+                <option value="0.667" selected>Dome / trapezoidal (2/3)</option>
+                <option value="1.0">Rectangular block (1.0)</option>
+              </select>
+            </div>
+          </div>
+          <div class="help">Applied when computing volume from the GPS-walked outline.</div>
+        </div>
+
+        <div class="grp">
+          <label>Haul settings</label>
+          <div class="row">
+            <div><label for="truck-cy">Truck capacity (cy)</label><input type="number" id="truck-cy" step="0.5" min="1" value="16"></div>
+            <div><label for="density">Unit weight (ton/cy)</label><input type="number" id="density" step="0.05" min="0" value="1.35"></div>
+          </div>
+          <div class="help">Default 16 cy dump truck. Loose topsoil &asymp; 1.35 ton/cy; dry sand &asymp; 1.30; damp loam &asymp; 1.45; gravel &asymp; 1.50.</div>
+        </div>
+
+        <div class="grp">
+          <label>Saved piles</label>
+          <ul class="pile-list" id="pile-list"></ul>
+          <div class="row" style="margin-top:10px">
+            <div><input type="text" id="save-name" placeholder="Pile name"></div>
+            <div><button id="btn-save" class="primary">Save Current</button></div>
+          </div>
+        </div>
+
+        <details>
+          <summary>How the math works</summary>
+          <div style="font-size:12px;color:var(--dim);line-height:1.6;margin-top:6px">
+            Base area is computed from the entered dimensions (or the GPS polygon via the shoelace formula). Volume is <code>area &times; height &times; shape factor</code>. The result is converted to cubic feet, then divided by 27 to get cubic yards. Haul count is <code>ceil(cubic yards &divide; truck capacity)</code>. Tonnage is <code>cy &times; unit weight</code>. GPS distances use the haversine formula on WGS-84 ellipsoid.
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 3D view pane -->
+    <section id="pane-three" class="pane" aria-label="3D visualization">
+      <div id="three-view"></div>
+      <div id="three-hud">
+        <div><span class="k">Drag</span> to orbit &middot; <span class="k">Pinch</span> or scroll to zoom</div>
+        <div id="three-stats" style="margin-top:4px"></div>
+      </div>
+    </section>
+
+    <!-- Results pane -->
+    <section id="pane-results" class="pane" aria-label="Results">
+      <div id="results">
+        <div class="result-hero">
+          <div class="big" id="r-cy">0.0</div>
+          <div class="unit">Cubic Yards</div>
+          <div class="sub">Haul-away: <strong id="r-trucks">0</strong> truck loads &middot; <span id="r-truck-cy">16</span> cy each</div>
+        </div>
+        <div class="truck-row" id="truck-row" aria-hidden="true"></div>
+        <div class="result-grid">
+          <div class="cell"><div class="k">Shape</div><div class="v" id="r-shape">—</div></div>
+          <div class="cell"><div class="k">Base area</div><div class="v" id="r-area">—</div></div>
+          <div class="cell"><div class="k">Peak height</div><div class="v" id="r-height">—</div></div>
+          <div class="cell"><div class="k">Volume (ft&sup3;)</div><div class="v" id="r-cf">—</div></div>
+          <div class="cell"><div class="k">Volume (m&sup3;)</div><div class="v" id="r-m3">—</div></div>
+          <div class="cell"><div class="k">Estimated mass</div><div class="v" id="r-mass">—</div></div>
+          <div class="cell"><div class="k">Origin</div><div class="v" id="r-origin">—</div></div>
+          <div class="cell"><div class="k">Points</div><div class="v" id="r-pts">—</div></div>
+        </div>
+        <details open>
+          <summary>Full report (copy/paste)</summary>
+          <textarea id="r-report" rows="12" readonly style="margin-top:6px;font-size:12px;min-height:260px"></textarea>
+          <div class="row" style="display:flex;gap:8px;margin-top:8px">
+            <button id="btn-copy" class="primary">Copy Report</button>
+            <button id="btn-download">Download .txt</button>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="status" id="status">Ready. Tap <strong>Start GPS</strong> to begin walking the pile perimeter, or switch to Manual to type dimensions.</div>
+    <button id="btn-compute" class="primary">Compute</button>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+// -------- Utilities --------
+const $ = (id)=>document.getElementById(id);
+const FT_PER_M = 3.28084;
+const M2_PER_FT2 = 0.09290304;
+const FT2_PER_M2 = 10.7639;
+const M3_PER_YD3 = 0.764555;
+const CF_PER_CY = 27;
+const LS_KEY = 'korb_stockpile_scanner_v1';
+
+function toast(msg, ms){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('show'), ms||2200);
+}
+function setStatus(html, cls){
+  const s = $('status'); s.innerHTML = html;
+  s.className = 'status ' + (cls||'');
+}
+function fmt(n, d){ if(!isFinite(n)) return '—'; const x = Number(n); return x.toLocaleString(undefined,{minimumFractionDigits:d||0,maximumFractionDigits:d||0}); }
+
+// Haversine: distance between two {lat,lon} in meters
+function haversine(a, b){
+  const R = 6371000;
+  const toRad = (d)=>d*Math.PI/180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+
+// Equirectangular projection of lat/lon to local meters around an origin
+function project(origin, p){
+  const R = 6371000;
+  const toRad = (d)=>d*Math.PI/180;
+  const x = R*Math.cos(toRad(origin.lat))*toRad(p.lon - origin.lon);
+  const y = R*toRad(p.lat - origin.lat);
+  return {x, y};
+}
+
+// Shoelace polygon area (meters^2) for local xy points
+function polygonArea(pts){
+  if(pts.length < 3) return 0;
+  let s = 0;
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i], b = pts[(i+1)%pts.length];
+    s += a.x*b.y - b.x*a.y;
+  }
+  return Math.abs(s/2);
+}
+function polygonPerimeter(pts){
+  if(pts.length < 2) return 0;
+  let p = 0;
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i], b = pts[(i+1)%pts.length];
+    p += Math.hypot(b.x-a.x, b.y-a.y);
+  }
+  return p;
+}
+
+// -------- App state --------
+const state = {
+  points: [],        // [{lat, lon, acc, t}]
+  origin: null,      // first fixed point
+  closed: false,
+  watchId: null,
+  lastFix: null,
+  // results
+  result: null,
+};
+
+// -------- Tabs --------
+document.querySelectorAll('header .tabs button').forEach((b)=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('header .tabs button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+    $('pane-'+b.dataset.pane).classList.add('active');
+    if(b.dataset.pane==='three'){ ensureThree(); renderThree(); }
+    if(b.dataset.pane==='results'){ compute(); }
+    if(b.dataset.pane==='walk'){ setTimeout(()=>{ if(map) map.invalidateSize(); }, 50); }
+  });
+});
+
+// -------- Leaflet map --------
+let map, polyLine, polygonLayer, markerLayer, meMarker, accCircle;
+function initMap(){
+  map = L.map('map', {zoomControl:true, attributionControl:false}).setView([35.22, -101.83], 17);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom:22, attribution:'Imagery &copy; Esri'
+  }).addTo(map);
+  L.control.attribution({prefix:false}).addAttribution('Imagery &copy; Esri').addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  polyLine = L.polyline([], {color:'#00d4ff', weight:3, dashArray:'6 4'}).addTo(map);
+  polygonLayer = L.polygon([], {color:'#ff9900', weight:2, fillColor:'#ff9900', fillOpacity:0.2}).addTo(map);
+  // Manual-add-point on map click
+  map.on('click', (e)=>{
+    if(!state.origin){ state.origin = {lat:e.latlng.lat, lon:e.latlng.lng}; map.setView(e.latlng, 19); }
+    addPoint({lat:e.latlng.lat, lon:e.latlng.lng, acc:null, t:Date.now(), manual:true});
+  });
+}
+
+function refreshMapPoly(){
+  const latlngs = state.points.map(p=>[p.lat,p.lon]);
+  polyLine.setLatLngs(latlngs);
+  if(state.closed && latlngs.length>=3){
+    polygonLayer.setLatLngs(latlngs);
+  } else {
+    polygonLayer.setLatLngs([]);
+  }
+  markerLayer.clearLayers();
+  state.points.forEach((p,i)=>{
+    L.circleMarker([p.lat,p.lon],{radius:6, color:'#00d4ff', fillColor:'#050a0f', fillOpacity:1, weight:2}).bindTooltip(String(i+1),{permanent:true,direction:'top',offset:[0,-6],className:'pt-lbl'}).addTo(markerLayer);
+  });
+}
+
+function addPoint(p){
+  if(state.closed) return;
+  state.points.push(p);
+  if(!state.origin) state.origin = {lat:p.lat, lon:p.lon};
+  refreshMapPoly();
+  refreshStats();
+  $('btn-undo').disabled = false;
+  $('btn-reset').disabled = false;
+  $('btn-close-poly').disabled = state.points.length < 3;
+}
+
+function refreshStats(){
+  $('stat-points').textContent = state.points.length;
+  if(state.points.length >= 2 && state.origin){
+    const xy = state.points.map(p=>project(state.origin, p));
+    const perim = polygonPerimeter(xy.concat(state.closed ? [] : []));
+    $('stat-perimeter').textContent = fmt(perim*FT_PER_M, 1) + ' ft';
+    if(state.closed && state.points.length >= 3){
+      const a = polygonArea(xy);
+      $('stat-area').textContent = fmt(a*FT2_PER_M2, 0) + ' ft²';
+    } else {
+      $('stat-area').textContent = '—';
+    }
+  } else {
+    $('stat-perimeter').textContent = '0 ft';
+    $('stat-area').textContent = '0 ft²';
+  }
+}
+
+// -------- Geolocation --------
+function startGPS(){
+  if(!('geolocation' in navigator)){
+    toast('Geolocation is not supported on this device.');
+    return;
+  }
+  setStatus('Requesting location permission…','warn');
+  $('btn-start-gps').disabled = true;
+  state.watchId = navigator.geolocation.watchPosition(onFix, onFixErr, {
+    enableHighAccuracy:true, maximumAge:1000, timeout:15000
+  });
+}
+function onFix(pos){
+  const {latitude, longitude, accuracy} = pos.coords;
+  state.lastFix = {lat:latitude, lon:longitude, acc:accuracy, t:pos.timestamp};
+  $('stat-acc').textContent = '±' + fmt(accuracy, 0) + ' m';
+  if(!meMarker){
+    meMarker = L.circleMarker([latitude,longitude],{radius:7, color:'#10b981', fillColor:'#10b981', fillOpacity:.8, weight:2}).addTo(map);
+    accCircle = L.circle([latitude,longitude],{radius:accuracy, color:'#10b981', weight:1, fillOpacity:.05}).addTo(map);
+    map.setView([latitude,longitude], 19);
+  } else {
+    meMarker.setLatLng([latitude,longitude]);
+    accCircle.setLatLng([latitude,longitude]).setRadius(accuracy);
+  }
+  $('btn-mark').disabled = false;
+  setStatus('GPS locked. Walk to each corner and tap <strong>Drop Point</strong>. Accuracy: ±' + fmt(accuracy, 0) + ' m.', 'ok');
+}
+function onFixErr(err){
+  $('btn-start-gps').disabled = false;
+  setStatus('GPS error: ' + err.message, 'bad');
+  toast('GPS error: ' + err.message);
+}
+function markHere(){
+  if(!state.lastFix){ toast('No GPS fix yet.'); return; }
+  addPoint({lat:state.lastFix.lat, lon:state.lastFix.lon, acc:state.lastFix.acc, t:Date.now()});
+}
+function undo(){
+  state.points.pop();
+  if(state.points.length===0){ state.origin = null; state.closed = false; }
+  $('btn-undo').disabled = state.points.length === 0;
+  $('btn-close-poly').disabled = state.points.length < 3;
+  refreshMapPoly(); refreshStats();
+}
+function closePoly(){
+  if(state.points.length < 3){ toast('Need at least 3 points.'); return; }
+  state.closed = true;
+  refreshMapPoly();
+  refreshStats();
+  setStatus('Polygon closed. Compute to see cubic yards.', 'ok');
+  toast('Polygon closed — compute to see volume.');
+}
+function resetAll(){
+  state.points = []; state.origin = null; state.closed = false; state.result = null;
+  refreshMapPoly(); refreshStats();
+  $('btn-undo').disabled = true; $('btn-close-poly').disabled = true; $('btn-reset').disabled = true;
+  setStatus('Cleared. Start GPS or tap the map to add points.');
+}
+
+$('btn-start-gps').addEventListener('click', startGPS);
+$('btn-mark').addEventListener('click', markHere);
+$('btn-undo').addEventListener('click', undo);
+$('btn-close-poly').addEventListener('click', closePoly);
+$('btn-reset').addEventListener('click', resetAll);
+
+// -------- Shape form switching --------
+const shapeSel = $('shape');
+shapeSel.addEventListener('change', ()=>{
+  const v = shapeSel.value;
+  $('frustum-row').style.display = (v==='frustum') ? 'grid' : 'none';
+  const help = $('dims-help');
+  if(v==='cone') help.textContent='Treats Length×Width as the base and Height as the apex height. Uses factor 1/3.';
+  else if(v==='dome') help.textContent='Treats Length×Width as the base and Height as the peak height. Uses factor 2/3.';
+  else if(v==='frustum') help.textContent='Base (L×W) and top (TL×TW) averaged via prismoidal rule at Height.';
+  else if(v==='prism') help.textContent='Triangular ridge: Length×Width is the base, Height is the ridge peak. Factor 1/2.';
+  else if(v==='trap') help.textContent='Trapezoidal windrow with rounded ends. Factor 2/3.';
+  else if(v==='block') help.textContent='Solid block: Length×Width×Height (factor 1.0).';
+  else if(v==='irregular') help.textContent='Use the GPS Walk tab to draw the outline, then set peak height and shape factor below.';
+});
+
+// -------- Volume computation --------
+function computeFromDims(){
+  const L = +$('d-length').value || 0;
+  const W = +$('d-width').value || 0;
+  const H = +$('d-height').value || 0;
+  const shape = shapeSel.value;
+  let baseAreaFt2 = L * W;
+  let volFt3 = 0, factor = 1, shapeLabel = '';
+  switch(shape){
+    case 'cone':     factor = 1/3; volFt3 = baseAreaFt2 * H * factor; shapeLabel='Conical (1/3)'; break;
+    case 'dome':     factor = 2/3; volFt3 = baseAreaFt2 * H * factor; shapeLabel='Dome (2/3)'; break;
+    case 'frustum': {
+      const TL = +$('d-top-l').value || 0;
+      const TW = +$('d-top-w').value || 0;
+      const A1 = L*W, A2 = TL*TW, Am = Math.sqrt(A1*A2);
+      volFt3 = (H/6) * (A1 + 4*Am + A2);  // prismoidal
+      factor = NaN; shapeLabel='Frustum (prismoidal)';
+      break;
+    }
+    case 'prism':    factor = 1/2; volFt3 = baseAreaFt2 * H * factor; shapeLabel='Triangular prism (1/2)'; break;
+    case 'trap':     factor = 2/3; volFt3 = baseAreaFt2 * H * factor; shapeLabel='Trapezoidal windrow (2/3)'; break;
+    case 'block':    factor = 1.0; volFt3 = baseAreaFt2 * H;          shapeLabel='Rectangular block (1.0)'; break;
+    default:         factor = NaN; volFt3 = 0; shapeLabel='—';
+  }
+  return {
+    baseAreaFt2, heightFt:H, volFt3, factor, shapeLabel,
+    source:'Manual dimensions'
+  };
+}
+function computeFromPolygon(){
+  if(!state.closed || state.points.length < 3 || !state.origin){
+    return null;
+  }
+  const xy = state.points.map(p=>project(state.origin, p));
+  const aM2 = polygonArea(xy);
+  const baseAreaFt2 = aM2 * FT2_PER_M2;
+  const H = +$('poly-height').value || 0;
+  const factor = +$('poly-shape').value || 0.667;
+  const volFt3 = baseAreaFt2 * H * factor;
+  const label = ({
+    '0.333':'Cone/pyramid (1/3)',
+    '0.5':'Triangular ridge (1/2)',
+    '0.667':'Dome/trapezoidal (2/3)',
+    '1.0':'Block (1.0)'
+  })[String(factor)] || 'Custom';
+  return {
+    baseAreaFt2, heightFt:H, volFt3, factor, shapeLabel:label,
+    source:'GPS-walked polygon',
+    origin: {...state.origin},
+    points: state.points.map(p=>({...p}))
+  };
+}
+
+function compute(){
+  // Prefer GPS polygon if we have one, else fall back to manual.
+  const usingPoly = state.closed && state.points.length >= 3;
+  const r = usingPoly ? computeFromPolygon() : computeFromDims();
+  if(!r){ toast('No data to compute.'); return; }
+  const truckCy = +$('truck-cy').value || 16;
+  const density = +$('density').value || 1.35;
+  const cy = r.volFt3 / CF_PER_CY;
+  const m3 = cy * M3_PER_YD3;
+  const mass = cy * density;
+  const trucks = cy > 0 ? Math.ceil(cy / truckCy) : 0;
+
+  state.result = {...r, cy, m3, mass, trucks, truckCy, density, usingPoly};
+
+  $('r-cy').textContent = fmt(cy, 1);
+  $('r-trucks').textContent = trucks;
+  $('r-truck-cy').textContent = fmt(truckCy, 0);
+  $('r-shape').textContent = r.shapeLabel;
+  $('r-area').textContent = fmt(r.baseAreaFt2, 0) + ' ft²';
+  $('r-height').textContent = fmt(r.heightFt, 1) + ' ft';
+  $('r-cf').textContent = fmt(r.volFt3, 0) + ' ft³';
+  $('r-m3').textContent = fmt(m3, 1) + ' m³';
+  $('r-mass').textContent = fmt(mass, 1) + ' tons';
+  $('r-origin').textContent = r.origin ? (r.origin.lat.toFixed(6)+', '+r.origin.lon.toFixed(6)) : '—';
+  $('r-pts').textContent = r.points ? r.points.length : '—';
+
+  // Truck row viz (cap at 50)
+  const row = $('truck-row'); row.innerHTML='';
+  const n = Math.min(trucks, 50);
+  for(let i=0;i<n;i++){ const d=document.createElement('div'); d.className='t'; row.appendChild(d); }
+  if(trucks > 50){ const more=document.createElement('div'); more.style.cssText='color:var(--orange);font-size:11px;align-self:center;margin-left:6px'; more.textContent='+'+(trucks-50); row.appendChild(more); }
+
+  // Report text
+  const lines = [];
+  lines.push('STOCKPILE VOLUME REPORT');
+  lines.push('Generated: ' + new Date().toISOString());
+  lines.push('Source:    ' + r.source);
+  lines.push('Shape:     ' + r.shapeLabel);
+  if(r.origin) lines.push('Origin:    ' + r.origin.lat.toFixed(6)+', '+r.origin.lon.toFixed(6));
+  lines.push('');
+  lines.push('  Base area:       ' + fmt(r.baseAreaFt2,0) + ' ft² (' + fmt(r.baseAreaFt2*M2_PER_FT2,1) + ' m²)');
+  lines.push('  Peak height:     ' + fmt(r.heightFt,1) + ' ft');
+  lines.push('  Volume:          ' + fmt(r.volFt3,0) + ' ft³');
+  lines.push('                   ' + fmt(cy,1) + ' cubic yards');
+  lines.push('                   ' + fmt(m3,1) + ' m³');
+  lines.push('  Unit weight:     ' + fmt(density,2) + ' ton/cy');
+  lines.push('  Estimated mass:  ' + fmt(mass,1) + ' tons');
+  lines.push('');
+  lines.push('HAUL-AWAY');
+  lines.push('  Truck capacity:  ' + fmt(truckCy,0) + ' cy');
+  lines.push('  Loads required:  ' + trucks + '  (ceil(' + fmt(cy,1) + ' / ' + fmt(truckCy,0) + '))');
+  if(r.points && r.points.length){
+    lines.push('');
+    lines.push('PERIMETER POINTS (WGS-84)');
+    r.points.forEach((p,i)=>{
+      lines.push('  #' + (i+1).toString().padStart(2,'0') + '  ' + p.lat.toFixed(6) + ', ' + p.lon.toFixed(6) + (p.acc!=null ? '  (±'+fmt(p.acc,0)+' m)' : ''));
+    });
+  }
+  $('r-report').value = lines.join('\n');
+
+  setStatus('Volume: <strong>' + fmt(cy,1) + ' cy</strong> &middot; ' + trucks + ' truck load(s)', 'ok');
+  return state.result;
+}
+$('btn-compute').addEventListener('click', ()=>{
+  compute();
+  // Switch to results tab
+  document.querySelector('header .tabs button[data-pane="results"]').click();
+});
+
+// -------- Report actions --------
+$('btn-copy').addEventListener('click', async ()=>{
+  const txt = $('r-report').value;
+  if(!txt){ toast('Compute first.'); return; }
+  try { await navigator.clipboard.writeText(txt); toast('Report copied to clipboard.'); }
+  catch(e){
+    const ta = $('r-report'); ta.select(); document.execCommand('copy'); toast('Copied.');
+  }
+});
+$('btn-download').addEventListener('click', ()=>{
+  const txt = $('r-report').value;
+  if(!txt){ toast('Compute first.'); return; }
+  const blob = new Blob([txt],{type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stockpile-report-' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19) + '.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+// -------- Three.js visualization --------
+let three = null;
+function ensureThree(){
+  if(three) return;
+  const container = $('three-view');
+  const w = container.clientWidth, h = container.clientHeight;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x050a0f);
+  scene.fog = new THREE.Fog(0x050a0f, 60, 220);
+  const camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 2000);
+  camera.position.set(60, 40, 60);
+  camera.lookAt(0,5,0);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(w,h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  container.appendChild(renderer.domElement);
+  // Ground plane with grid
+  const grid = new THREE.GridHelper(200, 40, 0x1a2535, 0x0e1520);
+  scene.add(grid);
+  const axes = new THREE.AxesHelper(10);
+  scene.add(axes);
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(50, 80, 30);
+  scene.add(dir);
+  // Simple orbit controls (touch/mouse)
+  const controls = attachOrbit(renderer.domElement, camera, new THREE.Vector3(0,5,0));
+  three = {scene, camera, renderer, controls, pileMesh:null};
+  function loop(){
+    three.controls.update();
+    three.renderer.render(three.scene, three.camera);
+    requestAnimationFrame(loop);
+  }
+  loop();
+  window.addEventListener('resize', ()=>{
+    if(!three) return;
+    const w = container.clientWidth, h = container.clientHeight;
+    three.camera.aspect = w/h; three.camera.updateProjectionMatrix();
+    three.renderer.setSize(w,h);
+  });
+}
+
+function attachOrbit(el, camera, target){
+  let azim = Math.PI/4, elev = 0.6, dist = 100;
+  const update = ()=>{
+    const x = target.x + dist*Math.cos(elev)*Math.sin(azim);
+    const z = target.z + dist*Math.cos(elev)*Math.cos(azim);
+    const y = target.y + dist*Math.sin(elev);
+    camera.position.set(x,y,z);
+    camera.lookAt(target);
+  };
+  update();
+  let drag = null;
+  el.addEventListener('pointerdown', (e)=>{ drag = {x:e.clientX,y:e.clientY}; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', (e)=>{
+    if(!drag) return;
+    const dx = e.clientX-drag.x, dy = e.clientY-drag.y;
+    azim -= dx*0.01; elev += dy*0.008;
+    elev = Math.max(0.05, Math.min(Math.PI/2 - 0.05, elev));
+    drag = {x:e.clientX,y:e.clientY};
+  });
+  el.addEventListener('pointerup', ()=>drag=null);
+  el.addEventListener('pointercancel', ()=>drag=null);
+  el.addEventListener('wheel', (e)=>{ e.preventDefault(); dist *= (1 + e.deltaY*0.001); dist = Math.max(10, Math.min(400, dist)); }, {passive:false});
+  // Touch pinch
+  let pinch = null;
+  el.addEventListener('touchstart', (e)=>{ if(e.touches.length===2){ pinch = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); } }, {passive:true});
+  el.addEventListener('touchmove', (e)=>{ if(e.touches.length===2 && pinch){ const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); dist *= pinch/d; pinch = d; dist = Math.max(10, Math.min(400, dist)); } }, {passive:true});
+  el.addEventListener('touchend', ()=>pinch=null);
+  return {update};
+}
+
+function buildPileGeometry(){
+  if(!three) return;
+  if(three.pileMesh){ three.scene.remove(three.pileMesh); three.pileMesh.geometry.dispose(); three.pileMesh.material.dispose(); three.pileMesh = null; }
+  const r = state.result || compute();
+  if(!r) return;
+
+  const heightFt = r.heightFt;
+  let geom;
+  if(r.usingPoly && r.points && r.points.length >= 3 && r.origin){
+    // Use polygon as base, single apex at centroid
+    const xy = r.points.map(p=>project(r.origin, p)); // meters
+    // convert meters → feet for display so numbers feel right next to "ft" grid
+    const ptsFt = xy.map(p=>({x:p.x*FT_PER_M, y:p.y*FT_PER_M}));
+    const cx = ptsFt.reduce((a,p)=>a+p.x,0)/ptsFt.length;
+    const cy = ptsFt.reduce((a,p)=>a+p.y,0)/ptsFt.length;
+    // Build fan mesh: base triangles + side triangles to apex
+    const verts = [];
+    const apex = {x:cx, y:cy, z:heightFt};
+    // triangulate base using fan from centroid at z=0
+    for(let i=0;i<ptsFt.length;i++){
+      const a = ptsFt[i], b = ptsFt[(i+1)%ptsFt.length];
+      // base triangle (downward) — centroid, b, a  (so normal points down)
+      verts.push(cx, 0, cy);
+      verts.push(b.x, 0, b.y);
+      verts.push(a.x, 0, a.y);
+      // side triangle: a, b, apex
+      verts.push(a.x, 0, a.y);
+      verts.push(b.x, 0, b.y);
+      verts.push(apex.x, apex.z, apex.y);
+    }
+    geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geom.computeVertexNormals();
+  } else {
+    // Parametric shapes from dims
+    const L = +$('d-length').value || 20;
+    const W = +$('d-width').value || 12;
+    const H = +$('d-height').value || 8;
+    const shape = shapeSel.value;
+    if(shape==='cone'){
+      geom = new THREE.ConeGeometry(Math.min(L,W)/2, H, 48);
+      geom.scale(L/Math.min(L,W), 1, W/Math.min(L,W));
+      geom.translate(0, H/2, 0);
+    } else if(shape==='dome'){
+      geom = new THREE.SphereGeometry(Math.min(L,W)/2, 32, 16, 0, Math.PI*2, 0, Math.PI/2);
+      geom.scale(L/Math.min(L,W), H/(Math.min(L,W)/2), W/Math.min(L,W));
+    } else if(shape==='frustum'){
+      const TL = +$('d-top-l').value || L*0.5;
+      const TW = +$('d-top-w').value || W*0.5;
+      const rBot = Math.max(L,W)/2, rTop = Math.max(TL,TW)/2;
+      geom = new THREE.CylinderGeometry(rTop, rBot, H, 48, 1, false);
+      geom.scale(1, 1, 1);
+      geom.translate(0, H/2, 0);
+    } else if(shape==='prism'){
+      // triangular ridge: triangle cross-section × L
+      const shape2 = new THREE.Shape();
+      shape2.moveTo(-W/2, 0); shape2.lineTo(W/2, 0); shape2.lineTo(0, H); shape2.lineTo(-W/2, 0);
+      geom = new THREE.ExtrudeGeometry(shape2, {depth:L, bevelEnabled:false});
+      geom.translate(0, 0, -L/2);
+      geom.rotateX(Math.PI/2);
+    } else if(shape==='trap'){
+      // trapezoidal: wider base, narrower top
+      const shape2 = new THREE.Shape();
+      shape2.moveTo(-W/2, 0); shape2.lineTo(W/2, 0); shape2.lineTo(W/3, H); shape2.lineTo(-W/3, H); shape2.lineTo(-W/2, 0);
+      geom = new THREE.ExtrudeGeometry(shape2, {depth:L, bevelEnabled:false});
+      geom.translate(0, 0, -L/2);
+      geom.rotateX(Math.PI/2);
+    } else {
+      geom = new THREE.BoxGeometry(L, H, W);
+      geom.translate(0, H/2, 0);
+    }
+  }
+  const mat = new THREE.MeshStandardMaterial({color:0xa0613a, flatShading:true, roughness:.9});
+  const mesh = new THREE.Mesh(geom, mat);
+  three.scene.add(mesh);
+  three.pileMesh = mesh;
+  // Wireframe edges overlay
+  const edges = new THREE.EdgesGeometry(geom, 20);
+  const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color:0xff9900}));
+  mesh.add(line);
+
+  // Frame camera
+  const box = new THREE.Box3().setFromObject(mesh);
+  const sz = box.getSize(new THREE.Vector3());
+  const ctr = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(sz.x, sz.y, sz.z);
+  three.controls.update = ((orig)=>function(){ orig.call(); })(three.controls.update);
+  // Re-init orbit target by manipulating camera directly
+  three.camera.position.set(ctr.x + maxDim*1.6, ctr.y + maxDim*1.2, ctr.z + maxDim*1.6);
+  three.camera.lookAt(ctr);
+
+  $('three-stats').innerHTML = '<span class="k">' + (r.shapeLabel||'—') + '</span> · ' + fmt(r.cy||0,1) + ' cy · ' + (r.trucks||0) + ' trucks';
+}
+function renderThree(){ ensureThree(); buildPileGeometry(); }
+
+// -------- Saved piles --------
+function loadPiles(){
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch(e){ return []; }
+}
+function savePiles(arr){ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
+function renderPileList(){
+  const ul = $('pile-list'); ul.innerHTML='';
+  const piles = loadPiles();
+  if(!piles.length){ ul.innerHTML = '<li style="justify-content:center;color:var(--dim)">No saved piles yet.</li>'; return; }
+  piles.forEach((p, i)=>{
+    const li = document.createElement('li');
+    li.innerHTML = '<span><strong>'+escapeHtml(p.name)+'</strong> · ' + fmt(p.result?.cy||0,1) + ' cy</span>';
+    const btnLoad = document.createElement('button'); btnLoad.textContent='Load'; btnLoad.className='ghost';
+    btnLoad.addEventListener('click', ()=>{ loadPile(p); });
+    const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='danger ghost';
+    btnDel.addEventListener('click', ()=>{
+      const arr = loadPiles(); arr.splice(i,1); savePiles(arr); renderPileList(); toast('Deleted.');
+    });
+    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.gap='6px';
+    wrap.append(btnLoad, btnDel); li.appendChild(wrap);
+    ul.appendChild(li);
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function saveCurrent(){
+  const name = ($('save-name').value||'').trim() || ('Pile '+new Date().toLocaleString());
+  compute();
+  const r = state.result; if(!r){ toast('Nothing to save.'); return; }
+  const arr = loadPiles();
+  arr.push({
+    name, savedAt: Date.now(),
+    dims: {
+      L:+$('d-length').value, W:+$('d-width').value, H:+$('d-height').value,
+      TL:+$('d-top-l').value, TW:+$('d-top-w').value,
+      shape: shapeSel.value,
+      polyHeight:+$('poly-height').value, polyShape:+$('poly-shape').value
+    },
+    truckCy: +$('truck-cy').value, density:+$('density').value,
+    points: state.points.map(p=>({...p})),
+    closed: state.closed,
+    origin: state.origin ? {...state.origin} : null,
+    result: {cy:r.cy, volFt3:r.volFt3, baseAreaFt2:r.baseAreaFt2, heightFt:r.heightFt, shapeLabel:r.shapeLabel, trucks:r.trucks, mass:r.mass}
+  });
+  savePiles(arr); $('save-name').value=''; renderPileList(); toast('Saved.');
+}
+function loadPile(p){
+  $('d-length').value = p.dims.L; $('d-width').value = p.dims.W; $('d-height').value = p.dims.H;
+  $('d-top-l').value = p.dims.TL; $('d-top-w').value = p.dims.TW;
+  shapeSel.value = p.dims.shape; shapeSel.dispatchEvent(new Event('change'));
+  $('poly-height').value = p.dims.polyHeight; $('poly-shape').value = p.dims.polyShape;
+  $('truck-cy').value = p.truckCy; $('density').value = p.density;
+  state.points = (p.points||[]).map(q=>({...q})); state.origin = p.origin ? {...p.origin} : null; state.closed = !!p.closed;
+  refreshMapPoly(); refreshStats();
+  $('btn-undo').disabled = state.points.length===0;
+  $('btn-reset').disabled = state.points.length===0;
+  $('btn-close-poly').disabled = state.points.length < 3;
+  compute();
+  toast('Loaded '+p.name);
+}
+$('btn-save').addEventListener('click', saveCurrent);
+
+// -------- Init --------
+window.addEventListener('load', ()=>{
+  initMap();
+  renderPileList();
+  shapeSel.dispatchEvent(new Event('change'));
+  // Attempt to center on user location without starting a watch
+  if('geolocation' in navigator){
+    navigator.geolocation.getCurrentPosition((pos)=>{
+      map.setView([pos.coords.latitude, pos.coords.longitude], 19);
+    }, ()=>{}, {enableHighAccuracy:false, timeout:5000});
+  }
+});
+})();
+</script>
+</body>
+</html>

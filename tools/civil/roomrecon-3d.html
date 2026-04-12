@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="RoomRecon 3D | Korb Engineering — scan a room with your phone or tablet and build a to-scale, georeferenced 3D model in your browser.">
+<title>RoomRecon 3D | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="../../vendor/three-r128.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --cyan:#00d4ff;--orange:#ff9900;--green:#10b981;--red:#ef4444;--amber:#fbbf24;
+  --text:#e2e8f0;--dim:#8892a4;--bright:#f8fafc;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;overflow:hidden}
+input,select,button,textarea{font-family:inherit;font-size:16px}
+button{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:10px 14px;border-radius:6px;min-height:44px;transition:border-color .15s,color .15s,background .15s}
+button:hover{border-color:var(--cyan);color:var(--cyan)}
+button.primary{background:rgba(0,212,255,.14);border-color:var(--cyan);color:var(--cyan)}
+button.warn{background:rgba(255,153,0,.14);border-color:var(--orange);color:var(--orange)}
+button.danger{background:rgba(239,68,68,.12);border-color:var(--red);color:var(--red)}
+button.ghost{background:transparent}
+button[disabled]{opacity:.4;cursor:not-allowed}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;width:100%;min-height:44px;font-size:16px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+
+#app{display:grid;grid-template-rows:auto 1fr auto;height:100vh;width:100vw}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:15px;color:var(--cyan);font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .tabs{display:flex;gap:4px;flex-wrap:wrap}
+header .tabs button{font-size:12px;padding:6px 12px;min-height:36px}
+header .tabs button.active{background:rgba(0,212,255,.14);border-color:var(--cyan);color:var(--cyan)}
+
+#back-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;min-height:36px;font-size:12px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;gap:6px}
+#back-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+main{position:relative;overflow:hidden;background:#000}
+.pane{position:absolute;inset:0;display:none}
+.pane.active{display:block}
+
+/* Sketch pane */
+#sketch-wrap{position:absolute;inset:0;display:grid;grid-template-columns:1fr 280px}
+@media (max-width:820px){#sketch-wrap{grid-template-columns:1fr;grid-template-rows:1fr auto}#sketch-side{max-height:42vh;overflow-y:auto}}
+#sketch-canvas{width:100%;height:100%;display:block;background:#050a0f;touch-action:none}
+#sketch-side{background:var(--surface);border-left:1px solid var(--border);padding:12px;overflow-y:auto}
+@media (max-width:820px){#sketch-side{border-left:0;border-top:1px solid var(--border)}}
+#sketch-side h2{color:var(--cyan);font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.grp{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row.single{grid-template-columns:1fr}
+.row.triple{grid-template-columns:1fr 1fr 1fr}
+.help{color:var(--dim);font-size:11px;margin-top:4px;line-height:1.5}
+#wall-list{list-style:none;display:flex;flex-direction:column;gap:4px;max-height:200px;overflow-y:auto}
+#wall-list li{display:grid;grid-template-columns:auto 1fr auto;gap:6px;background:var(--surface);padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;align-items:center}
+#wall-list li .n{color:var(--cyan);font-weight:600}
+#wall-list li input{min-height:32px;padding:4px 6px;font-size:16px}
+#wall-list li button{min-height:28px;padding:2px 6px;font-size:10px}
+
+/* Walk (AR) pane */
+#walk-pane{position:absolute;inset:0;background:#000}
+#cam-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+#walk-overlay{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between}
+#walk-top{display:flex;justify-content:space-between;padding:10px 12px;pointer-events:auto}
+#walk-top .pill{background:rgba(10,16,24,.82);border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:11px;color:var(--text);display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)}
+#walk-top .pill .k{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+#walk-top .pill .v{color:var(--cyan);font-weight:700}
+#crosshair{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid var(--cyan);border-radius:50%;box-shadow:0 0 0 1px rgba(0,212,255,.35) inset}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:var(--cyan)}
+#crosshair::before{left:50%;top:-10px;width:2px;height:10px;margin-left:-1px}
+#crosshair::after{top:50%;left:-10px;width:10px;height:2px;margin-top:-1px}
+#compass-rose{position:absolute;top:56px;left:50%;transform:translateX(-50%);width:120px;height:22px;background:rgba(10,16,24,.7);border:1px solid var(--border);border-radius:4px;overflow:hidden;pointer-events:none}
+#compass-rose .tick{position:absolute;top:0;bottom:0;width:1px;background:var(--dim)}
+#compass-rose .tick.card{background:var(--cyan)}
+#compass-rose .tick span{position:absolute;top:2px;left:-6px;font-size:9px;color:var(--cyan)}
+#compass-rose .needle{position:absolute;left:50%;top:0;width:2px;height:100%;background:var(--orange);margin-left:-1px}
+#walk-bottom{background:linear-gradient(to top, rgba(10,16,24,.95), rgba(10,16,24,0));padding:12px;pointer-events:auto;display:flex;flex-direction:column;gap:8px}
+#walk-bottom .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px}
+#walk-bottom .stats .s{background:rgba(10,16,24,.7);border:1px solid var(--border);border-radius:4px;padding:5px 6px;text-align:center}
+#walk-bottom .stats .s .k{color:var(--dim);font-size:9px;text-transform:uppercase}
+#walk-bottom .stats .s .v{color:var(--cyan);font-size:12px;font-weight:700}
+#walk-bottom .controls{display:flex;gap:6px;flex-wrap:wrap}
+#walk-bottom .controls button{flex:1;min-width:90px}
+#cam-blocker{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center;padding:20px;background:var(--surface)}
+#cam-blocker h2{color:var(--cyan);font-size:15px;text-transform:uppercase;letter-spacing:.1em}
+#cam-blocker p{color:var(--dim);font-size:12px;max-width:440px;line-height:1.6}
+
+/* 3D pane */
+#three-host{position:absolute;inset:0}
+#three-host canvas{display:block;width:100%;height:100%}
+#three-hud{position:absolute;top:10px;left:10px;background:rgba(10,16,24,.85);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--dim)}
+#three-hud .k{color:var(--cyan)}
+#three-ctrls{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
+#three-ctrls button{min-height:36px;padding:6px 10px;font-size:11px}
+
+/* Export pane */
+#export-pane{padding:16px;overflow-y:auto;background:var(--surface)}
+#export-pane h2{color:var(--cyan);font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+#export-pane .grp{margin-bottom:14px}
+#export-pane textarea{min-height:220px;font-size:11px;background:var(--bg)}
+
+footer{background:var(--surface);border-top:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+footer .status{flex:1;font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+footer .status .ok{color:var(--green)}
+footer .status .bad{color:var(--red)}
+footer .status .warn{color:var(--amber)}
+footer button{padding:6px 12px;min-height:36px;font-size:12px}
+
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(10,16,24,.96);border:1px solid var(--cyan);color:var(--cyan);padding:10px 16px;border-radius:6px;font-size:13px;z-index:10000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+details{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:10px}
+details summary{cursor:pointer;color:var(--cyan);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <a id="back-btn" href="../../index.html#civil" aria-label="Back to Civil tools">&#8592; Back</a>
+    <h1>RoomRecon 3D</h1>
+    <nav class="tabs" aria-label="Mode">
+      <button data-pane="sketch" class="active">Sketch</button>
+      <button data-pane="walk">Walk (AR)</button>
+      <button data-pane="three">3D View</button>
+      <button data-pane="export">Export</button>
+    </nav>
+  </header>
+  <main>
+    <!-- Sketch pane -->
+    <section id="pane-sketch" class="pane active">
+      <div id="sketch-wrap">
+        <canvas id="sketch-canvas" tabindex="0" aria-label="Floor plan sketch canvas"></canvas>
+        <aside id="sketch-side">
+          <h2>Room properties</h2>
+          <div class="grp">
+            <label for="room-name">Room name</label>
+            <input type="text" id="room-name" placeholder="Conference Room A" value="Untitled Room">
+            <div class="row" style="margin-top:8px">
+              <div><label for="ceil-height">Ceiling (ft)</label><input type="number" id="ceil-height" step="0.1" min="0" value="9"></div>
+              <div><label for="wall-thick">Wall thick (in)</label><input type="number" id="wall-thick" step="0.5" min="0" value="6"></div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <label>Drawing mode</label>
+            <div class="row" style="margin-top:4px">
+              <button data-tool="add" class="primary active" id="tool-add">Add Corner</button>
+              <button data-tool="move" id="tool-move">Move</button>
+            </div>
+            <div class="row" style="margin-top:6px">
+              <button id="btn-undo-pt">Undo</button>
+              <button id="btn-close-room">Close Room</button>
+            </div>
+            <div class="row single" style="margin-top:6px">
+              <button id="btn-clear" class="danger ghost">Clear All</button>
+            </div>
+            <div class="help">Tap the canvas to place corners. Pinch/scroll to zoom, drag background to pan. Toggle <strong>Move</strong> to drag an existing corner.</div>
+          </div>
+
+          <div class="grp">
+            <label>Snap &amp; scale</label>
+            <div class="row">
+              <div><label for="snap-angle">Angle snap (°)</label>
+                <select id="snap-angle">
+                  <option value="0">Off</option>
+                  <option value="15">15°</option>
+                  <option value="45" selected>45°</option>
+                  <option value="90">90°</option>
+                </select>
+              </div>
+              <div><label for="scale-ftpx">Scale</label>
+                <select id="scale-ftpx">
+                  <option value="0.25">1 ft = 25 px (detail)</option>
+                  <option value="0.1" selected>1 ft = 10 px (default)</option>
+                  <option value="0.05">1 ft = 5 px (large)</option>
+                  <option value="0.025">1 ft = 2.5 px (huge)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <label>Walls</label>
+            <ul id="wall-list" aria-live="polite"></ul>
+            <div class="help">Edit wall lengths directly — corners adjust to maintain shape.</div>
+          </div>
+
+          <div class="grp">
+            <label>Georeferencing</label>
+            <div class="row">
+              <button id="btn-geo" class="primary">Capture GPS Origin</button>
+              <button id="btn-true-north">Set Heading</button>
+            </div>
+            <div id="geo-readout" class="help">No GPS origin yet. RoomRecon stores <code>lat, lon, alt</code> at the first corner plus a true-north bearing for the first wall.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Walk (AR) pane -->
+    <section id="pane-walk" class="pane">
+      <div id="walk-pane">
+        <video id="cam-video" autoplay playsinline muted></video>
+        <div id="walk-overlay">
+          <div id="walk-top">
+            <div class="pill"><span class="k">HDG</span><span class="v" id="walk-heading">—</span></div>
+            <div class="pill"><span class="k">PTS</span><span class="v" id="walk-count">0</span></div>
+          </div>
+          <div id="crosshair"></div>
+          <div id="compass-rose" aria-hidden="true"></div>
+          <div id="walk-bottom">
+            <div class="stats" aria-live="polite">
+              <div class="s"><div class="k">Perim</div><div class="v" id="walk-perim">0 ft</div></div>
+              <div class="s"><div class="k">Area</div><div class="v" id="walk-area">0 ft²</div></div>
+              <div class="s"><div class="k">GPS</div><div class="v" id="walk-gps">—</div></div>
+              <div class="s"><div class="k">Tilt</div><div class="v" id="walk-tilt">—</div></div>
+            </div>
+            <div class="controls">
+              <button id="walk-start" class="primary">Start Camera</button>
+              <button id="walk-mark" disabled>Mark Corner</button>
+              <button id="walk-len" disabled>Set Wall Length</button>
+              <button id="walk-undo" disabled>Undo</button>
+              <button id="walk-close" disabled>Close</button>
+            </div>
+          </div>
+        </div>
+        <div id="cam-blocker">
+          <h2>Walk-Scan Mode</h2>
+          <p>Stand in one corner of the room, aim the device along the first wall, and tap <strong>Start Camera</strong>. At each corner, tap <strong>Mark Corner</strong> — the device's compass captures the bearing. Tap <strong>Set Wall Length</strong> to enter the measured distance back to the previous corner (feet).</p>
+          <p>Walk Mode requires permission for <strong>camera</strong>, <strong>location</strong>, and <strong>device orientation</strong>. iOS Safari will prompt you on the first tap.</p>
+          <button id="walk-begin" class="primary" style="margin-top:8px">Request Permissions</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3D pane -->
+    <section id="pane-three" class="pane">
+      <div id="three-host"></div>
+      <div id="three-hud">
+        <div><span class="k">Drag</span> to orbit &middot; <span class="k">Pinch/scroll</span> to zoom</div>
+        <div id="three-stats" style="margin-top:4px">Build a room in the Sketch tab, then return here.</div>
+      </div>
+      <div id="three-ctrls">
+        <button id="btn-rebuild">Rebuild</button>
+        <button id="btn-toggle-roof" class="ghost">Toggle Roof</button>
+        <button id="btn-toggle-walls" class="ghost">Toggle Walls</button>
+      </div>
+    </section>
+
+    <!-- Export pane -->
+    <section id="pane-export" class="pane">
+      <div id="export-pane">
+        <h2>Export &amp; share</h2>
+        <div class="grp">
+          <label>Format</label>
+          <div class="row triple">
+            <button id="btn-obj" class="primary">Download .obj</button>
+            <button id="btn-json" class="primary">Download .json</button>
+            <button id="btn-txt">Copy Summary</button>
+          </div>
+          <div class="help">The .obj file contains floor + walls + roof as a triangle mesh. The .json file bundles corner coordinates, walls, and a georeferencing block (<code>lat, lon, heading</code>) so you can re-import into CAD or GIS with a known origin.</div>
+        </div>
+        <div class="grp">
+          <label>Summary</label>
+          <textarea id="export-summary" readonly></textarea>
+        </div>
+        <details>
+          <summary>Saved rooms</summary>
+          <div class="row" style="margin-top:6px">
+            <button id="btn-save-room" class="primary">Save Current</button>
+            <button id="btn-load-room">Load…</button>
+          </div>
+          <ul id="saved-rooms" style="list-style:none;display:flex;flex-direction:column;gap:4px;margin-top:8px"></ul>
+        </details>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="status" id="status">Ready. Tap the sketch canvas to place room corners, or switch to <strong>Walk (AR)</strong> to scan with your phone.</div>
+    <button id="btn-go-3d" class="primary">Build 3D</button>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = (id)=>document.getElementById(id);
+const LS_KEY = 'korb_roomrecon_3d_v1';
+const FT_PER_M = 3.28084, M_PER_FT = 0.3048;
+
+function toast(m, ms){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), ms||2200); }
+function setStatus(html, cls){ const s=$('status'); s.innerHTML=html; s.className='status '+(cls||''); }
+function fmt(n,d){ if(!isFinite(n)) return '—'; return Number(n).toLocaleString(undefined,{minimumFractionDigits:d||0,maximumFractionDigits:d||0}); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ----- App state -----
+const state = {
+  corners: [],  // [{x:ft, y:ft}] in local feet, +x = east, +y = north (after georef)
+  closed: false,
+  name: 'Untitled Room',
+  ceilHt: 9,
+  wallThick: 6,
+  tool: 'add',
+  scale: 0.1, // ft -> px (initial, canvas can zoom on top)
+  snapAngle: 45,
+  georef: {lat:null, lon:null, alt:null, accuracy:null, heading:null}, // heading = deg to true north for +y axis
+  // canvas view transform
+  view: {ox:0, oy:0, zoom:1},
+};
+
+// ----- Tabs -----
+document.querySelectorAll('header .tabs button').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('header .tabs button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  $('pane-'+b.dataset.pane).classList.add('active');
+  if(b.dataset.pane==='sketch'){ setTimeout(resizeCanvas, 30); }
+  if(b.dataset.pane==='three'){ ensureThree(); rebuild3D(); }
+  if(b.dataset.pane==='export'){ writeSummary(); renderSavedRooms(); }
+}));
+
+// ========== SKETCH MODE ==========
+const canvas = $('sketch-canvas');
+const ctx = canvas.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resizeCanvas(){
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.round(r.width * DPR);
+  canvas.height = Math.round(r.height * DPR);
+  drawSketch();
+}
+window.addEventListener('resize', resizeCanvas);
+
+function worldToScreen(p){
+  // p in feet -> canvas px (centered origin at canvas center + pan)
+  const cx = canvas.width/2 + state.view.ox*DPR;
+  const cy = canvas.height/2 + state.view.oy*DPR;
+  const s = state.scale * state.view.zoom * DPR;
+  return { x: cx + p.x*s, y: cy - p.y*s };
+}
+function screenToWorld(pt){
+  const cx = canvas.width/2 + state.view.ox*DPR;
+  const cy = canvas.height/2 + state.view.oy*DPR;
+  const s = state.scale * state.view.zoom * DPR;
+  return { x: (pt.x*DPR - cx)/s, y: (cy - pt.y*DPR)/s };
+}
+
+function drawGrid(){
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = '#050a0f'; ctx.fillRect(0,0,w,h);
+  ctx.save();
+  ctx.strokeStyle = '#0e1520'; ctx.lineWidth = 1;
+  const s = state.scale * state.view.zoom * DPR;
+  // find first grid line
+  const stepFt = s < 6 ? 10 : (s < 14 ? 5 : 1);
+  const stepPx = stepFt * s;
+  const cx = w/2 + state.view.ox*DPR, cy = h/2 + state.view.oy*DPR;
+  const startX = cx - Math.ceil(cx/stepPx)*stepPx;
+  const startY = cy - Math.ceil(cy/stepPx)*stepPx;
+  for(let x=startX; x<w; x+=stepPx){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for(let y=startY; y<h; y+=stepPx){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  // axes
+  ctx.strokeStyle = '#1a2535'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(w,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+  // scale indicator
+  ctx.fillStyle = '#8892a4'; ctx.font = (11*DPR)+'px JetBrains Mono';
+  ctx.fillText('grid: ' + stepFt + ' ft', 8*DPR, 16*DPR);
+  if(state.georef.lat != null){
+    ctx.fillText('GPS: ' + state.georef.lat.toFixed(5)+', '+state.georef.lon.toFixed(5), 8*DPR, 32*DPR);
+  }
+  ctx.restore();
+}
+function drawSketch(){
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  drawGrid();
+  if(state.corners.length === 0) return;
+
+  ctx.save();
+  // polygon
+  ctx.beginPath();
+  state.corners.forEach((p,i)=>{
+    const s = worldToScreen(p);
+    if(i===0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+  });
+  if(state.closed) ctx.closePath();
+  if(state.closed){
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.07)'; ctx.fill();
+  }
+  ctx.strokeStyle = state.closed ? '#00d4ff' : '#ff9900';
+  ctx.lineWidth = 2.5*DPR;
+  ctx.stroke();
+
+  // wall labels (length in ft)
+  ctx.fillStyle = '#00d4ff';
+  ctx.font = 'bold ' + (12*DPR)+'px JetBrains Mono';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const nWalls = state.closed ? state.corners.length : state.corners.length - 1;
+  for(let i=0; i<nWalls; i++){
+    const a = state.corners[i], b = state.corners[(i+1)%state.corners.length];
+    const m = worldToScreen({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+    const len = Math.hypot(b.x-a.x, b.y-a.y);
+    // background chip
+    const txt = fmt(len,1) + ' ft';
+    const tw = ctx.measureText(txt).width;
+    ctx.fillStyle = 'rgba(5,10,15,0.85)';
+    ctx.fillRect(m.x-tw/2-4*DPR, m.y-9*DPR, tw+8*DPR, 18*DPR);
+    ctx.fillStyle = '#00d4ff';
+    ctx.fillText(txt, m.x, m.y);
+  }
+  // corner dots + indices
+  state.corners.forEach((p,i)=>{
+    const s = worldToScreen(p);
+    ctx.beginPath(); ctx.arc(s.x, s.y, 5*DPR, 0, Math.PI*2);
+    ctx.fillStyle = '#050a0f'; ctx.fill();
+    ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 2*DPR; ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = (10*DPR)+'px JetBrains Mono';
+    ctx.fillText(String(i+1), s.x + 10*DPR, s.y - 8*DPR);
+  });
+  ctx.restore();
+
+  // refresh perimeter/area in footer
+  const per = perimeter(), ar = state.closed ? area() : 0;
+  setStatus('Corners: <strong>'+state.corners.length+'</strong> · Perimeter: <strong>'+fmt(per,1)+' ft</strong>' + (state.closed ? ' · Area: <strong>'+fmt(ar,0)+' ft²</strong>' : ''));
+  renderWallList();
+}
+
+function perimeter(){
+  if(state.corners.length<2) return 0;
+  let p=0;
+  const n = state.closed ? state.corners.length : state.corners.length-1;
+  for(let i=0;i<n;i++){
+    const a = state.corners[i], b = state.corners[(i+1)%state.corners.length];
+    p += Math.hypot(b.x-a.x, b.y-a.y);
+  }
+  return p;
+}
+function area(){
+  if(state.corners.length<3) return 0;
+  let s=0;
+  for(let i=0;i<state.corners.length;i++){
+    const a = state.corners[i], b = state.corners[(i+1)%state.corners.length];
+    s += a.x*b.y - b.x*a.y;
+  }
+  return Math.abs(s/2);
+}
+
+function snapToAngle(prev, p){
+  const snap = state.snapAngle;
+  if(!snap || !prev) return p;
+  const dx = p.x - prev.x, dy = p.y - prev.y;
+  const r = Math.hypot(dx,dy);
+  if(r < 0.01) return p;
+  let ang = Math.atan2(dy,dx) * 180/Math.PI;
+  const step = snap;
+  ang = Math.round(ang/step) * step;
+  const rad = ang * Math.PI/180;
+  return { x: prev.x + r*Math.cos(rad), y: prev.y + r*Math.sin(rad) };
+}
+
+// Canvas interactions
+let dragging = null, panLast = null, moveIdx = -1;
+canvas.addEventListener('pointerdown', (e)=>{
+  canvas.setPointerCapture(e.pointerId);
+  const rect = canvas.getBoundingClientRect();
+  const pt = {x:e.clientX-rect.left, y:e.clientY-rect.top};
+  if(e.button === 2 || e.shiftKey){
+    panLast = pt; return;
+  }
+  if(state.tool === 'move'){
+    // find nearest corner within 14px
+    let best=-1, bestD=1e9;
+    state.corners.forEach((c,i)=>{
+      const s = worldToScreen(c);
+      const d = Math.hypot(s.x - pt.x*DPR, s.y - pt.y*DPR);
+      if(d < bestD){ bestD=d; best=i; }
+    });
+    if(best>=0 && bestD < 18*DPR){ moveIdx = best; return; }
+  }
+  // Add corner
+  if(state.closed){ toast('Room is closed. Clear or open it to add corners.'); return; }
+  const w = screenToWorld(pt);
+  const prev = state.corners[state.corners.length-1];
+  const snapped = snapToAngle(prev, w);
+  state.corners.push(snapped);
+  drawSketch();
+});
+canvas.addEventListener('pointermove', (e)=>{
+  const rect = canvas.getBoundingClientRect();
+  const pt = {x:e.clientX-rect.left, y:e.clientY-rect.top};
+  if(panLast){
+    state.view.ox += (pt.x - panLast.x);
+    state.view.oy += (pt.y - panLast.y);
+    panLast = pt; drawSketch(); return;
+  }
+  if(moveIdx >= 0){
+    state.corners[moveIdx] = screenToWorld(pt);
+    drawSketch();
+  }
+});
+canvas.addEventListener('pointerup', ()=>{ panLast=null; moveIdx=-1; });
+canvas.addEventListener('pointercancel', ()=>{ panLast=null; moveIdx=-1; });
+canvas.addEventListener('contextmenu', (e)=>e.preventDefault());
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const f = Math.pow(1.0015, -e.deltaY);
+  state.view.zoom = Math.max(0.2, Math.min(10, state.view.zoom * f));
+  drawSketch();
+}, {passive:false});
+
+// Touch pinch
+let pinchDist = 0;
+canvas.addEventListener('touchstart', (e)=>{
+  if(e.touches.length === 2){
+    pinchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{
+  if(e.touches.length === 2 && pinchDist){
+    const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    state.view.zoom = Math.max(0.2, Math.min(10, state.view.zoom * (d/pinchDist)));
+    pinchDist = d; drawSketch();
+  }
+}, {passive:true});
+canvas.addEventListener('touchend', ()=>{ pinchDist = 0; });
+
+// Tools
+document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('[data-tool]').forEach(x=>x.classList.remove('active', 'primary'));
+  b.classList.add('active', 'primary');
+  state.tool = b.dataset.tool;
+}));
+
+$('btn-undo-pt').addEventListener('click', ()=>{
+  if(state.closed){ state.closed = false; }
+  else state.corners.pop();
+  drawSketch();
+});
+$('btn-close-room').addEventListener('click', ()=>{
+  if(state.corners.length < 3){ toast('Need at least 3 corners.'); return; }
+  state.closed = true; drawSketch();
+});
+$('btn-clear').addEventListener('click', ()=>{
+  if(!confirm('Clear all corners?')) return;
+  state.corners = []; state.closed = false; drawSketch();
+});
+
+// Wall list
+function renderWallList(){
+  const ul = $('wall-list'); ul.innerHTML = '';
+  const n = state.closed ? state.corners.length : Math.max(0, state.corners.length - 1);
+  for(let i=0;i<n;i++){
+    const a = state.corners[i], b = state.corners[(i+1)%state.corners.length];
+    const len = Math.hypot(b.x-a.x, b.y-a.y);
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="n">W'+(i+1)+'</span>';
+    const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.value = len.toFixed(1);
+    inp.addEventListener('change', ()=>{
+      const newLen = +inp.value || 0;
+      if(newLen <= 0){ drawSketch(); return; }
+      // scale vector a->b so length = newLen, moving b
+      const dx = b.x-a.x, dy = b.y-a.y, r = Math.hypot(dx,dy);
+      if(r < 0.001) return;
+      const factor = newLen / r;
+      const nb = {x: a.x + dx*factor, y: a.y + dy*factor};
+      const shift = {x: nb.x - b.x, y: nb.y - b.y};
+      // shift subsequent corners rigidly so only this wall changes length (preserves downstream geometry relative to b)
+      const bi = (i+1) % state.corners.length;
+      // from bi forward (or to closing), shift them
+      for(let k=0;k<state.corners.length;k++){
+        const idx = (bi + k) % state.corners.length;
+        state.corners[idx] = {x: state.corners[idx].x + shift.x, y: state.corners[idx].y + shift.y};
+        if(!state.closed && idx === state.corners.length - 1) break;
+        if(state.closed && k === state.corners.length - 2) break;
+      }
+      drawSketch();
+    });
+    const btn = document.createElement('button'); btn.textContent='×'; btn.className='danger ghost'; btn.title='Delete corner '+(i+1);
+    btn.addEventListener('click', ()=>{
+      state.corners.splice(i,1);
+      if(state.corners.length < 3) state.closed = false;
+      drawSketch();
+    });
+    li.appendChild(inp); li.appendChild(btn);
+    ul.appendChild(li);
+  }
+}
+
+$('snap-angle').addEventListener('change', (e)=>{ state.snapAngle = +e.target.value; });
+$('scale-ftpx').addEventListener('change', (e)=>{ state.scale = +e.target.value; drawSketch(); });
+$('room-name').addEventListener('input', (e)=>{ state.name = e.target.value; });
+$('ceil-height').addEventListener('change', (e)=>{ state.ceilHt = +e.target.value||9; });
+$('wall-thick').addEventListener('change', (e)=>{ state.wallThick = +e.target.value||6; });
+
+// Georef
+$('btn-geo').addEventListener('click', ()=>{
+  if(!('geolocation' in navigator)){ toast('No geolocation.'); return; }
+  setStatus('Waiting for GPS…','warn');
+  navigator.geolocation.getCurrentPosition((pos)=>{
+    state.georef.lat = pos.coords.latitude;
+    state.georef.lon = pos.coords.longitude;
+    state.georef.alt = pos.coords.altitude;
+    state.georef.accuracy = pos.coords.accuracy;
+    $('geo-readout').innerHTML = 'Origin: <code>'+state.georef.lat.toFixed(6)+', '+state.georef.lon.toFixed(6)+'</code> · ±'+fmt(pos.coords.accuracy,0)+' m · alt '+(pos.coords.altitude!=null?fmt(pos.coords.altitude,1)+' m':'—');
+    setStatus('GPS origin captured.', 'ok');
+    drawSketch();
+  }, (err)=>{ setStatus('GPS error: '+err.message, 'bad'); }, {enableHighAccuracy:true, timeout:15000});
+});
+$('btn-true-north').addEventListener('click', async ()=>{
+  // Prompt for orientation permission on iOS
+  try {
+    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      const r = await DeviceOrientationEvent.requestPermission();
+      if(r !== 'granted'){ toast('Orientation denied.'); return; }
+    }
+  } catch(e){}
+  let captured = false;
+  const handler = (e)=>{
+    const hdg = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? (360 - e.alpha) : null);
+    if(hdg == null) return;
+    state.georef.heading = hdg;
+    $('geo-readout').innerHTML = ($('geo-readout').innerHTML || '') + ' · heading '+fmt(hdg,0)+'°';
+    toast('True-north heading: '+fmt(hdg,0)+'°');
+    captured = true;
+    window.removeEventListener('deviceorientation', handler);
+  };
+  window.addEventListener('deviceorientation', handler);
+  setTimeout(()=>{ if(!captured){ toast('No orientation data on this device.'); window.removeEventListener('deviceorientation', handler); } }, 2500);
+});
+
+// ========== WALK (AR) MODE ==========
+let cam = { stream:null, heading:null, gps:null, tilt:null };
+let walk = { corners: [], pending: null };
+
+$('walk-begin').addEventListener('click', startWalk);
+$('walk-start').addEventListener('click', startWalk);
+
+async function startWalk(){
+  try{
+    // iOS permission prompts (require user gesture context)
+    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      try { await DeviceOrientationEvent.requestPermission(); } catch(e){}
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: {ideal:'environment'} }, audio:false });
+    cam.stream = stream;
+    const v = $('cam-video'); v.srcObject = stream;
+    $('cam-blocker').style.display = 'none';
+    $('walk-mark').disabled = false;
+    window.addEventListener('deviceorientation', onOrient, true);
+    // GPS
+    if('geolocation' in navigator){
+      navigator.geolocation.watchPosition((pos)=>{
+        cam.gps = {lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy};
+        $('walk-gps').textContent = '±'+fmt(pos.coords.accuracy,0)+'m';
+      }, ()=>{}, {enableHighAccuracy:true});
+    }
+    buildCompassRose();
+    setStatus('Camera live. Aim along a wall and tap Mark Corner.', 'ok');
+  }catch(err){
+    toast('Camera error: '+err.message);
+    setStatus('Camera error: '+err.message, 'bad');
+  }
+}
+function onOrient(e){
+  const hdg = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? (360 - e.alpha) : null);
+  if(hdg != null){ cam.heading = hdg; $('walk-heading').textContent = fmt(hdg,0)+'°'; rotateCompass(hdg); }
+  if(e.beta != null){ cam.tilt = e.beta; $('walk-tilt').textContent = fmt(e.beta,0)+'°'; }
+}
+function buildCompassRose(){
+  const host = $('compass-rose');
+  if(host.childElementCount) return;
+  const needle = document.createElement('div'); needle.className='needle'; host.appendChild(needle);
+  // ticks at N/E/S/W visible only; we rotate by translating the tick strip
+  const strip = document.createElement('div'); strip.id='rose-strip';
+  strip.style.cssText='position:absolute;inset:0;transform:translateX(0)';
+  for(let d=0; d<=360; d+=15){
+    const t = document.createElement('div'); t.className='tick' + (d%90===0?' card':'');
+    t.style.left = (d/360*100) + '%';
+    if(d%90===0){
+      const s = document.createElement('span');
+      s.textContent = ({0:'N',90:'E',180:'S',270:'W',360:'N'})[d] || '';
+      t.appendChild(s);
+    }
+    strip.appendChild(t);
+  }
+  host.appendChild(strip);
+}
+function rotateCompass(deg){
+  const strip = document.getElementById('rose-strip');
+  if(!strip) return;
+  // show ±60° around heading by translating strip so current heading is centered
+  const hostW = 120;
+  // width of 360° spread = hostW * (360/120) so 1° = hostW/120 px? Keep it simple: px per deg
+  const pxPerDeg = hostW/120; // 120° window
+  strip.style.width = (360 * pxPerDeg) + 'px';
+  strip.style.transform = 'translateX(' + ( (60 - deg) * pxPerDeg ) + 'px)';
+}
+
+$('walk-mark').addEventListener('click', ()=>{
+  if(cam.heading == null){ toast('Waiting for compass…'); return; }
+  walk.pending = { heading: cam.heading, gps: cam.gps ? {...cam.gps} : null, t: Date.now() };
+  $('walk-len').disabled = (walk.corners.length === 0); // first corner doesn't need a wall length
+  if(walk.corners.length === 0){
+    // First corner = origin at (0,0); no wall length needed
+    walk.corners.push({x:0, y:0, heading:cam.heading, gps:walk.pending.gps});
+    walk.pending = null;
+    $('walk-count').textContent = walk.corners.length;
+    toast('Origin set. Walk to next corner.');
+    $('walk-undo').disabled = false;
+    refreshWalkStats();
+  } else {
+    toast('Corner captured. Tap Set Wall Length to enter the distance from corner '+walk.corners.length+'.');
+  }
+});
+$('walk-len').addEventListener('click', ()=>{
+  if(!walk.pending){ toast('Mark a corner first.'); return; }
+  const txt = prompt('Distance from corner '+walk.corners.length+' to the new corner, in feet:');
+  if(txt == null) return;
+  const len = parseFloat(txt); if(!(len > 0)){ toast('Invalid length.'); return; }
+  // vector: bearing relative to previous wall's bearing? Simplest: use absolute compass heading at the new corner as direction FROM prev corner TO new corner.
+  const prev = walk.corners[walk.corners.length - 1];
+  // compass 0=N, 90=E; we store +y=N, +x=E in feet
+  const rad = (walk.pending.heading) * Math.PI/180;
+  const nx = prev.x + len*Math.sin(rad);
+  const ny = prev.y + len*Math.cos(rad);
+  walk.corners.push({x:nx, y:ny, heading:walk.pending.heading, gps:walk.pending.gps, wallLen:len});
+  walk.pending = null;
+  $('walk-count').textContent = walk.corners.length;
+  $('walk-close').disabled = walk.corners.length < 3;
+  refreshWalkStats();
+  toast('Corner '+walk.corners.length+' added at '+fmt(len,1)+' ft.');
+});
+$('walk-undo').addEventListener('click', ()=>{
+  walk.corners.pop();
+  if(walk.corners.length === 0){ $('walk-undo').disabled = true; $('walk-len').disabled = true; }
+  $('walk-count').textContent = walk.corners.length;
+  $('walk-close').disabled = walk.corners.length < 3;
+  refreshWalkStats();
+});
+$('walk-close').addEventListener('click', ()=>{
+  if(walk.corners.length < 3){ toast('Need at least 3 corners.'); return; }
+  // Push walk corners into sketch state, overriding any existing
+  state.corners = walk.corners.map(c=>({x:c.x, y:c.y}));
+  state.closed = true;
+  // Capture first corner GPS as georef origin, first heading as true-north
+  const first = walk.corners[0];
+  if(first.gps){ state.georef.lat = first.gps.lat; state.georef.lon = first.gps.lon; state.georef.accuracy = first.gps.acc; }
+  if(first.heading != null){ state.georef.heading = first.heading; }
+  drawSketch();
+  toast('Room closed — switch to 3D View or Sketch to review.');
+  setStatus('Walk scan complete. '+walk.corners.length+' corners captured.', 'ok');
+});
+function refreshWalkStats(){
+  if(walk.corners.length < 2){ $('walk-perim').textContent='0 ft'; $('walk-area').textContent='0 ft²'; return; }
+  let p = 0;
+  for(let i=0;i<walk.corners.length-1;i++){
+    p += Math.hypot(walk.corners[i+1].x-walk.corners[i].x, walk.corners[i+1].y-walk.corners[i].y);
+  }
+  $('walk-perim').textContent = fmt(p,1)+' ft';
+  if(walk.corners.length >= 3){
+    let s=0;
+    for(let i=0;i<walk.corners.length;i++){
+      const a = walk.corners[i], b = walk.corners[(i+1)%walk.corners.length];
+      s += a.x*b.y - b.x*a.y;
+    }
+    $('walk-area').textContent = fmt(Math.abs(s/2),0)+' ft²';
+  }
+}
+
+// ========== 3D VIEW ==========
+let T = null; // three state
+function ensureThree(){
+  if(T) return;
+  const host = $('three-host');
+  const w = host.clientWidth, h = host.clientHeight;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x050a0f);
+  scene.fog = new THREE.Fog(0x050a0f, 80, 400);
+  const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 5000);
+  camera.position.set(40,40,40);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w,h);
+  host.appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(40,80,20); scene.add(d);
+  const grid = new THREE.GridHelper(400, 80, 0x1a2535, 0x0e1520); scene.add(grid);
+  scene.add(new THREE.AxesHelper(10));
+  const target = new THREE.Vector3(0,5,0);
+  const controls = makeOrbit(renderer.domElement, camera, target);
+  T = {scene, camera, renderer, controls, target, group:null, floor:null, walls:null, roof:null, showRoof:false, showWalls:true};
+  (function loop(){
+    T.controls.update();
+    T.renderer.render(T.scene, T.camera);
+    requestAnimationFrame(loop);
+  })();
+  window.addEventListener('resize', ()=>{
+    if(!T) return;
+    const w=host.clientWidth, h=host.clientHeight;
+    T.camera.aspect=w/h; T.camera.updateProjectionMatrix();
+    T.renderer.setSize(w,h);
+  });
+}
+function makeOrbit(el, camera, target){
+  let azim = Math.PI/4, elev = 0.6, dist = 80;
+  function update(){
+    camera.position.set(
+      target.x + dist*Math.cos(elev)*Math.sin(azim),
+      target.y + dist*Math.sin(elev),
+      target.z + dist*Math.cos(elev)*Math.cos(azim)
+    );
+    camera.lookAt(target);
+  }
+  update();
+  let drag=null, pinch=0;
+  el.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY}; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', e=>{ if(!drag) return; azim -= (e.clientX-drag.x)*0.01; elev = Math.max(0.05, Math.min(Math.PI/2-0.05, elev + (e.clientY-drag.y)*0.008)); drag={x:e.clientX,y:e.clientY}; });
+  el.addEventListener('pointerup', ()=>drag=null); el.addEventListener('pointercancel', ()=>drag=null);
+  el.addEventListener('wheel', e=>{ e.preventDefault(); dist = Math.max(10, Math.min(800, dist*(1+e.deltaY*0.001))); }, {passive:false});
+  el.addEventListener('touchstart', e=>{ if(e.touches.length===2) pinch = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); }, {passive:true});
+  el.addEventListener('touchmove', e=>{ if(e.touches.length===2 && pinch){ const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); dist = Math.max(10, Math.min(800, dist*pinch/d)); pinch=d; } }, {passive:true});
+  el.addEventListener('touchend', ()=>pinch=0);
+  return {update, reframe:(t, d)=>{ target.copy(t); dist=d; }};
+}
+
+function rebuild3D(){
+  ensureThree();
+  if(T.group){ T.scene.remove(T.group); }
+  T.group = new THREE.Group();
+  T.scene.add(T.group);
+  if(state.corners.length < 3 || !state.closed){
+    $('three-stats').innerHTML = '<span class="k">Build a room first</span> — tap Sketch, place 3+ corners, and Close Room.';
+    return;
+  }
+  // Shape uses x (east) and y (north). Three.js: x,y,z where y=up. Map: plan.x -> three.x, plan.y -> three.z (negated so N is -Z? We pick plan.y -> three.z so that compass north is +z in our model; we'll just be consistent).
+  const shape = new THREE.Shape();
+  state.corners.forEach((p,i)=>{
+    if(i===0) shape.moveTo(p.x, p.y);
+    else shape.lineTo(p.x, p.y);
+  });
+  shape.closePath();
+  const h = state.ceilHt || 9;
+  // Floor
+  const floorGeom = new THREE.ShapeGeometry(shape);
+  const floorMat = new THREE.MeshStandardMaterial({color:0x0e1520, side:THREE.DoubleSide, roughness:0.9});
+  const floor = new THREE.Mesh(floorGeom, floorMat);
+  floor.rotation.x = -Math.PI/2; // flat
+  T.group.add(floor); T.floor = floor;
+  // Walls as extrusion with holes for roof? Simpler: ExtrudeGeometry from shape.
+  const extrude = new THREE.ExtrudeGeometry(shape, {depth:h, bevelEnabled:false, steps:1});
+  const wallMat = new THREE.MeshStandardMaterial({color:0x2a3545, roughness:0.85, side:THREE.DoubleSide, transparent:true, opacity:0.85});
+  const walls = new THREE.Mesh(extrude, wallMat);
+  walls.rotation.x = -Math.PI/2;
+  // The extrude goes in +z of shape plane; rotation puts it downward into -y. Flip:
+  walls.position.y = h;
+  walls.scale.y = 1;
+  // Actually the simplest reliable approach: build walls manually as quads.
+  T.group.remove(walls);
+  const wallsGeom = buildWallsQuads(state.corners, h);
+  const wallsEdges = new THREE.EdgesGeometry(wallsGeom, 10);
+  const wallsMesh = new THREE.Mesh(wallsGeom, wallMat);
+  T.group.add(wallsMesh); T.walls = wallsMesh;
+  const edgeLines = new THREE.LineSegments(wallsEdges, new THREE.LineBasicMaterial({color:0x00d4ff}));
+  wallsMesh.add(edgeLines);
+  // Roof (hidden by default)
+  const roofGeom = new THREE.ShapeGeometry(shape);
+  const roofMat = new THREE.MeshStandardMaterial({color:0x1a2535, side:THREE.DoubleSide, roughness:0.9});
+  const roof = new THREE.Mesh(roofGeom, roofMat);
+  roof.rotation.x = -Math.PI/2; roof.position.y = h;
+  roof.visible = T.showRoof;
+  T.group.add(roof); T.roof = roof;
+  T.walls.visible = T.showWalls;
+
+  // Frame camera
+  const box = new THREE.Box3().setFromObject(T.group);
+  const sz = box.getSize(new THREE.Vector3());
+  const ctr = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(sz.x, sz.y, sz.z);
+  T.target.copy(ctr);
+  T.controls.reframe(ctr, maxDim*1.9 + 10);
+
+  const perim = perimeter(), ar = area();
+  $('three-stats').innerHTML = '<span class="k">' + escapeHtml(state.name) + '</span> · ' + state.corners.length + ' corners · ' + fmt(perim,1) + ' ft perim · ' + fmt(ar,0) + ' ft²';
+}
+function buildWallsQuads(corners, h){
+  // For each edge i, build two triangles on a vertical quad from floor to ceiling.
+  // Floor y=0, ceiling y=h. Map plan.x -> three.x, plan.y -> three.z (north = +z).
+  const pos = [];
+  const n = corners.length;
+  for(let i=0;i<n;i++){
+    const a = corners[i], b = corners[(i+1)%n];
+    // quad: a0(0), b0(0), b1(h), a1(h)
+    // tri1: a0, b0, b1 ; tri2: a0, b1, a1
+    pos.push(a.x, 0, a.y);
+    pos.push(b.x, 0, b.y);
+    pos.push(b.x, h, b.y);
+    pos.push(a.x, 0, a.y);
+    pos.push(b.x, h, b.y);
+    pos.push(a.x, h, a.y);
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geom.computeVertexNormals();
+  return geom;
+}
+
+$('btn-rebuild').addEventListener('click', rebuild3D);
+$('btn-toggle-roof').addEventListener('click', ()=>{ if(T && T.roof){ T.showRoof = !T.showRoof; T.roof.visible = T.showRoof; } });
+$('btn-toggle-walls').addEventListener('click', ()=>{ if(T && T.walls){ T.showWalls = !T.showWalls; T.walls.visible = T.showWalls; } });
+$('btn-go-3d').addEventListener('click', ()=>{
+  if(!state.closed){
+    if(state.corners.length >= 3){ state.closed = true; drawSketch(); }
+    else { toast('Add at least 3 corners first.'); return; }
+  }
+  document.querySelector('header .tabs button[data-pane="three"]').click();
+});
+
+// ========== EXPORT ==========
+function buildOBJ(){
+  if(state.corners.length < 3 || !state.closed){ return '# RoomRecon 3D — no closed room yet\n'; }
+  const n = state.corners.length;
+  const h = state.ceilHt || 9;
+  const lines = [];
+  lines.push('# RoomRecon 3D export');
+  lines.push('# Generated ' + new Date().toISOString());
+  lines.push('# Units: feet (+x east, +y up, +z north)');
+  if(state.georef.lat != null){
+    lines.push('# GeoRef: lat='+state.georef.lat+' lon='+state.georef.lon+' heading='+(state.georef.heading!=null?state.georef.heading:'0'));
+  }
+  lines.push('o ' + (state.name||'Room').replace(/\s+/g,'_'));
+  // Vertices: floor ring then ceiling ring
+  for(let i=0;i<n;i++){ const p = state.corners[i]; lines.push('v ' + p.x.toFixed(4) + ' 0.0000 ' + p.y.toFixed(4)); }
+  for(let i=0;i<n;i++){ const p = state.corners[i]; lines.push('v ' + p.x.toFixed(4) + ' ' + h.toFixed(4) + ' ' + p.y.toFixed(4)); }
+  // Floor: fan triangulation from first vertex (indices 1..n)
+  for(let i=1;i<n-1;i++){ lines.push('f 1 ' + (i+1) + ' ' + (i+2)); }
+  // Ceiling
+  for(let i=1;i<n-1;i++){ lines.push('f ' + (n+1) + ' ' + (n+1+i+1) + ' ' + (n+1+i)); } // reversed winding
+  // Walls (quads as 2 tris)
+  for(let i=0;i<n;i++){
+    const a0 = i+1, b0 = ((i+1)%n)+1;
+    const a1 = n + i+1, b1 = n + ((i+1)%n)+1;
+    lines.push('f ' + a0 + ' ' + b0 + ' ' + b1);
+    lines.push('f ' + a0 + ' ' + b1 + ' ' + a1);
+  }
+  return lines.join('\n') + '\n';
+}
+function buildJSON(){
+  return JSON.stringify({
+    tool:'RoomRecon 3D',
+    version:1,
+    name: state.name,
+    units: 'feet',
+    ceiling_height_ft: state.ceilHt,
+    wall_thickness_in: state.wallThick,
+    closed: state.closed,
+    corners: state.corners.map(p=>({x_ft:p.x, y_ft:p.y})),
+    georef: state.georef,
+    perimeter_ft: perimeter(),
+    floor_area_ft2: state.closed ? area() : null,
+    exported_at: new Date().toISOString()
+  }, null, 2);
+}
+function buildSummary(){
+  const lines = [];
+  lines.push('ROOMRECON 3D — SCAN SUMMARY');
+  lines.push('Name: ' + (state.name||'Untitled'));
+  lines.push('Corners: ' + state.corners.length + (state.closed ? ' (closed)' : ' (open)'));
+  lines.push('Perimeter: ' + fmt(perimeter(),1) + ' ft');
+  if(state.closed) lines.push('Floor area: ' + fmt(area(),0) + ' ft²');
+  lines.push('Ceiling: ' + fmt(state.ceilHt,1) + ' ft');
+  if(state.closed) lines.push('Volume: ' + fmt(area()*state.ceilHt, 0) + ' ft³ (' + fmt(area()*state.ceilHt/27,1) + ' yd³)');
+  if(state.georef.lat != null){
+    lines.push('');
+    lines.push('GEOREFERENCE');
+    lines.push('  lat/lon: ' + state.georef.lat.toFixed(6) + ', ' + state.georef.lon.toFixed(6));
+    if(state.georef.heading != null) lines.push('  +Y bearing: ' + fmt(state.georef.heading,1) + '° true');
+    if(state.georef.accuracy != null) lines.push('  GPS ±: ' + fmt(state.georef.accuracy,0) + ' m');
+  }
+  lines.push('');
+  lines.push('CORNERS (feet, local)');
+  state.corners.forEach((p,i)=>{
+    lines.push('  #'+(i+1).toString().padStart(2,'0')+'  x='+fmt(p.x,2)+'  y='+fmt(p.y,2));
+  });
+  lines.push('');
+  lines.push('WALLS');
+  const n = state.closed ? state.corners.length : state.corners.length-1;
+  for(let i=0;i<n;i++){
+    const a = state.corners[i], b = state.corners[(i+1)%state.corners.length];
+    const L = Math.hypot(b.x-a.x, b.y-a.y);
+    const bearing = (Math.atan2(b.x-a.x, b.y-a.y) * 180/Math.PI + 360) % 360;
+    lines.push('  W'+(i+1)+'  '+fmt(L,2)+' ft  bearing '+fmt(bearing,0)+'° (local)');
+  }
+  return lines.join('\n');
+}
+function writeSummary(){ $('export-summary').value = buildSummary(); }
+
+function download(name, text, mime){
+  const blob = new Blob([text], {type: mime || 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+$('btn-obj').addEventListener('click', ()=>{
+  if(!state.closed){ toast('Close the room first.'); return; }
+  download((state.name||'room').replace(/\s+/g,'_')+'.obj', buildOBJ(), 'text/plain');
+});
+$('btn-json').addEventListener('click', ()=>{
+  download((state.name||'room').replace(/\s+/g,'_')+'.json', buildJSON(), 'application/json');
+});
+$('btn-txt').addEventListener('click', async ()=>{
+  writeSummary();
+  try { await navigator.clipboard.writeText($('export-summary').value); toast('Summary copied.'); }
+  catch(e){ $('export-summary').select(); document.execCommand('copy'); toast('Copied.'); }
+});
+
+// Save/load
+function loadSaved(){ try { return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); } catch(e){ return []; } }
+function saveSaved(arr){ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
+function renderSavedRooms(){
+  const ul = $('saved-rooms'); ul.innerHTML = '';
+  const saved = loadSaved();
+  if(!saved.length){ ul.innerHTML = '<li style="color:var(--dim);font-size:11px">No saved rooms yet.</li>'; return; }
+  saved.forEach((r,i)=>{
+    const li = document.createElement('li');
+    li.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px';
+    li.innerHTML = '<span><strong>'+escapeHtml(r.name)+'</strong> · '+r.corners.length+' corners</span>';
+    const bLoad = document.createElement('button'); bLoad.textContent='Load'; bLoad.className='ghost'; bLoad.style.minHeight='32px'; bLoad.style.padding='4px 8px'; bLoad.style.fontSize='11px';
+    bLoad.addEventListener('click', ()=>{
+      state.corners = r.corners.map(c=>({...c}));
+      state.closed = !!r.closed;
+      state.name = r.name; $('room-name').value = r.name;
+      state.ceilHt = r.ceilHt; $('ceil-height').value = r.ceilHt;
+      state.wallThick = r.wallThick; $('wall-thick').value = r.wallThick;
+      state.georef = r.georef || {lat:null,lon:null,alt:null,accuracy:null,heading:null};
+      drawSketch(); writeSummary(); toast('Loaded '+r.name);
+    });
+    const bDel = document.createElement('button'); bDel.textContent='×'; bDel.className='danger ghost'; bDel.style.minHeight='32px'; bDel.style.padding='4px 8px'; bDel.style.fontSize='11px';
+    bDel.addEventListener('click', ()=>{ const arr=loadSaved(); arr.splice(i,1); saveSaved(arr); renderSavedRooms(); toast('Deleted.'); });
+    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.gap='6px';
+    wrap.append(bLoad, bDel); li.appendChild(wrap);
+    ul.appendChild(li);
+  });
+}
+$('btn-save-room').addEventListener('click', ()=>{
+  const arr = loadSaved();
+  arr.push({
+    name: state.name || 'Untitled',
+    corners: state.corners.map(p=>({...p})),
+    closed: state.closed,
+    ceilHt: state.ceilHt,
+    wallThick: state.wallThick,
+    georef: {...state.georef},
+    savedAt: Date.now()
+  });
+  saveSaved(arr);
+  renderSavedRooms();
+  toast('Saved.');
+});
+$('btn-load-room').addEventListener('click', renderSavedRooms);
+
+// Init
+window.addEventListener('load', ()=>{
+  resizeCanvas();
+  drawSketch();
+  renderSavedRooms();
+});
+})();
+</script>
+</body>
+</html>
