@@ -609,15 +609,17 @@
   const ID_PREFIX = 'kv3-';
   const MAX_PEERS = 20;
   const HEARTBEAT_MS = 8000;
-  const STALE_PEER_MS = 60000;     // 60s — generous grace for network hiccups
-  const IDLE_TIMEOUT_MS = 60 * 60 * 1000;  // 1 hour
-  const IDLE_WARN_MS = 55 * 60 * 1000;
-  const CONN_TIMEOUT_MS = 15000;
+  const STALE_PEER_MS = 90000;     // 90s — very generous for mobile/network hiccups
+  const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000;  // 2 hours
+  const IDLE_WARN_MS = 115 * 60 * 1000;         // warn at 1h55m
+  const CONN_TIMEOUT_MS = 20000;
   const NOISE_GATE = 0.012;
   const RECONNECT_MAX_MS = 30000;
   const PEER_RECONNECT_DELAY = 3000;
-  const PEER_RECONNECT_MAX = 5;
-  const LOBBY_RECHECK_MS = 30000;  // re-check lobby health every 30s
+  const PEER_RECONNECT_MAX = 8;    // more retries before giving up
+  const LOBBY_RECHECK_MS = 20000;  // re-check lobby health every 20s
+  const STREAM_HEALTH_MS = 15000;  // check mic/audio stream health
+  const ICE_RESTART_TIMEOUT = 10000; // wait before ICE restart
 
   // ========================================
   // STATE
@@ -644,10 +646,12 @@
   let destroyed = false;
   let ambientNodes = {};
 
-  // Peers: { peerId: { conn, call, audioEl, name, analyser, gainNode, lastHeartbeat, reconnectAttempts, reconnecting } }
+  // Peers: { peerId: { conn, call, audioEl, name, analyser, gainNode, lastHeartbeat, reconnectAttempts, reconnecting, iceState } }
   const peers = {};
   let peerRegistry = {};
   let lobbyHealthTimer = null;
+  let streamHealthTimer = null;
+  let connectionQuality = 'good'; // 'good', 'degraded', 'poor'
 
   // ========================================
   // DOM REFS
@@ -904,9 +908,29 @@
   async function setupAudio() {
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,       // consistent quality
+          channelCount: 1          // mono is fine for voice
+        }
       });
-      localStream.getAudioTracks().forEach(t => t.enabled = false);
+      localStream.getAudioTracks().forEach(t => {
+        t.enabled = false;
+        // Monitor track ending (OS kills mic, BT disconnects, etc.)
+        t.onended = () => {
+          console.warn('Mic track ended unexpectedly, attempting recovery');
+          toast('Microphone disconnected. Recovering...');
+          recoverMicrophone();
+        };
+        t.onmute = () => {
+          console.warn('Mic track muted by system');
+        };
+        t.onunmute = () => {
+          console.log('Mic track unmuted by system');
+        };
+      });
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -915,6 +939,13 @@
       localAnalyser = audioCtx.createAnalyser();
       localAnalyser.fftSize = 256;
       src.connect(localAnalyser);
+
+      // Monitor AudioContext state changes
+      audioCtx.onstatechange = () => {
+        if (audioCtx.state === 'suspended' && !document.hidden) {
+          audioCtx.resume().catch(() => {});
+        }
+      };
 
       return true;
     } catch (e) {
@@ -928,6 +959,209 @@
       }
       showError('Audio setup failed. Check microphone permissions.');
       return false;
+    }
+  }
+
+  // Recover from microphone loss (BT disconnect, OS kill, device change)
+  async function recoverMicrophone() {
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+
+      // Preserve mute state
+      newStream.getAudioTracks().forEach(t => {
+        t.enabled = !isMuted && (isOpenMic || isPTTActive);
+        t.onended = () => { recoverMicrophone(); };
+      });
+
+      const oldStream = localStream;
+      localStream = newStream;
+
+      // Rebuild analyser
+      if (audioCtx) {
+        try {
+          const src = audioCtx.createMediaStreamSource(newStream);
+          localAnalyser = audioCtx.createAnalyser();
+          localAnalyser.fftSize = 256;
+          src.connect(localAnalyser);
+        } catch(e) {}
+      }
+
+      // Replace stream in all active calls
+      for (const pid in peers) {
+        const p = peers[pid];
+        if (p.call && p.call.open) {
+          try {
+            // PeerJS doesn't support replaceTrack, so re-call
+            p.call.close();
+            const call = myPeer.call(pid, localStream);
+            if (call) {
+              p.call = call;
+              call.on('stream', (rs) => { try { setupRemoteAudio(pid, rs); } catch(e) {} });
+              call.on('close', () => attemptPeerReconnect(pid));
+              call.on('error', () => attemptPeerReconnect(pid));
+            }
+          } catch(e) {}
+        }
+      }
+
+      // Stop old tracks
+      if (oldStream) {
+        try { oldStream.getTracks().forEach(t => t.stop()); } catch(e) {}
+      }
+
+      toast('Microphone recovered.');
+    } catch(e) {
+      console.warn('Mic recovery failed:', e);
+      toast('Mic recovery failed. You are in listen-only mode.');
+      localStream = null;
+    }
+  }
+
+  // Periodic stream health monitoring
+  function startStreamHealthCheck() {
+    if (streamHealthTimer) clearInterval(streamHealthTimer);
+    streamHealthTimer = setInterval(() => {
+      if (destroyed) { clearInterval(streamHealthTimer); return; }
+
+      // Check mic stream is alive
+      if (localStream) {
+        const tracks = localStream.getAudioTracks();
+        if (tracks.length === 0 || tracks.every(t => t.readyState === 'ended')) {
+          console.warn('All mic tracks ended, recovering');
+          recoverMicrophone();
+        }
+      }
+
+      // Check AudioContext health
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      if (audioCtx && audioCtx.state === 'closed') {
+        console.warn('AudioContext closed, recreating');
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtx.resume().catch(() => {});
+          if (localStream) {
+            const src = audioCtx.createMediaStreamSource(localStream);
+            localAnalyser = audioCtx.createAnalyser();
+            localAnalyser.fftSize = 256;
+            src.connect(localAnalyser);
+          }
+          if (ambientOn) { createAmbient(); fadeAmbient(true); }
+        } catch(e) {}
+      }
+
+      // Check remote audio elements are playing
+      for (const pid in peers) {
+        const p = peers[pid];
+        if (p.audioEl && p.audioEl.paused && p.audioEl.srcObject) {
+          p.audioEl.play().catch(() => {});
+        }
+      }
+
+      // Update connection quality indicator
+      updateConnectionQuality();
+    }, STREAM_HEALTH_MS);
+  }
+
+  function updateConnectionQuality() {
+    const total = peerCount();
+    if (total === 0) { connectionQuality = 'good'; return; }
+
+    let healthy = 0;
+    for (const pid in peers) {
+      const p = peers[pid];
+      const hasData = p.conn && p.conn.open;
+      const hasAudio = p.call && p.call.open;
+      const fresh = (Date.now() - (p.lastHeartbeat || 0)) < HEARTBEAT_MS * 4;
+      if (hasData && hasAudio && fresh) healthy++;
+      else if (hasData || fresh) healthy += 0.5;
+    }
+
+    const ratio = healthy / total;
+    if (ratio >= 0.8) connectionQuality = 'good';
+    else if (ratio >= 0.5) connectionQuality = 'degraded';
+    else connectionQuality = 'poor';
+
+    // Update visual indicator
+    connDot.classList.remove('warning');
+    if (connectionQuality === 'degraded') connDot.classList.add('warning');
+    else if (connectionQuality === 'poor') { connDot.className = 'conn-dot error'; }
+  }
+
+  // ========================================
+  // ICE CONNECTION STATE MONITORING
+  // ========================================
+  function monitorICE(peerId, call) {
+    if (!call || !call.peerConnection) return;
+    const pc = call.peerConnection;
+
+    pc.oniceconnectionstatechange = () => {
+      if (!peers[peerId]) return;
+      const state = pc.iceConnectionState;
+      peers[peerId].iceState = state;
+      console.log('ICE state for', peerId, ':', state);
+
+      switch (state) {
+        case 'connected':
+        case 'completed':
+          // Connection healthy — reset reconnect counter
+          peers[peerId].reconnectAttempts = 0;
+          peers[peerId].lastHeartbeat = Date.now();
+          break;
+
+        case 'disconnected':
+          // Temporary — wait and see if it recovers before acting
+          console.warn('ICE disconnected for', peerId, '— waiting for recovery');
+          setTimeout(() => {
+            if (!peers[peerId]) return;
+            // If still disconnected after timeout, try ICE restart
+            if (pc.iceConnectionState === 'disconnected') {
+              console.log('ICE still disconnected, attempting restart for', peerId);
+              try {
+                // Create a new offer with iceRestart to force new candidates
+                pc.createOffer({ iceRestart: true }).then(offer => {
+                  return pc.setLocalDescription(offer);
+                }).catch(e => {
+                  console.warn('ICE restart failed for', peerId, e);
+                  attemptPeerReconnect(peerId);
+                });
+              } catch(e) {
+                attemptPeerReconnect(peerId);
+              }
+            }
+          }, ICE_RESTART_TIMEOUT);
+          break;
+
+        case 'failed':
+          // ICE failed — full reconnect needed
+          console.warn('ICE failed for', peerId, '— triggering reconnect');
+          attemptPeerReconnect(peerId);
+          break;
+
+        case 'closed':
+          // Connection closed — reconnect
+          attemptPeerReconnect(peerId);
+          break;
+      }
+    };
+
+    // Also monitor connection state (more reliable on some browsers)
+    if (pc.onconnectionstatechange !== undefined) {
+      pc.onconnectionstatechange = () => {
+        if (!peers[peerId]) return;
+        const state = pc.connectionState;
+        console.log('Connection state for', peerId, ':', state);
+
+        if (state === 'failed') {
+          attemptPeerReconnect(peerId);
+        } else if (state === 'connected') {
+          peers[peerId].reconnectAttempts = 0;
+          peers[peerId].lastHeartbeat = Date.now();
+        }
+      };
     }
   }
 
@@ -1047,8 +1281,15 @@
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun2.l.google.com:19302' }
-            ]
+              { urls: 'stun:stun2.l.google.com:19302' },
+              { urls: 'stun:stun3.l.google.com:19302' },
+              { urls: 'stun:stun4.l.google.com:19302' },
+              // Free TURN servers for NAT traversal (symmetric NAT, mobile carriers)
+              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+            ],
+            iceCandidatePoolSize: 10
           }
         });
       } catch (e) {
@@ -1302,6 +1543,8 @@
           call.on('error', (e) => {
             console.warn('Call error with', peerId, e);
           });
+          // Monitor ICE connection state for this call
+          monitorICE(peerId, call);
         }
       }
     } catch (e) {
@@ -1331,6 +1574,7 @@
     });
     call.on('close', () => attemptPeerReconnect(peerId));
     call.on('error', (e) => { console.warn('Incoming call error:', e); });
+    monitorICE(peerId, call);
 
     renderPeers();
     updateSoulCount();
@@ -1349,14 +1593,47 @@
     audio.volume = masterVolume;
     audio.autoplay = true;
     audio.playsInline = true;
+    // Prevent iOS from killing audio
+    audio.setAttribute('playsinline', '');
+    audio.setAttribute('webkit-playsinline', '');
     document.body.appendChild(audio);
-    audio.play().catch(() => {});
+
+    // Robust play with retry
+    const tryPlay = (attempt) => {
+      audio.play().catch((e) => {
+        if (attempt < 3) {
+          setTimeout(() => tryPlay(attempt + 1), 500 * (attempt + 1));
+        }
+      });
+    };
+    tryPlay(0);
+
+    // Handle audio element errors
+    audio.onerror = () => {
+      console.warn('Audio element error for peer', peerId);
+      if (peers[peerId]) {
+        setTimeout(() => {
+          if (peers[peerId] && audio.srcObject) {
+            audio.load();
+            tryPlay(0);
+          }
+        }, 1000);
+      }
+    };
+
+    // Monitor remote stream tracks ending
+    stream.getAudioTracks().forEach(t => {
+      t.onended = () => {
+        console.warn('Remote audio track ended for', peerId);
+        // Don't remove — the peer reconnect system will handle getting a new stream
+      };
+    });
 
     peers[peerId].audioEl = audio;
 
     // Analyser for speaking detection
     try {
-      if (audioCtx) {
+      if (audioCtx && audioCtx.state !== 'closed') {
         const src = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
@@ -1432,6 +1709,7 @@
             });
             call.on('close', () => attemptPeerReconnect(peerId));
             call.on('error', () => attemptPeerReconnect(peerId));
+            monitorICE(peerId, call);
           }
         }
       } catch (e) {
@@ -1479,7 +1757,14 @@
       try {
         lobbyPeer = new Peer(LOBBY_ID, {
           debug: 0,
-          config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+              { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+            ]
+          }
         });
       } catch (e) {
         resolve(false);
@@ -1509,7 +1794,30 @@
           if (err.type !== 'peer-unavailable') console.warn('Lobby peer error:', err);
         });
         lobbyPeer.on('disconnected', () => {
+          console.log('Lobby peer disconnected, reconnecting...');
           try { lobbyPeer.reconnect(); } catch(e) {}
+          // Retry if reconnect fails
+          setTimeout(() => {
+            if (lobbyPeer && lobbyPeer.disconnected) {
+              try { lobbyPeer.reconnect(); } catch(e) {}
+            }
+          }, 3000);
+          setTimeout(() => {
+            if (lobbyPeer && lobbyPeer.disconnected) {
+              try { lobbyPeer.reconnect(); } catch(e) {}
+            }
+          }, 10000);
+        });
+        lobbyPeer.on('close', () => {
+          // Lobby peer was destroyed — try to reclaim
+          console.warn('Lobby peer closed unexpectedly');
+          if (!destroyed) {
+            setTimeout(() => {
+              tryClaimLobby().then(got => {
+                if (got) becomeLobbyHost(peerRegistry);
+              });
+            }, 2000);
+          }
         });
 
         // Store as secondary peer reference
@@ -1635,10 +1943,15 @@
   function startHeartbeat() {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
+      // Send heartbeats + presence to all peers
       for (const pid in peers) {
         const p = peers[pid];
         if (p.conn && p.conn.open) {
-          try { p.conn.send({ type: 'heartbeat' }); } catch(e) {
+          try {
+            p.conn.send({ type: 'heartbeat' });
+            // Also broadcast presence so peers know we're alive
+            p.conn.send({ type: 'presence', peerId: myId });
+          } catch(e) {
             // Send failed — connection may be dead
             reconnectDataConn(pid);
           }
@@ -1646,6 +1959,13 @@
           reconnectDataConn(pid);
         }
       }
+
+      // If speaking, reset idle timer (voice activity = not idle)
+      if (isOpenMic && !isMuted && localAnalyser) {
+        const level = getLevel(localAnalyser);
+        if (level > NOISE_GATE) resetIdleTimer();
+      }
+
       cleanStalePeers();
     }, HEARTBEAT_MS);
   }
@@ -1728,6 +2048,7 @@
     startHeartbeat();
     startIdleTimer();
     startAutoSave();
+    startStreamHealthCheck();
 
     // Ambient audio
     createAmbient();
@@ -1801,6 +2122,7 @@
     if (autoSaveInterval) clearInterval(autoSaveInterval);
     if (resonanceTimer) clearTimeout(resonanceTimer);
     if (lobbyHealthTimer) clearInterval(lobbyHealthTimer);
+    if (streamHealthTimer) clearInterval(streamHealthTimer);
 
     isLobbyHost = false;
     isMuted = true;
@@ -1953,35 +2275,83 @@
     }
   });
 
-  // Visibility change — reconnect peers on return from background
+  // Visibility change — full health check on return from background
+  let hiddenTimestamp = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && !isOpenMic) {
-      setTransmitting(false);
+    if (document.hidden) {
+      hiddenTimestamp = Date.now();
+      if (!isOpenMic) setTransmitting(false);
+      return;
     }
-    if (!document.hidden) {
-      // Resume audio context
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume().catch(() => {});
+
+    // Coming back from background
+    const hiddenDuration = Date.now() - hiddenTimestamp;
+    console.log('Returning from background after', Math.round(hiddenDuration/1000), 's');
+
+    // Resume AudioContext (iOS/Safari aggressively suspends)
+    if (audioCtx) {
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      if (audioCtx.state === 'closed') {
+        // AudioContext died — recreate
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtx.resume().catch(() => {});
+          if (localStream && localStream.getAudioTracks().some(t => t.readyState === 'live')) {
+            const src = audioCtx.createMediaStreamSource(localStream);
+            localAnalyser = audioCtx.createAnalyser();
+            localAnalyser.fftSize = 256;
+            src.connect(localAnalyser);
+          }
+        } catch(e) {}
       }
-      // Check if PeerJS connection is still alive
-      if (myPeer && myPeer.disconnected && !isReconnecting) {
-        attemptReconnect();
+    }
+
+    // Check microphone health
+    if (localStream) {
+      const tracks = localStream.getAudioTracks();
+      if (tracks.length === 0 || tracks.every(t => t.readyState === 'ended')) {
+        recoverMicrophone();
       }
-      // Refresh heartbeat timestamps to prevent false stale detection
+    }
+
+    // Check PeerJS signaling connection
+    if (myPeer && myPeer.disconnected && !isReconnecting) {
+      attemptReconnect();
+    }
+
+    // If we were hidden for a long time (>30s), do a full peer health sweep
+    if (hiddenDuration > 30000) {
+      console.log('Long background period — full peer health check');
       for (const pid in peers) {
         const p = peers[pid];
-        // Check if data connection is dead
-        if (p.conn && !p.conn.open && !p.reconnecting) {
-          reconnectDataConn(pid);
-        }
-        // Check if audio call is dead
-        if (p.call && !p.call.open && !p.reconnecting) {
-          attemptPeerReconnect(pid);
-        }
+        // Extend heartbeat grace after returning from background
+        p.lastHeartbeat = Math.max(p.lastHeartbeat || 0, Date.now() - HEARTBEAT_MS * 2);
+
+        if (p.conn && !p.conn.open && !p.reconnecting) reconnectDataConn(pid);
+        if (p.call && !p.call.open && !p.reconnecting) attemptPeerReconnect(pid);
       }
-      // Re-enable transmitting if needed
-      updateTransmitState();
+      // Re-verify lobby
+      if (!isLobbyHost && peerCount() === 0) {
+        tryJoinLobby();
+      }
+    } else {
+      // Short background — just check dead connections
+      for (const pid in peers) {
+        const p = peers[pid];
+        if (p.conn && !p.conn.open && !p.reconnecting) reconnectDataConn(pid);
+        if (p.call && !p.call.open && !p.reconnecting) attemptPeerReconnect(pid);
+      }
     }
+
+    // Restart audio playback for all peers (iOS pauses media in background)
+    for (const pid in peers) {
+      if (peers[pid].audioEl && peers[pid].audioEl.paused) {
+        peers[pid].audioEl.play().catch(() => {});
+      }
+    }
+
+    // Re-enable transmitting
+    updateTransmitState();
   });
 
 })();
