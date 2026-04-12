@@ -1,18 +1,18 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-12T03:41:34.240Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **260**
-- Clean (no findings): **104**
-- With findings:       **156**
+- Total tools scanned: **264**
+- Clean (no findings): **106**
+- With findings:       **158**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[a11y]` | 134 |
+| `[a11y]` | 136 |
 
 ## aviation (38 of 55 with findings)
 
@@ -140,7 +140,7 @@ _Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/aviation/wind-rose-generator.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
-## civil (36 of 58 with findings)
+## civil (36 of 59 with findings)
 
 ### tools/civil/DailyFieldReport.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -256,7 +256,7 @@ _Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (66 of 126 with findings)
+## misc (68 of 129 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -356,6 +356,9 @@ _Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/kanban-board.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/kelseys-teacher-tools.html
+- `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
 ### tools/misc/korb-cookbook.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -462,6 +465,9 @@ _Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/whiteboard.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/world-cup-2026.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/world-explorer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)

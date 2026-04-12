@@ -1,0 +1,2729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Contractor Background Check | Korb Engineering</title>
+<meta name="description" content="Contractor Background Check | Korb Engineering — public-data vetting workbench for subcontractors and bidders. Pulls federal award history from USAspending, parses pasted OSHA records, analyzes uploaded bids for safety and lowball red flags, and produces a GO/CAUTION/NO-GO scorecard.">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  CONTRACTOR BACKGROUND CHECK - Korb Engineering
+  ----------------------------------------------
+  A public-data vetting workbench. NO API KEYS. NO BACKEND.
+  Data sources used (all CORS-friendly or launch-link):
+    1. USAspending.gov  (federal award history)            POST /api/v2/search/spending_by_award/
+    2. SEC EDGAR        (full-text filings search)         GET  efts.sec.gov/LATEST/search-index
+    3. CourtListener    (RECAP federal court filings)      GET  /api/rest/v3/search/?type=r
+    4. Wikipedia        (notability signal)                GET  en.wikipedia.org/w/api.php
+    5. GitHub           (open source presence signal)      GET  api.github.com/search/repositories
+    6. OSHA             (LAUNCH LINK + manual paste)       www.osha.gov/pls/imis/establishment.search
+    7. SAM.gov / OpenCorporates / BBB / SoS / D&B / PACER  (LAUNCH LINKS)
+    8. State contractor licensing TX/OK/NM                 (LAUNCH LINKS)
+  Disclaimers:
+    - Heuristic only. Not a credit report. Not legal advice.
+    - Verify everything against primary sources before any award decision.
+-->
+<script src="../../vendor/pdf-3.11.174.min.js"></script>
+<script src="../../vendor/chart-4.4.1.umd.min.js"></script>
+<script src="../../vendor/jspdf-2.5.1.umd.min.js"></script>
+<script src="../../vendor/jspdf-autotable-3.8.4.min.js"></script>
+<script src="../../vendor/jszip-3.10.1.min.js"></script>
+<script src="../../vendor/filesaver-2.0.5.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--bg2:#050a0f;--bg3:#0a1018;--bg4:#111a24;--bg5:#16212e;
+  --cyan:#00d4ff;--cyan2:#0099bb;--orange:#ff9900;--orange2:#cc6600;
+  --white:#fff;--gray:#8899aa;--darkgray:#334455;
+  --red:#ff3355;--green:#00ff88;--yellow:#ffcc00;--purple:#aa66ff;
+  --font:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  --radius:6px;
+}
+html{font-size:14px;-webkit-text-size-adjust:100%}
+body{font-family:var(--font);background:var(--bg2);color:var(--white);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;line-height:1.4}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font-family:var(--font)}
+
+/* HEADER */
+.header{background:#000;border-bottom:1px solid var(--bg4);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;gap:10px}
+.header-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.header-brand .logo{width:30px;height:30px;border:2px solid var(--cyan);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--cyan);flex-shrink:0}
+.header-brand .name{font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-title{font-size:13px;font-weight:600;color:var(--white);text-align:center;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-title span{color:var(--orange)}
+.back-link{font-size:11px;color:var(--gray);padding:8px 10px;border:1px solid var(--bg4);border-radius:var(--radius);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+.back-link:hover{color:var(--cyan);border-color:var(--cyan);text-decoration:none}
+
+/* DISCLAIMER STRIP */
+.disclaimer-strip{background:rgba(255,153,0,.08);border-bottom:1px solid rgba(255,153,0,.25);padding:8px 14px;font-size:10px;color:var(--orange);text-align:center;letter-spacing:.5px}
+.disclaimer-strip strong{color:var(--orange);font-weight:700}
+
+/* LAYOUT */
+.wrap{max-width:1400px;margin:0 auto;padding:14px}
+@media (max-width:600px){.wrap{padding:10px}}
+
+/* SEARCH HEADER BAR */
+.search-bar{background:var(--bg3);border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.search-bar h2{font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.search-bar h2::before{content:'';width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:0 0 8px var(--cyan)}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.field input,.field select,.field textarea{
+  width:100%;font-family:var(--font);font-size:16px;color:var(--white);
+  background:#000;border:1px solid var(--bg4);border-radius:var(--radius);
+  padding:11px 12px;min-height:46px;outline:none;transition:border-color .15s
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+.field textarea{resize:vertical;min-height:90px;line-height:1.5}
+.row{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.row-2{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.row-tight{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+
+/* BUTTONS */
+.btn{
+  font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  padding:13px 18px;min-height:46px;border:none;border-radius:var(--radius);
+  cursor:pointer;transition:transform .08s,opacity .12s,background .15s;
+  display:inline-flex;align-items:center;gap:8px;justify-content:center;text-decoration:none
+}
+.btn:active{transform:scale(.97);opacity:.85}
+.btn-primary{background:var(--cyan);color:#000}
+.btn-primary:hover{background:#33ddff}
+.btn-orange{background:var(--orange);color:#000}
+.btn-orange:hover{background:#ffaa22}
+.btn-ghost{background:transparent;border:1px solid var(--darkgray);color:var(--gray)}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-sm{padding:8px 12px;min-height:38px;font-size:10px}
+.btn-block{width:100%}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+/* TILES GRID */
+.tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-bottom:14px}
+.tile{background:var(--bg3);border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;min-height:140px;position:relative;overflow:hidden}
+.tile-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.tile-title{font-size:10px;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:1.5px;display:flex;align-items:center;gap:6px}
+.tile-title .dot{width:6px;height:6px;border-radius:50%;background:var(--gray)}
+.tile.is-loading .tile-title .dot{background:var(--yellow);animation:pulse 1s infinite}
+.tile.is-ok .tile-title .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.tile.is-err .tile-title .dot{background:var(--red);box-shadow:0 0 6px var(--red)}
+.tile-status{font-size:9px;color:var(--gray);text-transform:uppercase;letter-spacing:1px}
+.tile.is-loading .tile-status{color:var(--yellow)}
+.tile.is-ok .tile-status{color:var(--green)}
+.tile.is-err .tile-status{color:var(--red)}
+.tile-body{flex:1;font-size:11px;color:var(--gray);line-height:1.5;overflow:hidden}
+.tile-body strong{color:var(--white);font-weight:600}
+.tile-body .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted var(--bg4)}
+.tile-body .stat:last-child{border-bottom:none}
+.tile-body .stat .v{color:var(--white);font-weight:600}
+.tile-foot{margin-top:10px;padding-top:10px;border-top:1px dotted var(--bg4);display:flex;gap:6px;flex-wrap:wrap}
+
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* PANELS (full-width sections) */
+.panel{background:var(--bg3);border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.panel-title{font-size:12px;color:var(--orange);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';width:4px;height:14px;background:var(--orange)}
+.panel-sub{font-size:10px;color:var(--gray);margin-bottom:10px;font-style:italic}
+
+/* TABLES */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:600px}
+.tbl th{text-align:left;padding:8px 10px;color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:9px;border-bottom:1px solid var(--bg4);background:#000;white-space:nowrap;cursor:pointer;user-select:none}
+.tbl th.sort-asc::after{content:' ▲';color:var(--orange)}
+.tbl th.sort-desc::after{content:' ▼';color:var(--orange)}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--bg4);color:var(--gray);vertical-align:top}
+.tbl tr:hover td{background:rgba(0,212,255,.04)}
+.tbl tr.row-good td{border-left:2px solid var(--green)}
+.tbl tr.row-bad td{border-left:2px solid var(--yellow)}
+.tbl tr.row-ugly td{border-left:2px solid var(--red)}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums;color:var(--white)}
+.tbl .clk{cursor:pointer}
+.tbl .clk:hover{color:var(--cyan)}
+
+.status-pill{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.s-completed{background:rgba(0,255,136,.15);color:var(--green)}
+.s-progress{background:rgba(255,204,0,.12);color:var(--yellow)}
+.s-terminated{background:rgba(255,51,85,.18);color:var(--red)}
+.s-unknown{background:rgba(136,153,170,.15);color:var(--gray)}
+
+/* STATS BAR */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+.stat-card{background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:10px;text-align:center}
+.stat-card .stat-label{font-size:9px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.stat-card .stat-val{font-size:18px;color:var(--cyan);font-weight:700;font-variant-numeric:tabular-nums}
+.stat-card.orange .stat-val{color:var(--orange)}
+.stat-card.green .stat-val{color:var(--green)}
+.stat-card.red .stat-val{color:var(--red)}
+
+/* CHART CONTAINER */
+.chart-box{background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:10px;height:240px;position:relative;margin-top:10px}
+.chart-box canvas{max-height:100%}
+.chart-box.tall{height:320px}
+
+/* GBU TABS */
+.gbu-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+.gbu-tab{padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:#000;border:1px solid var(--bg4);color:var(--gray);border-radius:var(--radius);cursor:pointer;min-height:38px}
+.gbu-tab.active.good{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.08)}
+.gbu-tab.active.bad{border-color:var(--yellow);color:var(--yellow);background:rgba(255,204,0,.08)}
+.gbu-tab.active.ugly{border-color:var(--red);color:var(--red);background:rgba(255,51,85,.1)}
+.gbu-tab .ct{margin-left:6px;opacity:.6}
+
+/* FINDINGS LIST */
+.findings{list-style:none;padding:0;margin:8px 0}
+.find{padding:10px 12px;border-radius:var(--radius);margin-bottom:6px;font-size:11px;line-height:1.5;border-left:3px solid var(--gray);background:#000;color:var(--gray)}
+.find strong{color:var(--white)}
+.find.red{border-left-color:var(--red);background:rgba(255,51,85,.06);color:#ffaabb}
+.find.red strong{color:var(--red)}
+.find.yellow{border-left-color:var(--yellow);background:rgba(255,204,0,.05);color:#ffe699}
+.find.yellow strong{color:var(--yellow)}
+.find.green{border-left-color:var(--green);background:rgba(0,255,136,.05);color:#aaffd0}
+.find.green strong{color:var(--green)}
+.find.info{border-left-color:var(--cyan);background:rgba(0,212,255,.05);color:#aaeeff}
+.find.info strong{color:var(--cyan)}
+
+/* SCORE GAUGE */
+.score-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px}
+.score-card{background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;text-align:center}
+.score-card .score-label{font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.score-ring{width:90px;height:90px;margin:0 auto 8px;position:relative}
+.score-ring svg{transform:rotate(-90deg)}
+.score-ring .ring-bg{fill:none;stroke:var(--bg4);stroke-width:8}
+.score-ring .ring-fg{fill:none;stroke:var(--cyan);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+.score-ring .ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--white)}
+.score-card.green .ring-fg{stroke:var(--green)}
+.score-card.green .ring-num{color:var(--green)}
+.score-card.yellow .ring-fg{stroke:var(--yellow)}
+.score-card.yellow .ring-num{color:var(--yellow)}
+.score-card.red .ring-fg{stroke:var(--red)}
+.score-card.red .ring-num{color:var(--red)}
+.score-card .breakdown{font-size:10px;color:var(--gray);text-align:left;margin-top:8px}
+.score-card .breakdown div{padding:3px 0;display:flex;justify-content:space-between;border-bottom:1px dotted var(--bg4)}
+.score-card .breakdown .v{color:var(--white);font-weight:600}
+
+/* DROPZONE */
+.dropzone{border:2px dashed var(--bg4);border-radius:var(--radius);padding:30px 20px;text-align:center;color:var(--gray);font-size:11px;cursor:pointer;transition:all .15s;background:#000}
+.dropzone:hover,.dropzone.dragover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,212,255,.04)}
+.dropzone .big{font-size:24px;color:var(--cyan);margin-bottom:8px}
+.dropzone input[type=file]{display:none}
+
+/* VERDICT */
+.verdict{padding:18px;border-radius:var(--radius);text-align:center;margin:12px 0;border:2px solid var(--bg4)}
+.verdict .label{font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px}
+.verdict .val{font-size:32px;font-weight:700;letter-spacing:2px}
+.verdict .narrative{font-size:11px;color:var(--gray);margin-top:10px;line-height:1.6;max-width:600px;margin-left:auto;margin-right:auto}
+.verdict.go{border-color:var(--green);background:rgba(0,255,136,.06)}
+.verdict.go .val{color:var(--green)}
+.verdict.caution{border-color:var(--yellow);background:rgba(255,204,0,.06)}
+.verdict.caution .val{color:var(--yellow)}
+.verdict.nogo{border-color:var(--red);background:rgba(255,51,85,.06)}
+.verdict.nogo .val{color:var(--red)}
+
+/* WATCHLIST */
+.watchlist-item{background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.watchlist-item .wi-name{font-size:12px;color:var(--cyan);font-weight:600}
+.watchlist-item .wi-meta{font-size:9px;color:var(--gray);margin-top:3px}
+.watchlist-item .wi-note{font-size:10px;color:var(--gray);margin-top:6px;font-style:italic;width:100%}
+.watchlist-item .wi-actions{display:flex;gap:6px}
+
+/* HISTORY */
+.history-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.history-chip{font-size:10px;padding:6px 10px;background:#000;border:1px solid var(--bg4);border-radius:14px;color:var(--gray);cursor:pointer;min-height:32px;display:inline-flex;align-items:center}
+.history-chip:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg3);border:1px solid var(--cyan);border-radius:var(--radius);max-width:800px;width:100%;padding:20px;margin:auto;box-shadow:0 0 40px rgba(0,212,255,.15)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--bg4)}
+.modal-head h3{font-size:13px;color:var(--cyan);text-transform:uppercase;letter-spacing:1.5px}
+.modal-close{background:none;border:none;color:var(--gray);font-size:24px;cursor:pointer;padding:4px 10px;line-height:1;min-height:36px}
+.modal-close:hover{color:var(--red)}
+.modal-body{font-size:11px;color:var(--gray);line-height:1.6;max-height:60vh;overflow-y:auto}
+.modal-body h4{color:var(--orange);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px}
+.modal-body h4:first-child{margin-top:0}
+.modal-body p{margin-bottom:8px}
+.modal-body code{background:#000;padding:2px 6px;border-radius:3px;color:var(--cyan);font-size:10px}
+.modal-body ul{padding-left:18px;margin:6px 0}
+.modal-body li{margin-bottom:4px}
+.modal-body .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:11px}
+.modal-body .kv dt{color:var(--gray);font-weight:600}
+.modal-body .kv dd{color:var(--white);word-break:break-word}
+
+/* RED FLAG TAGS */
+.flag{display:inline-block;padding:3px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:2px}
+.flag.red{background:rgba(255,51,85,.18);color:var(--red);border:1px solid rgba(255,51,85,.4)}
+.flag.yellow{background:rgba(255,204,0,.12);color:var(--yellow);border:1px solid rgba(255,204,0,.35)}
+.flag.green{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+
+/* SECTION ANCHOR NAV */
+.section-nav{display:flex;gap:6px;flex-wrap:wrap;background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:8px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.section-nav a{font-size:10px;color:var(--gray);padding:6px 10px;border-radius:4px;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
+.section-nav a:hover{color:var(--cyan);background:rgba(0,212,255,.06);text-decoration:none}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--cyan);color:var(--white);padding:12px 18px;border-radius:var(--radius);font-size:12px;z-index:3000;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none}
+.toast.show{display:block;animation:slideUp .3s ease}
+@keyframes slideUp{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* LAUNCH BUTTONS GRID */
+.launch-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.launch-btn{display:flex;flex-direction:column;align-items:flex-start;background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:10px 12px;text-decoration:none;color:var(--gray);transition:all .15s;min-height:56px}
+.launch-btn:hover{border-color:var(--cyan);text-decoration:none}
+.launch-btn .lb-name{font-size:11px;color:var(--cyan);font-weight:600;margin-bottom:2px}
+.launch-btn .lb-sub{font-size:9px;color:var(--gray);text-transform:uppercase;letter-spacing:.5px}
+
+/* SMALL HELP TEXT */
+.help{font-size:10px;color:var(--gray);font-style:italic;margin-top:4px}
+.warn{font-size:10px;color:var(--orange);font-weight:600;margin-top:6px;padding:6px 8px;background:rgba(255,153,0,.06);border-left:2px solid var(--orange);border-radius:0 4px 4px 0}
+
+/* RADAR CHART */
+.radar-wrap{background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.radar-wrap canvas{max-width:100%;max-height:340px}
+
+/* RESPONSIVE TWEAKS */
+@media (max-width:600px){
+  .header-title{font-size:11px}
+  .header-brand .name{display:none}
+  .panel,.search-bar,.tile{padding:11px}
+  .tbl{font-size:10px;min-width:520px}
+  .verdict .val{font-size:24px}
+  .stat-card .stat-val{font-size:15px}
+}
+
+/* PRINT */
+@media print{
+  body{background:#fff;color:#000}
+  .header,.section-nav,.btn,.btn-row,.dropzone,.history-list,.modal-bg{display:none!important}
+  .panel,.tile,.search-bar{border-color:#999;background:#fff}
+  .panel-title,.tile-title{color:#000}
+  .find,.tbl td,.tbl th{color:#000}
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#000}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan2)}
+
+/* MISC */
+.muted{color:var(--gray);font-size:10px}
+.mono{font-variant-numeric:tabular-nums}
+.sep{height:1px;background:var(--bg4);margin:14px 0}
+.empty{padding:20px;text-align:center;font-size:11px;color:var(--darkgray);font-style:italic}
+.linkrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.linkrow a{font-size:10px;padding:4px 8px;background:#000;border:1px solid var(--bg4);border-radius:3px}
+.linkrow a:hover{border-color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">K</div>
+    <div class="name">KORB ENG</div>
+  </div>
+  <div class="header-title">CONTRACTOR <span>BACKGROUND CHECK</span></div>
+  <a class="back-link" href="../../index.html#civil">&larr; Back</a>
+</header>
+
+<div class="disclaimer-strip">
+  <strong>HEURISTIC ONLY.</strong> Public-data signals, not a credit report or legal advice. Verify against primary sources before any award decision.
+</div>
+
+<div class="wrap">
+
+  <!-- SECTION NAV -->
+  <nav class="section-nav" aria-label="Tool sections">
+    <a href="#search">Lookup</a>
+    <a href="#tiles">Sources</a>
+    <a href="#federal">Federal Awards</a>
+    <a href="#gbu">Good/Bad/Ugly</a>
+    <a href="#osha">OSHA</a>
+    <a href="#solvency">Solvency</a>
+    <a href="#competency">Competency</a>
+    <a href="#bid">Bid Analyzer</a>
+    <a href="#refs">References</a>
+    <a href="#scorecard">Scorecard</a>
+    <a href="#watchlist">Watchlist</a>
+    <a href="#" id="open-info">Data Sources</a>
+  </nav>
+
+  <!-- =================================================================== -->
+  <!-- SEARCH HEADER BAR                                                   -->
+  <!-- =================================================================== -->
+  <section class="search-bar" id="search">
+    <h2>Company Lookup</h2>
+    <div class="field">
+      <label for="in-name">Company Name (required)</label>
+      <input type="text" id="in-name" placeholder="e.g. Kiewit Infrastructure South Co" autocomplete="off" />
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="in-uei">DUNS / UEI (optional)</label>
+        <input type="text" id="in-uei" placeholder="UEI or DUNS" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="in-fein">FEIN / EIN (optional)</label>
+        <input type="text" id="in-fein" placeholder="XX-XXXXXXX" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="in-state">Home State</label>
+        <select id="in-state">
+          <option value="">-- any --</option>
+          <option value="TX">Texas</option>
+          <option value="OK">Oklahoma</option>
+          <option value="NM">New Mexico</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="in-trade">Project Trade</label>
+        <select id="in-trade">
+          <option value="">-- any --</option>
+          <option value="paving">Paving / Asphalt</option>
+          <option value="grading">Earthwork / Grading</option>
+          <option value="concrete">Concrete / Structures</option>
+          <option value="utility">Wet Utility / Pipeline</option>
+          <option value="electrical">Electrical / Lighting</option>
+          <option value="airport">Airport / Airfield</option>
+          <option value="bridge">Bridge / Steel</option>
+          <option value="vertical">Vertical Build</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="in-from">Awards From (year)</label>
+        <input type="number" id="in-from" min="1990" max="2099" value="2010" />
+      </div>
+      <div class="field">
+        <label for="in-to">Awards To (year)</label>
+        <input type="number" id="in-to" min="1990" max="2099" value="2099" />
+      </div>
+      <div class="field">
+        <label for="in-bidamt">Current Bid Amount (USD, optional)</label>
+        <input type="number" id="in-bidamt" placeholder="e.g. 4500000" />
+      </div>
+      <div class="field">
+        <label for="in-otherbids">Other Bids (comma list)</label>
+        <input type="text" id="in-otherbids" placeholder="4750000, 5100000, 5300000" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-lookup">&#9658; LOOKUP</button>
+      <button class="btn btn-ghost" id="btn-reset">RESET</button>
+      <button class="btn btn-orange btn-sm" id="btn-save-watch">+ Add to Watchlist</button>
+      <button class="btn btn-ghost btn-sm" id="btn-export-pdf">Export PDF Report</button>
+      <button class="btn btn-ghost btn-sm" id="btn-copy-memo">Copy Vetting Memo</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- DATA SOURCE TILES                                                   -->
+  <!-- =================================================================== -->
+  <section id="tiles">
+    <div class="tiles" id="tiles-grid">
+      <!-- USAspending Tile -->
+      <div class="tile" id="tile-usa">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot"></span>USAspending</div>
+          <div class="tile-status">idle</div>
+        </div>
+        <div class="tile-body" id="tile-usa-body">
+          Federal contract award history. Click LOOKUP to query the full federal award database (CORS-friendly, no key).
+        </div>
+        <div class="tile-foot">
+          <a class="btn btn-ghost btn-sm" href="https://www.usaspending.gov/" target="_blank" rel="noopener">Open USAspending &#x2197;</a>
+        </div>
+      </div>
+      <!-- SEC EDGAR Tile -->
+      <div class="tile" id="tile-sec">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot"></span>SEC EDGAR</div>
+          <div class="tile-status">idle</div>
+        </div>
+        <div class="tile-body" id="tile-sec-body">
+          Public-company filings, going-concern flags, material litigation. Useful only if the contractor (or parent) is publicly traded.
+        </div>
+        <div class="tile-foot">
+          <a class="btn btn-ghost btn-sm" href="https://efts.sec.gov/LATEST/search-index?q=&forms=10-K" target="_blank" rel="noopener">Open EDGAR &#x2197;</a>
+        </div>
+      </div>
+      <!-- Court Listener Tile -->
+      <div class="tile" id="tile-cl">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot"></span>CourtListener (RECAP)</div>
+          <div class="tile-status">idle</div>
+        </div>
+        <div class="tile-body" id="tile-cl-body">
+          Federal court filings. Catches bankruptcies, civil suits, mechanic's liens, judgments naming the contractor.
+        </div>
+        <div class="tile-foot">
+          <a class="btn btn-ghost btn-sm" href="https://www.courtlistener.com/recap/" target="_blank" rel="noopener">Open CourtListener &#x2197;</a>
+        </div>
+      </div>
+      <!-- Wikipedia Tile -->
+      <div class="tile" id="tile-wiki">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot"></span>Wikipedia</div>
+          <div class="tile-status">idle</div>
+        </div>
+        <div class="tile-body" id="tile-wiki-body">
+          Notability signal. A real Wikipedia article often means real revenue and real history.
+        </div>
+        <div class="tile-foot">
+          <a class="btn btn-ghost btn-sm" href="https://en.wikipedia.org/" target="_blank" rel="noopener">Open Wikipedia &#x2197;</a>
+        </div>
+      </div>
+      <!-- GitHub Tile -->
+      <div class="tile" id="tile-gh">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot"></span>GitHub</div>
+          <div class="tile-status">idle</div>
+        </div>
+        <div class="tile-body" id="tile-gh-body">
+          Optional signal. Engineering firms with public repos often have a more mature digital workflow.
+        </div>
+        <div class="tile-foot">
+          <a class="btn btn-ghost btn-sm" href="https://github.com/search" target="_blank" rel="noopener">Open GitHub &#x2197;</a>
+        </div>
+      </div>
+      <!-- Launchers Tile -->
+      <div class="tile" id="tile-launch">
+        <div class="tile-head">
+          <div class="tile-title"><span class="dot" style="background:var(--orange)"></span>Launch &amp; Verify</div>
+          <div class="tile-status" style="color:var(--orange)">manual</div>
+        </div>
+        <div class="tile-body">
+          Sources without a CORS-friendly API. Click to open in a new tab and copy any results back here.
+          <div class="linkrow" id="launchlinks-mini"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- FEDERAL AWARDS PANEL                                                -->
+  <!-- =================================================================== -->
+  <section class="panel" id="federal">
+    <div class="panel-head">
+      <div class="panel-title">Federal Awards (USAspending.gov)</div>
+      <div class="muted" id="usa-meta">No data yet</div>
+    </div>
+    <div class="stats-bar" id="usa-stats">
+      <div class="stat-card"><div class="stat-label">Awards</div><div class="stat-val" id="us-ct">—</div></div>
+      <div class="stat-card orange"><div class="stat-label">Total Obligated</div><div class="stat-val" id="us-tot">—</div></div>
+      <div class="stat-card"><div class="stat-label">Agencies</div><div class="stat-val" id="us-ag">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Largest</div><div class="stat-val" id="us-max">—</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Size</div><div class="stat-val" id="us-avg">—</div></div>
+      <div class="stat-card"><div class="stat-label">First Yr</div><div class="stat-val" id="us-yr1">—</div></div>
+      <div class="stat-card"><div class="stat-label">Last Yr</div><div class="stat-val" id="us-yr2">—</div></div>
+    </div>
+    <div class="chart-box"><canvas id="usa-chart"></canvas></div>
+    <div class="sep"></div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="usa-table">
+        <thead>
+          <tr>
+            <th data-sort="piid">PIID</th>
+            <th data-sort="agency">Agency</th>
+            <th data-sort="desc">Description</th>
+            <th data-sort="amt" class="num">Amount</th>
+            <th data-sort="start">Start</th>
+            <th data-sort="end">End</th>
+            <th data-sort="pop">Place</th>
+            <th data-sort="status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="usa-tbody">
+          <tr><td colspan="8" class="empty">No awards loaded yet. Run a lookup.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- GOOD / BAD / UGLY PANEL                                             -->
+  <!-- =================================================================== -->
+  <section class="panel" id="gbu">
+    <div class="panel-head">
+      <div class="panel-title">Projects: Good / Bad / Ugly</div>
+      <div class="muted">Heuristic classification of historical awards</div>
+    </div>
+    <div class="panel-sub">
+      GOOD = completed awards over $1M that ran to full term. BAD = end-of-period overruns or unusual modifications. UGLY = terminated for default, or contractor named in bankruptcy / lien filings on CourtListener.
+    </div>
+    <div class="gbu-tabs">
+      <button class="gbu-tab good active" data-gbu="good">Good <span class="ct" id="gbu-good-ct">(0)</span></button>
+      <button class="gbu-tab bad" data-gbu="bad">Bad <span class="ct" id="gbu-bad-ct">(0)</span></button>
+      <button class="gbu-tab ugly" data-gbu="ugly">Ugly <span class="ct" id="gbu-ugly-ct">(0)</span></button>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>PIID</th>
+            <th>Agency</th>
+            <th class="num">Amount</th>
+            <th>Period</th>
+            <th>Rationale</th>
+          </tr>
+        </thead>
+        <tbody id="gbu-tbody">
+          <tr><td colspan="5" class="empty">Run a lookup first.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- OSHA INCIDENT CHECK                                                 -->
+  <!-- =================================================================== -->
+  <section class="panel" id="osha">
+    <div class="panel-head">
+      <div class="panel-title">OSHA Incident Check</div>
+      <div class="muted">Manual paste — no CORS-friendly OSHA API exists</div>
+    </div>
+    <div class="panel-sub">
+      Click a launcher, copy the establishment search results into the textarea below, then press <strong>Parse</strong>. The parser scans for inspection IDs, citation standards (e.g. <code>1926.501</code>, <code>5(a)(1)</code>), penalty totals, fatalities, and hospitalizations.
+    </div>
+    <div class="launch-grid" id="osha-launchers"></div>
+    <div class="sep"></div>
+    <div class="field">
+      <label for="osha-paste">Paste OSHA inspection results</label>
+      <textarea id="osha-paste" placeholder="Paste raw text from OSHA Establishment Search here..."></textarea>
+    </div>
+    <div class="row-tight">
+      <div class="field">
+        <label for="osha-hours">Worker-hours (last yr)</label>
+        <input type="number" id="osha-hours" placeholder="e.g. 240000" />
+      </div>
+      <div class="field">
+        <label for="osha-darts">DART cases (entered)</label>
+        <input type="number" id="osha-darts" placeholder="0" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="btn-osha-parse">Parse OSHA Text</button>
+      <button class="btn btn-ghost btn-sm" id="btn-osha-clear">Clear</button>
+    </div>
+    <div class="stats-bar" id="osha-stats" style="margin-top:14px">
+      <div class="stat-card"><div class="stat-label">Inspections</div><div class="stat-val" id="osha-ct">0</div></div>
+      <div class="stat-card orange"><div class="stat-label">Citations</div><div class="stat-val" id="osha-cit">0</div></div>
+      <div class="stat-card"><div class="stat-label">Penalty $</div><div class="stat-val" id="osha-pen">$0</div></div>
+      <div class="stat-card red"><div class="stat-label">Fatalities</div><div class="stat-val" id="osha-fat">0</div></div>
+      <div class="stat-card orange"><div class="stat-label">Hospital.</div><div class="stat-val" id="osha-hsp">0</div></div>
+      <div class="stat-card"><div class="stat-label">DART rate</div><div class="stat-val" id="osha-dart">—</div></div>
+    </div>
+    <div id="osha-findings"></div>
+    <div class="warn">
+      <strong>Industry benchmarks (NAICS 236220 Commercial &amp; Institutional Building Construction):</strong>
+      BLS-published TRIR ~2.4 / DART ~1.5 / Fatal incidence ~9 per 100,000 FTE. Anything materially above warrants a safety conference before award.
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- SOLVENCY PANEL                                                      -->
+  <!-- =================================================================== -->
+  <section class="panel" id="solvency">
+    <div class="panel-head">
+      <div class="panel-title">Solvency Estimate</div>
+      <div class="muted">Public-data heuristic — NOT a credit report</div>
+    </div>
+    <div class="warn">
+      <strong>NOT A CREDIT RATING.</strong> Pull a Dun &amp; Bradstreet, Experian Business, or Equifax Business report for actual underwriting. This score combines federal contract trends + court filings + SEC signals only.
+    </div>
+    <div class="score-grid">
+      <div class="score-card" id="sc-solvency">
+        <div class="score-label">Solvency Signal</div>
+        <div class="score-ring">
+          <svg width="90" height="90"><circle class="ring-bg" cx="45" cy="45" r="38"></circle><circle class="ring-fg" cx="45" cy="45" r="38" stroke-dasharray="238.76" stroke-dashoffset="238.76"></circle></svg>
+          <div class="ring-num">—</div>
+        </div>
+        <div class="breakdown" id="solvency-breakdown"></div>
+      </div>
+      <div style="grid-column:span 2">
+        <div id="solvency-findings"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- COMPETENCY PANEL                                                    -->
+  <!-- =================================================================== -->
+  <section class="panel" id="competency">
+    <div class="panel-head">
+      <div class="panel-title">Competency Check</div>
+      <div class="muted">Track-record vs current bid scope</div>
+    </div>
+    <div class="score-grid">
+      <div class="score-card" id="sc-competency">
+        <div class="score-label">Competency Score</div>
+        <div class="score-ring">
+          <svg width="90" height="90"><circle class="ring-bg" cx="45" cy="45" r="38"></circle><circle class="ring-fg" cx="45" cy="45" r="38" stroke-dasharray="238.76" stroke-dashoffset="238.76"></circle></svg>
+          <div class="ring-num">—</div>
+        </div>
+        <div class="breakdown" id="competency-breakdown"></div>
+      </div>
+      <div style="grid-column:span 2">
+        <div id="competency-findings"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- BID UPLOAD + RED-FLAG ANALYZER                                      -->
+  <!-- =================================================================== -->
+  <section class="panel" id="bid">
+    <div class="panel-head">
+      <div class="panel-title">Bid Upload &amp; Red-Flag Analyzer</div>
+      <div class="muted">PDF / TXT / DOCX</div>
+    </div>
+    <div class="dropzone" id="dropzone">
+      <div class="big">&#x21E7;</div>
+      <div>Drop a bid file here or <strong style="color:var(--cyan)">click to browse</strong></div>
+      <div class="help">PDF (parsed via PDF.js), TXT, DOCX (unzipped via JSZip). All processing happens in your browser. No upload.</div>
+      <input type="file" id="bid-file" accept=".pdf,.txt,.docx" />
+    </div>
+    <div id="bid-meta" class="muted" style="margin-top:10px"></div>
+    <div class="stats-bar" id="bid-stats" style="display:none">
+      <div class="stat-card"><div class="stat-label">Bid Total</div><div class="stat-val" id="bid-total">—</div></div>
+      <div class="stat-card orange"><div class="stat-label">Line Items</div><div class="stat-val" id="bid-items">—</div></div>
+      <div class="stat-card"><div class="stat-label">Safety %</div><div class="stat-val" id="bid-safety">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mobilization %</div><div class="stat-val" id="bid-mob">—</div></div>
+      <div class="stat-card"><div class="stat-label">Contingency %</div><div class="stat-val" id="bid-cont">—</div></div>
+    </div>
+    <div id="bid-findings"></div>
+    <div class="btn-row">
+      <button class="btn btn-orange btn-sm" id="btn-bid-report">Bid Review Report PDF</button>
+      <button class="btn btn-ghost btn-sm" id="btn-bid-clear">Clear Bid</button>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- REFERENCES CROSS-CHECK                                              -->
+  <!-- =================================================================== -->
+  <section class="panel" id="refs">
+    <div class="panel-head">
+      <div class="panel-title">References Cross-Check</div>
+      <div class="muted">Generate verification links</div>
+    </div>
+    <div class="field">
+      <label for="refs-paste">Paste contractor's reference list (one per line: Company / Person / Phone / Project)</label>
+      <textarea id="refs-paste" rows="6" placeholder="Acme Builders, Joe Smith, 555-123-4567, Hangar 7 Re-roof
+Lone Star DOT, Maria Lopez, 555-987-6543, IH-35 Overlay"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="btn-refs-gen">Generate Lookup Links</button>
+      <button class="btn btn-ghost btn-sm" id="btn-refs-clear">Clear</button>
+    </div>
+    <div id="refs-out"></div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- FINAL SCORECARD                                                     -->
+  <!-- =================================================================== -->
+  <section class="panel" id="scorecard">
+    <div class="panel-head">
+      <div class="panel-title">Final Scorecard</div>
+      <div class="muted">Composite radar &amp; verdict</div>
+    </div>
+    <div class="radar-wrap">
+      <canvas id="radar-chart" width="400" height="340"></canvas>
+    </div>
+    <div class="verdict" id="verdict">
+      <div class="label">Verdict</div>
+      <div class="val">—</div>
+      <div class="narrative">Run a lookup to populate the scorecard.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="btn-copy-memo-2">Copy Vetting Memo</button>
+      <button class="btn btn-orange btn-sm" id="btn-export-pdf-2">Export PDF Report</button>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- WATCHLIST                                                           -->
+  <!-- =================================================================== -->
+  <section class="panel" id="watchlist">
+    <div class="panel-head">
+      <div class="panel-title">Watchlist</div>
+      <div class="muted">Stored locally on this device</div>
+    </div>
+    <div id="watchlist-out"><div class="empty">Watchlist empty.</div></div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- LAUNCHERS GRID                                                       -->
+  <!-- =================================================================== -->
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Verification Launchers</div>
+      <div class="muted">Each opens in a new tab</div>
+    </div>
+    <div class="launch-grid" id="launchers-full"></div>
+  </section>
+
+</div><!-- /wrap -->
+
+<!-- ===== AWARD DETAIL MODAL ===== -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">Award Detail</h3>
+      <button class="modal-close" id="modal-close">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ===== INFO MODAL ===== -->
+<div class="modal-bg" id="info-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Data Sources &amp; Methodology</h3>
+      <button class="modal-close" id="info-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <h4>1. USAspending.gov</h4>
+      <p>POST <code>https://api.usaspending.gov/api/v2/search/spending_by_award/</code> with a recipient_search_text filter. Returns federal contract awards (PIID, agency, amount obligated, period of performance, place of performance, type code). CORS-enabled. No API key.</p>
+      <h4>2. SEC EDGAR Full-Text Search</h4>
+      <p>GET <code>https://efts.sec.gov/LATEST/search-index?q="Name"&amp;forms=10-K,10-Q,8-K</code>. Surfaces material litigation and going-concern language for publicly listed contractors.</p>
+      <h4>3. CourtListener (RECAP)</h4>
+      <p>GET <code>https://www.courtlistener.com/api/rest/v3/search/?q=&lt;name&gt;&amp;type=r</code>. Federal court filings &mdash; bankruptcies, civil suits, mechanic's liens.</p>
+      <h4>4. Wikipedia API</h4>
+      <p>GET <code>https://en.wikipedia.org/w/api.php?origin=*&amp;action=query&amp;list=search&amp;srsearch=&lt;name&gt;</code>. Notability signal.</p>
+      <h4>5. GitHub Search</h4>
+      <p>GET <code>https://api.github.com/search/repositories?q=&lt;name&gt;</code>. Optional digital-maturity signal.</p>
+      <h4>6. OSHA (manual paste)</h4>
+      <p>OSHA does not expose a CORS-friendly JSON API. The tool launches Establishment Search and parses the text the user pastes back, scanning for inspection IDs, standards (e.g. 1926.501), penalty totals, fatalities and hospitalizations.</p>
+      <h4>7. Launch links only</h4>
+      <p>SAM.gov, OpenCorporates, BBB, Texas/Oklahoma/New Mexico Secretary of State, state contractor license boards, D&amp;B, PACER, FEC, LinkedIn, BuzzFile.</p>
+      <h4>Disclaimer</h4>
+      <p>This tool provides directional signals built from public data. It is not a credit report, not a legal opinion, and not a substitute for a Dun &amp; Bradstreet or Experian Business report. Always pull primary documents and have counsel review before any award decision.</p>
+      <h4>Privacy</h4>
+      <p>Everything happens in your browser. Lookups, watchlist, and OSHA notes are stored only in this device's localStorage under <code>korb_contractor_bgcheck_*</code>. Nothing is sent to Korb Engineering servers.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================================
+   CONTRACTOR BACKGROUND CHECK - main script
+   All operations are client-side. No API keys. No backend.
+   ============================================================================ */
+(function(){
+'use strict';
+
+/* ----- Configure PDF.js worker ----- */
+try{
+  if(window.pdfjsLib && pdfjsLib.GlobalWorkerOptions){
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '../../vendor/pdf.worker-3.11.174.min.js';
+  }
+}catch(e){console.warn('pdfjs worker setup failed',e);}
+
+/* ----- LocalStorage keys (korb_ prefix) ----- */
+var LS = {
+  history:    'korb_contractor_bgcheck_history_v1',
+  watchlist:  'korb_contractor_bgcheck_watchlist_v1',
+  osha:       'korb_contractor_bgcheck_osha_v1',
+  lastResult: 'korb_contractor_bgcheck_last_v1'
+};
+
+/* ----- Global state ----- */
+var STATE = {
+  query: null,
+  usa:  { loaded:false, awards:[], stats:{} },
+  sec:  { loaded:false, hits:[] },
+  cl:   { loaded:false, hits:[] },
+  wiki: { loaded:false, hits:[] },
+  gh:   { loaded:false, hits:[] },
+  osha: { parsed:null },
+  bid:  { parsed:null },
+  scores:{ federal:0, solvency:0, safety:0, competency:0, bid:0 }
+};
+
+/* ============================================================================
+   UTILITIES
+   ============================================================================ */
+
+/** XSS-safe HTML escape — every piece of API/user/PDF text MUST go through this
+ *  before being inserted via innerHTML. Use textContent where possible. */
+function esc(s){
+  if(s===null||s===undefined) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function $(id){ return document.getElementById(id); }
+function qsa(sel,el){ return Array.prototype.slice.call((el||document).querySelectorAll(sel)); }
+
+function fmtUSD(n){
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  var v = Number(n);
+  if(Math.abs(v)>=1e9) return '$'+(v/1e9).toFixed(2)+'B';
+  if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(2)+'M';
+  if(Math.abs(v)>=1e3) return '$'+(v/1e3).toFixed(1)+'K';
+  return '$'+v.toFixed(0);
+}
+
+function fmtUSDFull(n){
+  if(n===null||n===undefined||isNaN(n)) return '$0';
+  return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+
+function fmtDate(s){
+  if(!s) return '—';
+  try{
+    var d = new Date(s);
+    if(isNaN(d)) return esc(s);
+    return d.toISOString().substring(0,10);
+  }catch(e){ return esc(s); }
+}
+
+function yearOf(s){
+  if(!s) return null;
+  var m = String(s).match(/(\d{4})/);
+  return m ? parseInt(m[1],10) : null;
+}
+
+function truncate(s,n){
+  s = String(s||'');
+  if(s.length<=n) return s;
+  return s.substring(0,n-1)+'…';
+}
+
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function loadLS(key,def){
+  try{ var v = localStorage.getItem(key); return v?JSON.parse(v):def; }catch(e){ return def; }
+}
+function saveLS(key,val){
+  try{ localStorage.setItem(key,JSON.stringify(val)); }catch(e){ console.warn('LS save failed',e); }
+}
+
+function toast(msg,ms){
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove('show'); }, ms||2500);
+}
+
+function setTileStatus(id,state,msg){
+  var el = $('tile-'+id);
+  if(!el) return;
+  el.classList.remove('is-loading','is-ok','is-err');
+  if(state) el.classList.add('is-'+state);
+  var st = el.querySelector('.tile-status');
+  if(st) st.textContent = msg || state || 'idle';
+}
+
+/* ============================================================================
+   API CALLS — all wrapped in try/catch, all returning Promises
+   ============================================================================ */
+
+/** USAspending search. POST body per the documented spending_by_award schema. */
+function fetchUSAspending(name, fromYear, toYear){
+  setTileStatus('usa','loading','querying…');
+  var body = {
+    filters: {
+      recipient_search_text: [name],
+      time_period: [{
+        start_date: (fromYear||2010)+'-01-01',
+        end_date:   (toYear||2099)+'-12-31'
+      }],
+      award_type_codes: ['A','B','C','D']  // contracts (definitive, IDV, etc.)
+    },
+    fields: [
+      'Award ID','Recipient Name','Description','Start Date','End Date',
+      'Award Amount','Awarding Agency','Awarding Sub Agency',
+      'Place of Performance State Code','Award Type','Last Modified Date',
+      'generated_internal_id','Period of Performance Start Date','Period of Performance Current End Date'
+    ],
+    page: 1,
+    limit: 100,
+    sort: 'Award Amount',
+    order: 'desc'
+  };
+  return fetch('https://api.usaspending.gov/api/v2/search/spending_by_award/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(r){
+    if(!r.ok) throw new Error('USAspending HTTP '+r.status);
+    return r.json();
+  }).then(function(j){
+    var raw = (j && j.results) || [];
+    var rows = raw.map(function(r){
+      return {
+        piid:    r['Award ID'] || '',
+        recip:   r['Recipient Name'] || '',
+        desc:    r['Description'] || '',
+        start:   r['Period of Performance Start Date'] || r['Start Date'] || '',
+        end:     r['Period of Performance Current End Date'] || r['End Date'] || '',
+        amt:     Number(r['Award Amount'] || 0),
+        agency:  r['Awarding Agency'] || '',
+        subag:   r['Awarding Sub Agency'] || '',
+        pop:     r['Place of Performance State Code'] || '',
+        type:    r['Award Type'] || '',
+        modified:r['Last Modified Date'] || '',
+        gid:     r['generated_internal_id'] || ''
+      };
+    });
+    return rows;
+  });
+}
+
+function fetchSEC(name){
+  setTileStatus('sec','loading','querying…');
+  var url = 'https://efts.sec.gov/LATEST/search-index?q='+encodeURIComponent('"'+name+'"')+'&forms=10-K,10-Q,8-K';
+  return fetch(url,{headers:{'Accept':'application/json'}}).then(function(r){
+    if(!r.ok) throw new Error('SEC HTTP '+r.status);
+    return r.json();
+  }).then(function(j){
+    var hits = (j && j.hits && j.hits.hits) || [];
+    return hits.slice(0,20).map(function(h){
+      var src = h._source || {};
+      return {
+        form:    src.form || '',
+        date:    src.file_date || '',
+        adsh:    h._id || '',
+        display: (src.display_names && src.display_names[0]) || '',
+        text:    (src.summary || '').substring(0,300)
+      };
+    });
+  });
+}
+
+function fetchCourtListener(name){
+  setTileStatus('cl','loading','querying…');
+  var url = 'https://www.courtlistener.com/api/rest/v3/search/?q='+encodeURIComponent('"'+name+'"')+'&type=r';
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('CourtListener HTTP '+r.status);
+    return r.json();
+  }).then(function(j){
+    var hits = (j && j.results) || [];
+    return hits.slice(0,30).map(function(h){
+      return {
+        case:    h.caseName || h.caseNameShort || '',
+        court:   h.court || h.court_id || '',
+        date:    h.dateFiled || h.date_filed || '',
+        docket:  h.docketNumber || '',
+        nature:  h.nature_of_suit || '',
+        url:     h.absolute_url ? ('https://www.courtlistener.com'+h.absolute_url) : ''
+      };
+    });
+  });
+}
+
+function fetchWikipedia(name){
+  setTileStatus('wiki','loading','querying…');
+  var url = 'https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&list=search&srsearch='+encodeURIComponent(name);
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('Wikipedia HTTP '+r.status);
+    return r.json();
+  }).then(function(j){
+    var hits = (j && j.query && j.query.search) || [];
+    return hits.slice(0,8).map(function(h){
+      return {
+        title:   h.title || '',
+        snippet: (h.snippet || '').replace(/<[^>]+>/g,''),
+        url:     'https://en.wikipedia.org/wiki/'+encodeURIComponent((h.title||'').replace(/ /g,'_'))
+      };
+    });
+  });
+}
+
+function fetchGitHub(name){
+  setTileStatus('gh','loading','querying…');
+  var url = 'https://api.github.com/search/repositories?q='+encodeURIComponent(name)+'&per_page=8';
+  return fetch(url,{headers:{'Accept':'application/vnd.github+json'}}).then(function(r){
+    if(!r.ok) throw new Error('GitHub HTTP '+r.status);
+    return r.json();
+  }).then(function(j){
+    var items = (j && j.items) || [];
+    return items.slice(0,8).map(function(i){
+      return {
+        name: i.full_name || i.name || '',
+        desc: i.description || '',
+        stars: i.stargazers_count || 0,
+        url: i.html_url || ''
+      };
+    });
+  });
+}
+
+/* ============================================================================
+   LOOKUP ORCHESTRATOR
+   ============================================================================ */
+
+function runLookup(){
+  var name  = ($('in-name').value || '').trim();
+  if(!name){ toast('Enter a company name first.'); return; }
+  var fromY = parseInt($('in-from').value,10) || 2010;
+  var toY   = parseInt($('in-to').value,10)   || 2099;
+
+  STATE.query = {
+    name: name,
+    uei:  ($('in-uei').value||'').trim(),
+    fein: ($('in-fein').value||'').trim(),
+    state:$('in-state').value,
+    trade:$('in-trade').value,
+    fromY: fromY,
+    toY:   toY,
+    bidAmt: parseFloat($('in-bidamt').value)||0,
+    otherBids: parseOtherBids($('in-otherbids').value),
+    timestamp: Date.now()
+  };
+
+  // Save to history
+  pushHistory(STATE.query);
+
+  // Reset state
+  STATE.usa  = {loaded:false, awards:[], stats:{}};
+  STATE.sec  = {loaded:false, hits:[]};
+  STATE.cl   = {loaded:false, hits:[]};
+  STATE.wiki = {loaded:false, hits:[]};
+  STATE.gh   = {loaded:false, hits:[]};
+
+  // Update launchers with the queried name
+  buildLaunchers(name);
+
+  // Run all calls in parallel via Promise.allSettled
+  Promise.allSettled([
+    fetchUSAspending(name, fromY, toY),
+    fetchSEC(name),
+    fetchCourtListener(name),
+    fetchWikipedia(name),
+    fetchGitHub(name)
+  ]).then(function(results){
+
+    // USAspending
+    var rUsa = results[0];
+    if(rUsa.status==='fulfilled'){
+      STATE.usa.awards = rUsa.value || [];
+      STATE.usa.loaded = true;
+      computeUSAStats();
+      renderUSA();
+      renderGBU();
+      setTileStatus('usa','ok',(STATE.usa.awards.length||0)+' awards');
+      var b = $('tile-usa-body');
+      b.innerHTML =
+        '<div class="stat"><span>Awards</span><span class="v">'+esc(STATE.usa.awards.length)+'</span></div>'+
+        '<div class="stat"><span>Total $</span><span class="v">'+esc(fmtUSD(STATE.usa.stats.total))+'</span></div>'+
+        '<div class="stat"><span>Largest</span><span class="v">'+esc(fmtUSD(STATE.usa.stats.max))+'</span></div>'+
+        '<div class="stat"><span>Agencies</span><span class="v">'+esc(STATE.usa.stats.agencyCount)+'</span></div>';
+    } else {
+      setTileStatus('usa','err','error');
+      $('tile-usa-body').textContent = 'USAspending error: '+(rUsa.reason && rUsa.reason.message || 'unknown');
+    }
+
+    // SEC
+    var rSec = results[1];
+    if(rSec.status==='fulfilled'){
+      STATE.sec.hits = rSec.value || [];
+      STATE.sec.loaded = true;
+      setTileStatus('sec','ok',STATE.sec.hits.length+' filings');
+      renderSecTile();
+    } else {
+      setTileStatus('sec','err','error');
+      $('tile-sec-body').textContent = 'SEC error (likely no filings or CORS preflight): '+(rSec.reason && rSec.reason.message || 'unknown');
+    }
+
+    // CourtListener
+    var rCl = results[2];
+    if(rCl.status==='fulfilled'){
+      STATE.cl.hits = rCl.value || [];
+      STATE.cl.loaded = true;
+      setTileStatus('cl','ok',STATE.cl.hits.length+' cases');
+      renderCLTile();
+    } else {
+      setTileStatus('cl','err','error');
+      $('tile-cl-body').textContent = 'CourtListener error: '+(rCl.reason && rCl.reason.message || 'unknown');
+    }
+
+    // Wikipedia
+    var rWk = results[3];
+    if(rWk.status==='fulfilled'){
+      STATE.wiki.hits = rWk.value || [];
+      STATE.wiki.loaded = true;
+      setTileStatus('wiki','ok',STATE.wiki.hits.length+' results');
+      renderWikiTile();
+    } else {
+      setTileStatus('wiki','err','error');
+      $('tile-wiki-body').textContent = 'Wikipedia error: '+(rWk.reason && rWk.reason.message || 'unknown');
+    }
+
+    // GitHub
+    var rGh = results[4];
+    if(rGh.status==='fulfilled'){
+      STATE.gh.hits = rGh.value || [];
+      STATE.gh.loaded = true;
+      setTileStatus('gh','ok',STATE.gh.hits.length+' repos');
+      renderGHTile();
+    } else {
+      setTileStatus('gh','err','error');
+      $('tile-gh-body').textContent = 'GitHub error: '+(rGh.reason && rGh.reason.message || 'unknown');
+    }
+
+    // Recompute scores once everything is in
+    recomputeAllScores();
+    renderScorecard();
+    saveLS(LS.lastResult, {query:STATE.query, ts:Date.now()});
+    toast('Lookup complete.');
+  });
+}
+
+function parseOtherBids(s){
+  if(!s) return [];
+  return String(s).split(/[,;\n]/).map(function(x){
+    return parseFloat(String(x).replace(/[^0-9.]/g,''));
+  }).filter(function(n){ return !isNaN(n) && n>0; });
+}
+
+function pushHistory(q){
+  var hist = loadLS(LS.history, []);
+  hist.unshift({name:q.name, ts:q.timestamp, state:q.state});
+  // Dedupe by name
+  var seen = {};
+  hist = hist.filter(function(h){
+    var k = (h.name||'').toLowerCase();
+    if(seen[k]) return false;
+    seen[k] = true;
+    return true;
+  }).slice(0,15);
+  saveLS(LS.history, hist);
+  renderHistory();
+}
+
+function renderHistory(){
+  var hist = loadLS(LS.history, []);
+  var el = $('history-list');
+  el.innerHTML = '';
+  if(!hist.length){
+    el.innerHTML = '<span class="muted">No recent lookups.</span>';
+    return;
+  }
+  hist.forEach(function(h){
+    var c = document.createElement('span');
+    c.className = 'history-chip';
+    c.textContent = h.name + (h.state?' ('+h.state+')':'');
+    c.addEventListener('click', function(){
+      $('in-name').value = h.name;
+      runLookup();
+    });
+    el.appendChild(c);
+  });
+}
+
+/* ============================================================================
+   USAspending RENDERING
+   ============================================================================ */
+
+function computeUSAStats(){
+  var aw = STATE.usa.awards;
+  var total = 0, max = 0, agencies = {}, years = {};
+  var first = null, last = null;
+  aw.forEach(function(a){
+    total += a.amt;
+    if(a.amt > max) max = a.amt;
+    if(a.agency) agencies[a.agency] = true;
+    var yr = yearOf(a.start);
+    if(yr){
+      years[yr] = (years[yr]||0) + a.amt;
+      if(first===null || yr<first) first = yr;
+      if(last===null  || yr>last)  last  = yr;
+    }
+    // Status classification
+    a.status = classifyAwardStatus(a);
+  });
+  STATE.usa.stats = {
+    count: aw.length,
+    total: total,
+    max: max,
+    avg: aw.length ? total/aw.length : 0,
+    agencyCount: Object.keys(agencies).length,
+    firstYear: first,
+    lastYear: last,
+    yearMap: years
+  };
+}
+
+function classifyAwardStatus(a){
+  // Heuristic: end date in past = completed, future = in progress, type contains 'terminate' = terminated
+  var t = (a.type||'').toLowerCase();
+  if(t.indexOf('terminat')>=0 || t.indexOf('default')>=0) return 'terminated';
+  var ed = a.end ? new Date(a.end) : null;
+  if(ed && !isNaN(ed)){
+    if(ed.getTime() < Date.now() - 30*86400000) return 'completed';
+    return 'progress';
+  }
+  return 'unknown';
+}
+
+function renderUSA(){
+  var s = STATE.usa.stats;
+  $('us-ct').textContent  = s.count || 0;
+  $('us-tot').textContent = fmtUSD(s.total);
+  $('us-ag').textContent  = s.agencyCount || 0;
+  $('us-max').textContent = fmtUSD(s.max);
+  $('us-avg').textContent = fmtUSD(s.avg);
+  $('us-yr1').textContent = s.firstYear || '—';
+  $('us-yr2').textContent = s.lastYear  || '—';
+  $('usa-meta').textContent = (s.count||0) + ' awards loaded';
+
+  renderUSATable();
+  renderUSAChart();
+}
+
+var sortField = 'amt', sortDir = 'desc';
+function renderUSATable(){
+  var aw = STATE.usa.awards.slice();
+  aw.sort(function(a,b){
+    var av=a[sortField], bv=b[sortField];
+    if(typeof av === 'number'){
+      return sortDir==='desc' ? bv-av : av-bv;
+    }
+    av = String(av||''); bv = String(bv||'');
+    return sortDir==='desc' ? bv.localeCompare(av) : av.localeCompare(bv);
+  });
+  var tb = $('usa-tbody');
+  if(!aw.length){
+    tb.innerHTML = '<tr><td colspan="8" class="empty">No awards found.</td></tr>';
+    return;
+  }
+  var html = '';
+  aw.forEach(function(a, idx){
+    var pillClass = a.status==='completed' ? 's-completed' :
+                    a.status==='progress'  ? 's-progress'  :
+                    a.status==='terminated'? 's-terminated': 's-unknown';
+    html += '<tr class="clk" data-idx="'+idx+'">'+
+      '<td>'+esc(truncate(a.piid,20))+'</td>'+
+      '<td>'+esc(truncate(a.agency,30))+'</td>'+
+      '<td>'+esc(truncate(a.desc,60))+'</td>'+
+      '<td class="num">'+esc(fmtUSD(a.amt))+'</td>'+
+      '<td>'+esc(fmtDate(a.start))+'</td>'+
+      '<td>'+esc(fmtDate(a.end))+'</td>'+
+      '<td>'+esc(a.pop||'—')+'</td>'+
+      '<td><span class="status-pill '+pillClass+'">'+esc(a.status)+'</span></td>'+
+    '</tr>';
+  });
+  tb.innerHTML = html;
+  // Wire row clicks
+  qsa('tr.clk', tb).forEach(function(tr){
+    tr.addEventListener('click', function(){
+      var i = parseInt(tr.getAttribute('data-idx'),10);
+      openAwardModal(STATE.usa.awards[i]);
+    });
+  });
+}
+
+function openAwardModal(a){
+  if(!a) return;
+  $('modal-title').textContent = a.piid || 'Award';
+  var html = '<dl class="kv">'+
+    '<dt>PIID</dt><dd>'+esc(a.piid)+'</dd>'+
+    '<dt>Recipient</dt><dd>'+esc(a.recip)+'</dd>'+
+    '<dt>Agency</dt><dd>'+esc(a.agency)+'</dd>'+
+    '<dt>Sub-agency</dt><dd>'+esc(a.subag)+'</dd>'+
+    '<dt>Amount</dt><dd>'+esc(fmtUSDFull(a.amt))+'</dd>'+
+    '<dt>Period Start</dt><dd>'+esc(fmtDate(a.start))+'</dd>'+
+    '<dt>Period End</dt><dd>'+esc(fmtDate(a.end))+'</dd>'+
+    '<dt>Place of Perf</dt><dd>'+esc(a.pop)+'</dd>'+
+    '<dt>Type</dt><dd>'+esc(a.type)+'</dd>'+
+    '<dt>Status</dt><dd>'+esc(a.status)+'</dd>'+
+    '<dt>Last modified</dt><dd>'+esc(fmtDate(a.modified))+'</dd>'+
+  '</dl>'+
+  '<h4>Description</h4><p>'+esc(a.desc)+'</p>';
+  if(a.gid){
+    html += '<p><a href="https://www.usaspending.gov/award/'+esc(a.gid)+'" target="_blank" rel="noopener">View on USAspending &#x2197;</a></p>';
+  }
+  $('modal-body').innerHTML = html;
+  $('modal-bg').classList.add('open');
+}
+
+var usaChartObj = null;
+function renderUSAChart(){
+  if(!window.Chart) return;
+  var s = STATE.usa.stats;
+  var years = Object.keys(s.yearMap||{}).sort();
+  var data  = years.map(function(y){ return s.yearMap[y]; });
+  var ctx = $('usa-chart').getContext('2d');
+  if(usaChartObj){ usaChartObj.destroy(); }
+  usaChartObj = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels: years,
+      datasets:[{
+        label:'Obligated $',
+        data: data,
+        backgroundColor:'rgba(0,212,255,.55)',
+        borderColor:'#00d4ff',
+        borderWidth:1
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:'#8899aa',font:{family:"JetBrains Mono",size:10}}},
+        tooltip:{callbacks:{label:function(c){ return fmtUSD(c.parsed.y); }}}
+      },
+      scales:{
+        x:{ticks:{color:'#8899aa',font:{family:"JetBrains Mono",size:10}},grid:{color:'#111a24'}},
+        y:{ticks:{color:'#8899aa',font:{family:"JetBrains Mono",size:10},callback:function(v){return fmtUSD(v);}},grid:{color:'#111a24'}}
+      }
+    }
+  });
+}
+
+/* Sort handlers */
+qsa('th[data-sort]', $('usa-table')).forEach(function(th){
+  th.addEventListener('click', function(){
+    var f = th.getAttribute('data-sort');
+    if(sortField===f){ sortDir = sortDir==='desc'?'asc':'desc'; }
+    else { sortField = f; sortDir = 'desc'; }
+    qsa('th[data-sort]', $('usa-table')).forEach(function(t){ t.classList.remove('sort-asc','sort-desc'); });
+    th.classList.add(sortDir==='desc'?'sort-desc':'sort-asc');
+    renderUSATable();
+  });
+});
+
+/* ============================================================================
+   GOOD / BAD / UGLY
+   ============================================================================ */
+
+function renderGBU(){
+  var aw = STATE.usa.awards || [];
+  var good = [], bad = [], ugly = [];
+
+  // Cross-reference court listener for bankruptcy/lien hits
+  var hasBankruptcy = (STATE.cl.hits||[]).some(function(c){
+    var n = (c.nature||'').toLowerCase()+' '+(c.case||'').toLowerCase();
+    return n.indexOf('bankrupt')>=0 || n.indexOf('lien')>=0 || n.indexOf('insolven')>=0 || n.indexOf('receiver')>=0;
+  });
+
+  aw.forEach(function(a){
+    var rationale = '';
+    var cls = '';
+
+    if(a.status==='terminated'){
+      rationale = 'Terminated for default / convenience per award type code';
+      cls = 'ugly';
+    } else if(hasBankruptcy && a.amt > 250000){
+      rationale = 'Recipient appears in CourtListener bankruptcy/lien filing';
+      cls = 'ugly';
+    } else if(a.status==='completed' && a.amt >= 1e6){
+      rationale = 'Completed award over $1M ran to full term';
+      cls = 'good';
+    } else if(a.status==='progress' && a.end && new Date(a.end).getTime() < Date.now()){
+      rationale = 'End-of-period passed without close-out (overrun signal)';
+      cls = 'bad';
+    } else if(a.status==='completed'){
+      rationale = 'Completed sub-$1M award';
+      cls = 'good';
+    } else if(a.status==='progress'){
+      rationale = 'Active in-progress award';
+      cls = 'good';
+    } else {
+      rationale = 'Status unknown — check primary record';
+      cls = 'bad';
+    }
+
+    var entry = { award:a, rationale:rationale };
+    if(cls==='good') good.push(entry);
+    else if(cls==='bad') bad.push(entry);
+    else ugly.push(entry);
+  });
+
+  STATE.gbu = { good:good, bad:bad, ugly:ugly };
+  $('gbu-good-ct').textContent = '('+good.length+')';
+  $('gbu-bad-ct').textContent  = '('+bad.length+')';
+  $('gbu-ugly-ct').textContent = '('+ugly.length+')';
+  renderGBUTable('good');
+}
+
+function renderGBUTable(cat){
+  var entries = (STATE.gbu && STATE.gbu[cat]) || [];
+  var tb = $('gbu-tbody');
+  if(!entries.length){
+    tb.innerHTML = '<tr><td colspan="5" class="empty">No '+esc(cat)+' projects.</td></tr>';
+    return;
+  }
+  var html = '';
+  entries.forEach(function(e){
+    var a = e.award;
+    var rowCls = 'row-'+cat;
+    html += '<tr class="'+rowCls+'">'+
+      '<td>'+esc(truncate(a.piid,20))+'</td>'+
+      '<td>'+esc(truncate(a.agency,30))+'</td>'+
+      '<td class="num">'+esc(fmtUSD(a.amt))+'</td>'+
+      '<td>'+esc(fmtDate(a.start))+' → '+esc(fmtDate(a.end))+'</td>'+
+      '<td>'+esc(e.rationale)+'</td>'+
+    '</tr>';
+  });
+  tb.innerHTML = html;
+}
+
+qsa('.gbu-tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    qsa('.gbu-tab').forEach(function(x){ x.classList.remove('active'); });
+    t.classList.add('active');
+    renderGBUTable(t.getAttribute('data-gbu'));
+  });
+});
+
+/* ============================================================================
+   TILE RENDERERS for SEC / CL / WIKI / GH
+   ============================================================================ */
+
+function renderSecTile(){
+  var hits = STATE.sec.hits;
+  var b = $('tile-sec-body');
+  if(!hits.length){
+    b.textContent = 'No SEC filings found. Likely a private company (which is normal for most contractors).';
+    return;
+  }
+  var concern = hits.some(function(h){
+    return /going concern|substantial doubt|chapter 11|chapter 7|default|bankrupt|material weakness/i.test(h.text||'');
+  });
+  var html = '<div class="stat"><span>Filings</span><span class="v">'+esc(hits.length)+'</span></div>';
+  if(concern){
+    html += '<div class="warn" style="margin-top:6px"><strong>Going-concern / bankruptcy language detected</strong> in at least one filing.</div>';
+  }
+  hits.slice(0,3).forEach(function(h){
+    html += '<div style="margin-top:6px;font-size:10px"><strong style="color:#fff">'+esc(h.form)+'</strong> '+esc(fmtDate(h.date))+'<br>'+esc(truncate(h.display,80))+'</div>';
+  });
+  b.innerHTML = html;
+}
+
+function renderCLTile(){
+  var hits = STATE.cl.hits;
+  var b = $('tile-cl-body');
+  if(!hits.length){
+    b.textContent = 'No federal court filings found in CourtListener RECAP.';
+    return;
+  }
+  var bk = 0, suit = 0;
+  hits.forEach(function(h){
+    var t = ((h.nature||'')+' '+(h.case||'')).toLowerCase();
+    if(t.indexOf('bankrupt')>=0||t.indexOf('lien')>=0) bk++;
+    else suit++;
+  });
+  var html = '<div class="stat"><span>Total filings</span><span class="v">'+esc(hits.length)+'</span></div>'+
+             '<div class="stat"><span>Bankruptcy / lien</span><span class="v" style="color:'+(bk?'#ff3355':'#00ff88')+'">'+esc(bk)+'</span></div>'+
+             '<div class="stat"><span>Other suits</span><span class="v">'+esc(suit)+'</span></div>';
+  hits.slice(0,3).forEach(function(h){
+    html += '<div style="margin-top:6px;font-size:10px;color:#aaa"><strong style="color:#fff">'+esc(truncate(h.case,60))+'</strong><br>'+esc(h.court)+' '+esc(fmtDate(h.date))+'</div>';
+  });
+  b.innerHTML = html;
+}
+
+function renderWikiTile(){
+  var hits = STATE.wiki.hits;
+  var b = $('tile-wiki-body');
+  if(!hits.length){
+    b.textContent = 'No Wikipedia article. Not a strong negative signal — most contractors are not on Wikipedia.';
+    return;
+  }
+  var html = '<div class="stat"><span>Articles</span><span class="v">'+esc(hits.length)+'</span></div>';
+  hits.slice(0,3).forEach(function(h){
+    html += '<div style="margin-top:6px;font-size:10px"><a href="'+esc(h.url)+'" target="_blank" rel="noopener">'+esc(h.title)+'</a><br><span class="muted">'+esc(truncate(h.snippet,100))+'</span></div>';
+  });
+  b.innerHTML = html;
+}
+
+function renderGHTile(){
+  var hits = STATE.gh.hits;
+  var b = $('tile-gh-body');
+  if(!hits.length){
+    b.textContent = 'No matching GitHub repos.';
+    return;
+  }
+  var html = '<div class="stat"><span>Repos</span><span class="v">'+esc(hits.length)+'</span></div>';
+  hits.slice(0,3).forEach(function(h){
+    html += '<div style="margin-top:6px;font-size:10px"><a href="'+esc(h.url)+'" target="_blank" rel="noopener">'+esc(h.name)+'</a> &middot; <span class="muted">★ '+esc(h.stars)+'</span></div>';
+  });
+  b.innerHTML = html;
+}
+
+/* ============================================================================
+   LAUNCHERS
+   ============================================================================ */
+
+function buildLaunchers(name){
+  var n = encodeURIComponent(name||'');
+  var links = [
+    {name:'SAM.gov Entity Search', sub:'Federal registration', url:'https://sam.gov/search/?index=ei&q='+n},
+    {name:'OpenCorporates', sub:'Global corporate registries', url:'https://opencorporates.com/companies?q='+n},
+    {name:'BBB', sub:'Better Business Bureau', url:'https://www.bbb.org/search?find_text='+n},
+    {name:'TX Sec. of State', sub:'TX business entity', url:'https://mycpa.cpa.state.tx.us/coa/Index.html'},
+    {name:'OK Sec. of State', sub:'OK business entity', url:'https://www.sos.ok.gov/corp/corpInquiryFind.aspx'},
+    {name:'NM Sec. of State', sub:'NM business entity', url:'https://portal.sos.state.nm.us/BFS/online/CorporationBusinessSearch'},
+    {name:'TX Contractor License', sub:'TDLR lookup', url:'https://www.tdlr.texas.gov/LicenseSearch/'},
+    {name:'OK Contractor License', sub:'CIB lookup', url:'https://oklahoma.gov/cib/license-search.html'},
+    {name:'NM Contractor License', sub:'CID lookup', url:'https://public.psiexams.com/index.jsp'},
+    {name:'D&B Hoovers', sub:'Credit & business intel', url:'https://www.dnb.com/business-directory.html?searchTerm='+n},
+    {name:'PACER', sub:'Federal bankruptcy/court', url:'https://pcl.uscourts.gov/pcl/index.jsf'},
+    {name:'FEC Donations', sub:'Political contributions', url:'https://www.fec.gov/data/receipts/?contributor_name='+n},
+    {name:'LinkedIn Company', sub:'Employee count + tenure', url:'https://www.linkedin.com/search/results/companies/?keywords='+n},
+    {name:'BuzzFile', sub:'Industry profile', url:'https://www.buzzfile.com/Search?q='+n},
+    {name:'TX Attorney General', sub:'Consumer complaints', url:'https://www.texasattorneygeneral.gov/consumer-protection'},
+    {name:'OK Attorney General', sub:'Consumer protection', url:'https://www.oag.ok.gov/consumer-protection-unit'},
+    {name:'NM Attorney General', sub:'Consumer protection', url:'https://www.nmag.gov/consumer-protection.aspx'},
+    {name:'OSHA Establishment', sub:'Inspection history', url:'https://www.osha.gov/pls/imis/establishment.search?establishment='+n+'&State=All'},
+    {name:'OSHA Severe Injury', sub:'SIR portal', url:'https://www.osha.gov/severe-injury-reports'},
+    {name:'OSHA Top 10', sub:'Most-cited standards', url:'https://www.osha.gov/top10citedstandards'},
+    {name:'NIOSH FACE', sub:'Fatality investigation', url:'https://www.cdc.gov/niosh/face/default.html'}
+  ];
+
+  // Full grid
+  var grid = $('launchers-full');
+  grid.innerHTML = '';
+  links.forEach(function(l){
+    var a = document.createElement('a');
+    a.className = 'launch-btn';
+    a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+    a.innerHTML = '<div class="lb-name">'+esc(l.name)+'</div><div class="lb-sub">'+esc(l.sub)+'</div>';
+    grid.appendChild(a);
+  });
+
+  // OSHA-only mini grid in OSHA panel
+  var osha = $('osha-launchers');
+  osha.innerHTML = '';
+  links.filter(function(l){return /OSHA|NIOSH/.test(l.name);}).forEach(function(l){
+    var a = document.createElement('a');
+    a.className = 'launch-btn';
+    a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+    a.innerHTML = '<div class="lb-name">'+esc(l.name)+'</div><div class="lb-sub">'+esc(l.sub)+'</div>';
+    osha.appendChild(a);
+  });
+
+  // Mini link row inside the launchers tile
+  var mini = $('launchlinks-mini');
+  mini.innerHTML = '';
+  links.slice(0,8).forEach(function(l){
+    var a = document.createElement('a');
+    a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = l.name;
+    mini.appendChild(a);
+  });
+}
+
+/* ============================================================================
+   OSHA PARSER
+   ============================================================================ */
+
+function parseOSHA(){
+  var txt = $('osha-paste').value || '';
+  if(!txt.trim()){ toast('Paste OSHA text first.'); return; }
+
+  // Inspection IDs are typically 7-9 digit numbers, often labeled "Inspection:"
+  var inspIds = (txt.match(/\b\d{7,9}\b/g) || []);
+  // Standards: 1910.x, 1926.x, 5(a)(1) general duty
+  var stds = (txt.match(/\b(?:19\d\d)\.\d+(?:\([a-z0-9]+\))*|5\(a\)\(1\)/gi) || []);
+  // Penalty totals: $123,456 or USD 1,234
+  var penaltyMatches = (txt.match(/\$\s?[\d,]+(?:\.\d{2})?/g) || []);
+  var penalty = 0;
+  penaltyMatches.forEach(function(m){
+    var n = parseFloat(m.replace(/[^0-9.]/g,''));
+    if(!isNaN(n)) penalty += n;
+  });
+  // Fatalities & hospitalizations
+  var fatalities = (txt.match(/\bfatalit/gi) || []).length;
+  var hospital   = (txt.match(/\bhospital/gi) || []).length;
+  // Inspection date patterns
+  var dates = (txt.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) || []);
+
+  // De-dup
+  var inspections = Array.from(new Set(inspIds));
+  var standards   = Array.from(new Set(stds.map(function(s){return s.toLowerCase();})));
+
+  var hours = parseFloat($('osha-hours').value)||0;
+  var dartCases = parseFloat($('osha-darts').value)||0;
+  var dartRate = (hours>0) ? (200000*dartCases/hours) : null;
+
+  STATE.osha.parsed = {
+    inspections: inspections,
+    standards:   standards,
+    penalty:     penalty,
+    fatalities:  fatalities,
+    hospital:    hospital,
+    dates:       dates,
+    hours:       hours,
+    dart:        dartRate,
+    raw:         txt
+  };
+
+  $('osha-ct').textContent  = inspections.length;
+  $('osha-cit').textContent = standards.length;
+  $('osha-pen').textContent = fmtUSD(penalty);
+  $('osha-fat').textContent = fatalities;
+  $('osha-hsp').textContent = hospital;
+  $('osha-dart').textContent= dartRate!==null ? dartRate.toFixed(2) : '—';
+
+  // Findings
+  var findings = [];
+  if(fatalities>0) findings.push({lvl:'red',msg:'<strong>'+fatalities+' fatality reference(s)</strong> detected. Mandatory pre-award safety conference recommended.'});
+  if(hospital>0) findings.push({lvl:'yellow',msg:'<strong>'+hospital+' hospitalization reference(s)</strong> detected.'});
+  if(penalty>50000) findings.push({lvl:'yellow',msg:'<strong>'+fmtUSD(penalty)+' in proposed penalties</strong> across pasted records.'});
+  if(dartRate!==null && dartRate>1.5) findings.push({lvl:'yellow',msg:'DART rate '+dartRate.toFixed(2)+' is above NAICS 236220 BLS benchmark of ~1.5'});
+  if(dartRate!==null && dartRate<=1.5) findings.push({lvl:'green',msg:'DART rate '+dartRate.toFixed(2)+' is at or below NAICS 236220 BLS benchmark.'});
+  if(standards.indexOf('1926.501')>=0) findings.push({lvl:'red',msg:'1926.501 (Fall protection) cited &mdash; the #1 OSHA citation. Verify their fall-protection program.'});
+  if(standards.some(function(s){return s.indexOf('5(a)(1)')>=0;})) findings.push({lvl:'red',msg:'General Duty Clause 5(a)(1) cited &mdash; serious recognized hazard.'});
+  if(!findings.length) findings.push({lvl:'info',msg:'No high-priority safety flags detected in the pasted text.'});
+
+  renderFindings('osha-findings', findings);
+
+  // Save per company
+  var key = (STATE.query && STATE.query.name) || 'unknown';
+  var allOsha = loadLS(LS.osha, {});
+  allOsha[key] = STATE.osha.parsed;
+  saveLS(LS.osha, allOsha);
+
+  // Recompute scores
+  recomputeAllScores();
+  renderScorecard();
+  toast('OSHA data parsed.');
+}
+
+function renderFindings(elId, findings){
+  var el = $(elId);
+  el.innerHTML = '';
+  var ul = document.createElement('ul');
+  ul.className = 'findings';
+  findings.forEach(function(f){
+    var li = document.createElement('li');
+    li.className = 'find '+(f.lvl||'info');
+    li.innerHTML = f.msg; // msg is constructed by us with esc() inside
+    ul.appendChild(li);
+  });
+  el.appendChild(ul);
+}
+
+/* ============================================================================
+   SOLVENCY HEURISTIC
+   ============================================================================ */
+
+function computeSolvency(){
+  var score = 60;  // baseline
+  var bd = [];
+
+  var s = STATE.usa.stats || {};
+  var aw = STATE.usa.awards || [];
+
+  // Federal contract trend
+  if(s.yearMap){
+    var years = Object.keys(s.yearMap).sort();
+    if(years.length>=3){
+      var firstHalf = years.slice(0, Math.floor(years.length/2));
+      var secondHalf= years.slice(Math.floor(years.length/2));
+      var avgFirst  = firstHalf.reduce(function(a,y){return a+s.yearMap[y];},0)/firstHalf.length;
+      var avgSecond = secondHalf.reduce(function(a,y){return a+s.yearMap[y];},0)/secondHalf.length;
+      if(avgSecond > avgFirst*1.15){ score += 12; bd.push({k:'Trend rising',v:'+12'}); }
+      else if(avgSecond < avgFirst*0.7){ score -= 15; bd.push({k:'Trend falling',v:'-15'}); }
+      else { bd.push({k:'Trend flat',v:'0'}); }
+    }
+  }
+
+  // Time since last award
+  if(s.lastYear){
+    var monthsSince = (new Date().getFullYear() - s.lastYear) * 12;
+    if(monthsSince > 18){ score -= 12; bd.push({k:'>18mo since last award',v:'-12'}); }
+    else { bd.push({k:'Recent activity',v:'+0'}); }
+  }
+
+  // Bankruptcy / lien check
+  var bkrupt = (STATE.cl.hits||[]).some(function(c){
+    var t = ((c.nature||'')+' '+(c.case||'')).toLowerCase();
+    return t.indexOf('bankrupt')>=0 || t.indexOf('insolven')>=0 || t.indexOf('receiver')>=0;
+  });
+  if(bkrupt){ score -= 40; bd.push({k:'Bankruptcy filing',v:'-40'}); }
+  else { bd.push({k:'No bankruptcy hit',v:'+5'}); score += 5; }
+
+  // SEC going-concern flag
+  var goingConcern = (STATE.sec.hits||[]).some(function(h){
+    return /going concern|substantial doubt/i.test(h.text||'');
+  });
+  if(goingConcern){ score -= 30; bd.push({k:'Going concern',v:'-30'}); }
+
+  // Firm age
+  if(s.firstYear){
+    var age = new Date().getFullYear() - s.firstYear;
+    if(age>=15){ score += 10; bd.push({k:'15+ yrs federal record',v:'+10'}); }
+    else if(age>=5){ score += 5; bd.push({k:'5+ yrs federal record',v:'+5'}); }
+    else { bd.push({k:'<5 yrs federal record',v:'+0'}); }
+  }
+
+  // Wikipedia notability
+  if((STATE.wiki.hits||[]).length){
+    score += 3; bd.push({k:'Wikipedia presence',v:'+3'});
+  }
+
+  score = clamp(score, 0, 100);
+  STATE.scores.solvency = score;
+  renderScoreRing('sc-solvency', score);
+  renderBreakdown('solvency-breakdown', bd);
+
+  // Findings
+  var f = [];
+  if(bkrupt) f.push({lvl:'red',msg:'<strong>Bankruptcy/insolvency reference</strong> in CourtListener RECAP results. Treat as critical until cleared.'});
+  if(goingConcern) f.push({lvl:'red',msg:'<strong>Going-concern language</strong> in SEC filings.'});
+  if(score<40) f.push({lvl:'red',msg:'Solvency signal is LOW. Pull a D&amp;B Business Information Report before any award.'});
+  else if(score<65) f.push({lvl:'yellow',msg:'Solvency signal is MIXED. Request audited financials and bonding capacity letter.'});
+  else f.push({lvl:'green',msg:'Solvency signal is acceptable based on available public data.'});
+  renderFindings('solvency-findings', f);
+}
+
+function computeFederalScore(){
+  var s = STATE.usa.stats || {};
+  var sc = 0;
+  if(s.count>0) sc += 20;
+  if(s.count>=10) sc += 15;
+  if(s.count>=25) sc += 10;
+  if(s.total>=1e6)  sc += 10;
+  if(s.total>=10e6) sc += 10;
+  if(s.total>=100e6)sc += 10;
+  if(s.agencyCount>=3) sc += 10;
+  if(s.firstYear && (new Date().getFullYear()-s.firstYear)>=10) sc += 15;
+  STATE.scores.federal = clamp(sc, 0, 100);
+}
+
+function computeSafetyScore(){
+  var p = STATE.osha.parsed;
+  if(!p){ STATE.scores.safety = 50; return; }
+  var sc = 80;
+  sc -= (p.fatalities||0) * 25;
+  sc -= (p.hospital||0)   * 8;
+  sc -= Math.min(20, Math.floor((p.penalty||0)/5000));
+  if(p.dart!==null && p.dart!==undefined){
+    if(p.dart>3) sc -= 15;
+    else if(p.dart>1.5) sc -= 8;
+    else sc += 5;
+  }
+  STATE.scores.safety = clamp(sc, 0, 100);
+}
+
+function computeCompetencyScore(){
+  var s = STATE.usa.stats || {};
+  var aw = STATE.usa.awards || [];
+  var bidAmt = (STATE.query && STATE.query.bidAmt) || 0;
+
+  var sc = 0;
+  // Diversity of agencies
+  if(s.agencyCount>=5) sc += 25;
+  else if(s.agencyCount>=2) sc += 15;
+  else if(s.agencyCount>=1) sc += 5;
+
+  // Project size capability
+  if(bidAmt>0 && s.max>0){
+    if(s.max >= bidAmt*1.2) sc += 30;
+    else if(s.max >= bidAmt*0.7) sc += 18;
+    else sc += 5;
+  } else if(s.max>=5e6) sc += 20;
+  else if(s.max>=1e6) sc += 10;
+
+  // Longevity
+  if(s.firstYear){
+    var age = new Date().getFullYear()-s.firstYear;
+    if(age>=15) sc += 20;
+    else if(age>=8) sc += 12;
+    else if(age>=3) sc += 6;
+  }
+
+  // Completion ratio
+  var done = aw.filter(function(a){return a.status==='completed';}).length;
+  var term = aw.filter(function(a){return a.status==='terminated';}).length;
+  if(aw.length>0){
+    var ratio = done/aw.length;
+    sc += Math.round(ratio*15);
+    if(term>0) sc -= term*10;
+  }
+
+  // Notability bonuses
+  if((STATE.wiki.hits||[]).length) sc += 5;
+  if((STATE.sec.hits||[]).length>0 && !STATE.sec.hits.some(function(h){return /going concern/i.test(h.text||'');})) sc += 5;
+
+  sc = clamp(sc, 0, 100);
+  STATE.scores.competency = sc;
+  renderScoreRing('sc-competency', sc);
+
+  var bd = [
+    {k:'Agencies served',     v:s.agencyCount||0},
+    {k:'Largest historical',  v:fmtUSD(s.max)},
+    {k:'Current bid',         v:bidAmt?fmtUSD(bidAmt):'—'},
+    {k:'Completed awards',    v:done},
+    {k:'Terminated',          v:term},
+    {k:'First yr',            v:s.firstYear||'—'}
+  ];
+  renderBreakdown('competency-breakdown', bd);
+
+  // Red flags
+  var flags = [];
+  if(bidAmt>0 && s.max>0 && bidAmt > s.max*3){
+    flags.push({lvl:'red',msg:'<strong>Out of their league:</strong> current bid ('+esc(fmtUSD(bidAmt))+') is more than 3&times; their largest historical award ('+esc(fmtUSD(s.max))+').'});
+  }
+  if(aw.length===0){
+    flags.push({lvl:'yellow',msg:'<strong>No federal track record</strong> in USAspending. Verify state/local experience manually.'});
+  }
+  if(term>0){
+    flags.push({lvl:'red',msg:'<strong>'+term+' terminated</strong> federal award(s) in history.'});
+  }
+  flags.push({lvl:'info',msg:'Verify contractor license status manually via the launcher links above.'});
+  if(STATE.cl.hits && STATE.cl.hits.length>5){
+    flags.push({lvl:'yellow',msg:'<strong>'+STATE.cl.hits.length+' federal court filings</strong> name this contractor. Review for active litigation.'});
+  }
+  if(!flags.length) flags.push({lvl:'green',msg:'No competency red flags detected from public data.'});
+  renderFindings('competency-findings', flags);
+}
+
+function recomputeAllScores(){
+  computeFederalScore();
+  computeSolvency();
+  computeSafetyScore();
+  computeCompetencyScore();
+  // Bid score is computed when a bid is parsed; otherwise default 50
+  if(STATE.scores.bid===undefined || STATE.scores.bid===null) STATE.scores.bid = 50;
+}
+
+function renderScoreRing(cardId, score){
+  var card = $(cardId);
+  if(!card) return;
+  card.classList.remove('green','yellow','red');
+  if(score>=70) card.classList.add('green');
+  else if(score>=45) card.classList.add('yellow');
+  else card.classList.add('red');
+  var ring = card.querySelector('.ring-fg');
+  var num  = card.querySelector('.ring-num');
+  if(num) num.textContent = Math.round(score);
+  if(ring){
+    var C = 2*Math.PI*38; // circumference
+    var off = C - (score/100)*C;
+    ring.setAttribute('stroke-dasharray', C.toFixed(2));
+    ring.setAttribute('stroke-dashoffset', off.toFixed(2));
+  }
+}
+
+function renderBreakdown(elId, items){
+  var el = $(elId);
+  el.innerHTML = '';
+  items.forEach(function(it){
+    var d = document.createElement('div');
+    d.innerHTML = '<span>'+esc(it.k)+'</span><span class="v">'+esc(String(it.v))+'</span>';
+    el.appendChild(d);
+  });
+}
+
+/* ============================================================================
+   BID UPLOAD + RED-FLAG ANALYZER
+   ============================================================================ */
+
+var dz = $('dropzone');
+var bidFileInput = $('bid-file');
+dz.addEventListener('click', function(){ bidFileInput.click(); });
+dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', function(){ dz.classList.remove('dragover'); });
+dz.addEventListener('drop', function(e){
+  e.preventDefault(); dz.classList.remove('dragover');
+  if(e.dataTransfer.files && e.dataTransfer.files[0]) handleBidFile(e.dataTransfer.files[0]);
+});
+bidFileInput.addEventListener('change', function(){
+  if(bidFileInput.files && bidFileInput.files[0]) handleBidFile(bidFileInput.files[0]);
+});
+
+function handleBidFile(file){
+  $('bid-meta').textContent = 'Loading: '+file.name+' ('+(file.size/1024).toFixed(1)+' KB)…';
+  var ext = (file.name.split('.').pop()||'').toLowerCase();
+  var p;
+  if(ext==='pdf') p = readPdf(file);
+  else if(ext==='docx') p = readDocx(file);
+  else p = readText(file);
+  p.then(function(text){
+    analyzeBid(text, file.name);
+  }).catch(function(err){
+    $('bid-meta').textContent = 'Error reading file: '+(err && err.message || err);
+  });
+}
+
+function readText(file){
+  return new Promise(function(res,rej){
+    var fr = new FileReader();
+    fr.onload = function(){ res(fr.result); };
+    fr.onerror= function(){ rej(fr.error); };
+    fr.readAsText(file);
+  });
+}
+
+function readPdf(file){
+  return new Promise(function(res,rej){
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        if(!window.pdfjsLib){ rej(new Error('PDF.js not loaded')); return; }
+        pdfjsLib.getDocument({data: fr.result}).promise.then(function(pdf){
+          var pages = [];
+          var n = pdf.numPages;
+          var i = 0;
+          function next(){
+            if(i>=n){ res(pages.join('\n')); return; }
+            pdf.getPage(i+1).then(function(pg){
+              pg.getTextContent().then(function(tc){
+                pages.push(tc.items.map(function(it){return it.str;}).join(' '));
+                i++; next();
+              });
+            });
+          }
+          next();
+        }).catch(rej);
+      }catch(e){ rej(e); }
+    };
+    fr.onerror = function(){ rej(fr.error); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+function readDocx(file){
+  return new Promise(function(res,rej){
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        if(!window.JSZip){ rej(new Error('JSZip not loaded')); return; }
+        JSZip.loadAsync(fr.result).then(function(zip){
+          var doc = zip.file('word/document.xml');
+          if(!doc){ rej(new Error('Not a valid .docx')); return; }
+          doc.async('string').then(function(xml){
+            // Strip tags, decode entities
+            var t = xml.replace(/<w:p[^>]*>/g,'\n').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
+            res(t);
+          });
+        }).catch(rej);
+      }catch(e){ rej(e); }
+    };
+    fr.onerror = function(){ rej(fr.error); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+function analyzeBid(text, filename){
+  var raw = text || '';
+  $('bid-meta').textContent = filename + ' — ' + raw.length.toLocaleString() + ' characters parsed.';
+
+  // Extract currency amounts
+  var amts = [];
+  var re = /\$\s?([\d,]+(?:\.\d{1,2})?)/g;
+  var m;
+  while((m = re.exec(raw)) !== null){
+    var v = parseFloat(m[1].replace(/,/g,''));
+    if(!isNaN(v) && v>0) amts.push(v);
+  }
+
+  // CSI division refs (e.g. 31 23 00, 32 12 16)
+  var csi = (raw.match(/\b\d{2}\s\d{2}\s\d{2}\b/g) || []);
+
+  // Bid total guess: largest amount in the doc, or sum if many small items
+  var bidTotal = amts.length ? Math.max.apply(null, amts) : 0;
+
+  // Look for keyword line items
+  var safetyTerms = /(safety|ppe|fall protection|signage|traffic control|barricade|flagger)/i;
+  var bondTerms   = /(performance bond|payment bond|surety|builder'?s risk|liability|insurance)/i;
+  var mobTerms    = /mobiliz/i;
+  var contTerms   = /contingency|allowance/i;
+  var retTerms    = /retainage/i;
+  var warrTerms   = /warrant/i;
+  var subTerms    = /subcontract|markup/i;
+  var schedTerms  = /schedule|duration|completion date|substantial completion/i;
+
+  // Per-keyword totals (sum all $-amounts within same line as keyword)
+  function lineSumMatching(rx){
+    var lines = raw.split(/\n|\.\s/);
+    var sum = 0;
+    lines.forEach(function(ln){
+      if(rx.test(ln)){
+        var ms = ln.match(/\$\s?([\d,]+(?:\.\d{1,2})?)/g) || [];
+        ms.forEach(function(s){
+          var v = parseFloat(s.replace(/[^0-9.]/g,''));
+          if(!isNaN(v)) sum += v;
+        });
+      }
+    });
+    return sum;
+  }
+
+  var safetySum = lineSumMatching(safetyTerms);
+  var mobSum    = lineSumMatching(mobTerms);
+  var contSum   = lineSumMatching(contTerms);
+
+  var safetyPct = bidTotal>0 ? (safetySum/bidTotal*100) : 0;
+  var mobPct    = bidTotal>0 ? (mobSum/bidTotal*100)    : 0;
+  var contPct   = bidTotal>0 ? (contSum/bidTotal*100)   : 0;
+
+  STATE.bid.parsed = {
+    filename: filename,
+    chars: raw.length,
+    bidTotal: bidTotal,
+    items: amts.length,
+    csi: Array.from(new Set(csi)),
+    safetyPct: safetyPct,
+    mobPct: mobPct,
+    contPct: contPct,
+    hasBond: bondTerms.test(raw),
+    hasRetainage: retTerms.test(raw),
+    hasWarranty: warrTerms.test(raw),
+    hasSchedule: schedTerms.test(raw),
+    hasSubMarkup: subTerms.test(raw)
+  };
+
+  // Show stats bar
+  $('bid-stats').style.display = 'grid';
+  $('bid-total').textContent = fmtUSD(bidTotal);
+  $('bid-items').textContent = amts.length;
+  $('bid-safety').textContent= safetyPct.toFixed(1)+'%';
+  $('bid-mob').textContent   = mobPct.toFixed(1)+'%';
+  $('bid-cont').textContent  = contPct.toFixed(1)+'%';
+
+  // Findings
+  var f = [];
+  if(safetyPct < 1 && bidTotal>0){
+    f.push({lvl:'red',msg:'<strong>Safety line items &lt; 1% of bid total</strong> ('+safetyPct.toFixed(2)+'%). Industry minimum is typically 1-2%.'});
+  } else if(safetyPct >= 1) {
+    f.push({lvl:'green',msg:'Safety line items present at '+safetyPct.toFixed(1)+'% of bid.'});
+  }
+  if(!STATE.bid.parsed.hasBond){
+    f.push({lvl:'red',msg:'<strong>Missing bond / insurance line items.</strong> No mention of performance bond, payment bond, surety, builder\'s risk, or liability.'});
+  } else {
+    f.push({lvl:'green',msg:'Bond / insurance language present.'});
+  }
+  if(!STATE.bid.parsed.hasSchedule){
+    f.push({lvl:'yellow',msg:'<strong>No schedule or duration referenced.</strong> Request a CPM schedule.'});
+  }
+  if(mobPct > 10){
+    f.push({lvl:'yellow',msg:'<strong>Mobilization '+mobPct.toFixed(1)+'%</strong> &mdash; over 10% is a classic front-loading flag.'});
+  }
+  if(contPct > 15){
+    f.push({lvl:'yellow',msg:'<strong>Contingency '+contPct.toFixed(1)+'%</strong> &mdash; over 15% suggests padding.'});
+  } else if(bidTotal>0 && contPct < 1){
+    f.push({lvl:'yellow',msg:'<strong>Contingency &lt; 1%</strong> &mdash; suspiciously thin. Expect change orders.'});
+  }
+  if(!STATE.bid.parsed.hasRetainage){
+    f.push({lvl:'yellow',msg:'No retainage percentage stated.'});
+  }
+  if(!STATE.bid.parsed.hasWarranty){
+    f.push({lvl:'yellow',msg:'No warranty period stated.'});
+  }
+  if(!STATE.bid.parsed.hasSubMarkup){
+    f.push({lvl:'info',msg:'No explicit subcontractor markup line. Verify markup is &ge; 5%.'});
+  }
+
+  // Low-bid detection vs other bids
+  var bidAmt = (STATE.query && STATE.query.bidAmt) || bidTotal;
+  var others = (STATE.query && STATE.query.otherBids) || [];
+  if(bidAmt>0 && others.length){
+    var avg = others.reduce(function(a,b){return a+b;},0)/others.length;
+    var pct = (avg-bidAmt)/avg*100;
+    if(pct > 15){
+      f.push({lvl:'red',msg:'<strong>Lowball alert:</strong> bid is '+pct.toFixed(1)+'% below the average of the other bids ('+esc(fmtUSD(avg))+'). Combined with weak safety/bond line items this is the classic bait-and-switch profile.'});
+    } else if(pct > 5){
+      f.push({lvl:'yellow',msg:'Bid is '+pct.toFixed(1)+'% below average of other bids. Verify scope match.'});
+    } else {
+      f.push({lvl:'info',msg:'Bid is within '+pct.toFixed(1)+'% of average of other bids.'});
+    }
+  }
+
+  renderFindings('bid-findings', f);
+
+  // Bid sub-score for the radar
+  var bidScore = 70;
+  if(safetyPct<1 && bidTotal>0) bidScore -= 25;
+  if(!STATE.bid.parsed.hasBond) bidScore -= 25;
+  if(!STATE.bid.parsed.hasSchedule) bidScore -= 8;
+  if(mobPct>10) bidScore -= 8;
+  if(contPct>15) bidScore -= 6;
+  if(bidTotal===0) bidScore -= 10;
+  STATE.scores.bid = clamp(bidScore, 0, 100);
+  renderScorecard();
+}
+
+function clearBid(){
+  STATE.bid = {parsed:null};
+  $('bid-meta').textContent = '';
+  $('bid-stats').style.display = 'none';
+  $('bid-findings').innerHTML = '';
+  bidFileInput.value = '';
+  STATE.scores.bid = 50;
+  renderScorecard();
+}
+
+/* ============================================================================
+   REFERENCES CROSS-CHECK
+   ============================================================================ */
+
+function generateRefLinks(){
+  var raw = $('refs-paste').value || '';
+  if(!raw.trim()){ toast('Paste references first.'); return; }
+  var lines = raw.split(/\n+/).map(function(l){return l.trim();}).filter(Boolean);
+  var out = $('refs-out');
+  out.innerHTML = '';
+  lines.forEach(function(line, idx){
+    var parts = line.split(/[,|;]/).map(function(p){return p.trim();});
+    var company = parts[0] || '';
+    var person  = parts[1] || '';
+    var phone   = parts[2] || '';
+    var project = parts[3] || '';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#000;border:1px solid var(--bg4);border-radius:var(--radius);padding:10px;margin-bottom:8px';
+    var html = '<div style="font-size:11px;color:#fff;margin-bottom:4px"><strong>'+esc(company)+'</strong> &middot; '+esc(person)+'</div>'+
+               '<div class="muted">'+esc(phone)+(project?' &middot; '+esc(project):'')+'</div>'+
+               '<div class="linkrow">';
+    if(company){
+      html += '<a href="https://www.google.com/search?q='+encodeURIComponent('"'+company+'" "'+person+'"')+'" target="_blank" rel="noopener">Google</a>';
+      html += '<a href="https://www.linkedin.com/search/results/people/?keywords='+encodeURIComponent(person+' '+company)+'" target="_blank" rel="noopener">LinkedIn</a>';
+      html += '<a href="https://www.courtlistener.com/?q='+encodeURIComponent('"'+company+'"')+'&type=r" target="_blank" rel="noopener">CourtListener</a>';
+      html += '<a href="https://opencorporates.com/companies?q='+encodeURIComponent(company)+'" target="_blank" rel="noopener">OpenCorporates</a>';
+      html += '<a href="https://www.bbb.org/search?find_text='+encodeURIComponent(company)+'" target="_blank" rel="noopener">BBB</a>';
+    }
+    html += '</div>';
+    card.innerHTML = html;
+    out.appendChild(card);
+  });
+}
+
+/* ============================================================================
+   SCORECARD + RADAR + VERDICT + MEMO
+   ============================================================================ */
+
+var radarChart = null;
+function renderScorecard(){
+  recomputeAllScores();
+  // Render radar
+  if(!window.Chart) return;
+  var ctx = $('radar-chart').getContext('2d');
+  if(radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx,{
+    type:'radar',
+    data:{
+      labels:['Federal Experience','Solvency','Safety','Competency','Bid Quality'],
+      datasets:[{
+        label: STATE.query ? STATE.query.name : 'Contractor',
+        data: [
+          STATE.scores.federal,
+          STATE.scores.solvency,
+          STATE.scores.safety,
+          STATE.scores.competency,
+          STATE.scores.bid
+        ],
+        backgroundColor:'rgba(0,212,255,.2)',
+        borderColor:'#00d4ff',
+        borderWidth:2,
+        pointBackgroundColor:'#ff9900',
+        pointBorderColor:'#ff9900'
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8899aa',font:{family:"JetBrains Mono",size:10}}}},
+      scales:{
+        r:{
+          min:0,max:100,
+          ticks:{color:'#8899aa',backdropColor:'transparent',font:{family:"JetBrains Mono",size:9}},
+          pointLabels:{color:'#00d4ff',font:{family:"JetBrains Mono",size:10}},
+          grid:{color:'#111a24'},
+          angleLines:{color:'#111a24'}
+        }
+      }
+    }
+  });
+
+  renderVerdict();
+}
+
+function overallScore(){
+  var s = STATE.scores;
+  return Math.round( (s.federal*0.20 + s.solvency*0.25 + s.safety*0.25 + s.competency*0.20 + s.bid*0.10) );
+}
+
+function renderVerdict(){
+  var v = $('verdict');
+  v.classList.remove('go','caution','nogo');
+  var sc = overallScore();
+  var verdict, narr;
+  // Hard NO-GO triggers
+  var bk = (STATE.cl.hits||[]).some(function(c){
+    return /bankrupt|insolven|receiver/i.test((c.nature||'')+' '+(c.case||''));
+  });
+  var fatal = STATE.osha.parsed && STATE.osha.parsed.fatalities>0;
+  var goingConcern = (STATE.sec.hits||[]).some(function(h){return /going concern/i.test(h.text||'');});
+
+  if(bk || goingConcern){
+    verdict = 'NO-GO';
+    v.classList.add('nogo');
+    narr = 'Hard fail: bankruptcy / insolvency / going-concern signal in public records. Do not award without resolution and a fresh credit report.';
+  } else if(fatal && sc < 60){
+    verdict = 'NO-GO';
+    v.classList.add('nogo');
+    narr = 'Fatal incident reference combined with weak overall score. Do not award.';
+  } else if(sc>=70){
+    verdict = 'GO';
+    v.classList.add('go');
+    narr = 'Composite score '+sc+'. Public-data signals support proceeding. Verify license, insurance, and bonding letter before issuing the NTP.';
+  } else if(sc>=50){
+    verdict = 'CAUTION';
+    v.classList.add('caution');
+    narr = 'Composite score '+sc+'. Mixed signals. Pull D&B report, schedule a pre-award conference, and require enhanced submittals.';
+  } else {
+    verdict = 'NO-GO';
+    v.classList.add('nogo');
+    narr = 'Composite score '+sc+'. Public-data signals do not support award. Investigate before proceeding.';
+  }
+  v.querySelector('.val').textContent = verdict;
+  v.querySelector('.narrative').textContent = narr;
+}
+
+function buildMemo(){
+  var q = STATE.query;
+  var s = STATE.scores;
+  var vEl = $('verdict') && $('verdict').querySelector('.val');
+  var v = vEl ? vEl.textContent : '—';
+  var lines = [];
+  lines.push('CONTRACTOR VETTING MEMO');
+  lines.push('=======================');
+  lines.push('Date:        '+ new Date().toISOString().substring(0,10));
+  lines.push('Prepared by: Korb Engineering (Contractor Background Check tool)');
+  lines.push('Source:      Public-data heuristic — NOT a credit report');
+  lines.push('');
+  lines.push('CONTRACTOR');
+  lines.push('  Name:       '+ (q && q.name || '—'));
+  lines.push('  UEI/DUNS:   '+ (q && q.uei  || '—'));
+  lines.push('  FEIN:       '+ (q && q.fein || '—'));
+  lines.push('  State:      '+ (q && q.state|| '—'));
+  lines.push('  Trade:      '+ (q && q.trade|| '—'));
+  lines.push('');
+  lines.push('SCORES (0-100)');
+  lines.push('  Federal Experience: '+s.federal);
+  lines.push('  Solvency Signal:    '+s.solvency);
+  lines.push('  Safety Record:      '+s.safety);
+  lines.push('  Competency Match:   '+s.competency);
+  lines.push('  Bid Quality:        '+s.bid);
+  lines.push('  COMPOSITE:          '+overallScore());
+  lines.push('');
+  if(STATE.usa.stats && STATE.usa.stats.count){
+    var ss = STATE.usa.stats;
+    lines.push('FEDERAL AWARD HISTORY (USAspending)');
+    lines.push('  Awards:           '+ss.count);
+    lines.push('  Total obligated:  '+fmtUSDFull(ss.total));
+    lines.push('  Largest award:    '+fmtUSDFull(ss.max));
+    lines.push('  Avg size:         '+fmtUSDFull(ss.avg));
+    lines.push('  Agencies served:  '+ss.agencyCount);
+    lines.push('  First yr:         '+(ss.firstYear||'—'));
+    lines.push('  Last yr:          '+(ss.lastYear||'—'));
+    lines.push('');
+  }
+  if(STATE.cl.hits && STATE.cl.hits.length){
+    lines.push('FEDERAL COURT FILINGS (CourtListener):  '+STATE.cl.hits.length+' record(s)');
+    STATE.cl.hits.slice(0,5).forEach(function(c){
+      lines.push('  - '+truncate(c.case,80)+' ('+(c.court||'')+', '+fmtDate(c.date)+')');
+    });
+    lines.push('');
+  }
+  if(STATE.osha.parsed){
+    var p = STATE.osha.parsed;
+    lines.push('OSHA (parsed from pasted records)');
+    lines.push('  Inspections:    '+p.inspections.length);
+    lines.push('  Citations:      '+p.standards.length);
+    lines.push('  Penalty total:  '+fmtUSDFull(p.penalty));
+    lines.push('  Fatalities:     '+p.fatalities);
+    lines.push('  Hospitalizations:'+p.hospital);
+    if(p.dart!==null) lines.push('  DART rate:      '+p.dart.toFixed(2));
+    lines.push('');
+  }
+  if(STATE.bid.parsed){
+    var b = STATE.bid.parsed;
+    lines.push('BID ANALYSIS ('+b.filename+')');
+    lines.push('  Bid total est:    '+fmtUSDFull(b.bidTotal));
+    lines.push('  Line items:       '+b.items);
+    lines.push('  Safety %:         '+b.safetyPct.toFixed(2)+'%');
+    lines.push('  Mobilization %:   '+b.mobPct.toFixed(2)+'%');
+    lines.push('  Contingency %:    '+b.contPct.toFixed(2)+'%');
+    lines.push('  Bond/Insurance:   '+(b.hasBond?'present':'MISSING'));
+    lines.push('  Schedule:         '+(b.hasSchedule?'present':'MISSING'));
+    lines.push('  Retainage:        '+(b.hasRetainage?'present':'missing'));
+    lines.push('  Warranty:         '+(b.hasWarranty?'present':'missing'));
+    lines.push('');
+  }
+  lines.push('VERDICT: '+v);
+  lines.push('');
+  lines.push('DISCLAIMER: Heuristic from public data only. Not a credit report, not legal advice.');
+  lines.push('Verify primary records (D&B, state license boards, insurance certs, bonding) before award.');
+  return lines.join('\n');
+}
+
+function copyMemo(){
+  var memo = buildMemo();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(memo).then(function(){
+      toast('Memo copied to clipboard.');
+    }).catch(function(){ fallbackCopy(memo); });
+  } else {
+    fallbackCopy(memo);
+  }
+}
+function fallbackCopy(text){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); toast('Memo copied.'); }catch(e){ toast('Copy failed.'); }
+  document.body.removeChild(ta);
+}
+
+/* ============================================================================
+   PDF EXPORT (jsPDF + autotable)
+   ============================================================================ */
+
+function exportPDFReport(){
+  if(!window.jspdf || !window.jspdf.jsPDF){ toast('jsPDF not loaded.'); return; }
+  var doc = new window.jspdf.jsPDF({orientation:'p',unit:'pt',format:'letter'});
+  var q = STATE.query || {};
+  var s = STATE.scores;
+  var sc = overallScore();
+  var v = $('verdict').querySelector('.val').textContent || '—';
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.text('Contractor Vetting Report', 40, 50);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','normal');
+  doc.text('Korb Engineering — Contractor Background Check', 40, 66);
+  doc.text('Generated: '+new Date().toLocaleString(), 40, 80);
+
+  doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text(q.name || 'Unknown contractor', 40, 110);
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text('UEI/DUNS: '+(q.uei||'—')+'   FEIN: '+(q.fein||'—')+'   State: '+(q.state||'—')+'   Trade: '+(q.trade||'—'), 40, 124);
+
+  doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.text('Verdict: '+v+'   (composite '+sc+'/100)', 40, 150);
+
+  // Scores table
+  doc.autoTable({
+    startY: 165,
+    head: [['Score', 'Value']],
+    body: [
+      ['Federal Experience', s.federal+'/100'],
+      ['Solvency Signal',    s.solvency+'/100'],
+      ['Safety Record',      s.safety+'/100'],
+      ['Competency Match',   s.competency+'/100'],
+      ['Bid Quality',        s.bid+'/100'],
+      ['Composite',          sc+'/100']
+    ],
+    styles:{font:'helvetica',fontSize:9},
+    headStyles:{fillColor:[0,100,140],textColor:255}
+  });
+
+  // Federal awards summary
+  if(STATE.usa.stats && STATE.usa.stats.count){
+    var ss = STATE.usa.stats;
+    var afterY = doc.lastAutoTable.finalY + 20;
+    doc.setFontSize(12);doc.setFont('helvetica','bold');
+    doc.text('Federal Award History', 40, afterY);
+    doc.autoTable({
+      startY: afterY+8,
+      head:[['Metric','Value']],
+      body:[
+        ['Total awards', String(ss.count)],
+        ['Total obligated', fmtUSDFull(ss.total)],
+        ['Largest single award', fmtUSDFull(ss.max)],
+        ['Average size', fmtUSDFull(ss.avg)],
+        ['Agencies served', String(ss.agencyCount)],
+        ['First federal year', String(ss.firstYear||'—')],
+        ['Most recent year', String(ss.lastYear||'—')]
+      ],
+      styles:{font:'helvetica',fontSize:9},
+      headStyles:{fillColor:[200,100,0],textColor:255}
+    });
+
+    // Top 10 awards
+    var aw = STATE.usa.awards.slice().sort(function(a,b){return b.amt-a.amt;}).slice(0,10);
+    if(aw.length){
+      var y2 = doc.lastAutoTable.finalY + 16;
+      doc.setFontSize(11); doc.text('Top 10 Awards by Value', 40, y2);
+      doc.autoTable({
+        startY: y2+6,
+        head:[['PIID','Agency','Amount','Status']],
+        body: aw.map(function(a){return [truncate(a.piid,18),truncate(a.agency,30),fmtUSDFull(a.amt),a.status||'-'];}),
+        styles:{font:'helvetica',fontSize:8},
+        headStyles:{fillColor:[0,100,140],textColor:255}
+      });
+    }
+  }
+
+  // OSHA
+  if(STATE.osha.parsed){
+    var y3 = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 200) + 20;
+    if(y3>720){ doc.addPage(); y3 = 50; }
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    doc.text('OSHA (parsed from pasted records)', 40, y3);
+    var p = STATE.osha.parsed;
+    doc.autoTable({
+      startY: y3+8,
+      head:[['Metric','Value']],
+      body:[
+        ['Inspections', String(p.inspections.length)],
+        ['Citations',   String(p.standards.length)],
+        ['Penalty total', fmtUSDFull(p.penalty)],
+        ['Fatalities',  String(p.fatalities)],
+        ['Hospitalizations', String(p.hospital)],
+        ['DART rate',   p.dart!==null?p.dart.toFixed(2):'—']
+      ],
+      styles:{font:'helvetica',fontSize:9},
+      headStyles:{fillColor:[180,30,30],textColor:255}
+    });
+  }
+
+  // Bid summary
+  if(STATE.bid.parsed){
+    var y4 = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 200) + 20;
+    if(y4>700){ doc.addPage(); y4 = 50; }
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    doc.text('Bid Analysis ('+STATE.bid.parsed.filename+')', 40, y4);
+    var b = STATE.bid.parsed;
+    doc.autoTable({
+      startY: y4+8,
+      head:[['Metric','Value']],
+      body:[
+        ['Bid total estimated', fmtUSDFull(b.bidTotal)],
+        ['Line items', String(b.items)],
+        ['Safety line %',  b.safetyPct.toFixed(2)+'%'],
+        ['Mobilization %', b.mobPct.toFixed(2)+'%'],
+        ['Contingency %',  b.contPct.toFixed(2)+'%'],
+        ['Bond/Insurance', b.hasBond?'present':'MISSING'],
+        ['Schedule',       b.hasSchedule?'present':'MISSING'],
+        ['Retainage',      b.hasRetainage?'present':'missing'],
+        ['Warranty',       b.hasWarranty?'present':'missing']
+      ],
+      styles:{font:'helvetica',fontSize:9},
+      headStyles:{fillColor:[100,60,160],textColor:255}
+    });
+  }
+
+  // Disclaimer
+  var yEnd = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 700) + 20;
+  if(yEnd>720){ doc.addPage(); yEnd=50; }
+  doc.setFontSize(8); doc.setFont('helvetica','italic');
+  doc.text('DISCLAIMER: Public-data heuristic only. Not a credit report, not legal advice. Verify primary records before award.', 40, yEnd, {maxWidth:520});
+
+  var fname = ((q.name||'contractor').replace(/[^a-z0-9]+/gi,'_')+'_vetting_report.pdf').toLowerCase();
+  doc.save(fname);
+  toast('PDF report saved.');
+}
+
+function exportBidPDF(){
+  if(!STATE.bid.parsed){ toast('Upload a bid first.'); return; }
+  if(!window.jspdf || !window.jspdf.jsPDF){ toast('jsPDF not loaded.'); return; }
+  var doc = new window.jspdf.jsPDF({orientation:'p',unit:'pt',format:'letter'});
+  var b = STATE.bid.parsed;
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Bid Review Report', 40, 50);
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text('File: '+b.filename, 40, 70);
+  doc.text('Generated: '+new Date().toLocaleString(), 40, 84);
+  doc.autoTable({
+    startY: 100,
+    head:[['Metric','Value','Verdict']],
+    body:[
+      ['Bid total (max line)', fmtUSDFull(b.bidTotal),''],
+      ['Line items detected', String(b.items),''],
+      ['Safety line %',   b.safetyPct.toFixed(2)+'%', b.safetyPct<1?'RED FLAG':'OK'],
+      ['Mobilization %',  b.mobPct.toFixed(2)+'%',    b.mobPct>10?'FLAG':'OK'],
+      ['Contingency %',   b.contPct.toFixed(2)+'%',   b.contPct>15?'FLAG (padded)':(b.contPct<1?'FLAG (thin)':'OK')],
+      ['Bond / insurance', b.hasBond?'present':'MISSING', b.hasBond?'OK':'RED FLAG'],
+      ['Schedule',         b.hasSchedule?'present':'missing', b.hasSchedule?'OK':'FLAG'],
+      ['Retainage',        b.hasRetainage?'present':'missing',''],
+      ['Warranty',         b.hasWarranty?'present':'missing','']
+    ],
+    styles:{font:'helvetica',fontSize:9},
+    headStyles:{fillColor:[0,100,140],textColor:255}
+  });
+  doc.setFontSize(8); doc.setFont('helvetica','italic');
+  doc.text('Public-data heuristic only — not a contract review. Have a contract reviewer verify before award.', 40, doc.lastAutoTable.finalY+20, {maxWidth:520});
+  doc.save('bid_review_'+(b.filename||'report').replace(/[^a-z0-9]+/gi,'_')+'.pdf');
+  toast('Bid report saved.');
+}
+
+/* ============================================================================
+   WATCHLIST
+   ============================================================================ */
+
+function saveToWatchlist(){
+  if(!STATE.query || !STATE.query.name){ toast('Run a lookup first.'); return; }
+  var wl = loadLS(LS.watchlist, []);
+  var name = STATE.query.name;
+  // Dedupe
+  wl = wl.filter(function(w){return w.name.toLowerCase()!==name.toLowerCase();});
+  wl.unshift({
+    name: name,
+    state: STATE.query.state,
+    ts: Date.now(),
+    score: overallScore(),
+    note: ''
+  });
+  saveLS(LS.watchlist, wl.slice(0,50));
+  renderWatchlist();
+  toast('Added to watchlist.');
+}
+
+function renderWatchlist(){
+  var wl = loadLS(LS.watchlist, []);
+  var el = $('watchlist-out');
+  el.innerHTML = '';
+  if(!wl.length){
+    el.innerHTML = '<div class="empty">Watchlist empty.</div>';
+    return;
+  }
+  wl.forEach(function(w, idx){
+    var d = document.createElement('div');
+    d.className = 'watchlist-item';
+    var color = w.score>=70?'var(--green)':(w.score>=50?'var(--yellow)':'var(--red)');
+    var html = '<div style="flex:1;min-width:0">'+
+      '<div class="wi-name">'+esc(w.name)+'</div>'+
+      '<div class="wi-meta">'+esc(w.state||'')+' &middot; '+esc(new Date(w.ts).toISOString().substring(0,10))+' &middot; score <span style="color:'+color+'">'+esc(w.score)+'</span></div>'+
+      '<textarea class="wi-note" data-idx="'+idx+'" placeholder="Notes...">'+esc(w.note||'')+'</textarea>'+
+      '</div>'+
+      '<div class="wi-actions">'+
+        '<button class="btn btn-ghost btn-sm" data-act="open" data-idx="'+idx+'">Reopen</button>'+
+        '<button class="btn btn-danger btn-sm" data-act="del" data-idx="'+idx+'">Del</button>'+
+      '</div>';
+    d.innerHTML = html;
+    el.appendChild(d);
+  });
+  qsa('button[data-act]', el).forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var i = parseInt(btn.getAttribute('data-idx'),10);
+      var a = btn.getAttribute('data-act');
+      var wl = loadLS(LS.watchlist, []);
+      if(a==='open'){
+        $('in-name').value = wl[i].name;
+        runLookup();
+        window.scrollTo({top:0,behavior:'smooth'});
+      } else if(a==='del'){
+        wl.splice(i,1);
+        saveLS(LS.watchlist, wl);
+        renderWatchlist();
+      }
+    });
+  });
+  qsa('textarea.wi-note', el).forEach(function(ta){
+    ta.style.minHeight = '36px';
+    ta.style.background = '#000';
+    ta.style.border = '1px solid var(--bg4)';
+    ta.style.borderRadius = '4px';
+    ta.style.padding = '6px';
+    ta.style.color = 'var(--gray)';
+    ta.style.fontFamily = 'var(--font)';
+    ta.style.fontSize = '11px';
+    ta.style.width = '100%';
+    ta.style.marginTop = '6px';
+    ta.addEventListener('input', function(){
+      var i = parseInt(ta.getAttribute('data-idx'),10);
+      var wl = loadLS(LS.watchlist, []);
+      if(wl[i]){ wl[i].note = ta.value; saveLS(LS.watchlist, wl); }
+    });
+  });
+}
+
+/* ============================================================================
+   RESET
+   ============================================================================ */
+
+function resetAll(){
+  STATE.query = null;
+  STATE.usa = {loaded:false, awards:[], stats:{}};
+  STATE.sec = {loaded:false, hits:[]};
+  STATE.cl  = {loaded:false, hits:[]};
+  STATE.wiki= {loaded:false, hits:[]};
+  STATE.gh  = {loaded:false, hits:[]};
+  STATE.osha = {parsed:null};
+  STATE.bid  = {parsed:null};
+  STATE.scores = {federal:0, solvency:0, safety:0, competency:0, bid:50};
+  ['in-name','in-uei','in-fein','in-bidamt','in-otherbids','osha-paste','osha-hours','osha-darts','refs-paste'].forEach(function(id){ $(id).value=''; });
+  $('in-state').value=''; $('in-trade').value='';
+  ['us-ct','us-tot','us-ag','us-max','us-avg','us-yr1','us-yr2'].forEach(function(id){ $(id).textContent='—'; });
+  $('usa-meta').textContent = 'No data yet';
+  $('usa-tbody').innerHTML = '<tr><td colspan="8" class="empty">No awards loaded yet. Run a lookup.</td></tr>';
+  $('gbu-tbody').innerHTML = '<tr><td colspan="5" class="empty">Run a lookup first.</td></tr>';
+  ['gbu-good-ct','gbu-bad-ct','gbu-ugly-ct'].forEach(function(id){ $(id).textContent='(0)'; });
+  ['osha-ct','osha-cit','osha-fat','osha-hsp'].forEach(function(id){ $(id).textContent='0'; });
+  $('osha-pen').textContent='$0'; $('osha-dart').textContent='—';
+  ['osha-findings','solvency-findings','competency-findings','bid-findings','refs-out','solvency-breakdown','competency-breakdown'].forEach(function(id){ $(id).innerHTML=''; });
+  $('bid-meta').textContent=''; $('bid-stats').style.display='none';
+  ['tile-usa','tile-sec','tile-cl','tile-wiki','tile-gh'].forEach(function(t){
+    var id = t.replace('tile-','');
+    setTileStatus(id,null,'idle');
+  });
+  if(usaChartObj){ usaChartObj.destroy(); usaChartObj=null; }
+  renderScoreRing('sc-solvency', 0);
+  renderScoreRing('sc-competency', 0);
+  renderScorecard();
+  toast('Reset.');
+}
+
+/* ============================================================================
+   WIRE EVENTS
+   ============================================================================ */
+
+$('btn-lookup').addEventListener('click', runLookup);
+$('btn-reset').addEventListener('click', resetAll);
+$('btn-save-watch').addEventListener('click', saveToWatchlist);
+$('btn-export-pdf').addEventListener('click', exportPDFReport);
+$('btn-export-pdf-2').addEventListener('click', exportPDFReport);
+$('btn-copy-memo').addEventListener('click', copyMemo);
+$('btn-copy-memo-2').addEventListener('click', copyMemo);
+$('btn-osha-parse').addEventListener('click', parseOSHA);
+$('btn-osha-clear').addEventListener('click', function(){
+  $('osha-paste').value=''; STATE.osha={parsed:null};
+  ['osha-ct','osha-cit','osha-fat','osha-hsp'].forEach(function(id){ $(id).textContent='0'; });
+  $('osha-pen').textContent='$0'; $('osha-dart').textContent='—';
+  $('osha-findings').innerHTML='';
+  recomputeAllScores(); renderScorecard();
+});
+$('btn-bid-clear').addEventListener('click', clearBid);
+$('btn-bid-report').addEventListener('click', exportBidPDF);
+$('btn-refs-gen').addEventListener('click', generateRefLinks);
+$('btn-refs-clear').addEventListener('click', function(){ $('refs-paste').value=''; $('refs-out').innerHTML=''; });
+
+$('modal-close').addEventListener('click', function(){ $('modal-bg').classList.remove('open'); });
+$('modal-bg').addEventListener('click', function(e){ if(e.target===$('modal-bg')) $('modal-bg').classList.remove('open'); });
+$('info-close').addEventListener('click', function(){ $('info-bg').classList.remove('open'); });
+$('info-bg').addEventListener('click', function(e){ if(e.target===$('info-bg')) $('info-bg').classList.remove('open'); });
+$('open-info').addEventListener('click', function(e){ e.preventDefault(); $('info-bg').classList.add('open'); });
+
+// Allow Enter in name field to trigger lookup
+$('in-name').addEventListener('keydown', function(e){
+  if(e.key==='Enter'){ e.preventDefault(); runLookup(); }
+});
+
+/* ============================================================================
+   INIT
+   ============================================================================ */
+
+renderHistory();
+renderWatchlist();
+buildLaunchers('');
+renderScoreRing('sc-solvency', 0);
+renderScoreRing('sc-competency', 0);
+recomputeAllScores();
+renderScorecard();
+
+})();
+</script>
+</body>
+</html>

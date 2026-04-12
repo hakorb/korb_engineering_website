@@ -64,6 +64,7 @@ const SECTIONS = {
       { name: 'Compliance Checklist', file: './tools/civil/compliance-checklist.html' },
       { name: 'Construction Commander', file: './tools/aviation/procore-project-manager.html' },
       { name: 'Construction Estimator', file: './tools/civil/construction-estimator.html' },
+      { name: 'Contractor Background Check', file: './tools/civil/contractor-background-check.html' },
       { name: 'Contract Simplifier', file: './tools/civil/contract-simplifier.html' },
       { name: 'Contractor Bid Notification', file: './tools/aviation/contractor-bid-notification.html' },
       { name: 'Critical Path Method', file: './tools/aviation/critical-path-method.html' },
@@ -240,6 +241,7 @@ const SECTIONS = {
       { name: 'Clicker Counter', file: './tools/misc/clicker-counter.html' },
       { name: 'Clock & Stopwatch', file: './tools/misc/clock-stopwatch.html' },
       { name: 'Color Palette', file: './tools/misc/color-palette.html' },
+      { name: 'Complaints Department', file: './tools/misc/complaints-department.html' },
       { name: 'Connect Four', file: './tools/misc/connect-four.html' },
       { name: 'Copycat Kitchen', file: './tools/misc/copycat-kitchen.html' },
       { name: 'Crossword', file: './tools/misc/crossword.html' },
@@ -269,6 +271,7 @@ const SECTIONS = {
       { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
       { name: 'Inbox Sandbox', file: './tools/misc/inbox-sandbox.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
+      { name: "Kelsey's Teacher Tools", file: './tools/misc/kelseys-teacher-tools.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
       { name: 'Korb Data Vault', file: './tools/misc/korb-data-vault.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
@@ -334,6 +337,7 @@ const SECTIONS = {
       { name: 'Vector Drawing', file: './tools/misc/vector-drawing.html' },
       { name: 'Vintage Web Game Vault', file: './tools/misc/vintage-web-game-vault.html' },
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },
+      { name: 'World Cup 2026', file: './tools/misc/world-cup-2026.html' },
       { name: 'World Explorer', file: './tools/misc/world-explorer.html' },
       { name: 'Word Puzzle', file: './tools/misc/word-puzzle.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
@@ -682,6 +686,7 @@ const TOOL_DESCRIPTIONS = {
   'Compliance Checklist': 'Run through federal and state compliance items with pass/fail notes and export.',
   'Construction Commander': 'Procore-style field management dashboard for RFIs, submittals, and daily reports.',
   'Construction Estimator': 'Itemized takeoff and unit-price estimator with markup, overhead, and total bid output.',
+  'Contractor Background Check': 'Vet construction contractors before award: federal award history with Good/Bad/Ugly classification, OSHA incident lookup, solvency and competency scoring, bid PDF red-flag analyzer, lowball detector, reference cross-check, radar scorecard, and printable vetting memo. Heuristic-only, no backend.',
   'Contract Simplifier': 'Paste a construction contract and get a plain-English summary of obligations and risks.',
   'Contractor Bid Notification': 'Draft and send bid invitation letters to a contractor database with tracking.',
   'Critical Path Method': 'Enter activities and durations to compute the critical path, floats, and project finish date.',
@@ -822,6 +827,7 @@ const TOOL_DESCRIPTIONS = {
   'Clicker Counter': 'Tap a big button to count things like people, reps, or inventory with reset and undo.',
   'Clock & Stopwatch': 'Analog and digital clock, stopwatch, and countdown timer in one panel.',
   'Color Palette': 'Build and export color palettes with contrast checks and hex/HSL swatches.',
+  'Complaints Department': 'Official grievance intake form for korb.engineering critics — with one small catch: the send button is a mirage that dodges every click.',
   'Connect Four': 'Drop checkers into columns and connect four in a row before your opponent does.',
   'Copycat Kitchen': 'Copycat recipes for popular restaurant dishes with step-by-step instructions.',
   'Crossword': 'Daily-style crossword puzzles with clue hints, timer, and auto-check.',
@@ -851,6 +857,7 @@ const TOOL_DESCRIPTIONS = {
   'Horse Racing': 'Pick a horse and watch a race with odds, commentary, and a betting purse.',
   'Inbox Sandbox': 'Mock email inbox for practicing triage, filters, and response drafting.',
   'Jung-Ho Bridge': 'Bridge card game with bidding, play, and scoring against AI partners.',
+  "Kelsey's Teacher Tools": 'Warm, practical toolkit for primary school teachers: lesson planner, random student picker, classroom timer, group maker, seating chart, behavior points tracker, noise meter, printable worksheets, rubric builder, reward coupons, sub plan template, tips library, and curated free resources.',
   'Korb Cookbook': 'Family cookbook with searchable recipes, photos, and shopping list export.',
   'Korb Data Vault': 'Backup, restore, and inspect every Korb tool\'s saved data from one place.',
   'Korb Digital Lending Library': 'Lend and borrow ebooks within a private circle with due dates and waitlists.',
@@ -916,6 +923,7 @@ const TOOL_DESCRIPTIONS = {
   'Vector Drawing': 'Create and edit vector shapes with pen, paths, and SVG export.',
   'Vintage Web Game Vault': 'Launcher for classic Flash-era web games preserved in the browser.',
   'Whiteboard': 'Infinite collaborative whiteboard with sticky notes, pens, and shapes.',
+  'World Cup 2026': 'All-in-one daily companion for the 2026 FIFA World Cup (USA/Canada/Mexico): full 104-match schedule, 12-group stage with live standings, knockout bracket, 48 team profiles with outlook, FIFA rankings, outright odds, personal predictions and accuracy tracker, venue guide, and watch log.',
   'World Explorer': 'Interactive globe for exploring countries with facts, flags, and photos.',
   'Word Puzzle': 'Daily word puzzles including anagrams, word ladders, and hidden-word grids.',
   'YT2MP3': 'Convert YouTube videos to downloadable MP3 audio files.',
@@ -1486,7 +1494,7 @@ function renderAboutPage() {
   const companyDetailStyle = 'color:rgba(0,212,255,0.6);font-size:var(--text-xs);letter-spacing:0.04em;margin:4px 0 0;line-height:1.7;';
 
   main.innerHTML = `
-    <section class="section-page">
+    <section class="section-page section-page--about">
       <div class="section-hero">
         <a href="#" class="back-link reveal" aria-label="Back to home">${BACK_SVG}</a>
       </div>
@@ -1497,17 +1505,17 @@ function renderAboutPage() {
 
         <div style="text-align:center;">
           <img id="about-photo-1" src="./tools/misc/images/monte-and-harrison.jpg" alt="Monte Walter Korb" class="about-photo">
-          <p id="about-name-1" style="${nameStyle};display:none;">Monte Walter Korb</p>
+          <p id="about-name-1" style="${nameStyle}">Monte Walter Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
-          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="object-fit:contain;background:transparent;">
-          <p id="about-name-2" style="${nameStyle};display:none;">Andrew Douglas Korb</p>
+          <img id="about-photo-2" src="./tools/misc/images/andy-and-harrison.jpg" alt="Andrew Douglas Korb" class="about-photo" style="object-fit:contain;background:transparent;border:none;box-shadow:none;">
+          <p id="about-name-2" style="${nameStyle}">Andrew Douglas Korb</p>
         </div>
 
         <div style="text-align:center;margin-top:16px;">
           <img id="about-photo-3" src="./tools/misc/images/alan-and-harrison.jpg" alt="Monte Alan Korb" class="about-photo">
-          <p id="about-name-3" style="${nameStyle};display:none;">Monte Alan Korb</p>
+          <p id="about-name-3" style="${nameStyle}">Monte Alan Korb</p>
         </div>
 
         <div id="company-history" style="max-width:640px;margin:48px auto 0;text-align:left;">
@@ -1561,20 +1569,6 @@ function renderAboutPage() {
   initReveal();
 
   // Audio removed — was auto-playing on iPhone and triggering reader mode
-
-
-  // Names stay hidden until photo is visible
-  function revealName(nameId) {
-    const n = document.getElementById(nameId);
-    if (n) { n.style.display = 'block'; }
-  }
-
-  // Photo 1: name after 5s
-  setTimeout(() => revealName('about-name-1'), 5000);
-  // Photo 2: name after 10s
-  setTimeout(() => revealName('about-name-2'), 10000);
-  // Photo 3: name after 15s
-  setTimeout(() => revealName('about-name-3'), 15000);
 }
 
 
