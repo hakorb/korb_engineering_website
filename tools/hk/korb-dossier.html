@@ -246,6 +246,7 @@ label{font-size:0.68rem;color:var(--text-dim);display:block;margin-bottom:4px}
     </div>
     <div class="header-right">
       <button class="btn btn-sm btn-primary" onclick="openAddModal()">+ ADD PERSON</button>
+      <button class="btn btn-sm" onclick="openBgCheckModal()">BG CHECK</button>
       <button class="btn btn-sm" onclick="exportData()">EXPORT</button>
       <button class="btn btn-sm" onclick="document.getElementById('importFile').click()">IMPORT</button>
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
@@ -1084,6 +1085,266 @@ async function init() {
   renderList();
 }
 init();
+
+// ============================================================
+// BACKGROUND CHECK — social media search launcher
+// ------------------------------------------------------------
+// Builds search URL "dorks" across public platforms from a name
+// and optional hints (employer, location, keywords). Also
+// performs a small number of real, CORS-friendly lookups:
+// GitHub users, Wikipedia summaries, DuckDuckGo Instant Answer.
+// Everything else opens in a new tab — no scraping, no keys.
+// ============================================================
+function escAttr(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function enc(s){ return encodeURIComponent(String(s||'').trim()); }
+
+function buildBgTargets(name, employer, city, keywords){
+  const n = enc(name);
+  const nq = enc('"' + name + '"');
+  const e = employer ? ' ' + enc(employer) : '';
+  const c = city ? ' ' + enc(city) : '';
+  const k = keywords ? ' ' + enc(keywords) : '';
+  const ex = e + c + k;
+  return [
+    { group:'Search', label:'Google',            url:`https://www.google.com/search?q=${nq}${ex}` },
+    { group:'Search', label:'Google News',       url:`https://news.google.com/search?q=${nq}${ex}` },
+    { group:'Search', label:'Google Images',     url:`https://www.google.com/search?tbm=isch&q=${nq}${ex}` },
+    { group:'Search', label:'Bing',              url:`https://www.bing.com/search?q=${nq}${ex}` },
+    { group:'Search', label:'DuckDuckGo',        url:`https://duckduckgo.com/?q=${nq}${ex}` },
+    { group:'Search', label:'Yandex Images',     url:`https://yandex.com/images/search?text=${nq}${ex}` },
+    { group:'Social', label:'LinkedIn (Google)', url:`https://www.google.com/search?q=site%3Alinkedin.com%2Fin+${nq}${ex}` },
+    { group:'Social', label:'X / Twitter',       url:`https://www.google.com/search?q=site%3Atwitter.com+OR+site%3Ax.com+${nq}${ex}` },
+    { group:'Social', label:'Facebook',          url:`https://www.google.com/search?q=site%3Afacebook.com+${nq}${ex}` },
+    { group:'Social', label:'Instagram',         url:`https://www.google.com/search?q=site%3Ainstagram.com+${nq}${ex}` },
+    { group:'Social', label:'TikTok',            url:`https://www.google.com/search?q=site%3Atiktok.com+${nq}${ex}` },
+    { group:'Social', label:'Reddit',            url:`https://www.google.com/search?q=site%3Areddit.com+${nq}${ex}` },
+    { group:'Social', label:'YouTube',           url:`https://www.youtube.com/results?search_query=${n}${e?'+'+enc(employer):''}` },
+    { group:'Social', label:'Threads',           url:`https://www.google.com/search?q=site%3Athreads.net+${nq}${ex}` },
+    { group:'Social', label:'Bluesky',           url:`https://www.google.com/search?q=site%3Absky.app+${nq}${ex}` },
+    { group:'Social', label:'Mastodon',          url:`https://www.google.com/search?q=site%3Amastodon.social+OR+site%3Amstdn.social+${nq}${ex}` },
+    { group:'Pro',    label:'GitHub Users',      url:`https://github.com/search?type=users&q=${n}` },
+    { group:'Pro',    label:'Stack Overflow',    url:`https://stackoverflow.com/users?tab=Reputation&filter=all&search=${n}` },
+    { group:'Pro',    label:'Crunchbase',        url:`https://www.google.com/search?q=site%3Acrunchbase.com+${nq}${ex}` },
+    { group:'Pro',    label:'Bloomberg Profile', url:`https://www.google.com/search?q=site%3Abloomberg.com%2Fprofile+${nq}${ex}` },
+    { group:'Pro',    label:'SEC EDGAR',         url:`https://efts.sec.gov/LATEST/search-index?q=${nq}&forms=3,4,5` },
+    { group:'Pro',    label:'Patents',           url:`https://patents.google.com/?inventor=${n}` },
+    { group:'Pro',    label:'Scholar',           url:`https://scholar.google.com/scholar?q=${nq}` },
+    { group:'Public', label:'Wikipedia',         url:`https://en.wikipedia.org/wiki/Special:Search?search=${n}` },
+    { group:'Public', label:'Wikidata',          url:`https://www.wikidata.org/w/index.php?search=${n}` },
+    { group:'Public', label:'Court Listener',    url:`https://www.courtlistener.com/?q=${nq}&type=r` },
+    { group:'Public', label:'FEC Donations',     url:`https://www.fec.gov/data/receipts/individual-contributions/?contributor_name=${n}` },
+    { group:'Public', label:'Archive.org',       url:`https://web.archive.org/web/*/${n}` },
+    { group:'OSINT',  label:'Whitepages',        url:`https://www.whitepages.com/name/${enc(name.replace(/\s+/g,'-'))}` },
+    { group:'OSINT',  label:'That\u2019s Them',  url:`https://thatsthem.com/name/${enc(name.replace(/\s+/g,'-'))}` },
+    { group:'OSINT',  label:'TruePeopleSearch',  url:`https://www.truepeoplesearch.com/results?name=${n}` },
+    { group:'OSINT',  label:'FastPeople',        url:`https://www.fastpeoplesearch.com/name/${enc(name.replace(/\s+/g,'_'))}` }
+  ];
+}
+
+function openBgCheckModal(selId){
+  let m = document.getElementById('bgCheckModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'bgCheckModal';
+    m.className = 'modal-overlay';
+    m.innerHTML = `
+      <div class="modal" style="max-width:920px">
+        <div class="modal-header">
+          <span>BACKGROUND CHECK</span>
+          <button class="modal-close" onclick="closeBgCheckModal()">\u00D7</button>
+        </div>
+        <div style="padding:14px 16px;max-height:75vh;overflow-y:auto">
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:10px">
+            Enter a name and (optionally) employer, city, or keywords. We'll build search links to dozens of public sources
+            and pull a few live results from CORS-friendly APIs. Nothing here scrapes or bypasses a paywall &mdash; every
+            link opens the vendor's public search page. Use responsibly.
+          </div>
+          <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr;gap:8px">
+            <div class="form-group"><label>Full Name *</label><input id="bg_name" placeholder="e.g. Jane Q. Doe" autocomplete="off"></div>
+            <div class="form-group"><label>Employer</label><input id="bg_employer" autocomplete="off"></div>
+            <div class="form-group"><label>City / State</label><input id="bg_city" autocomplete="off"></div>
+          </div>
+          <div class="form-group"><label>Extra keywords (optional)</label><input id="bg_kw" placeholder="e.g. civil engineer, pilot, etc." autocomplete="off"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">
+            <button class="btn btn-sm btn-primary" onclick="runBgCheck()">RUN SEARCH</button>
+            <button class="btn btn-sm" onclick="openAllBgLinks()">OPEN ALL SEARCH TABS</button>
+            <button class="btn btn-sm" onclick="copyBgReport()">COPY LINKS</button>
+            <button class="btn btn-sm" onclick="saveBgToDossier()">SAVE TO DOSSIER</button>
+          </div>
+          <div id="bgLiveResults" style="margin-bottom:12px"></div>
+          <div id="bgTargetList" style="font-size:0.72rem"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+  }
+  m.classList.add('show');
+  // Optional: prefill from the selected contact
+  try {
+    const sel = (typeof selectedId !== 'undefined' && selectedId) || selId;
+    if (sel && typeof contacts !== 'undefined') {
+      const p = contacts.find(x => x.id === sel);
+      if (p) {
+        document.getElementById('bg_name').value = [p.firstName, p.lastName].filter(Boolean).join(' ');
+        if (document.getElementById('bg_employer')) document.getElementById('bg_employer').value = p.company || '';
+        if (document.getElementById('bg_city')) document.getElementById('bg_city').value = p.officeLocation || '';
+      }
+    }
+  } catch(e){}
+  setTimeout(()=>{const i=document.getElementById('bg_name'); if(i) i.focus();},60);
+}
+function closeBgCheckModal(){
+  const m=document.getElementById('bgCheckModal');
+  if(m) m.classList.remove('show');
+}
+
+let _bgLast = null;
+function runBgCheck(){
+  const name = (document.getElementById('bg_name').value || '').trim();
+  if(!name){ alert('Enter a name first.'); return; }
+  const employer = (document.getElementById('bg_employer').value || '').trim();
+  const city = (document.getElementById('bg_city').value || '').trim();
+  const kw = (document.getElementById('bg_kw').value || '').trim();
+  const targets = buildBgTargets(name, employer, city, kw);
+  _bgLast = { name, employer, city, kw, targets, ts: Date.now() };
+
+  // Render target list grouped
+  const host = document.getElementById('bgTargetList');
+  const groups = {};
+  targets.forEach(t => { (groups[t.group] = groups[t.group] || []).push(t); });
+  let html = '';
+  for (const g of Object.keys(groups)) {
+    html += `<div style="margin:10px 0 4px;color:var(--accent);font-weight:700;font-size:0.72rem;letter-spacing:1px">${escAttr(g).toUpperCase()}</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    groups[g].forEach(t => {
+      html += `<a class="btn btn-sm" target="_blank" rel="noopener noreferrer" href="${escAttr(t.url)}">${escAttr(t.label)} \u2197</a>`;
+    });
+    html += '</div>';
+  }
+  host.innerHTML = html;
+
+  // Kick off live API lookups (CORS-friendly only)
+  const live = document.getElementById('bgLiveResults');
+  live.innerHTML = '<div style="font-size:0.72rem;color:var(--text-dim)">Running live lookups&hellip;</div>';
+  runBgLiveLookups(name, live);
+}
+
+async function runBgLiveLookups(name, host){
+  const parts = [];
+  const q = encodeURIComponent(name);
+  // --- GitHub users ---
+  const ghBlock = document.createElement('div');
+  ghBlock.innerHTML = '<div class="bg-live-head">GitHub Users</div><div class="bg-live-body">loading&hellip;</div>';
+  host.innerHTML = '';
+  host.appendChild(ghBlock);
+  try {
+    const r = await fetch(`https://api.github.com/search/users?q=${q}+in:fullname&per_page=5`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j.items && j.items.length) {
+        ghBlock.querySelector('.bg-live-body').innerHTML = j.items.map(u =>
+          `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <img src="${escAttr(u.avatar_url)}" style="width:28px;height:28px;border-radius:4px" alt="">
+            <a href="${escAttr(u.html_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${escAttr(u.login)}</a>
+            <span style="color:var(--text-dim);font-size:0.68rem">score ${Math.round(u.score||0)}</span>
+          </div>`
+        ).join('');
+      } else {
+        ghBlock.querySelector('.bg-live-body').textContent = 'No GitHub users matched.';
+      }
+    } else {
+      ghBlock.querySelector('.bg-live-body').textContent = 'GitHub rate-limited (anonymous API).';
+    }
+  } catch(e){
+    ghBlock.querySelector('.bg-live-body').textContent = 'GitHub lookup failed.';
+  }
+
+  // --- Wikipedia ---
+  const wBlock = document.createElement('div');
+  wBlock.innerHTML = '<div class="bg-live-head">Wikipedia</div><div class="bg-live-body">loading&hellip;</div>';
+  host.appendChild(wBlock);
+  try {
+    const r = await fetch(`https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&list=search&srsearch=${q}&srlimit=5`);
+    if (r.ok) {
+      const j = await r.json();
+      const hits = (j && j.query && j.query.search) || [];
+      if (hits.length) {
+        wBlock.querySelector('.bg-live-body').innerHTML = hits.map(h => {
+          const title = h.title; const snip = (h.snippet||'').replace(/<[^>]+>/g,'');
+          return `<div style="margin:4px 0">
+            <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g,'_'))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${escAttr(title)}</a>
+            <div style="color:var(--text-dim);font-size:0.68rem">${escAttr(snip)}&hellip;</div>
+          </div>`;
+        }).join('');
+      } else {
+        wBlock.querySelector('.bg-live-body').textContent = 'No Wikipedia results.';
+      }
+    }
+  } catch(e){ wBlock.querySelector('.bg-live-body').textContent = 'Wikipedia lookup failed.'; }
+
+  // --- DuckDuckGo Instant Answer ---
+  const dBlock = document.createElement('div');
+  dBlock.innerHTML = '<div class="bg-live-head">DuckDuckGo Instant</div><div class="bg-live-body">loading&hellip;</div>';
+  host.appendChild(dBlock);
+  try {
+    const r = await fetch(`https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1`);
+    if (r.ok) {
+      const j = await r.json();
+      const abs = j.AbstractText || j.Abstract || '';
+      const url = j.AbstractURL || '';
+      if (abs) {
+        dBlock.querySelector('.bg-live-body').innerHTML = `<div style="font-size:0.72rem">${escAttr(abs)}</div>` +
+          (url ? `<a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-size:0.68rem">${escAttr(url)}</a>` : '');
+      } else {
+        dBlock.querySelector('.bg-live-body').textContent = 'No instant answer.';
+      }
+    }
+  } catch(e){ dBlock.querySelector('.bg-live-body').textContent = 'DuckDuckGo lookup failed.'; }
+
+  // Basic styling for the live blocks
+  host.querySelectorAll('.bg-live-head').forEach(el => {
+    el.style.cssText = 'color:var(--accent);font-weight:700;font-size:0.7rem;letter-spacing:1px;margin:10px 0 4px';
+  });
+  host.querySelectorAll('.bg-live-body').forEach(el => {
+    el.style.cssText = 'font-size:0.72rem;color:var(--text);padding:6px 8px;background:var(--surface-2,rgba(255,255,255,0.03));border-left:2px solid var(--border,#1a2535);border-radius:2px';
+  });
+}
+
+function openAllBgLinks(){
+  if(!_bgLast){ alert('Run a search first.'); return; }
+  if(!confirm('Open '+_bgLast.targets.length+' tabs? Your browser may block popups.')) return;
+  _bgLast.targets.forEach((t,i)=>{ setTimeout(()=>window.open(t.url,'_blank','noopener'), i*60); });
+}
+function copyBgReport(){
+  if(!_bgLast){ alert('Run a search first.'); return; }
+  const lines = ['BACKGROUND CHECK: '+_bgLast.name, new Date(_bgLast.ts).toISOString(), ''];
+  let cur = '';
+  _bgLast.targets.forEach(t => { if(t.group!==cur){cur=t.group;lines.push('['+cur+']');} lines.push('- '+t.label+': '+t.url); });
+  const txt = lines.join('\n');
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>alert('Copied.')); }
+  else { const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert('Copied.'); }
+}
+function saveBgToDossier(){
+  if(!_bgLast){ alert('Run a search first.'); return; }
+  try {
+    if (typeof selectedId !== 'undefined' && selectedId && typeof contacts !== 'undefined') {
+      const p = contacts.find(x=>x.id===selectedId);
+      if (p) {
+        p.bgChecks = p.bgChecks || [];
+        p.bgChecks.push({ ts:_bgLast.ts, name:_bgLast.name, employer:_bgLast.employer, city:_bgLast.city, kw:_bgLast.kw, targets:_bgLast.targets.map(t=>({label:t.label,group:t.group,url:t.url})) });
+        if (typeof saveContacts === 'function') saveContacts();
+        alert('Saved background check log to '+p.firstName+'.');
+        return;
+      }
+    }
+  } catch(e){}
+  alert('Select a dossier contact first to attach this search.');
+}
+window.openBgCheckModal = openBgCheckModal;
+window.closeBgCheckModal = closeBgCheckModal;
+window.runBgCheck = runBgCheck;
+window.openAllBgLinks = openAllBgLinks;
+window.copyBgReport = copyBgReport;
+window.saveBgToDossier = saveBgToDossier;
 </script>
 </body>
 </html>

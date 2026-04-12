@@ -1,18 +1,18 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-12T03:07:07.822Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **254**
+- Total tools scanned: **260**
 - Clean (no findings): **104**
-- With findings:       **150**
+- With findings:       **156**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[a11y]` | 128 |
+| `[a11y]` | 134 |
 
 ## aviation (38 of 55 with findings)
 
@@ -256,7 +256,7 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (61 of 120 with findings)
+## misc (66 of 126 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -275,6 +275,9 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/aprende-spanish.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/astronomy-essentials.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/audiobook-player.html
@@ -336,6 +339,9 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/habit-tracker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/harrison-rocks.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
+
 ### tools/misc/harrisons-blog.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -356,6 +362,12 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/korb-flowchart-maker.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/misc/korb-party-pack.html
+- `[a11y]` uses native alert(), confirm() (prefer KorbUI)
+
+### tools/misc/korb-world-factbook.html
+- `[a11y]` uses native alert() (prefer KorbUI)
 
 ### tools/misc/leadership-principles.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -442,6 +454,9 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/tip-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
+### tools/misc/ultimate-survival-guide.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
+
 ### tools/misc/vector-drawing.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -451,7 +466,7 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/world-explorer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## hk (15 of 21 with findings)
+## hk (16 of 21 with findings)
 
 ### tools/hk/constraint-optimizer.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
@@ -467,6 +482,9 @@ _Generated 2026-04-12T02:21:19.244Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/hk/harrisons-ipod.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+
+### tools/hk/korb-dossier.html
+- `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
 ### tools/hk/meeting-adversary.html
 - `[a11y]` uses native confirm() (prefer KorbUI)

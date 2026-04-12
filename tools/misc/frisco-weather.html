@@ -517,18 +517,22 @@ function getHistoricalData() {
 async function fetchWeather() {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,rain,weather_code,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,cape,lifted_index,surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=${TZ}&forecast_days=7`;
   const r = await fetch(url);
+  if (!r.ok) throw new Error('weather api ' + r.status);
   return await r.json();
 }
 
 async function fetchAQI() {
   const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=us_aqi,pm10,pm2_5,ozone,nitrogen_dioxide&timezone=${TZ}`;
   const r = await fetch(url);
+  if (!r.ok) throw new Error('aqi api ' + r.status);
   return await r.json();
 }
 
 async function fetchAlerts() {
   try {
-    const r = await fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`, {headers:{'User-Agent':'FriscoWeatherApp'}});
+    // NOTE: User-Agent is a forbidden header in browsers and cannot be set; omit it.
+    const r = await fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`, {headers:{'Accept':'application/geo+json'}});
+    if (!r.ok) return {features:[]};
     return await r.json();
   } catch(e) { return {features:[]}; }
 }
@@ -1024,35 +1028,50 @@ function updateSetting(key, val) {
   renderAll();
 }
 
+function safe(fn, label) {
+  try { fn(); } catch(e) { console.error('[frisco-weather] render error in ' + label + ':', e); }
+}
+
 function renderAll() {
   if (weatherData) {
-    renderCurrent(weatherData);
-    renderTornado(weatherData);
-    renderStormTimeline(weatherData);
-    renderHourly(weatherData);
-    renderDaily(weatherData);
-    renderAstronomy(weatherData);
-    renderHistory(weatherData);
+    safe(() => renderCurrent(weatherData), 'current');
+    safe(() => renderTornado(weatherData), 'tornado');
+    safe(() => renderStormTimeline(weatherData), 'storm-timeline');
+    safe(() => renderHourly(weatherData), 'hourly');
+    safe(() => renderDaily(weatherData), 'daily');
+    safe(() => renderAstronomy(weatherData), 'astronomy');
+    safe(() => renderHistory(weatherData), 'history');
   }
-  if (aqiData) renderAQI(aqiData);
-  if (alertsData) renderAlerts(alertsData);
-  renderPollen();
-  renderSettings();
+  if (aqiData) safe(() => renderAQI(aqiData), 'aqi');
+  if (alertsData) safe(() => renderAlerts(alertsData), 'alerts');
+  safe(renderPollen, 'pollen');
+  safe(renderSettings, 'settings');
 }
 
 async function loadAll() {
   const now = new Date();
   document.getElementById('last-updated').textContent = `Updated: ${now.toLocaleTimeString('en-US',{timeZone:TZ,hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}`;
 
-  try {
-    const [wx, aqi, alerts] = await Promise.all([fetchWeather(), fetchAQI(), fetchAlerts()]);
-    weatherData = wx;
-    aqiData = aqi;
-    alertsData = alerts;
-    renderAll();
-  } catch(e) {
-    console.error('Weather load error:', e);
-    document.getElementById('current-content').innerHTML = `<div style="color:var(--red)">Error loading weather data. Check your connection and try again.<br><br><button class="refresh-btn" onclick="loadAll()">RETRY</button></div>`;
+  // Use allSettled so one failed endpoint doesn't blank out the rest
+  const [wxRes, aqiRes, alertsRes] = await Promise.allSettled([
+    fetchWeather(), fetchAQI(), fetchAlerts()
+  ]);
+
+  if (wxRes.status === 'fulfilled' && wxRes.value && wxRes.value.current) {
+    weatherData = wxRes.value;
+  } else {
+    console.error('[frisco-weather] fetchWeather failed:', wxRes.reason || wxRes.value);
+  }
+  if (aqiRes.status === 'fulfilled') aqiData = aqiRes.value;
+  else console.warn('[frisco-weather] fetchAQI failed:', aqiRes.reason);
+  if (alertsRes.status === 'fulfilled') alertsData = alertsRes.value;
+  else console.warn('[frisco-weather] fetchAlerts failed:', alertsRes.reason);
+
+  renderAll();
+
+  if (!weatherData) {
+    const el = document.getElementById('current-content');
+    if (el) el.innerHTML = `<div style="color:var(--red)">Error loading weather data. Check your connection and try again.<br><br><button class="refresh-btn" onclick="loadAll()">RETRY</button></div>`;
   }
 }
 
