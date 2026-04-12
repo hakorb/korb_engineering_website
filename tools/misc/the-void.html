@@ -605,16 +605,19 @@
   // ========================================
   // CONSTANTS
   // ========================================
-  const LOBBY_ID = 'korb-void-lobby-v2';
-  const ID_PREFIX = 'kv2-';
+  const LOBBY_ID = 'korb-void-lobby-v3';
+  const ID_PREFIX = 'kv3-';
   const MAX_PEERS = 20;
-  const HEARTBEAT_MS = 5000;
-  const STALE_PEER_MS = 20000;
-  const IDLE_TIMEOUT_MS = 45 * 60 * 1000;
-  const IDLE_WARN_MS = 40 * 60 * 1000;
-  const CONN_TIMEOUT_MS = 12000;
+  const HEARTBEAT_MS = 8000;
+  const STALE_PEER_MS = 60000;     // 60s — generous grace for network hiccups
+  const IDLE_TIMEOUT_MS = 60 * 60 * 1000;  // 1 hour
+  const IDLE_WARN_MS = 55 * 60 * 1000;
+  const CONN_TIMEOUT_MS = 15000;
   const NOISE_GATE = 0.012;
   const RECONNECT_MAX_MS = 30000;
+  const PEER_RECONNECT_DELAY = 3000;
+  const PEER_RECONNECT_MAX = 5;
+  const LOBBY_RECHECK_MS = 30000;  // re-check lobby health every 30s
 
   // ========================================
   // STATE
@@ -641,9 +644,10 @@
   let destroyed = false;
   let ambientNodes = {};
 
-  // Peers: { peerId: { conn, call, audioEl, name, analyser, gainNode, lastHeartbeat } }
+  // Peers: { peerId: { conn, call, audioEl, name, analyser, gainNode, lastHeartbeat, reconnectAttempts, reconnecting } }
   const peers = {};
   let peerRegistry = {};
+  let lobbyHealthTimer = null;
 
   // ========================================
   // DOM REFS
@@ -1110,23 +1114,34 @@
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), RECONNECT_MAX_MS);
     reconnectAttempts++;
 
-    setTimeout(() => {
-      if (destroyed) return;
+    setTimeout(async () => {
+      if (destroyed) { isReconnecting = false; return; }
       try {
         if (myPeer && !myPeer.destroyed && myPeer.disconnected) {
           myPeer.reconnect();
+          // Wait a moment for reconnect to take effect
+          await new Promise(r => setTimeout(r, 2000));
+          if (myPeer && !myPeer.disconnected) {
+            reconnectAttempts = 0;
+            setConnStatus('connected');
+            toast('Reconnected.');
+            tryJoinLobby();
+          }
         } else if (!myPeer || myPeer.destroyed) {
-          // Full reconnect
-          fullReconnect();
+          await fullReconnect();
         }
       } catch (e) {
         console.warn('Reconnect error:', e);
-        isReconnecting = false;
-        if (reconnectAttempts < 10) attemptReconnect();
-        else {
+        if (reconnectAttempts < 15) {
+          isReconnecting = false;
+          attemptReconnect();
+          return;
+        } else {
           setConnStatus('single');
-          toast('Could not reconnect. Running in solo mode.');
-          logDiscovery('Fell back to solo mode after reconnect failures.');
+          toast('Running in solo mode. Will keep trying...');
+          // Keep trying in background at longer intervals
+          setTimeout(() => { isReconnecting = false; attemptReconnect(); }, 60000);
+          return;
         }
       }
       isReconnecting = false;
@@ -1139,12 +1154,11 @@
       await initPeer();
       reconnectAttempts = 0;
       setConnStatus('connected');
-      logDiscovery('Reconnected to the void.');
       toast('Reconnected.');
-      // Re-join lobby
       tryJoinLobby();
     } catch (e) {
       console.warn('Full reconnect failed:', e);
+      throw e; // propagate so attemptReconnect can retry
     }
   }
 
@@ -1265,6 +1279,11 @@
       const conn = myPeer.connect(peerId, { reliable: true });
       peers[peerId].conn = conn;
       handleDataConn(conn);
+      conn.on('close', () => {
+        if (peers[peerId] && !peers[peerId].reconnecting) {
+          setTimeout(() => reconnectDataConn(peerId), PEER_RECONNECT_DELAY);
+        }
+      });
       conn.on('error', () => {});
     } catch (e) {
       console.warn('Data connect error to', peerId, e);
@@ -1279,10 +1298,9 @@
           call.on('stream', (remoteStream) => {
             try { setupRemoteAudio(peerId, remoteStream); } catch(e) {}
           });
-          call.on('close', () => removePeer(peerId));
+          call.on('close', () => attemptPeerReconnect(peerId));
           call.on('error', (e) => {
             console.warn('Call error with', peerId, e);
-            // Don't remove peer on call error - they might reconnect
           });
         }
       }
@@ -1291,7 +1309,6 @@
     }
 
     toast('A presence drifts near.');
-    logDiscovery('A soul entered the void.');
     renderPeers();
     updateSoulCount();
   }
@@ -1312,7 +1329,7 @@
     call.on('stream', (remoteStream) => {
       try { setupRemoteAudio(peerId, remoteStream); } catch(e) {}
     });
-    call.on('close', () => removePeer(peerId));
+    call.on('close', () => attemptPeerReconnect(peerId));
     call.on('error', (e) => { console.warn('Incoming call error:', e); });
 
     renderPeers();
@@ -1370,6 +1387,79 @@
     updateSoulCount();
 
     if (isLobbyHost) broadcastPeerLeft(peerId);
+  }
+
+  // ========================================
+  // PEER RECONNECTION (instead of instant removal)
+  // ========================================
+  function attemptPeerReconnect(peerId) {
+    if (destroyed || !peers[peerId]) return;
+    const p = peers[peerId];
+
+    // Track reconnect attempts per peer
+    p.reconnectAttempts = (p.reconnectAttempts || 0) + 1;
+    if (p.reconnecting) return; // already trying
+
+    if (p.reconnectAttempts > PEER_RECONNECT_MAX) {
+      console.log('Max reconnect attempts for peer:', peerId);
+      removePeer(peerId);
+      return;
+    }
+
+    p.reconnecting = true;
+    console.log('Attempting to reconnect to peer:', peerId, 'attempt', p.reconnectAttempts);
+
+    setTimeout(() => {
+      if (destroyed || !peers[peerId]) return;
+      p.reconnecting = false;
+
+      // Re-establish audio call
+      try {
+        if (localStream && myPeer && !myPeer.destroyed) {
+          // Close old call cleanly
+          try { if (p.call) p.call.close(); } catch(e) {}
+
+          const call = myPeer.call(peerId, localStream);
+          if (call) {
+            p.call = call;
+            call.on('stream', (remoteStream) => {
+              try {
+                setupRemoteAudio(peerId, remoteStream);
+                p.reconnectAttempts = 0; // success — reset counter
+                p.lastHeartbeat = Date.now();
+                console.log('Reconnected audio to peer:', peerId);
+              } catch(e) {}
+            });
+            call.on('close', () => attemptPeerReconnect(peerId));
+            call.on('error', () => attemptPeerReconnect(peerId));
+          }
+        }
+      } catch (e) {
+        console.warn('Peer reconnect error:', peerId, e);
+        attemptPeerReconnect(peerId);
+      }
+    }, PEER_RECONNECT_DELAY + Math.random() * 2000);
+  }
+
+  // Re-establish data connection to a peer
+  function reconnectDataConn(peerId) {
+    if (destroyed || !peers[peerId] || !myPeer || myPeer.destroyed) return;
+    const p = peers[peerId];
+
+    try { if (p.conn) p.conn.close(); } catch(e) {}
+
+    try {
+      const conn = myPeer.connect(peerId, { reliable: true });
+      p.conn = conn;
+      handleDataConn(conn);
+      conn.on('close', () => {
+        // Data conn closed — try reconnect after delay
+        setTimeout(() => reconnectDataConn(peerId), PEER_RECONNECT_DELAY);
+      });
+      conn.on('error', () => {});
+    } catch(e) {
+      console.warn('Data reconnect error:', peerId, e);
+    }
   }
 
   function connectToAllPeers() {
@@ -1446,24 +1536,68 @@
     if (!myPeer || myPeer.destroyed) return;
     try {
       const conn = myPeer.connect(LOBBY_ID, { reliable: true });
+
+      const joinTimeout = setTimeout(() => {
+        // Connection didn't open in time — lobby might be dead
+        tryClaimLobby().then(got => {
+          if (got) becomeLobbyHost({});
+          else startLobbyHealthCheck(); // keep checking
+        });
+      }, 8000);
+
       conn.on('open', () => {
+        clearTimeout(joinTimeout);
         try {
           conn.send({ type: 'register', peerId: myId });
         } catch(e) {}
         conn.on('data', (data) => {
           try { processMessage(conn, data); } catch(e) {}
         });
+        // Monitor lobby connection health
+        conn.on('close', () => {
+          // Lobby host disconnected — try to take over
+          console.log('Lobby connection closed, attempting takeover');
+          tryClaimLobby().then(got => {
+            if (got) {
+              becomeLobbyHost(peerRegistry);
+              toast('You are now the void anchor.');
+            } else {
+              // Someone else got it — rejoin
+              setTimeout(() => tryJoinLobby(), 2000 + Math.random() * 3000);
+            }
+          });
+        });
+        startLobbyHealthCheck();
       });
       conn.on('error', () => {
+        clearTimeout(joinTimeout);
         // Lobby gone - try to become host
         tryClaimLobby().then(got => {
           if (got) becomeLobbyHost({});
-          else setConnStatus('single');
+          else {
+            // Neither host nor joined — retry after delay
+            setTimeout(() => tryJoinLobby(), 5000 + Math.random() * 5000);
+          }
         });
       });
     } catch (e) {
       console.warn('Join lobby error:', e);
     }
+  }
+
+  // Periodic lobby health check — ensures we're still connected
+  function startLobbyHealthCheck() {
+    if (lobbyHealthTimer) clearInterval(lobbyHealthTimer);
+    lobbyHealthTimer = setInterval(() => {
+      if (destroyed) { clearInterval(lobbyHealthTimer); return; }
+      if (isLobbyHost) return; // hosts don't need to check
+
+      // Verify we still have peers or can reach the lobby
+      if (peerCount() === 0 && !isReconnecting) {
+        console.log('No peers and not host — re-checking lobby');
+        tryJoinLobby();
+      }
+    }, LOBBY_RECHECK_MS);
   }
 
   // ========================================
@@ -1472,9 +1606,25 @@
   function cleanStalePeers() {
     const now = Date.now();
     for (const pid in peers) {
-      if (now - (peers[pid].lastHeartbeat || 0) > STALE_PEER_MS) {
-        console.log('Removing stale peer:', pid);
-        removePeer(pid);
+      const p = peers[pid];
+      const elapsed = now - (p.lastHeartbeat || 0);
+
+      // Check if data connection is dead and needs reconnecting
+      if (p.conn && !p.conn.open && !p.reconnecting) {
+        reconnectDataConn(pid);
+      }
+
+      // Only remove truly stale peers (no heartbeat for full STALE_PEER_MS)
+      if (elapsed > STALE_PEER_MS) {
+        // Try one final reconnect before giving up
+        if (!p.reconnecting && (p.reconnectAttempts || 0) < PEER_RECONNECT_MAX) {
+          console.log('Peer stale, attempting reconnect:', pid);
+          attemptPeerReconnect(pid);
+          reconnectDataConn(pid);
+        } else if ((p.reconnectAttempts || 0) >= PEER_RECONNECT_MAX) {
+          console.log('Removing stale peer after max reconnect attempts:', pid);
+          removePeer(pid);
+        }
       }
     }
   }
@@ -1488,7 +1638,12 @@
       for (const pid in peers) {
         const p = peers[pid];
         if (p.conn && p.conn.open) {
-          try { p.conn.send({ type: 'heartbeat' }); } catch(e) {}
+          try { p.conn.send({ type: 'heartbeat' }); } catch(e) {
+            // Send failed — connection may be dead
+            reconnectDataConn(pid);
+          }
+        } else if (p.conn && !p.conn.open && !p.reconnecting) {
+          reconnectDataConn(pid);
         }
       }
       cleanStalePeers();
@@ -1609,14 +1764,18 @@
 
     saveAll();
 
-    // Transfer lobby if host
+    // Transfer lobby if host — try all peers, not just the first
     if (isLobbyHost) {
       const pids = Object.keys(peers);
-      if (pids.length > 0) {
-        const next = pids[0];
-        const p = peers[next];
+      let transferred = false;
+      for (const pid of pids) {
+        if (transferred) break;
+        const p = peers[pid];
         if (p.conn && p.conn.open) {
-          try { p.conn.send({ type: 'lobby-transfer', peerRegistry }); } catch(e) {}
+          try {
+            p.conn.send({ type: 'lobby-transfer', peerRegistry });
+            transferred = true;
+          } catch(e) { /* try next */ }
         }
       }
     }
@@ -1641,6 +1800,7 @@
     if (idleWarnTimer) clearTimeout(idleWarnTimer);
     if (autoSaveInterval) clearInterval(autoSaveInterval);
     if (resonanceTimer) clearTimeout(resonanceTimer);
+    if (lobbyHealthTimer) clearInterval(lobbyHealthTimer);
 
     isLobbyHost = false;
     isMuted = true;
@@ -1771,14 +1931,56 @@
     saveAll();
   });
 
-  // Visibility change
+  // Network change — reconnect when coming back online
+  window.addEventListener('online', () => {
+    if (!destroyed && voidScreen.classList.contains('active')) {
+      toast('Network restored. Reconnecting...');
+      if (myPeer && myPeer.disconnected && !isReconnecting) {
+        attemptReconnect();
+      }
+      // Refresh peer connections
+      for (const pid in peers) {
+        const p = peers[pid];
+        if (p.conn && !p.conn.open) reconnectDataConn(pid);
+        if (p.call && !p.call.open) attemptPeerReconnect(pid);
+      }
+    }
+  });
+  window.addEventListener('offline', () => {
+    if (!destroyed && voidScreen.classList.contains('active')) {
+      setConnStatus('reconnecting');
+      toast('Network lost. Waiting for reconnection...');
+    }
+  });
+
+  // Visibility change — reconnect peers on return from background
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && !isOpenMic) {
       setTransmitting(false);
     }
-    // Resume audio context when visible again
-    if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
+    if (!document.hidden) {
+      // Resume audio context
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      // Check if PeerJS connection is still alive
+      if (myPeer && myPeer.disconnected && !isReconnecting) {
+        attemptReconnect();
+      }
+      // Refresh heartbeat timestamps to prevent false stale detection
+      for (const pid in peers) {
+        const p = peers[pid];
+        // Check if data connection is dead
+        if (p.conn && !p.conn.open && !p.reconnecting) {
+          reconnectDataConn(pid);
+        }
+        // Check if audio call is dead
+        if (p.call && !p.call.open && !p.reconnecting) {
+          attemptPeerReconnect(pid);
+        }
+      }
+      // Re-enable transmitting if needed
+      updateTransmitState();
     }
   });
 
