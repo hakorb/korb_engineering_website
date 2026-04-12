@@ -296,7 +296,7 @@ const SECTIONS = {
       { name: 'Mind Map', file: './tools/misc/mind-map.html' },
       { name: 'Minesweeper', file: './tools/misc/minesweeper.html' },
       { name: 'Moving Specialist Invoice', file: './tools/misc/moving-invoice.html' },
-      { name: 'Muscle Atlas', file: './tools/misc/muscle-atlas.html' },
+      { name: "Alex's Muscle Atlas", file: './tools/misc/alexs-muscle-atlas.html' },
       { name: 'Music Library', file: './tools/misc/music-library.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: "Olivia's Digital Escape Room", file: './tools/misc/olivias-digital-escape-room.html' },
@@ -554,9 +554,6 @@ function renderHome() {
         </a>
       </div>
       <nav class="category-grid" id="categoryGrid" aria-label="Tool categories">${cards}</nav>
-      <div class="landing-about">
-        <a href="#about" class="about-btn">About</a>
-      </div>
       <div style="text-align:center;padding:32px 0 8px">
         <a href="mailto:harrison@korb.engineering" class="site-email-link">harrison@korb.engineering</a>
       </div>
@@ -877,7 +874,7 @@ const TOOL_DESCRIPTIONS = {
   'Mind Map': 'Visual mind-mapping canvas with branching nodes, colors, and export.',
   'Minesweeper': 'Classic minesweeper with beginner, intermediate, expert, and custom boards.',
   'Moving Specialist Invoice': 'Build moving-company invoices with hourly crews, mileage, and materials.',
-  'Muscle Atlas': 'Anatomical muscle reference with exercises targeting each group.',
+  "Alex's Muscle Atlas": 'Anatomical muscle reference with exercises targeting each group.',
   'Music Library': 'Organize a personal music collection with playlists, tags, and playback.',
   'Nutrition Tracker 3000': 'Log meals and macros with a food database and daily nutrient dashboards.',
   "Olivia's Digital Escape Room": 'Kid-friendly puzzle escape room with riddles, cipher locks, and hidden clues.',
