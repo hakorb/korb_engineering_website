@@ -509,7 +509,7 @@
 <!-- JOIN SCREEN -->
 <div class="screen active" id="join-screen">
   <div class="void-title">The Void</div>
-  <div class="void-subtitle">An open audio room. No accounts. No names. Just voices in darkness.</div>
+  <div class="void-subtitle">A communal audio space. No accounts. No hosts. Just voices in darkness. Anyone can join and speak.</div>
   <div class="error-banner" id="join-error"></div>
   <button class="btn-enter" id="enter-btn">Enter The Void</button>
   <div class="spinner" id="join-spinner"></div>
@@ -543,8 +543,8 @@
       <span>Hold</span>
     </button>
     <div class="ctrl-row">
-      <button class="ctrl-btn" id="mute-btn">Unmute</button>
-      <button class="ctrl-btn" id="mode-btn">Open Mic</button>
+      <button class="ctrl-btn" id="mute-btn">Mute</button>
+      <button class="ctrl-btn" id="mode-btn">PTT Mode</button>
       <button class="ctrl-btn orange" id="audio-btn">Ambient</button>
       <div class="volume-control">
         <span>Vol</span>
@@ -578,7 +578,7 @@
 
   // Persistent state (audio preferences only)
   const persistence = {
-    audioPrefs: load('audioPrefs', { volume: 80, openMic: false, ambient: false }),
+    audioPrefs: load('audioPrefs', { volume: 80, openMic: true, ambient: false }),
   };
 
   function saveAll() {
@@ -626,8 +626,8 @@
   let localStream = null;
   let audioCtx = null;
   let localAnalyser = null;
-  let isMuted = true;
-  let isOpenMic = false;
+  let isMuted = false;
+  let isOpenMic = persistence.audioPrefs.openMic !== false;
   let isPTTActive = false;
   let masterVolume = persistence.audioPrefs.volume / 100;
   let ambientOn = persistence.audioPrefs.ambient;
@@ -733,7 +733,7 @@
     connDot.className = 'conn-dot';
     switch (status) {
       case 'connected': connLabel.textContent = 'Connected'; break;
-      case 'host': connLabel.textContent = 'Host'; break;
+      case 'host': connLabel.textContent = 'Connected'; break;
       case 'single': connLabel.textContent = 'Solo Mode'; connDot.classList.add('warning'); break;
       case 'reconnecting': connLabel.textContent = 'Reconnecting...'; connDot.classList.add('warning'); break;
       case 'disconnected': connLabel.textContent = 'Disconnected'; connDot.classList.add('error'); break;
@@ -1138,7 +1138,7 @@
       if (myPeer) { try { myPeer.destroy(); } catch(e) {} }
       await initPeer();
       reconnectAttempts = 0;
-      setConnStatus(isLobbyHost ? 'host' : 'connected');
+      setConnStatus('connected');
       logDiscovery('Reconnected to the void.');
       toast('Reconnected.');
       // Re-join lobby
@@ -1439,7 +1439,7 @@
     isLobbyHost = true;
     if (registry) peerRegistry = { ...registry };
     peerRegistry[myId] = 'Soul';
-    setConnStatus('host');
+    setConnStatus('connected');
   }
 
   function tryJoinLobby() {
@@ -1554,7 +1554,7 @@
 
     if (gotLobby) {
       becomeLobbyHost({});
-      logDiscovery('Entered the void as anchor.');
+      logDiscovery('Entered the void.');
     } else {
       // Join existing lobby
       tryJoinLobby();
@@ -1586,9 +1586,21 @@
     volumeSlider.value = persistence.audioPrefs.volume;
     masterVolume = persistence.audioPrefs.volume / 100;
 
-    if (persistence.audioPrefs.openMic) {
-      modeBtn.click(); // activate open mic
+    if (isOpenMic) {
+      modeBtn.textContent = 'PTT Mode';
+      modeBtn.classList.add('active');
+      pttBtn.classList.add('open-mic');
+      pttBtn.querySelector('span').textContent = 'Open';
+      isPTTActive = true;
+      pttBtn.classList.add('active');
     }
+
+    // Start unmuted so people can talk immediately
+    isMuted = false;
+    muteBtn.textContent = 'Mute';
+    muteBtn.classList.add('active');
+    pttBtn.classList.remove('muted');
+    updateTransmitState();
 
   }
 
@@ -1698,7 +1710,7 @@
     isOpenMic = !isOpenMic;
     persistence.audioPrefs.openMic = isOpenMic;
     if (isOpenMic) {
-      modeBtn.textContent = 'Push-to-Talk';
+      modeBtn.textContent = 'PTT Mode';
       modeBtn.classList.add('active');
       pttBtn.classList.add('open-mic');
       pttBtn.querySelector('span').textContent = 'Open';
