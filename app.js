@@ -249,6 +249,7 @@ const SECTIONS = {
       { name: 'Drum Machine', file: './tools/misc/drum-machine.html' },
       { name: 'Dungeon Quest', file: './tools/misc/dungeon-quest.html' },
       { name: 'Ebook Reader', file: './tools/misc/ebook-reader.html' },
+      { name: 'Enigma Workbench', file: './tools/misc/enigma-workbench.html' },
       { name: 'Fidget Spinner', file: './tools/misc/fidget-spinner.html' },
       { name: 'File Converter', file: './tools/misc/file-converter.html' },
       { name: 'File Toolbox', file: './tools/misc/file-toolbox.html' },
@@ -530,12 +531,6 @@ function renderHome() {
           and a few gifts for family along the way.
         </p>
       </div>
-      <div class="home-recent" id="homeRecent" hidden>
-        <div class="home-recent-head">
-          <span class="home-recent-label">Recently updated</span>
-        </div>
-        <div class="home-recent-strip" id="homeRecentStrip"></div>
-      </div>
       <div class="home-toolbar" role="search">
         <div class="search-bar-wrap">
           <label for="toolSearch" class="sr-only">Search all tools</label>
@@ -645,48 +640,6 @@ function renderHome() {
     searchInput.value = '';
     renderResults('');
     searchInput.focus();
-  });
-
-  // Populate "Recently updated" strip from sections.json (async, non-blocking)
-  loadRecency().then(() => {
-    const strip = document.getElementById('homeRecentStrip');
-    const wrap  = document.getElementById('homeRecent');
-    if (!strip || !wrap) return;
-    // Build a slug -> { sectionKey, name } lookup from SECTIONS
-    const slugIndex = {};
-    Object.entries(SECTIONS).forEach(([k, sec]) => {
-      if (!sec || sec.locked) return;
-      (sec.tools || []).forEach((t) => {
-        if (t.type === 'folder') {
-          if (t.locked) return;
-          (t.tools || []).forEach((sub) => {
-            slugIndex[getToolSlug(sub)] = { sectionKey: k, name: sub.name };
-          });
-        } else {
-          slugIndex[getToolSlug(t)] = { sectionKey: k, name: t.name };
-        }
-      });
-    });
-    // Rank by modified date (fresh first), cap 5
-    const recent = Object.entries(_RECENCY)
-      .filter(([slug]) => slugIndex[slug])
-      .map(([slug, iso]) => ({
-        slug, iso, ts: Date.parse(iso) || 0,
-        section: slugIndex[slug].sectionKey,
-        name: slugIndex[slug].name
-      }))
-      .sort((a, b) => b.ts - a.ts)
-      .slice(0, 5);
-    if (!recent.length) return;
-    strip.innerHTML = recent.map((r) => {
-      const days = Math.max(0, Math.floor((Date.now() - r.ts) / 86400000));
-      const age = days === 0 ? 'today' : (days === 1 ? '1 day ago' : days + ' days ago');
-      return `<a href="#${r.section}/${r.slug}" class="home-recent-item">
-        <span class="home-recent-name">${r.name}</span>
-        <span class="home-recent-age">${age}</span>
-      </a>`;
-    }).join('');
-    wrap.hidden = false;
   });
 
   // Stagger card fade-in
@@ -870,6 +823,7 @@ const TOOL_DESCRIPTIONS = {
   'Drum Machine': 'Step-sequenced drum machine with classic samples, pattern chaining, and export.',
   'Dungeon Quest': 'Roguelike dungeon crawler with turn-based combat, loot, and procedurally generated floors.',
   'Ebook Reader': 'Read EPUB and PDF books with bookmarks, highlights, and customizable themes.',
+  'Enigma Workbench': 'Historical Enigma cipher simulator with 24 rotor options, plugboard, reflectors, and copy-paste encrypted transmissions.',
   'Fidget Spinner': 'Flick to spin a virtual fidget spinner with RPM counter and custom skins.',
   'File Converter': 'Convert files between common image, document, and audio formats in the browser.',
   'File Toolbox': 'Swiss-army file utility for rename, compress, split, and checksum operations.',

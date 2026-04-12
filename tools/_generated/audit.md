@@ -1,18 +1,18 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-11T20:46:12.579Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-12T02:05:24.237Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **251**
+- Total tools scanned: **252**
 - Clean (no findings): **104**
-- With findings:       **147**
+- With findings:       **148**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[a11y]` | 126 |
+| `[a11y]` | 127 |
 
 ## aviation (38 of 55 with findings)
 
@@ -249,7 +249,7 @@ _Generated 2026-04-11T20:46:12.579Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (60 of 119 with findings)
+## misc (61 of 120 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -311,6 +311,10 @@ _Generated 2026-04-11T20:46:12.579Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/ebook-reader.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/enigma-workbench.html
+- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/flowchart-maker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
