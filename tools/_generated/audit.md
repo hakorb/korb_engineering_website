@@ -1,6 +1,6 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-12T22:14:30.559Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
@@ -100,7 +100,7 @@ _Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/pre-flight-checklist.html
-- `[a11y]` uses native confirm() (prefer KorbUI)
+- `[a11y]` uses native alert(), confirm(), prompt() (prefer KorbUI)
 
 ### tools/aviation/procore-project-manager.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -134,7 +134,7 @@ _Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
 ### tools/aviation/weight-balance-calculator.html
-- `[a11y]` uses native prompt() (prefer KorbUI)
+- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/wind-rose-generator.html
@@ -170,7 +170,7 @@ _Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/civil/earned-value-mgmt.html
-- `[a11y]` uses native confirm() (prefer KorbUI)
+- `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
 ### tools/civil/eisenhower-matrix.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -265,6 +265,9 @@ _Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 
 ### tools/misc/alans-virtual-caddy.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/alexs-muscle-atlas.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/anitas-texas-garden.html
@@ -412,9 +415,6 @@ _Generated 2026-04-12T21:46:36.162Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/moving-invoice.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
-
-### tools/misc/muscle-atlas.html
-- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
 
 ### tools/misc/music-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
