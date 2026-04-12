@@ -443,15 +443,10 @@ function searchTools(query) {
 
 // --- Shared Helpers ---
 function ensureStatusVisible() {
-  let el = document.getElementById('homeStatus');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'homeStatus';
-    el.className = 'home-status';
-    el.innerHTML = '<span class="status-dot"></span><span class="vfd-label">Online</span>';
-    document.body.appendChild(el);
-  }
-  el.style.display = 'flex';
+  // Status indicator now lives permanently in the header (.header-status)
+  // so no floating home-status element is needed.
+  const old = document.getElementById('homeStatus');
+  if (old) old.remove();
 }
 
 // Section search bar HTML template
@@ -1441,7 +1436,7 @@ const HELIX_LOADER_HTML = `<div class="helix-loader" id="helixLoader">
 
 function renderToolEmbed(key, sec, tool) {
   const hs = document.getElementById('homeStatus');
-  if (hs) hs.style.display = 'none';
+  if (hs) hs.remove();
   // sandbox note: see renderSubfolderToolEmbed above. allow-scripts +
   // allow-same-origin means this is NOT a security boundary.
   const safeFile = escapeHtml(tool.file);
@@ -1731,3 +1726,20 @@ document.getElementById('homeLink').addEventListener('click', (e) => {
 });
 
 handleRoute();
+
+// --- Scroll-to-top button ---
+(function() {
+  const btn = document.getElementById('scrollTop');
+  if (!btn) return;
+  const scrollHost = main; // main is the SPA content container
+  function checkScroll() {
+    const y = scrollHost.scrollTop || window.scrollY || 0;
+    btn.classList.toggle('visible', y > 400);
+  }
+  main.addEventListener('scroll', checkScroll, { passive: true });
+  window.addEventListener('scroll', checkScroll, { passive: true });
+  btn.addEventListener('click', () => {
+    main.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
