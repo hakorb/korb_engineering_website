@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Markup Studio | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #050a0f;
+  --bg2: #0a1118;
+  --bg3: #0f1922;
+  --bg4: #152230;
+  --cyan: #00d4ff;
+  --orange: #ff9900;
+  --red: #ff3b3b;
+  --green: #00ff88;
+  --yellow: #ffdd00;
+  --blue: #3b8bff;
+  --text: #c8d6e5;
+  --text-dim: #6b7d8e;
+  --border: #1a2a3a;
+  --font: 'JetBrains Mono', monospace;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* ─── Layout ─── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 48px;
+}
+
+.top-bar .logo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cyan);
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.top-bar .logo span { color: var(--orange); }
+
+.main-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ─── Toolbar (left sidebar) ─── */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  width: 48px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  align-items: center;
+}
+
+.tool-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.tool-btn:hover { background: var(--bg4); color: var(--text); }
+.tool-btn.active { background: var(--bg4); color: var(--cyan); border-color: var(--cyan); }
+.tool-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.tool-sep { width: 28px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
+
+.tool-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 44px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg4);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 999;
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+/* ─── Canvas area ─── */
+.canvas-container {
+  flex: 1;
+  overflow: auto;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  position: relative;
+}
+
+.page-wrapper {
+  position: relative;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+.page-wrapper canvas.pdf-canvas {
+  display: block;
+}
+
+.page-wrapper canvas.annotation-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: crosshair;
+}
+
+/* ─── Comment panel (right sidebar) ─── */
+.comment-panel {
+  width: 280px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.2s;
+}
+
+.comment-panel.collapsed { width: 0; overflow: hidden; border: none; }
+
+.comment-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.comment-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.comment-item {
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: var(--bg3);
+  border-radius: 4px;
+  border-left: 3px solid var(--cyan);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12px;
+}
+
+.comment-item:hover { background: var(--bg4); }
+
+.comment-item .cm-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--orange);
+  letter-spacing: 0.5px;
+}
+
+.comment-item .cm-text {
+  margin-top: 4px;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.comment-item .cm-meta {
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ─── Bottom bar ─── */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
+.bottom-bar .zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Buttons & inputs ─── */
+button, .btn {
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+button:hover, .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+  border-color: var(--cyan);
+  font-weight: 600;
+}
+
+.btn-primary:hover { background: #00b8e0; color: var(--bg); }
+
+input, select {
+  font-family: var(--font);
+  font-size: 16px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg3);
+  color: var(--text);
+  outline: none;
+}
+
+input:focus, select:focus { border-color: var(--cyan); }
+
+/* ─── Color swatches ─── */
+.color-swatches {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.swatch:hover, .swatch.active { border-color: #fff; }
+
+.line-weight-btns {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.lw-btn {
+  width: 28px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--bg3);
+}
+
+.lw-btn:hover { border-color: var(--cyan); }
+.lw-btn.active { border-color: var(--cyan); background: var(--bg4); }
+
+.lw-btn .lw-line {
+  width: 16px;
+  background: var(--text);
+  border-radius: 1px;
+}
+
+/* ─── Welcome / upload screen ─── */
+.welcome-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: var(--text-dim);
+}
+
+.welcome-screen .drop-zone {
+  width: 320px;
+  max-width: 90vw;
+  height: 200px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.welcome-screen .drop-zone:hover,
+.welcome-screen .drop-zone.drag-over {
+  border-color: var(--cyan);
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.welcome-screen .drop-zone svg { width: 48px; height: 48px; stroke: var(--cyan); fill: none; stroke-width: 1.5; }
+
+.welcome-screen h2 { font-size: 20px; color: var(--cyan); }
+
+/* ─── User dialog ─── */
+.user-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.user-dialog {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  width: 340px;
+  max-width: 90vw;
+}
+
+.user-dialog h3 {
+  color: var(--cyan);
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+.user-dialog label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.user-dialog input {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.user-dialog .dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ─── Annotation pins ─── */
+.anno-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg) translate(-6px, -16px);
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid rgba(255,255,255,0.3);
+  transition: transform 0.15s;
+}
+
+.anno-pin:hover { transform: rotate(-45deg) translate(-6px, -16px) scale(1.2); }
+
+.anno-pin .pin-label {
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.anno-popup {
+  position: absolute;
+  z-index: 20;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  width: 220px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  font-size: 12px;
+}
+
+.anno-popup textarea {
+  width: 100%;
+  height: 60px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 6px;
+  border-radius: 4px;
+  resize: vertical;
+  margin-bottom: 6px;
+}
+
+.anno-popup textarea:focus { border-color: var(--cyan); outline: none; }
+
+.anno-popup .popup-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.anno-popup .popup-meta {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+/* ─── Measurement label ─── */
+.measure-label {
+  position: absolute;
+  background: rgba(0,0,0,0.8);
+  color: var(--cyan);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: var(--font);
+  pointer-events: none;
+  z-index: 15;
+  white-space: nowrap;
+}
+
+/* ─── Text box overlay ─── */
+.textbox-overlay {
+  position: absolute;
+  z-index: 15;
+  background: transparent;
+  border: 1px dashed var(--cyan);
+  padding: 2px;
+  min-width: 60px;
+  min-height: 24px;
+}
+
+.textbox-overlay textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 22px;
+  background: transparent;
+  border: none;
+  color: currentColor;
+  font-family: var(--font);
+  font-size: 14px;
+  resize: both;
+  outline: none;
+}
+
+/* ─── Print styles ─── */
+@media print {
+  .top-bar, .toolbar, .comment-panel, .bottom-bar, .anno-pin, .anno-popup, .measure-label { display: none !important; }
+  .app { display: block; }
+  .main-area { display: block; }
+  .canvas-container {
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .page-wrapper {
+    page-break-after: always;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .comment-panel { position: fixed; right: 0; top: 0; bottom: 0; z-index: 100; width: 280px; }
+  .comment-panel.collapsed { width: 0; }
+  .toolbar { width: 40px; }
+  .tool-btn { width: 30px; height: 30px; font-size: 13px; }
+  .tool-btn svg { width: 16px; height: 16px; }
+  .top-bar { padding: 4px 8px; }
+  .top-bar .logo { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <!-- User dialog -->
+  <div class="user-dialog-overlay" id="userDialog">
+    <div class="user-dialog">
+      <h3>PDF Markup Studio</h3>
+      <label for="userName">Your Name</label>
+      <input type="text" id="userName" placeholder="e.g. Harrison Korb" autocomplete="name">
+      <label for="userInitials">Initials</label>
+      <input type="text" id="userInitials" placeholder="e.g. HK" maxlength="4">
+      <div class="dialog-actions">
+        <button class="btn-primary" onclick="setUser()">Enter Studio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="logo">PDF Markup <span>Studio</span></div>
+
+    <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="loadPDF(event)">
+    <button onclick="document.getElementById('fileInput').click()">Open PDF</button>
+
+    <div class="color-swatches" id="colorSwatches">
+      <div class="swatch active" style="background:#ff3b3b" data-color="#ff3b3b" onclick="setColor(this)"></div>
+      <div class="swatch" style="background:#3b8bff" data-color="#3b8bff" onclick="setColor(this)"></div>
+      <div class="swatch" style="background:#00ff88" data-color="#00ff88" onclick="setColor(this)"></div>
+      <div class="swatch" style="background:#ff9900" data-color="#ff9900" onclick="setColor(this)"></div>
+      <div class="swatch" style="background:#000000; border:1px solid #444" data-color="#000000" onclick="setColor(this)"></div>
+      <div class="swatch" style="background:#ffdd00" data-color="#ffdd00" onclick="setColor(this)"></div>
+      <input type="color" value="#ff3b3b" id="customColor" style="width:22px;height:22px;padding:0;border:none;cursor:pointer;background:transparent" onchange="setCustomColor(this.value)">
+    </div>
+
+    <div class="line-weight-btns">
+      <div class="lw-btn" data-weight="1" onclick="setWeight(this)" title="Thin"><div class="lw-line" style="height:1px"></div></div>
+      <div class="lw-btn active" data-weight="2" onclick="setWeight(this)" title="Medium"><div class="lw-line" style="height:2px"></div></div>
+      <div class="lw-btn" data-weight="4" onclick="setWeight(this)" title="Thick"><div class="lw-line" style="height:4px"></div></div>
+    </div>
+
+    <div style="flex:1"></div>
+
+    <button onclick="saveSession()" title="Save annotations to browser">Save</button>
+    <button onclick="exportPrint()" title="Print annotated document">Print</button>
+    <button onclick="switchUser()" title="Switch user profile" id="userBtn" style="color:var(--cyan)">--</button>
+    <button onclick="toggleComments()" title="Toggle comment panel">Comments</button>
+  </div>
+
+  <!-- Main area -->
+  <div class="main-area">
+    <!-- Left toolbar -->
+    <div class="toolbar" id="toolbar">
+      <button class="tool-btn active" data-tool="select" title="Select" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M4 4l7 18 2.5-7.5L21 12z"/></svg>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="highlight" title="Highlighter" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="1" fill="rgba(255,221,0,0.3)" stroke="currentColor"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="comment" title="Text Comment" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="textbox" title="Text Box" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 9h8M8 13h5"/></svg>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="rect" title="Rectangle" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="oval" title="Oval" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="arrow" title="Arrow" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M5 19L19 5M19 5h-6M19 5v6"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="line" title="Strikethrough" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="pen" title="Freehand Pen" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M12 20l-1-1c-3-3-5-5.5-5-8a5 5 0 0110 0c0 2.5-2 5-5 8z" fill="none"/><path d="M3 21l2-8 12-12 4 4-12 12z"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="cloud" title="Revision Cloud" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M5 17c-1.5 0-3-1-3-3 0-1.5 1-2.7 2.3-3C4.1 9.4 5.5 8 7.3 8c.5 0 1 .1 1.4.3C9.6 6.3 11.1 5 13 5c2.5 0 4.5 2 4.5 4.5 0 .3 0 .5-.1.8C19 10.8 20.5 12.3 20.5 14c0 2-1.5 3.5-3.5 3.5H5z"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="measure" title="Measure" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M2 12h20M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3M7 10v4M12 10v4M17 10v4"/></svg>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" data-tool="eraser" title="Eraser" onclick="setTool(this)">
+        <svg viewBox="0 0 24 24"><path d="M20 20H7L3 16l9-9 8 8-4 4"/><path d="M6 11l8 8"/></svg>
+      </button>
+      <button class="tool-btn" title="Clear All" onclick="clearAll()">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M5 6l1 14h12l1-14M10 10v8M14 10v8"/></svg>
+      </button>
+    </div>
+
+    <!-- Canvas container or welcome -->
+    <div class="canvas-container" id="canvasContainer">
+      <div class="welcome-screen" id="welcomeScreen">
+        <h2>PDF Markup Studio</h2>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+          <span style="font-size:14px">Drop PDF here or click to browse</span>
+          <span style="font-size:11px;color:var(--text-dim)">Supports any PDF document</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comment panel -->
+    <div class="comment-panel" id="commentPanel">
+      <div class="comment-header">
+        <span>Annotations</span>
+        <span id="annoCount" style="color:var(--text-dim);font-weight:400">0</span>
+      </div>
+      <div class="comment-list" id="commentList"></div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <div class="zoom-controls">
+      <button onclick="zoomChange(-0.15)" style="padding:2px 6px">-</button>
+      <span id="zoomLabel" style="min-width:40px;text-align:center">100%</span>
+      <button onclick="zoomChange(0.15)" style="padding:2px 6px">+</button>
+      <button onclick="zoomFit()" style="padding:2px 6px">Fit</button>
+    </div>
+    <span style="color:var(--border)">|</span>
+    <span>Page</span>
+    <button onclick="prevPage()" style="padding:2px 6px">&lt;</button>
+    <input type="number" id="pageInput" value="1" min="1" style="width:50px;text-align:center;font-size:14px" onchange="goToPage(this.value)">
+    <span>/ <span id="totalPages">0</span></span>
+    <button onclick="nextPage()" style="padding:2px 6px">&gt;</button>
+    <div style="flex:1"></div>
+    <span id="statusMsg" style="color:var(--text-dim)">No document loaded</span>
+  </div>
+</div>
+
+<script>
+// ─── PDF.js worker ───
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── State ───
+const LS_PREFIX = 'korb_pdfmark_';
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let zoomLevel = 1.0;
+let currentTool = 'select';
+let currentColor = '#ff3b3b';
+let currentWeight = 2;
+let userName = '';
+let userInitials = '';
+
+// Annotations per page: { pageNum: [annotation, ...] }
+let annotations = {};
+// Each annotation: { id, type, page, color, weight, user, initials, timestamp, data:{...} }
+
+let drawState = null; // temp state while drawing
+let pdfBytes = null; // raw PDF for re-render
+
+// ─── User setup ───
+function initUser() {
+  const saved = localStorage.getItem(LS_PREFIX + 'user');
+  if (saved) {
+    const u = JSON.parse(saved);
+    userName = u.name;
+    userInitials = u.initials;
+    document.getElementById('userDialog').style.display = 'none';
+    document.getElementById('userBtn').textContent = userInitials;
+  }
+}
+
+function setUser() {
+  const n = document.getElementById('userName').value.trim();
+  const i = document.getElementById('userInitials').value.trim().toUpperCase();
+  if (!n || !i) return;
+  userName = n;
+  userInitials = i;
+  localStorage.setItem(LS_PREFIX + 'user', JSON.stringify({ name: n, initials: i }));
+  document.getElementById('userDialog').style.display = 'none';
+  document.getElementById('userBtn').textContent = userInitials;
+}
+
+function switchUser() {
+  document.getElementById('userName').value = userName;
+  document.getElementById('userInitials').value = userInitials;
+  document.getElementById('userDialog').style.display = 'flex';
+}
+
+initUser();
+
+// ─── Tool / color / weight ───
+function setTool(btn) {
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTool = btn.dataset.tool;
+  updateCursors();
+}
+
+function setColor(el) {
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  currentColor = el.dataset.color;
+}
+
+function setCustomColor(c) {
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  currentColor = c;
+}
+
+function setWeight(el) {
+  document.querySelectorAll('.lw-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentWeight = parseInt(el.dataset.weight);
+}
+
+function updateCursors() {
+  document.querySelectorAll('.annotation-canvas').forEach(c => {
+    c.style.cursor = currentTool === 'select' ? 'default' : currentTool === 'eraser' ? 'not-allowed' : 'crosshair';
+  });
+}
+
+// ─── PDF Loading ───
+async function loadPDF(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  document.getElementById('statusMsg').textContent = 'Loading...';
+  const buf = await file.arrayBuffer();
+  pdfBytes = new Uint8Array(buf);
+  try {
+    pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
+    totalPages = pdfDoc.numPages;
+    currentPage = 1;
+    document.getElementById('totalPages').textContent = totalPages;
+    document.getElementById('pageInput').max = totalPages;
+    document.getElementById('welcomeScreen').style.display = 'none';
+
+    // Load saved annotations for this doc
+    loadSession();
+
+    await renderAllPages();
+    document.getElementById('statusMsg').textContent = file.name + ' (' + totalPages + ' pages)';
+  } catch (e) {
+    document.getElementById('statusMsg').textContent = 'Error: ' + e.message;
+  }
+}
+
+// Drag & drop
+const dz = document.getElementById('dropZone');
+const cc = document.getElementById('canvasContainer');
+['dragenter', 'dragover'].forEach(ev => {
+  cc.addEventListener(ev, e => { e.preventDefault(); dz && dz.classList.add('drag-over'); });
+  dz?.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag-over'); });
+});
+['dragleave', 'drop'].forEach(ev => {
+  cc.addEventListener(ev, () => dz && dz.classList.remove('drag-over'));
+  dz?.addEventListener(ev, () => dz.classList.remove('drag-over'));
+});
+cc.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') {
+    const dt = new DataTransfer();
+    dt.items.add(f);
+    document.getElementById('fileInput').files = dt.files;
+    loadPDF({ target: { files: [f] } });
+  }
+});
+
+// ─── Render ───
+async function renderAllPages() {
+  // Remove old page wrappers
+  document.querySelectorAll('.page-wrapper').forEach(w => w.remove());
+  document.querySelectorAll('.anno-pin, .anno-popup, .measure-label, .textbox-overlay').forEach(el => el.remove());
+
+  for (let p = 1; p <= totalPages; p++) {
+    await renderPage(p);
+  }
+  updateCursors();
+  renderAnnotationOverlays();
+  updateCommentPanel();
+}
+
+async function renderPage(pageNum) {
+  const page = await pdfDoc.getPage(pageNum);
+  const vp = page.getViewport({ scale: zoomLevel * 1.5 }); // 1.5 base for crisp rendering
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'page-wrapper';
+  wrapper.dataset.page = pageNum;
+  wrapper.style.width = vp.width + 'px';
+  wrapper.style.height = vp.height + 'px';
+
+  // PDF canvas
+  const pdfCanvas = document.createElement('canvas');
+  pdfCanvas.className = 'pdf-canvas';
+  pdfCanvas.width = vp.width;
+  pdfCanvas.height = vp.height;
+  pdfCanvas.style.width = vp.width + 'px';
+  pdfCanvas.style.height = vp.height + 'px';
+
+  const ctx = pdfCanvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+  // Annotation canvas
+  const annoCanvas = document.createElement('canvas');
+  annoCanvas.className = 'annotation-canvas';
+  annoCanvas.width = vp.width;
+  annoCanvas.height = vp.height;
+  annoCanvas.style.width = vp.width + 'px';
+  annoCanvas.style.height = vp.height + 'px';
+  annoCanvas.dataset.page = pageNum;
+
+  // Event listeners
+  annoCanvas.addEventListener('mousedown', e => onCanvasDown(e, pageNum));
+  annoCanvas.addEventListener('mousemove', e => onCanvasMove(e, pageNum));
+  annoCanvas.addEventListener('mouseup', e => onCanvasUp(e, pageNum));
+  annoCanvas.addEventListener('touchstart', e => onTouchStart(e, pageNum), { passive: false });
+  annoCanvas.addEventListener('touchmove', e => onTouchMove(e, pageNum), { passive: false });
+  annoCanvas.addEventListener('touchend', e => onTouchEnd(e, pageNum), { passive: false });
+
+  wrapper.appendChild(pdfCanvas);
+  wrapper.appendChild(annoCanvas);
+  document.getElementById('canvasContainer').appendChild(wrapper);
+}
+
+// ─── Coordinate helpers ───
+function getCanvasPos(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function getTouchPos(e, canvas) {
+  const t = e.touches[0] || e.changedTouches[0];
+  return getCanvasPos(t, canvas);
+}
+
+// ─── Drawing handlers ───
+function onCanvasDown(e, pageNum) {
+  const canvas = e.target;
+  const pos = getCanvasPos(e, canvas);
+  handleDown(pos, pageNum, canvas);
+}
+
+function onCanvasMove(e, pageNum) {
+  const canvas = e.target;
+  const pos = getCanvasPos(e, canvas);
+  handleMove(pos, pageNum, canvas);
+}
+
+function onCanvasUp(e, pageNum) {
+  const canvas = e.target;
+  const pos = getCanvasPos(e, canvas);
+  handleUp(pos, pageNum, canvas);
+}
+
+function onTouchStart(e, pageNum) {
+  e.preventDefault();
+  const canvas = e.target;
+  const pos = getTouchPos(e, canvas);
+  handleDown(pos, pageNum, canvas);
+}
+
+function onTouchMove(e, pageNum) {
+  e.preventDefault();
+  const canvas = e.target;
+  const pos = getTouchPos(e, canvas);
+  handleMove(pos, pageNum, canvas);
+}
+
+function onTouchEnd(e, pageNum) {
+  e.preventDefault();
+  const canvas = e.target;
+  const pos = getTouchPos(e, canvas);
+  handleUp(pos, pageNum, canvas);
+}
+
+function handleDown(pos, pageNum, canvas) {
+  if (currentTool === 'select') return;
+
+  if (currentTool === 'eraser') {
+    eraseAt(pos, pageNum);
+    return;
+  }
+
+  if (currentTool === 'comment') {
+    placeComment(pos, pageNum, canvas);
+    return;
+  }
+
+  if (currentTool === 'textbox') {
+    placeTextBox(pos, pageNum, canvas);
+    return;
+  }
+
+  // Arrow and measure need two clicks
+  if ((currentTool === 'arrow' || currentTool === 'measure') && drawState && drawState.tool === currentTool && drawState.page === pageNum) {
+    // Second click
+    drawState.x2 = pos.x;
+    drawState.y2 = pos.y;
+    finalizeShape(pageNum);
+    return;
+  }
+
+  drawState = {
+    tool: currentTool,
+    page: pageNum,
+    x1: pos.x,
+    y1: pos.y,
+    x2: pos.x,
+    y2: pos.y,
+    points: currentTool === 'pen' ? [{ x: pos.x, y: pos.y }] : null,
+    canvas: canvas
+  };
+
+  if (currentTool === 'arrow' || currentTool === 'measure') {
+    // Wait for second click
+    return;
+  }
+}
+
+function handleMove(pos, pageNum, canvas) {
+  if (!drawState || drawState.page !== pageNum) return;
+  if (currentTool === 'arrow' || currentTool === 'measure') {
+    // Preview line
+    drawState.x2 = pos.x;
+    drawState.y2 = pos.y;
+    drawPreview(canvas);
+    return;
+  }
+  if (currentTool === 'eraser') {
+    if (drawState) eraseAt(pos, pageNum);
+    return;
+  }
+  drawState.x2 = pos.x;
+  drawState.y2 = pos.y;
+  if (drawState.points) drawState.points.push({ x: pos.x, y: pos.y });
+  drawPreview(canvas);
+}
+
+function handleUp(pos, pageNum, canvas) {
+  if (!drawState || drawState.page !== pageNum) return;
+  if (currentTool === 'arrow' || currentTool === 'measure') return; // these use two clicks
+  if (currentTool === 'eraser') { drawState = null; return; }
+  drawState.x2 = pos.x;
+  drawState.y2 = pos.y;
+  finalizeShape(pageNum);
+}
+
+function drawPreview(canvas) {
+  if (!drawState) return;
+  const ctx = canvas.getContext('2d');
+  // Clear and redraw existing annotations first
+  redrawAnnotationCanvas(drawState.page);
+
+  ctx.strokeStyle = currentColor;
+  ctx.lineWidth = currentWeight * (zoomLevel * 1.5);
+  ctx.setLineDash([]);
+
+  const s = drawState;
+  const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2);
+  const w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1);
+
+  switch (s.tool) {
+    case 'highlight':
+      ctx.fillStyle = currentColor + '40';
+      ctx.fillRect(x, y, w, h);
+      break;
+    case 'rect':
+      ctx.strokeRect(x, y, w, h);
+      break;
+    case 'oval':
+      ctx.beginPath();
+      ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 'arrow':
+    case 'measure':
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+      if (s.tool === 'arrow') drawArrowHead(ctx, s.x1, s.y1, s.x2, s.y2);
+      break;
+    case 'line':
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+      break;
+    case 'pen':
+      if (s.points && s.points.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+        ctx.stroke();
+      }
+      break;
+    case 'cloud':
+      drawCloudRect(ctx, x, y, w, h, currentColor, currentWeight * (zoomLevel * 1.5));
+      break;
+  }
+}
+
+function finalizeShape(pageNum) {
+  if (!drawState) return;
+  const s = drawState;
+  const scale = zoomLevel * 1.5;
+
+  const anno = {
+    id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    type: s.tool,
+    page: pageNum,
+    color: currentColor,
+    weight: currentWeight,
+    user: userName,
+    initials: userInitials,
+    timestamp: new Date().toISOString(),
+    data: {}
+  };
+
+  // Normalize to scale-independent coords (divide by scale)
+  const x1 = s.x1 / scale, y1 = s.y1 / scale, x2 = s.x2 / scale, y2 = s.y2 / scale;
+
+  switch (s.tool) {
+    case 'highlight':
+      anno.data = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+      break;
+    case 'rect':
+      anno.data = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+      break;
+    case 'oval':
+      anno.data = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+      break;
+    case 'arrow':
+      anno.data = { x1, y1, x2, y2 };
+      break;
+    case 'line':
+      anno.data = { x1, y1, x2, y2 };
+      break;
+    case 'measure':
+      const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+      anno.data = { x1, y1, x2, y2, distance: Math.round(dist * 10) / 10 };
+      anno.text = dist.toFixed(1) + ' units';
+      break;
+    case 'pen':
+      anno.data = { points: s.points.map(p => ({ x: p.x / scale, y: p.y / scale })) };
+      break;
+    case 'cloud':
+      anno.data = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+      break;
+  }
+
+  if (!annotations[pageNum]) annotations[pageNum] = [];
+  annotations[pageNum].push(anno);
+
+  drawState = null;
+  redrawAnnotationCanvas(pageNum);
+  renderAnnotationOverlays();
+  updateCommentPanel();
+}
+
+// ─── Comment placement ───
+function placeComment(pos, pageNum, canvas) {
+  const scale = zoomLevel * 1.5;
+  const anno = {
+    id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    type: 'comment',
+    page: pageNum,
+    color: currentColor,
+    weight: currentWeight,
+    user: userName,
+    initials: userInitials,
+    timestamp: new Date().toISOString(),
+    data: { x: pos.x / scale, y: pos.y / scale },
+    text: ''
+  };
+
+  if (!annotations[pageNum]) annotations[pageNum] = [];
+  annotations[pageNum].push(anno);
+
+  renderAnnotationOverlays();
+  updateCommentPanel();
+
+  // Open popup for this comment
+  setTimeout(() => openCommentPopup(anno), 50);
+}
+
+function placeTextBox(pos, pageNum, canvas) {
+  const scale = zoomLevel * 1.5;
+  const anno = {
+    id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    type: 'textbox',
+    page: pageNum,
+    color: currentColor,
+    weight: currentWeight,
+    user: userName,
+    initials: userInitials,
+    timestamp: new Date().toISOString(),
+    data: { x: pos.x / scale, y: pos.y / scale, w: 150, h: 30 },
+    text: ''
+  };
+
+  if (!annotations[pageNum]) annotations[pageNum] = [];
+  annotations[pageNum].push(anno);
+
+  renderAnnotationOverlays();
+  updateCommentPanel();
+
+  setTimeout(() => openTextBoxEdit(anno), 50);
+}
+
+// ─── Erase ───
+function eraseAt(pos, pageNum) {
+  const scale = zoomLevel * 1.5;
+  const nx = pos.x / scale, ny = pos.y / scale;
+  const pg = annotations[pageNum];
+  if (!pg) return;
+  const threshold = 15;
+
+  for (let i = pg.length - 1; i >= 0; i--) {
+    const a = pg[i];
+    let hit = false;
+    switch (a.type) {
+      case 'highlight':
+      case 'rect':
+      case 'cloud':
+        hit = nx >= a.data.x && nx <= a.data.x + a.data.w && ny >= a.data.y && ny <= a.data.y + a.data.h;
+        break;
+      case 'oval':
+        const cx = a.data.x + a.data.w/2, cy = a.data.y + a.data.h/2;
+        hit = ((nx - cx) / (a.data.w/2))**2 + ((ny - cy) / (a.data.h/2))**2 <= 1;
+        break;
+      case 'arrow':
+      case 'line':
+      case 'measure':
+        hit = distToSegment(nx, ny, a.data.x1, a.data.y1, a.data.x2, a.data.y2) < threshold;
+        break;
+      case 'pen':
+        if (a.data.points) {
+          for (const p of a.data.points) {
+            if (Math.abs(p.x - nx) < threshold && Math.abs(p.y - ny) < threshold) { hit = true; break; }
+          }
+        }
+        break;
+      case 'comment':
+      case 'textbox':
+        hit = Math.abs(a.data.x - nx) < threshold && Math.abs(a.data.y - ny) < threshold;
+        break;
+    }
+    if (hit) {
+      pg.splice(i, 1);
+      redrawAnnotationCanvas(pageNum);
+      renderAnnotationOverlays();
+      updateCommentPanel();
+      return;
+    }
+  }
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.sqrt((px - (x1 + t * dx)) ** 2 + (py - (y1 + t * dy)) ** 2);
+}
+
+// ─── Redraw annotation canvas ───
+function redrawAnnotationCanvas(pageNum) {
+  const canvas = document.querySelector(`.annotation-canvas[data-page="${pageNum}"]`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const pg = annotations[pageNum];
+  if (!pg) return;
+  const scale = zoomLevel * 1.5;
+
+  for (const a of pg) {
+    ctx.strokeStyle = a.color;
+    ctx.fillStyle = a.color;
+    ctx.lineWidth = a.weight * scale;
+    ctx.setLineDash([]);
+
+    const d = a.data;
+    switch (a.type) {
+      case 'highlight':
+        ctx.fillStyle = a.color + '40';
+        ctx.fillRect(d.x * scale, d.y * scale, d.w * scale, d.h * scale);
+        break;
+      case 'rect':
+        ctx.strokeRect(d.x * scale, d.y * scale, d.w * scale, d.h * scale);
+        break;
+      case 'oval':
+        ctx.beginPath();
+        ctx.ellipse((d.x + d.w/2) * scale, (d.y + d.h/2) * scale, (d.w/2) * scale, (d.h/2) * scale, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      case 'arrow':
+        ctx.beginPath();
+        ctx.moveTo(d.x1 * scale, d.y1 * scale);
+        ctx.lineTo(d.x2 * scale, d.y2 * scale);
+        ctx.stroke();
+        drawArrowHead(ctx, d.x1 * scale, d.y1 * scale, d.x2 * scale, d.y2 * scale);
+        break;
+      case 'line':
+        ctx.beginPath();
+        ctx.moveTo(d.x1 * scale, d.y1 * scale);
+        ctx.lineTo(d.x2 * scale, d.y2 * scale);
+        ctx.stroke();
+        break;
+      case 'measure':
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(d.x1 * scale, d.y1 * scale);
+        ctx.lineTo(d.x2 * scale, d.y2 * scale);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Endpoints
+        ctx.fillStyle = a.color;
+        ctx.beginPath(); ctx.arc(d.x1 * scale, d.y1 * scale, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(d.x2 * scale, d.y2 * scale, 4, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'pen':
+        if (d.points && d.points.length > 1) {
+          ctx.beginPath();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.moveTo(d.points[0].x * scale, d.points[0].y * scale);
+          for (let i = 1; i < d.points.length; i++) ctx.lineTo(d.points[i].x * scale, d.points[i].y * scale);
+          ctx.stroke();
+        }
+        break;
+      case 'cloud':
+        drawCloudRect(ctx, d.x * scale, d.y * scale, d.w * scale, d.h * scale, a.color, a.weight * scale);
+        break;
+      case 'textbox':
+        ctx.font = (14 * scale / 1.5) + 'px JetBrains Mono';
+        ctx.fillStyle = a.color;
+        if (a.text) {
+          const lines = a.text.split('\n');
+          lines.forEach((line, i) => {
+            ctx.fillText(line, d.x * scale, (d.y + 14 + i * 16) * scale / 1);
+          });
+        }
+        break;
+    }
+  }
+}
+
+function drawArrowHead(ctx, x1, y1, x2, y2) {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = 14;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - len * Math.cos(angle - Math.PI/6), y2 - len * Math.sin(angle - Math.PI/6));
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - len * Math.cos(angle + Math.PI/6), y2 - len * Math.sin(angle + Math.PI/6));
+  ctx.stroke();
+}
+
+function drawCloudRect(ctx, x, y, w, h, color, lw) {
+  if (w < 4 || h < 4) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+
+  const bump = 12;
+  // Top edge
+  let nx = Math.max(2, Math.floor(w / bump));
+  let dx = w / nx;
+  for (let i = 0; i < nx; i++) {
+    ctx.arc(x + dx * i + dx/2, y, dx/2, Math.PI, 0, false);
+  }
+  // Right edge
+  let ny = Math.max(2, Math.floor(h / bump));
+  let dy = h / ny;
+  for (let i = 0; i < ny; i++) {
+    ctx.arc(x + w, y + dy * i + dy/2, dy/2, -Math.PI/2, Math.PI/2, false);
+  }
+  // Bottom edge
+  for (let i = nx - 1; i >= 0; i--) {
+    ctx.arc(x + dx * i + dx/2, y + h, dx/2, 0, Math.PI, false);
+  }
+  // Left edge
+  for (let i = ny - 1; i >= 0; i--) {
+    ctx.arc(x, y + dy * i + dy/2, dy/2, Math.PI/2, -Math.PI/2, false);
+  }
+
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// ─── Overlays (pins, measure labels, textbox) ───
+function renderAnnotationOverlays() {
+  // Remove old
+  document.querySelectorAll('.anno-pin, .anno-popup, .measure-label').forEach(el => el.remove());
+
+  const scale = zoomLevel * 1.5;
+
+  for (const pageNum in annotations) {
+    const wrapper = document.querySelector(`.page-wrapper[data-page="${pageNum}"]`);
+    if (!wrapper) continue;
+    for (const a of annotations[pageNum]) {
+      if (a.type === 'comment') {
+        const pin = document.createElement('div');
+        pin.className = 'anno-pin';
+        pin.style.left = (a.data.x * scale) + 'px';
+        pin.style.top = (a.data.y * scale) + 'px';
+        pin.style.background = a.color;
+        pin.innerHTML = `<span class="pin-label">${a.initials || '?'}</span>`;
+        pin.onclick = () => openCommentPopup(a);
+        wrapper.appendChild(pin);
+      }
+      if (a.type === 'measure' && a.data.distance) {
+        const lbl = document.createElement('div');
+        lbl.className = 'measure-label';
+        const mx = ((a.data.x1 + a.data.x2) / 2) * scale;
+        const my = ((a.data.y1 + a.data.y2) / 2) * scale - 14;
+        lbl.style.left = mx + 'px';
+        lbl.style.top = my + 'px';
+        lbl.textContent = a.data.distance.toFixed(1) + ' units';
+        wrapper.appendChild(lbl);
+      }
+    }
+  }
+}
+
+function openCommentPopup(anno) {
+  // Remove existing popups
+  document.querySelectorAll('.anno-popup').forEach(el => el.remove());
+
+  const scale = zoomLevel * 1.5;
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${anno.page}"]`);
+  if (!wrapper) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'anno-popup';
+  popup.style.left = (anno.data.x * scale + 24) + 'px';
+  popup.style.top = (anno.data.y * scale) + 'px';
+
+  const ts = new Date(anno.timestamp);
+  const timeStr = ts.toLocaleString();
+
+  popup.innerHTML = `
+    <div class="popup-meta">${anno.user} (${anno.initials}) &mdash; ${timeStr}</div>
+    <textarea placeholder="Add comment...">${anno.text || ''}</textarea>
+    <div class="popup-actions">
+      <button onclick="deleteAnnotation('${anno.id}', ${anno.page})">Delete</button>
+      <button class="btn-primary" onclick="saveComment(this, '${anno.id}', ${anno.page})">Save</button>
+    </div>
+  `;
+
+  wrapper.appendChild(popup);
+  popup.querySelector('textarea').focus();
+}
+
+function saveComment(btn, id, pageNum) {
+  const popup = btn.closest('.anno-popup');
+  const text = popup.querySelector('textarea').value;
+  const pg = annotations[pageNum];
+  if (pg) {
+    const a = pg.find(x => x.id === id);
+    if (a) a.text = text;
+  }
+  popup.remove();
+  updateCommentPanel();
+}
+
+function deleteAnnotation(id, pageNum) {
+  const pg = annotations[pageNum];
+  if (pg) {
+    const idx = pg.findIndex(x => x.id === id);
+    if (idx >= 0) pg.splice(idx, 1);
+  }
+  document.querySelectorAll('.anno-popup').forEach(el => el.remove());
+  redrawAnnotationCanvas(pageNum);
+  renderAnnotationOverlays();
+  updateCommentPanel();
+}
+
+function openTextBoxEdit(anno) {
+  const scale = zoomLevel * 1.5;
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${anno.page}"]`);
+  if (!wrapper) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'textbox-overlay';
+  overlay.style.left = (anno.data.x * scale) + 'px';
+  overlay.style.top = (anno.data.y * scale) + 'px';
+  overlay.style.color = anno.color;
+
+  const ta = document.createElement('textarea');
+  ta.value = anno.text || '';
+  ta.style.color = anno.color;
+  ta.style.fontSize = (14 * scale / 1.5) + 'px';
+  overlay.appendChild(ta);
+  wrapper.appendChild(overlay);
+
+  ta.focus();
+  ta.addEventListener('blur', () => {
+    anno.text = ta.value;
+    overlay.remove();
+    redrawAnnotationCanvas(anno.page);
+    updateCommentPanel();
+  });
+}
+
+// ─── Comment panel ───
+function updateCommentPanel() {
+  const list = document.getElementById('commentList');
+  list.innerHTML = '';
+  let count = 0;
+
+  const allAnnos = [];
+  for (const p in annotations) {
+    for (const a of annotations[p]) {
+      allAnnos.push(a);
+    }
+  }
+
+  allAnnos.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  for (const a of allAnnos) {
+    count++;
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.style.borderLeftColor = a.color;
+    const ts = new Date(a.timestamp);
+    const typeLabel = a.type.charAt(0).toUpperCase() + a.type.slice(1);
+    div.innerHTML = `
+      <div class="cm-type">${typeLabel}</div>
+      ${a.text ? `<div class="cm-text">${escHtml(a.text)}</div>` : ''}
+      <div class="cm-meta">
+        <span>${a.user || 'Unknown'} (${a.initials || '?'})</span>
+        <span>Pg ${a.page} &bull; ${ts.toLocaleTimeString()}</span>
+      </div>
+    `;
+    div.onclick = () => scrollToAnnotation(a);
+    list.appendChild(div);
+  }
+
+  document.getElementById('annoCount').textContent = count;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function scrollToAnnotation(anno) {
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${anno.page}"]`);
+  if (wrapper) {
+    wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Flash the wrapper
+    wrapper.style.outline = '3px solid ' + anno.color;
+    setTimeout(() => wrapper.style.outline = '', 1500);
+  }
+}
+
+function toggleComments() {
+  document.getElementById('commentPanel').classList.toggle('collapsed');
+}
+
+// ─── Page navigation ───
+function prevPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    document.getElementById('pageInput').value = currentPage;
+    scrollToPage(currentPage);
+  }
+}
+
+function nextPage() {
+  if (currentPage < totalPages) {
+    currentPage++;
+    document.getElementById('pageInput').value = currentPage;
+    scrollToPage(currentPage);
+  }
+}
+
+function goToPage(val) {
+  const p = parseInt(val);
+  if (p >= 1 && p <= totalPages) {
+    currentPage = p;
+    scrollToPage(p);
+  }
+}
+
+function scrollToPage(p) {
+  const wrapper = document.querySelector(`.page-wrapper[data-page="${p}"]`);
+  if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Track current page on scroll
+document.getElementById('canvasContainer').addEventListener('scroll', () => {
+  const wrappers = document.querySelectorAll('.page-wrapper');
+  const container = document.getElementById('canvasContainer');
+  const containerRect = container.getBoundingClientRect();
+  const mid = containerRect.top + containerRect.height / 3;
+
+  for (const w of wrappers) {
+    const r = w.getBoundingClientRect();
+    if (r.top <= mid && r.bottom >= mid) {
+      currentPage = parseInt(w.dataset.page);
+      document.getElementById('pageInput').value = currentPage;
+      break;
+    }
+  }
+});
+
+// ─── Zoom ───
+function zoomChange(delta) {
+  zoomLevel = Math.max(0.25, Math.min(4, zoomLevel + delta));
+  document.getElementById('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%';
+  if (pdfDoc) renderAllPages();
+}
+
+function zoomFit() {
+  const containerWidth = document.getElementById('canvasContainer').clientWidth - 60;
+  // Estimate page width at scale 1
+  if (!pdfDoc) return;
+  pdfDoc.getPage(1).then(page => {
+    const vp = page.getViewport({ scale: 1.5 });
+    zoomLevel = Math.min(2, containerWidth / vp.width);
+    document.getElementById('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%';
+    renderAllPages();
+  });
+}
+
+// ─── Save/Load session ───
+function saveSession() {
+  try {
+    localStorage.setItem(LS_PREFIX + 'annotations', JSON.stringify(annotations));
+    document.getElementById('statusMsg').textContent = 'Session saved (' + new Date().toLocaleTimeString() + ')';
+  } catch (e) {
+    document.getElementById('statusMsg').textContent = 'Save error: ' + e.message;
+  }
+}
+
+function loadSession() {
+  try {
+    const data = localStorage.getItem(LS_PREFIX + 'annotations');
+    if (data) {
+      annotations = JSON.parse(data);
+      document.getElementById('statusMsg').textContent = 'Session restored';
+    }
+  } catch (e) {
+    annotations = {};
+  }
+}
+
+// ─── Clear all ───
+function clearAll() {
+  if (!confirm('Clear ALL annotations on ALL pages?')) return;
+  annotations = {};
+  for (let p = 1; p <= totalPages; p++) redrawAnnotationCanvas(p);
+  renderAnnotationOverlays();
+  updateCommentPanel();
+}
+
+// ─── Print/Export ───
+function exportPrint() {
+  // Flatten annotations onto PDF canvases for printing
+  document.querySelectorAll('.page-wrapper').forEach(wrapper => {
+    const pageNum = parseInt(wrapper.dataset.page);
+    const pdfCanvas = wrapper.querySelector('.pdf-canvas');
+    const annoCanvas = wrapper.querySelector('.annotation-canvas');
+    const pdfCtx = pdfCanvas.getContext('2d');
+    pdfCtx.drawImage(annoCanvas, 0, 0);
+  });
+
+  window.print();
+
+  // Re-render to un-flatten
+  if (pdfDoc) renderAllPages();
+}
+
+// ─── Keyboard shortcuts ───
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case 'v': case 'V': clickTool('select'); break;
+    case 'h': case 'H': clickTool('highlight'); break;
+    case 'c': case 'C': clickTool('comment'); break;
+    case 'r': case 'R': clickTool('rect'); break;
+    case 'o': case 'O': clickTool('oval'); break;
+    case 'a': case 'A': clickTool('arrow'); break;
+    case 'p': case 'P': clickTool('pen'); break;
+    case 't': case 'T': clickTool('textbox'); break;
+    case 'm': case 'M': clickTool('measure'); break;
+    case 'e': case 'E': clickTool('eraser'); break;
+    case 's':
+      if (e.ctrlKey || e.metaKey) { e.preventDefault(); saveSession(); }
+      else clickTool('line');
+      break;
+    case '+': case '=': zoomChange(0.15); break;
+    case '-': zoomChange(-0.15); break;
+    case 'Escape': drawState = null; document.querySelectorAll('.anno-popup').forEach(el => el.remove()); break;
+  }
+});
+
+function clickTool(name) {
+  const btn = document.querySelector(`.tool-btn[data-tool="${name}"]`);
+  if (btn) setTool(btn);
+}
+</script>
+</body>
+</html>

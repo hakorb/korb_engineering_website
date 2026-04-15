@@ -1,18 +1,20 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-13T01:31:57.227Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T00:08:18.282Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **265**
+- Total tools scanned: **267**
 - Clean (no findings): **106**
-- With findings:       **159**
+- With findings:       **161**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[a11y]` | 137 |
+| `[polish]` | 1 |
+| `[a11y]` | 140 |
+| `[deps]` | 1 |
 
 ## aviation (38 of 55 with findings)
 
@@ -256,7 +258,7 @@ _Generated 2026-04-13T01:31:57.227Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (69 of 130 with findings)
+## misc (71 of 132 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -428,6 +430,12 @@ _Generated 2026-04-13T01:31:57.227Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/misc/painting-studio.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/misc/pdf-markup-studio.html
+- `[polish]` viewport lacks viewport-fit=cover (safe-area insets unused)
+- `[a11y]` no <meta name="description">
+- `[a11y]` uses native confirm() (prefer KorbUI)
+- `[deps]` external CDN: cdnjs.cloudflare.com
+
 ### tools/misc/photo-forge.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
 
@@ -439,6 +447,10 @@ _Generated 2026-04-13T01:31:57.227Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/retro-arcade.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/sop-creator.html
+- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/speak-and-spell.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
