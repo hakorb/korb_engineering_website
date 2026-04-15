@@ -1,19 +1,19 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T02:46:00.514Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **268**
+- Total tools scanned: **270**
 - Clean (no findings): **106**
-- With findings:       **162**
+- With findings:       **164**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
 | `[polish]` | 1 |
-| `[a11y]` | 141 |
+| `[a11y]` | 143 |
 | `[deps]` | 1 |
 
 ## aviation (38 of 55 with findings)
@@ -142,7 +142,7 @@ _Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/aviation/wind-rose-generator.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
-## civil (36 of 59 with findings)
+## civil (37 of 60 with findings)
 
 ### tools/civil/DailyFieldReport.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -201,6 +201,10 @@ _Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/meeting-minutes.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
+### tools/civil/monte-carlo-simulation.html
+- `[a11y]` uses native alert(), prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
 ### tools/civil/openfoam-cfd.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
@@ -258,7 +262,7 @@ _Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (72 of 133 with findings)
+## misc (73 of 134 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -333,6 +337,9 @@ _Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/evans-daily-sweepstakes.html
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
+
+### tools/misc/evans-zoo-pals 2.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/evans-zoo-pals.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
