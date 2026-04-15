@@ -35,6 +35,11 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
 
 /* LEVEL SELECT */
 .level-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:16px;max-width:400px;width:100%}
+.combo-bar-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,0,255,0.12);overflow:hidden;pointer-events:none}
+.combo-bar{height:100%;background:#ff00ff;transition:width 0.1s linear;box-shadow:0 0 6px #ff00ff}
+.ability-hint{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:9px;color:#ffeb3b;text-shadow:0 0 10px #ffeb3b;pointer-events:none;animation:abilityPulse 0.7s ease-in-out infinite;white-space:nowrap}
+@keyframes abilityPulse{0%,100%{opacity:1;transform:translateX(-50%) scale(1)}50%{opacity:0.4;transform:translateX(-50%) scale(0.95)}}
+.level-banner{position:absolute;top:60px;left:50%;transform:translateX(-50%);font-family:'Press Start 2P',monospace;font-size:clamp(9px,2.2vw,13px);color:#00e5ff;text-shadow:0 0 20px #00e5ff;pointer-events:none;text-align:center;white-space:nowrap}
 .level-btn{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Press Start 2P',monospace;font-size:13px;border:2px solid #00e5ff;background:rgba(0,229,255,.05);color:#00e5ff;border-radius:10px;cursor:pointer;min-height:50px;position:relative;transition:all .18s;text-shadow:0 0 6px #00e5ff}
 .level-btn:active:not(.locked){transform:scale(.9);box-shadow:0 0 14px rgba(0,229,255,.4)}
 .level-btn.locked{border-color:#1a1a2e;color:#2a2a4a;cursor:default;text-shadow:none;background:rgba(0,0,0,.3)}
@@ -129,6 +134,9 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
         <div class="hud-powerup" id="hud-powerup" style="display:none"></div>
       </div>
     </div>
+    <div class="combo-bar-wrap"><div class="combo-bar" id="combo-bar" style="width:0%"></div></div>
+    <div class="ability-hint" id="ability-hint" style="display:none"></div>
+    <div class="level-banner" id="level-banner" style="display:none"></div>
     <div class="ball-queue" id="ball-queue"></div>
   </div>
 
@@ -172,13 +180,14 @@ const C = {
   STEEL: '#8899aa',
   WOOD: '#8B5E3C',
   GLASS_CLR: 'rgba(150,230,255,0.28)',
-  GRAVITY: 1.2,
+  GRAVITY: 0.9,
   MAX_PULL: 120,
   SLING_ARM: 54,
-  TRAJ_DOTS: 18,
+  TRAJ_DOTS: 28,
   TRAJ_STEP: 0.06,
   BALL_RADIUS: 14,
   WALL_T: 60,
+  LAUNCH_FORCE: 32,
   STORE_KEY_PROG: 'korb_angryskeeball_progress',
   STORE_KEY_SET: 'korb_angryskeeball_settings',
   STORE_KEY_TOT: 'korb_angryskeeball_total',
@@ -186,11 +195,11 @@ const C = {
 
 // Ball type configs
 const BALL_TYPES = {
-  standard: { color: C.CYAN, glow: C.CYAN, mass: 1, restitution: 0.4, label: 'STD', frictionAir: 0.012 },
-  heavy:    { color: C.ORANGE, glow: C.ORANGE, mass: 2.8, restitution: 0.15, label: 'HVY', frictionAir: 0.018 },
-  bouncy:   { color: C.MAGENTA, glow: C.MAGENTA, mass: 0.7, restitution: 0.88, label: 'BNC', frictionAir: 0.008 },
-  curve:    { color: C.GREEN, glow: C.GREEN, mass: 0.9, restitution: 0.35, label: 'CRV', frictionAir: 0.01 },
-  bomb:     { color: C.RED, glow: C.RED, mass: 1.5, restitution: 0.2, label: 'BMB', frictionAir: 0.015 },
+  standard: { color: C.CYAN,    glow: C.CYAN,    mass: 1.0, restitution: 0.45, label: 'STD', frictionAir: 0.010, trailStyle: 'normal'  },
+  heavy:    { color: C.ORANGE,  glow: C.ORANGE,  mass: 2.8, restitution: 0.15, label: 'HVY', frictionAir: 0.022, trailStyle: 'heavy'   },
+  bouncy:   { color: C.MAGENTA, glow: C.MAGENTA, mass: 0.6, restitution: 0.95, label: 'BNC', frictionAir: 0.006, trailStyle: 'sparkle' },
+  curve:    { color: C.GREEN,   glow: C.GREEN,   mass: 0.8, restitution: 0.35, label: 'CRV', frictionAir: 0.009, trailStyle: 'normal'  },
+  bomb:     { color: C.RED,     glow: C.RED,     mass: 1.5, restitution: 0.20, label: 'BMB', frictionAir: 0.013, trailStyle: 'smoke'   },
 };
 
 // ============================================================
@@ -274,6 +283,68 @@ const LEVEL_DEFS = [
       {type:'glass', fx:0.38, fy:0.56, fw:0.12, fh:0.025, angle:0},
       {type:'glass', fx:0.62, fy:0.56, fw:0.12, fh:0.025, angle:0},
     ], powerups:[{type:'precision',fx:0.30,fy:0.34},{type:'2x',fx:0.70,fy:0.34}] },
+  // Level 11: Turbulence
+  { name:'TURBULENCE', stars:[1800,2800,4000], balls:['curve','standard','standard'], wind:0.6,
+    obstacles:[
+      {type:'glass', fx:0.30, fy:0.40, fw:0.16, fh:0.025, angle:-0.2},
+      {type:'glass', fx:0.60, fy:0.40, fw:0.16, fh:0.025, angle:0.2},
+      {type:'glass', fx:0.45, fy:0.52, fw:0.20, fh:0.025, angle:0},
+      {type:'steel', fx:0.22, fy:0.56, fw:0.12, fh:0.025, angle:0.4},
+      {type:'steel', fx:0.78, fy:0.56, fw:0.12, fh:0.025, angle:-0.4},
+    ], powerups:[{type:'precision',fx:0.50,fy:0.35}] },
+  // Level 12: Pinball
+  { name:'PINBALL', stars:[2000,3200,4500], balls:['bouncy','bouncy','standard','curve'], wind:0,
+    obstacles:[
+      {type:'bumper', fx:0.28, fy:0.36, fr:0.038},
+      {type:'bumper', fx:0.50, fy:0.32, fr:0.038},
+      {type:'bumper', fx:0.72, fy:0.36, fr:0.038},
+      {type:'bumper', fx:0.36, fy:0.50, fr:0.032},
+      {type:'bumper', fx:0.64, fy:0.50, fr:0.032},
+      {type:'bumper', fx:0.50, fy:0.58, fr:0.032},
+      {type:'bouncePad', fx:0.25, fy:0.64, fw:0.10, fh:0.022, angle:-0.5},
+      {type:'bouncePad', fx:0.75, fy:0.64, fw:0.10, fh:0.022, angle:0.5},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.44}] },
+  // Level 13: Labyrinth
+  { name:'LABYRINTH', stars:[2200,3500,5000], balls:['heavy','standard','bomb'], wind:0.1,
+    obstacles:[
+      {type:'steel', fx:0.22, fy:0.35, fw:0.20, fh:0.025, angle:0},
+      {type:'steel', fx:0.60, fy:0.38, fw:0.22, fh:0.025, angle:0},
+      {type:'steel', fx:0.35, fy:0.48, fw:0.18, fh:0.025, angle:0.25},
+      {type:'steel', fx:0.68, fy:0.52, fw:0.18, fh:0.025, angle:-0.25},
+      {type:'steel', fx:0.25, fy:0.60, fw:0.16, fh:0.025, angle:0},
+      {type:'steel', fx:0.65, fy:0.62, fw:0.16, fh:0.025, angle:0},
+      {type:'wood',  fx:0.50, fy:0.55, fw:0.14, fh:0.022, angle:0},
+    ], powerups:[] },
+  // Level 14: Chaos Engine
+  { name:'CHAOS ENGINE', stars:[2500,4000,5800], balls:['bomb','curve','bouncy','heavy'], wind:0.4,
+    obstacles:[
+      {type:'windmill', fx:0.25, fy:0.38, flen:0.11, speed:2.5},
+      {type:'windmill', fx:0.50, fy:0.44, flen:0.11, speed:-3.0},
+      {type:'windmill', fx:0.75, fy:0.38, flen:0.11, speed:2.0},
+      {type:'gravity',  fx:0.35, fy:0.52, fr:0.055, strength:0.0007},
+      {type:'gravity',  fx:0.65, fy:0.52, fr:0.055, strength:0.0007},
+      {type:'mover',    fx:0.50, fy:0.64, fw:0.18, fh:0.025, rangeX:0.20, speed:1.6},
+      {type:'glass',    fx:0.30, fy:0.58, fw:0.12, fh:0.025, angle:0.3},
+      {type:'glass',    fx:0.70, fy:0.58, fw:0.12, fh:0.025, angle:-0.3},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.30}] },
+  // Level 15: Grand Master
+  { name:'GRAND MASTER', stars:[3500,5500,8000], balls:['bomb','curve','bouncy','heavy','standard'], wind:0.45,
+    obstacles:[
+      {type:'windmill', fx:0.20, fy:0.36, flen:0.12, speed:2.8},
+      {type:'windmill', fx:0.80, fy:0.36, flen:0.12, speed:-2.4},
+      {type:'windmill', fx:0.50, fy:0.50, flen:0.10, speed:3.2},
+      {type:'gravity',  fx:0.38, fy:0.44, fr:0.06, strength:0.0009},
+      {type:'gravity',  fx:0.62, fy:0.44, fr:0.06, strength:0.0009},
+      {type:'bumper',   fx:0.27, fy:0.54, fr:0.038},
+      {type:'bumper',   fx:0.73, fy:0.54, fr:0.038},
+      {type:'bumper',   fx:0.50, fy:0.60, fr:0.035},
+      {type:'mover',    fx:0.28, fy:0.65, fw:0.14, fh:0.022, rangeX:0.12, speed:1.8},
+      {type:'mover',    fx:0.72, fy:0.65, fw:0.14, fh:0.022, rangeX:0.12, speed:-1.8},
+      {type:'steel',    fx:0.50, fy:0.40, fw:0.10, fh:0.022, angle:0},
+      {type:'glass',    fx:0.35, fy:0.58, fw:0.12, fh:0.022, angle:0.15},
+      {type:'glass',    fx:0.65, fy:0.58, fw:0.12, fh:0.022, angle:-0.15},
+      {type:'wood',     fx:0.50, fy:0.68, fw:0.20, fh:0.022, angle:0},
+    ], powerups:[{type:'precision',fx:0.25,fy:0.30},{type:'2x',fx:0.75,fy:0.30}] },
 ];
 
 // ============================================================
@@ -312,6 +383,17 @@ let G = {
   levelStartTime: 0,
   ballsFired: 0,
   totalScore: 0,
+  // settle detection
+  settleFrames: 0,
+  // level transition
+  levelBannerAlpha: 0,
+  levelBannerTimer: 0,
+  // bumper flash
+  bumperFlash: {},     // bodyId -> flash timer
+  // star animation
+  starAnimFrame: 0,
+  // in-flight hint
+  showAbilityHint: false,
 };
 
 let progress = JSON.parse(localStorage.getItem(C.STORE_KEY_PROG)||'{"unlocked":1,"stars":[]}');
@@ -356,7 +438,7 @@ let engine, world;
 
 function initEngine() {
   if (engine) { Engine.clear(engine); World.clear(world); }
-  engine = Engine.create({ gravity: { x: 0, y: C.GRAVITY } });
+  engine = Engine.create({ gravity: { x: 0, y: C.GRAVITY }, positionIterations: 10, velocityIterations: 8 });
   world = engine.world;
 }
 
@@ -381,12 +463,34 @@ function playTone(freq, type, dur, vol=0.18, detune=0) {
     o.start(); o.stop(a.currentTime + dur);
   } catch(e){}
 }
-function sfxLaunch()  { playTone(220,'sawtooth',0.18,0.12); playTone(330,'square',0.12,0.08,20); }
-function sfxHit()     { playTone(150,'square',0.12,0.15); }
-function sfxScore(pts){ playTone(440+pts*2,'sine',0.22,0.18); }
-function sfxBreak()   { playTone(100,'sawtooth',0.25,0.22,-10); playTone(80,'noise'||'square',0.2,0.15); }
-function sfxCombo()   { playTone(660,'sine',0.3,0.2); }
-function sfxBounce()  { playTone(350,'sine',0.08,0.1); }
+function sfxLaunch()  { playTone(220,'sawtooth',0.18,0.14); playTone(330,'square',0.12,0.08,20); playTone(110,'sawtooth',0.1,0.1,-15); }
+function sfxHit()     { playTone(150,'square',0.14,0.18); }
+function sfxSteelHit(){ playTone(800,'sine',0.07,0.14); playTone(1200,'sine',0.05,0.10,30); playTone(200,'square',0.06,0.12); }
+function sfxScore(pts){ playTone(440+pts*2,'sine',0.22,0.20); if(pts>=50) playTone(880,'sine',0.18,0.14); }
+function sfxBreak()   { playTone(100,'sawtooth',0.28,0.22,-10); playTone(80,'square',0.2,0.15); }
+function sfxCombo()   { playTone(660,'sine',0.3,0.22); playTone(880,'sine',0.2,0.14); }
+function sfxBounce()  { playTone(350,'sine',0.09,0.12); }
+function sfxBumper()  { playTone(500,'sawtooth',0.12,0.18); playTone(700,'sine',0.08,0.12); }
+function sfxHole(pts) { playTone(600+pts*3,'sine',0.35,0.22); playTone(900+pts*4,'sine',0.25,0.16); }
+
+let lastStretchVol = 0;
+function playStretchSound(t) {
+  if(!settings.sound) return;
+  // Only play every ~5 frames worth of movement, increasing pitch
+  if(Math.abs(t - lastStretchVol) < 0.06) return;
+  lastStretchVol = t;
+  try {
+    const a = getAudio();
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type = 'sawtooth';
+    o.frequency.value = 120 + t * 180;
+    g.gain.setValueAtTime(0.04, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.06);
+    o.start(); o.stop(a.currentTime + 0.06);
+  } catch(e){}
+}
 
 // ============================================================
 // BACKGROUND RENDERING
@@ -456,61 +560,151 @@ function drawBackground(t) {
 }
 
 // ============================================================
-// SCORING RINGS DRAWING
+// SCORING TARGETS — skeeball backboard with 5 holes in arc
 // ============================================================
-const RING_CONFIG = [
-  { pts:10,  color:'#6688ff', radius:0 },
-  { pts:20,  color:'#00e5ff', radius:0 },
-  { pts:30,  color:'#7cff00', radius:0 },
-  { pts:50,  color:'#ff9900', radius:0 },
-  { pts:100, color:'#ff00ff', radius:0 },
+// Hole layout: 5 holes in a semi-circle arc at top of screen
+// outer-left=10, outer-right=10, mid-left=20, mid-right=20, center=100
+const HOLE_CONFIG = [
+  { pts:10,  color:'#6688ff', arcAngle: Math.PI*1.12 },  // far left
+  { pts:10,  color:'#6688ff', arcAngle: Math.PI*0.88 },  // far right
+  { pts:20,  color:'#00e5ff', arcAngle: Math.PI*1.22 },  // mid left — reordered below
+  { pts:20,  color:'#00e5ff', arcAngle: Math.PI*0.78 },  // mid right
+  { pts:100, color:'#ff00ff', arcAngle: Math.PI*1.50 },  // center top — see positioning
 ];
-const RING_RADII = [52, 42, 32, 22, 12];  // outer to inner
+// Actual positions computed at runtime in setRingPositions
+// We keep RING_CONFIG + RING_RADII for collision sensor compat
+const RING_CONFIG = [
+  { pts:10,  color:'#6688ff' },
+  { pts:10,  color:'#6688ff' },
+  { pts:20,  color:'#00e5ff' },
+  { pts:20,  color:'#00e5ff' },
+  { pts:100, color:'#ff00ff' },
+];
+const RING_RADII = [18, 18, 16, 16, 14];  // collision sensor radii
 
+// Hole screen positions (computed at runtime)
+let holePositions = [];
 let ringCenterX = 0, ringCenterY = 0;
 
 function setRingPositions() {
   ringCenterX = W * 0.5;
-  ringCenterY = H * 0.115;
+  ringCenterY = H * 0.10;
+  const arcR = W * 0.30;
+  const arcCX = W * 0.5;
+  const arcCY = H * 0.22;
+  // 5 holes spread in a downward arc: angles from PI*1.1 to PI*1.9 (left to right)
+  // center hole at top
+  const angles = [Math.PI*1.72, Math.PI*1.56, Math.PI*1.40, Math.PI*1.24, Math.PI*1.08];
+  // pts: left=10, mid-left=20, center=100, mid-right=20, right=10
+  holePositions = angles.map((a, i) => ({
+    x: arcCX + Math.cos(a) * arcR,
+    y: arcCY + Math.sin(a) * arcR,
+    ri: i,
+  }));
+  // Update ringCenter to midpoint of arc for legacy use
+  ringCenterX = arcCX;
+  ringCenterY = arcCY;
 }
 
-function drawRings(t) {
+function drawBackboard(t) {
   setRingPositions();
-  ctx.save();
-  ctx.translate(ringCenterX, ringCenterY);
+  // Draw raised backboard panel
+  const bw = W * 0.88, bh = H * 0.19;
+  const bx = W * 0.5 - bw * 0.5, by = H * 0.005;
 
-  for(let i=0;i<RING_RADII.length;i++) {
+  // Panel background
+  const grad = ctx.createLinearGradient(bx, by, bx, by+bh);
+  grad.addColorStop(0, 'rgba(10,20,35,0.98)');
+  grad.addColorStop(1, 'rgba(5,12,22,0.92)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, [0,0,18,18]);
+  ctx.fill();
+
+  // Panel border glow
+  ctx.strokeStyle = 'rgba(0,229,255,0.35)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, [0,0,18,18]);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Ramp/lip at bottom of backboard
+  const rampGrad = ctx.createLinearGradient(bx, by+bh-10, bx, by+bh+6);
+  rampGrad.addColorStop(0, 'rgba(0,229,255,0.25)');
+  rampGrad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.fillStyle = rampGrad;
+  ctx.beginPath();
+  ctx.moveTo(bx, by+bh-4);
+  ctx.lineTo(bx+bw, by+bh-4);
+  ctx.lineTo(bx+bw*0.55, by+bh+8);
+  ctx.lineTo(bx+bw*0.45, by+bh+8);
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw each scoring hole
+  for(let i=0; i<holePositions.length; i++) {
+    const hp = holePositions[i];
     const rc = RING_CONFIG[i];
     const r = RING_RADII[i];
-    const pulse = 1+0.04*Math.sin(t*2+i*0.7);
     const isHit = G.hitTargets && G.hitTargets.has(i);
+    const pulse = 1 + 0.05*Math.sin(t*2.5 + i*0.9);
 
+    // Shadow/depth ring
     ctx.beginPath();
-    ctx.arc(0, 0, r*pulse, 0, Math.PI*2);
-    ctx.fillStyle = rc.color;
-    ctx.globalAlpha = isHit ? 0.12 : 0.22;
+    ctx.arc(hp.x, hp.y, r*pulse + 5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fill();
 
+    // Outer ring glow
+    ctx.beginPath();
+    ctx.arc(hp.x, hp.y, r*pulse, 0, Math.PI*2);
     ctx.strokeStyle = rc.color;
-    ctx.lineWidth = isHit ? 1 : 2.5;
-    ctx.globalAlpha = isHit ? 0.3 : (0.8+0.2*Math.sin(t*1.8+i));
+    ctx.lineWidth = isHit ? 2 : 3.5;
     ctx.shadowColor = rc.color;
-    ctx.shadowBlur = isHit ? 4 : 14;
+    ctx.shadowBlur = isHit ? 5 : 20;
+    ctx.globalAlpha = isHit ? 0.4 : 1.0;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Pts label
-    if(!isHit && r > 18) {
-      ctx.globalAlpha = 0.7;
-      ctx.fillStyle = rc.color;
-      ctx.font = `7px 'Press Start 2P', monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(rc.pts, 0, 0);
+    // Dark hole center
+    ctx.beginPath();
+    ctx.arc(hp.x, hp.y, r*pulse * 0.72, 0, Math.PI*2);
+    ctx.fillStyle = isHit ? 'rgba(0,0,0,0.95)' : 'rgba(5,8,15,0.9)';
+    ctx.globalAlpha = 1;
+    ctx.fill();
+
+    // Inner glow ring
+    if(!isHit) {
+      const ig = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, r*0.7);
+      ig.addColorStop(0, rc.color.replace(')',',0.35)').replace('rgb','rgba').replace('#','rgba_'));
+      ig.addColorStop(0, 'rgba(255,255,255,0.05)');
+      ig.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(hp.x, hp.y, r*0.7, 0, Math.PI*2);
+      ctx.fillStyle = ig;
+      ctx.fill();
     }
+
+    // Score label
+    ctx.globalAlpha = isHit ? 0.3 : 0.9;
+    ctx.fillStyle = rc.color;
+    ctx.font = `bold ${r > 16 ? 8 : 7}px 'Press Start 2P', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = rc.color;
+    ctx.shadowBlur = isHit ? 0 : 8;
+    ctx.fillText(rc.pts, hp.x, hp.y);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
-  ctx.restore();
+}
+
+// Legacy alias used in collision/build
+function drawRings(t) {
+  drawBackboard(t);
 }
 
 // ============================================================
@@ -579,6 +773,18 @@ function drawSlingshot(t) {
     ctx.fill();
     ctx.shadowBlur = 0;
   }
+
+  // Cradle cup under idle ball
+  if(!G.launched && !G.activeBall) {
+    const cy = by - C.BALL_RADIUS + 3;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,229,255,0.4)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(bx, cy + C.BALL_RADIUS*0.6, C.BALL_RADIUS*0.7, Math.PI*0.15, Math.PI*0.85);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawRubberBand(ballX, ballY, t) {
@@ -618,27 +824,31 @@ function drawTrajectory() {
   if(pull < 12) return;
 
   const bt = BALL_TYPES[G.ballQueue[G.currentBallIdx]] || BALL_TYPES.standard;
-  const force = pull / C.MAX_PULL;
-  const vx = -(G.pullVec.x / C.MAX_PULL) * 26;
-  const vy = -(G.pullVec.y / C.MAX_PULL) * 26;
+  const massScale = 1.0 / Math.sqrt(bt.mass);
+  const vx = -(G.pullVec.x / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
+  const vy = -(G.pullVec.y / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
 
   let px = slingX, py = slingY;
   let dvx = vx, dvy = vy;
-  const grav = 0.6;
+  const grav = C.GRAVITY * 0.5;  // approximate step gravity
 
   for(let i=0;i<C.TRAJ_DOTS;i++) {
-    dvx += (G.wind*0.04);
+    dvx += G.wind * 0.018;
     dvy += grav;
+    dvx *= (1 - bt.frictionAir);
     px += dvx; py += dvy;
-    if(py < 0 || px < 0 || px > W) break;
+    if(py < -20 || px < -10 || px > W+10) break;
 
-    const alpha = (1-i/C.TRAJ_DOTS)*0.7;
-    const r = (1-i/C.TRAJ_DOTS)*5+2;
+    const alpha = (1-i/C.TRAJ_DOTS)*0.65;
+    const r = (1-i/C.TRAJ_DOTS)*4+1.5;
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI*2);
     ctx.fillStyle = bt.color;
     ctx.globalAlpha = alpha;
+    ctx.shadowColor = bt.glow;
+    ctx.shadowBlur = i < 4 ? 6 : 0;
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
   }
 }
@@ -646,24 +856,70 @@ function drawTrajectory() {
 // ============================================================
 // BALL DRAWING
 // ============================================================
-function drawBall(bx, by, r, type, trail=[]) {
+function drawBall(bx, by, r, type, trail=[], angle=0) {
   const bt = BALL_TYPES[type] || BALL_TYPES.standard;
+  const trailStyle = bt.trailStyle || 'normal';
 
-  // Glow trail
+  // Trail — style varies by ball type
   for(let i=0; i<trail.length; i++) {
     const tp = trail[i];
-    const a = (1-i/trail.length)*0.25;
-    ctx.beginPath();
-    ctx.arc(tp.x, tp.y, r*(1-i/trail.length*0.5), 0, Math.PI*2);
-    ctx.fillStyle = bt.glow;
-    ctx.globalAlpha = a;
-    ctx.fill();
+    const frac = 1 - i/trail.length;
+
+    if(trailStyle === 'heavy') {
+      // Thick, short, opaque trail
+      if(i > 8) continue;
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y, r*(frac*0.7+0.1), 0, Math.PI*2);
+      ctx.fillStyle = bt.glow;
+      ctx.globalAlpha = frac*0.35;
+      ctx.fill();
+    } else if(trailStyle === 'sparkle') {
+      // Dotted sparkly trail — every other point, small
+      if(i % 2 === 0) {
+        ctx.beginPath();
+        ctx.arc(tp.x + (Math.random()-0.5)*6, tp.y + (Math.random()-0.5)*6, r*0.2+1, 0, Math.PI*2);
+        ctx.fillStyle = bt.color;
+        ctx.globalAlpha = frac*0.6;
+        ctx.shadowColor = bt.glow;
+        ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    } else if(trailStyle === 'smoke') {
+      // Red/dark smoky trail — large, low opacity
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y, r*(frac*1.1+0.2), 0, Math.PI*2);
+      ctx.fillStyle = i < 8 ? '#ff2200' : '#441100';
+      ctx.globalAlpha = frac*0.18;
+      ctx.fill();
+    } else {
+      // Normal glow trail
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y, r*(frac*0.6+0.15), 0, Math.PI*2);
+      ctx.fillStyle = bt.glow;
+      ctx.globalAlpha = frac*0.28;
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  // Ball glow bloom during flight (when trail active)
+  if(trail.length > 2) {
+    ctx.beginPath();
+    ctx.arc(bx, by, r*2.2, 0, Math.PI*2);
+    const bloom = ctx.createRadialGradient(bx, by, r*0.5, bx, by, r*2.2);
+    bloom.addColorStop(0, bt.glow.replace('#','rgba_') + '');
+    // fallback simple glow
+    ctx.fillStyle = bt.glow;
+    ctx.globalAlpha = 0.08;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
   // Ball body
   ctx.shadowColor = bt.glow;
-  ctx.shadowBlur = 20;
+  ctx.shadowBlur = 22;
   const grad = ctx.createRadialGradient(bx-r*0.3, by-r*0.3, r*0.05, bx, by, r);
   grad.addColorStop(0, 'white');
   grad.addColorStop(0.2, bt.color);
@@ -674,11 +930,46 @@ function drawBall(bx, by, r, type, trail=[]) {
   ctx.fill();
   ctx.shadowBlur = 0;
 
+  // Rotation marks (seam lines that spin with ball)
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(angle);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1.2;
+  // Curved seam
+  ctx.beginPath();
+  ctx.arc(0, 0, r*0.85, -0.5, Math.PI+0.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, r*0.85, Math.PI-0.5, Math.PI*2+0.5);
+  ctx.stroke();
+  ctx.restore();
+
   // Specular highlight
   ctx.beginPath();
   ctx.arc(bx-r*0.28, by-r*0.28, r*0.22, 0, Math.PI*2);
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.fill();
+
+  // Bomb ball: pulsing red glow ring
+  if(type === 'bomb' && trail.length > 0) {
+    const pulse = 0.5 + 0.5*Math.sin(G.frameCount * 0.25);
+    ctx.beginPath();
+    ctx.arc(bx, by, r + 4 + pulse*3, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,50,0,${pulse*0.6})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Curve ball: pulsing green glow
+  if(type === 'curve' && trail.length > 0) {
+    const pulse = 0.5 + 0.5*Math.sin(G.frameCount * 0.2);
+    ctx.beginPath();
+    ctx.arc(bx, by, r + 3 + pulse*2, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(124,255,0,${pulse*0.5})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
 }
 
 // idle ball in slingshot
@@ -688,15 +979,29 @@ function drawIdleBall(t) {
   if(!type) return;
   const bob = Math.sin(t*2.2)*3;
   if(!G.dragging) {
-    drawBall(slingX, slingY-C.BALL_RADIUS+bob, C.BALL_RADIUS, type);
+    drawBall(slingX, slingY-C.BALL_RADIUS+bob, C.BALL_RADIUS, type, [], 0);
     drawRubberBand(slingX, slingY-C.BALL_RADIUS+bob, t);
   } else {
     const pullX = Math.min(Math.max(G.pullVec.x,-C.MAX_PULL),C.MAX_PULL);
-    const pullY = Math.min(Math.max(G.pullVec.y,-C.MAX_PULL),C.MAX_PULL);
+    // dy is always >= 0 now (only downward pull)
+    const pullY = Math.min(Math.max(G.pullVec.y, 0), C.MAX_PULL);
     const bx = slingX + pullX;
     const by = slingY + pullY;
-    drawBall(bx, by-C.BALL_RADIUS, C.BALL_RADIUS, type);
+    // Small rotation on dragged ball
+    const dragAngle = pullX / C.MAX_PULL * 0.4;
+    drawBall(bx, by-C.BALL_RADIUS, C.BALL_RADIUS, type, [], dragAngle);
     drawRubberBand(bx, by-C.BALL_RADIUS, t);
+    // Pull indicator — show % power
+    const pullPct = Math.round(Math.sqrt(pullX*pullX+pullY*pullY)/C.MAX_PULL*100);
+    ctx.save();
+    ctx.font = `bold 10px 'Press Start 2P', monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = pullPct > 75 ? C.RED : pullPct > 40 ? C.ORANGE : C.YELLOW;
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = 8;
+    ctx.fillText(pullPct+'%', bx, by + C.BALL_RADIUS + 16);
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 }
 
@@ -803,14 +1108,21 @@ function drawSteelBeam(obj, t) {
 
 function drawBumper(obj, t) {
   const r = obj.fr;
-  const pulse = 1+0.06*Math.sin(t*3);
+  const flash = G.bumperFlash[obj.body.id] || 0;
+  if(flash > 0) G.bumperFlash[obj.body.id] = flash - 1;
+  const flashFrac = flash / 15;
+  const pulse = 1 + 0.06*Math.sin(t*3) + flashFrac*0.25;
+  const fillAlpha = 0.15 + flashFrac*0.45;
+  const strokeClr = flashFrac > 0.1 ? `rgba(255,255,255,${flashFrac})` : C.MAGENTA;
+  const blurAmt = 18 + 8*Math.sin(t*3) + flashFrac*30;
+
   ctx.beginPath();
   ctx.arc(0, 0, r*pulse, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(255,0,255,0.15)';
-  ctx.strokeStyle = C.MAGENTA;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = C.MAGENTA;
-  ctx.shadowBlur = 18+8*Math.sin(t*3);
+  ctx.fillStyle = flashFrac > 0.1 ? `rgba(255,200,255,${fillAlpha})` : `rgba(255,0,255,${fillAlpha})`;
+  ctx.strokeStyle = strokeClr;
+  ctx.lineWidth = 3 + flashFrac*3;
+  ctx.shadowColor = flashFrac > 0.1 ? '#ffffff' : C.MAGENTA;
+  ctx.shadowBlur = blurAmt;
   ctx.fill();
   ctx.stroke();
   ctx.shadowBlur = 0;
@@ -823,7 +1135,7 @@ function drawBumper(obj, t) {
   // center dot
   ctx.beginPath();
   ctx.arc(0, 0, r*0.18, 0, Math.PI*2);
-  ctx.fillStyle = C.MAGENTA;
+  ctx.fillStyle = flashFrac > 0.1 ? '#ffffff' : C.MAGENTA;
   ctx.fill();
 }
 
@@ -1031,18 +1343,109 @@ function spawnParticles(x, y, color, count=12, speed=4) {
 }
 
 function spawnExplosion(x, y) {
-  spawnParticles(x, y, C.RED, 22, 7);
-  spawnParticles(x, y, C.ORANGE, 14, 5);
-  G.screenShake = 14;
+  spawnParticles(x, y, C.RED, 28, 9);
+  spawnParticles(x, y, C.ORANGE, 18, 6);
+  spawnParticles(x, y, '#ffff00', 10, 4);
+  G.screenShake = 18;
   sfxBreak();
+}
+
+function spawnDebrisRect(x, y, color, count=4) {
+  for(let i=0;i<count;i++) {
+    const angle = Math.random()*Math.PI*2;
+    const spd = 2+Math.random()*4;
+    G.particles.push({
+      x, y,
+      vx: Math.cos(angle)*spd,
+      vy: Math.sin(angle)*spd - 2,
+      r: 3+Math.random()*4,
+      life: 1.0,
+      decay: 0.018+Math.random()*0.015,
+      color,
+      isRect: true,
+      w: 4+Math.random()*8,
+      h: 2+Math.random()*3,
+      rot: Math.random()*Math.PI*2,
+      rotSpd: (Math.random()-0.5)*0.25,
+    });
+  }
+}
+
+function spawnGlassShards(x, y) {
+  for(let i=0;i<14;i++) {
+    const angle = (i/14)*Math.PI*2 + Math.random()*0.4;
+    const spd = 3+Math.random()*5;
+    G.particles.push({
+      x, y,
+      vx: Math.cos(angle)*spd,
+      vy: Math.sin(angle)*spd - 1,
+      r: 2,
+      life: 1.0,
+      decay: 0.022+Math.random()*0.015,
+      color: 'rgba(190,240,255,0.9)',
+      isTriangle: true,
+      size: 4+Math.random()*7,
+      rot: Math.random()*Math.PI*2,
+      rotSpd: (Math.random()-0.5)*0.3,
+    });
+  }
+}
+
+function spawnSteelSparks(x, y) {
+  for(let i=0;i<16;i++) {
+    const angle = Math.random()*Math.PI*2;
+    const spd = 4+Math.random()*6;
+    G.particles.push({
+      x, y,
+      vx: Math.cos(angle)*spd,
+      vy: Math.sin(angle)*spd - 3,
+      r: 1.5+Math.random()*1.5,
+      life: 1.0,
+      decay: 0.04+Math.random()*0.03,
+      color: i%3===0 ? '#ffffff' : '#ffdd44',
+      isSpark: true,
+    });
+  }
+}
+
+function spawnBumperBurst(x, y) {
+  // Ring of outward particles
+  for(let i=0;i<16;i++) {
+    const angle = (i/16)*Math.PI*2;
+    const spd = 3+Math.random()*4;
+    G.particles.push({
+      x: x + Math.cos(angle)*8,
+      y: y + Math.sin(angle)*8,
+      vx: Math.cos(angle)*spd,
+      vy: Math.sin(angle)*spd,
+      r: 2+Math.random()*2,
+      life: 1.0,
+      decay: 0.03+Math.random()*0.02,
+      color: C.MAGENTA,
+    });
+  }
+}
+
+function breakObjectWood(obj, bx, by) {
+  if(obj.broken) return;
+  obj.broken = true;
+  World.remove(world, obj.body);
+  // Rectangular wood debris
+  spawnDebrisRect(bx, by, '#8B5E3C', 8);
+  spawnDebrisRect(bx, by, '#c09050', 5);
+  spawnParticles(bx, by, C.WOOD, 12, 4);
+  G.score += 50;
+  spawnFloatScore(bx, by, 50, C.WOOD);
+  updateHUD();
 }
 
 function updateParticles() {
   for(let i=G.particles.length-1; i>=0; i--) {
     const p = G.particles[i];
     p.x += p.vx; p.y += p.vy;
-    p.vy += 0.12;
-    p.vx *= 0.97;
+    p.vy += p.isSpark ? 0.18 : 0.13;
+    p.vx *= p.isSpark ? 0.94 : 0.97;
+    if(p.rot !== undefined) p.rot += p.rotSpd;
     p.life -= p.decay;
     if(p.life<=0) G.particles.splice(i,1);
   }
@@ -1050,11 +1453,49 @@ function updateParticles() {
 
 function drawParticles() {
   for(const p of G.particles) {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r*p.life, 0, Math.PI*2);
+    ctx.globalAlpha = Math.max(0, p.life);
     ctx.fillStyle = p.color;
-    ctx.globalAlpha = p.life;
-    ctx.fill();
+
+    if(p.isRect) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot||0);
+      ctx.fillRect(-p.w/2, -p.h/2, p.w*p.life, p.h);
+      ctx.restore();
+    } else if(p.isTriangle) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot||0);
+      const s = p.size * p.life;
+      ctx.beginPath();
+      ctx.moveTo(0, -s);
+      ctx.lineTo(s*0.7, s*0.5);
+      ctx.lineTo(-s*0.7, s*0.5);
+      ctx.closePath();
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = '#aaeeff';
+      ctx.shadowBlur = 4;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else if(p.isSpark) {
+      // Spark: tiny bright line
+      ctx.save();
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.r;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx*2, p.y - p.vy*2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.5, p.r*p.life), 0, Math.PI*2);
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -1068,10 +1509,11 @@ function spawnFloatScore(x, y, pts, color=C.YELLOW) {
   el.style.left = (x/W*100)+'%';
   el.style.top = (y/H*100)+'%';
   el.style.color = color;
-  el.style.fontSize = pts >= 100 ? '16px' : pts >= 50 ? '13px' : '11px';
+  el.style.textShadow = `0 0 14px ${color}`;
+  el.style.fontSize = pts >= 200 ? '22px' : pts >= 100 ? '18px' : pts >= 50 ? '15px' : '12px';
   el.textContent = '+'+pts;
   document.getElementById('ui').appendChild(el);
-  setTimeout(()=>el.remove(), 950);
+  setTimeout(()=>el.remove(), 1100);
 }
 
 // ============================================================
@@ -1097,12 +1539,13 @@ function buildLevel(levelIdx) {
   const wallR = Bodies.rectangle(W+C.WALL_T/2, H/2, C.WALL_T, H*2, wallOpts);
   World.add(world, [floor, wallL, wallR]);
 
-  // Scoring ring bodies
+  // Scoring hole bodies — placed at actual hole positions
   G.targets = [];
   setRingPositions();
-  for(let i=0; i<RING_RADII.length; i++) {
-    const r = RING_RADII[i];
-    const sensor = Bodies.circle(ringCenterX, ringCenterY, r, {
+  for(let i=0; i<holePositions.length; i++) {
+    const hp = holePositions[i];
+    const r = RING_RADII[i] + 4;  // slightly larger than visual for easier scoring
+    const sensor = Bodies.circle(hp.x, hp.y, r, {
       isStatic:true, isSensor:true,
       label:'target_'+i,
       collisionFilter:{category:0x0004, mask:0x0001}
@@ -1221,27 +1664,30 @@ function handleCollision(evt) {
 
     const lbl = other.label || '';
 
-    // Target rings
+    // Target rings / scoring holes
     if(lbl.startsWith('target_')) {
       const ri = parseInt(lbl.split('_')[1]);
       if(!G.hitTargets.has(ri)) {
         G.hitTargets.add(ri);
         const rc = RING_CONFIG[ri];
         let pts = rc.pts;
-        // Only innermost unhit ring scores
-        const validScore = ri === findInnermostUnhit();
-        if(validScore || true) {  // all rings score, center scores most
-          G.combo++;
-          G.comboTimer = 90;
-          const mult = G.powerup==='2x' ? 2 : 1;
-          pts = Math.round(pts * mult * (1 + (G.combo-1)*0.3));
-          G.score += pts;
-          sfxScore(pts);
-          spawnParticles(ringCenterX, ringCenterY, rc.color, 18, 5);
-          spawnFloatScore(ringCenterX, ringCenterY-30, pts, rc.color);
-          if(G.combo >= 3) sfxCombo();
-          updateHUD();
-        }
+        G.combo++;
+        G.comboTimer = 120;
+        const mult = G.powerup==='2x' ? 2 : 1;
+        const comboMult = 1 + (G.combo-1)*0.35;
+        pts = Math.round(pts * mult * comboMult);
+        G.score += pts;
+        sfxHole(pts);
+        // Big particle burst in ring color
+        const hp = holePositions[ri];
+        const hx = hp ? hp.x : ringCenterX;
+        const hy = hp ? hp.y : ringCenterY;
+        spawnParticles(hx, hy, rc.color, 28, 7);
+        spawnParticles(hx, hy, '#ffffff', 10, 4);
+        spawnFloatScore(hx, hy - 20, pts, rc.color);
+        if(G.combo >= 3) sfxCombo();
+        G.screenShake = 8;
+        updateHUD();
       }
       return;
     }
@@ -1250,12 +1696,14 @@ function handleCollision(evt) {
     if(lbl.startsWith('wood_')) {
       G.hitCounts[other.id] = (G.hitCounts[other.id]||0)+1;
       sfxHit();
-      G.screenShake = 6;
+      G.screenShake = 7;
       const obj = G.levelObjects.find(o=>o.body===other);
       if(obj && G.hitCounts[other.id] >= 2) {
-        breakObject(obj, other.position.x, other.position.y, C.WOOD);
+        breakObjectWood(obj, other.position.x, other.position.y);
       } else {
-        spawnParticles(other.position.x, other.position.y, C.WOOD, 8, 3);
+        spawnParticles(other.position.x, other.position.y, C.WOOD, 10, 3);
+        // Wood chip debris
+        spawnDebrisRect(other.position.x, other.position.y, '#8B5E3C', 4);
       }
     }
 
@@ -1265,25 +1713,35 @@ function handleCollision(evt) {
       if(obj && G.powerup!=='ghost') {
         G.hitCounts[other.id] = (G.hitCounts[other.id]||0)+1;
         sfxBreak();
-        G.screenShake = 5;
-        spawnParticles(other.position.x, other.position.y, C.CYAN, 16, 5);
+        G.screenShake = 6;
+        spawnGlassShards(other.position.x, other.position.y);
         if(G.hitCounts[other.id] >= 1) {
           breakObject(obj, other.position.x, other.position.y, 'rgba(150,230,255,0.8)');
         }
       }
     }
 
+    // Steel
+    if(lbl.startsWith('steel_')) {
+      sfxSteelHit();
+      G.screenShake = 5;
+      spawnSteelSparks(other.position.x, other.position.y);
+    }
+
     // Bumper
     if(lbl.startsWith('bumper_')) {
-      sfxBounce();
-      G.screenShake = 4;
-      spawnParticles(other.position.x, other.position.y, C.MAGENTA, 10, 4);
+      sfxBumper();
+      G.screenShake = 6;
+      // Flash effect
+      G.bumperFlash[other.id] = 15;
+      // Ring of particles expanding outward
+      spawnBumperBurst(other.position.x, other.position.y);
     }
 
     // Bounce pad
     if(lbl.startsWith('bouncePad')) {
       sfxBounce();
-      spawnParticles(other.position.x, other.position.y, C.ORANGE, 8, 3);
+      spawnParticles(other.position.x, other.position.y, C.ORANGE, 10, 4);
     }
 
     // Power-up collection
@@ -1352,19 +1810,44 @@ function launchBall() {
     collisionFilter:{category:0x0001, mask:0xFFFF}
   });
 
-  const vx = -(G.pullVec.x / C.MAX_PULL) * 26;
-  const vy = -(G.pullVec.y / C.MAX_PULL) * 26;
+  // Scale force by inverse mass so heavy balls need more pull, light balls fly farther
+  const massScale = 1.0 / Math.sqrt(bt.mass);
+  const vx = -(G.pullVec.x / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
+  const vy = -(G.pullVec.y / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
 
   World.add(world, body);
   Body.setVelocity(body, {x:vx, y:vy});
 
+  // Spin the ball based on horizontal component of launch
+  const spinDir = G.pullVec.x > 0 ? 1 : -1;
+  Body.setAngularVelocity(body, spinDir * (Math.abs(G.pullVec.x) / C.MAX_PULL) * 0.35 + 0.1);
+
   G.activeBall = { body, type };
   G.launched = true;
   G.ballsFired++;
+  G.settleFrames = 0;
   activeBallTrail = [];
+  lastStretchVol = 0;
 
   sfxLaunch();
-  spawnParticles(slingX, slingY, bt.color, 10, 3);
+  // Fork tip particles
+  const arm = C.SLING_ARM;
+  const lx = slingX - arm*0.55, ly = slingY - arm*0.35;
+  const rx = slingX + arm*0.55, ry = slingY - arm*0.35;
+  spawnParticles(lx, ly, C.CYAN, 8, 5);
+  spawnParticles(rx, ry, C.CYAN, 8, 5);
+  spawnParticles(slingX, slingY, bt.color, 12, 4);
+
+  // Show ability hint for curve/bomb
+  if(type === 'curve') {
+    const hint = document.getElementById('ability-hint');
+    hint.textContent = 'TAP FOR BOOST';
+    hint.style.display = 'block';
+  } else if(type === 'bomb') {
+    const hint = document.getElementById('ability-hint');
+    hint.textContent = 'TAP TO DETONATE';
+    hint.style.display = 'block';
+  }
 }
 
 function updateBallPhysics() {
@@ -1372,9 +1855,10 @@ function updateBallPhysics() {
   const b = G.activeBall.body;
   const pos = b.position;
 
-  // Wind force
+  // Wind force — scaled meaningfully (was 0.00008, now 0.0006 * mass)
   if(G.wind !== 0) {
-    Body.applyForce(b, pos, {x: G.wind * 0.00008, y: 0});
+    const windForce = G.wind * 0.0006 * b.mass;
+    Body.applyForce(b, pos, {x: windForce, y: 0});
   }
 
   // Gravity well pull
@@ -1383,7 +1867,7 @@ function updateBallPhysics() {
     const dy = gw.y - pos.y;
     const dist = Math.sqrt(dx*dx+dy*dy);
     if(dist < gw.r*4 && dist > 5) {
-      const force = gw.strength / (dist * 0.01 + 0.1);
+      const force = gw.strength * b.mass / (dist * 0.01 + 0.1);
       Body.applyForce(b, pos, {
         x: (dx/dist)*force,
         y: (dy/dist)*force
@@ -1391,15 +1875,17 @@ function updateBallPhysics() {
     }
   }
 
-  // Curve ball: tap adds upward force mid-flight
+  // Curve ball: tap adds upward + lateral force mid-flight
   if(G.activeBall.type === 'curve' && G.curveBoost) {
-    Body.applyForce(b, pos, {x:0, y:-0.015});
+    Body.applyForce(b, pos, {x: b.velocity.x * 0.003, y: -0.022 * b.mass});
     G.curveBoost = false;
+    document.getElementById('ability-hint').style.display = 'none';
   }
 
   // Bomb: explosion on tap
   if(G.activeBall.type === 'bomb' && G.bombDetonate) {
     spawnExplosion(pos.x, pos.y);
+    document.getElementById('ability-hint').style.display = 'none';
     // Push all nearby objects
     const allBodies = Composite.allBodies(world);
     for(const ob of allBodies) {
@@ -1407,8 +1893,8 @@ function updateBallPhysics() {
       const dx = ob.position.x - pos.x;
       const dy = ob.position.y - pos.y;
       const dist = Math.sqrt(dx*dx+dy*dy);
-      if(dist < 120 && dist > 1) {
-        const force = 0.08/dist;
+      if(dist < 150 && dist > 1) {
+        const force = 0.12/dist;
         Body.applyForce(ob, ob.position, {x:(dx/dist)*force, y:(dy/dist)*force});
       }
     }
@@ -1420,17 +1906,33 @@ function updateBallPhysics() {
     return;
   }
 
-  // Trail
-  activeBallTrail.unshift({x:pos.x, y:pos.y});
-  if(activeBallTrail.length > 14) activeBallTrail.pop();
+  // Trail — 22 points for satisfying tail
+  activeBallTrail.unshift({x:pos.x, y:pos.y, angle: b.angle});
+  if(activeBallTrail.length > 22) activeBallTrail.pop();
 
-  // Off-screen or stopped check
+  // Off-screen check
   const spd = Math.sqrt(b.velocity.x**2+b.velocity.y**2);
-  if(pos.y > H+80 || pos.x < -60 || pos.x > W+60 || (pos.y > H*0.7 && spd < 0.4)) {
+  if(pos.y > H+80 || pos.x < -100 || pos.x > W+100) {
     World.remove(world, b);
     G.activeBall = null;
     G.launched = false;
-    setTimeout(nextBall, 600);
+    document.getElementById('ability-hint').style.display = 'none';
+    setTimeout(nextBall, 500);
+    return;
+  }
+
+  // Settle detection: use frame counter so ball has time to actually stop
+  if(pos.y > H*0.65 && spd < 1.5) {
+    G.settleFrames++;
+    if(G.settleFrames > 45) {  // ~0.75s of slow movement before removing
+      World.remove(world, b);
+      G.activeBall = null;
+      G.launched = false;
+      document.getElementById('ability-hint').style.display = 'none';
+      setTimeout(nextBall, 500);
+    }
+  } else {
+    G.settleFrames = 0;
   }
 }
 
@@ -1454,6 +1956,8 @@ function updateMovers() {
 
 function nextBall() {
   activeBallTrail = [];
+  G.settleFrames = 0;
+  document.getElementById('ability-hint').style.display = 'none';
   G.currentBallIdx++;
   if(G.currentBallIdx >= G.ballQueue.length) {
     endLevel();
@@ -1469,12 +1973,15 @@ function updateHUD() {
   document.getElementById('hud-score').textContent = G.score.toString().padStart(5,'0');
   const comboEl = document.getElementById('hud-combo');
   if(G.combo >= 2) {
+    const size = Math.min(9 + (G.combo-2)*2, 20);
     comboEl.textContent = 'x'+G.combo+' COMBO';
+    comboEl.style.fontSize = size + 'px';
     comboEl.classList.remove('bump');
     void comboEl.offsetWidth;
     comboEl.classList.add('bump');
   } else {
     comboEl.textContent = '';
+    comboEl.style.fontSize = '';
   }
   document.getElementById('hud-level').textContent = 'LVL '+(G.level+1)+' — '+(LEVEL_DEFS[G.level]?.name||'');
   const windEl = document.getElementById('hud-wind');
@@ -1482,6 +1989,28 @@ function updateHUD() {
     windEl.textContent = 'WIND: '+(G.wind>0?'►':'◄')+' '+Math.abs(G.wind).toFixed(1);
   } else {
     windEl.textContent = '';
+    windEl.style.opacity = '';
+  }
+
+  // Combo bar (drains over 120 frames)
+  const barEl = document.getElementById('combo-bar');
+  if(barEl) {
+    if(G.combo >= 2 && G.comboTimer > 0) {
+      barEl.style.width = (G.comboTimer / 120 * 100) + '%';
+      barEl.style.display = 'block';
+    } else {
+      barEl.style.width = '0%';
+    }
+  }
+
+  // Screen border glow at combo x3+
+  const gameScreen = document.getElementById('screen-game');
+  if(G.combo >= 5) {
+    gameScreen.style.boxShadow = 'inset 0 0 40px rgba(0,229,255,0.4), inset 0 0 80px rgba(255,0,255,0.2)';
+  } else if(G.combo >= 3) {
+    gameScreen.style.boxShadow = 'inset 0 0 30px rgba(0,229,255,0.25)';
+  } else {
+    gameScreen.style.boxShadow = '';
   }
 }
 
@@ -1525,7 +2054,7 @@ function endLevel() {
   // Update progress
   const s = progress.stars;
   s[G.level] = Math.max(s[G.level]||0, stars);
-  if(stars > 0 && G.level+1 < 10) {
+  if(stars > 0 && G.level+1 < LEVEL_DEFS.length) {
     progress.unlocked = Math.max(progress.unlocked, G.level+2);
   }
   totalScore += G.score;
@@ -1536,9 +2065,7 @@ function endLevel() {
 }
 
 function showResults(stars) {
-  const starStr = ['☆☆☆','★☆☆','★★☆','★★★'][Math.min(stars,3)];
   document.getElementById('res-score').textContent = G.score.toString().padStart(6,'0');
-  document.getElementById('res-stars').textContent = starStr;
 
   const thresholds = LEVEL_DEFS[G.level].stars;
   const bd = document.getElementById('res-breakdown');
@@ -1548,6 +2075,22 @@ function showResults(stars) {
     Balls used <span>${G.ballsFired}</span>`;
 
   showScreen('results');
+
+  // Animate stars popping in one-by-one
+  const starsEl = document.getElementById('res-stars');
+  starsEl.textContent = '☆☆☆';
+  const starChars = ['★☆☆','★★☆','★★★'];
+  if(stars === 0) { starsEl.textContent = '☆☆☆'; return; }
+  for(let i=0; i<stars; i++) {
+    setTimeout(()=>{
+      starsEl.textContent = starChars[i];
+      starsEl.style.transform = 'scale(1.35)';
+      starsEl.style.transition = 'transform 0.15s';
+      playTone(500 + i*150, 'sine', 0.3, 0.22);
+      spawnParticles(W*0.5, H*0.5, C.YELLOW, 14, 5);
+      setTimeout(()=>{ starsEl.style.transform = 'scale(1)'; }, 180);
+    }, i*450 + 200);
+  }
 }
 
 // ============================================================
@@ -1573,7 +2116,8 @@ function showScreen(name) {
 function renderLevelGrid() {
   const grid = document.getElementById('level-grid');
   grid.innerHTML = '';
-  for(let i=0; i<10; i++) {
+  const total = LEVEL_DEFS.length;
+  for(let i=0; i<total; i++) {
     const btn = document.createElement('div');
     const locked = i+1 > progress.unlocked;
     btn.className = 'level-btn' + (locked?' locked':'');
@@ -1600,11 +2144,30 @@ function startLevel(idx) {
   G.pullVec = {x:0,y:0};
   G.curveBoost = false;
   G.bombDetonate = false;
+  G.settleFrames = 0;
+  G.bumperFlash = {};
+  lastStretchVol = 0;
   document.getElementById('hud-powerup').style.display = 'none';
+  document.getElementById('ability-hint').style.display = 'none';
+  const barEl = document.getElementById('combo-bar');
+  if(barEl) barEl.style.width = '0%';
+  const gameScreen = document.getElementById('screen-game');
+  gameScreen.style.boxShadow = '';
 
   buildLevel(idx);
   showScreen('game');
   updateBallQueueUI();
+
+  // Show level banner briefly
+  const banner = document.getElementById('level-banner');
+  if(banner) {
+    banner.textContent = `LEVEL ${idx+1} — ${LEVEL_DEFS[idx].name}`;
+    banner.style.display = 'block';
+    banner.style.opacity = '1';
+    banner.style.transition = 'opacity 0.4s';
+    setTimeout(()=>{ banner.style.opacity = '0'; }, 2000);
+    setTimeout(()=>{ banner.style.display = 'none'; banner.style.opacity = '1'; }, 2500);
+  }
 }
 
 // ============================================================
@@ -1649,14 +2212,17 @@ function onPointerMove(e) {
   const p = getPos(e);
   let dx = p.x - slingX;
   let dy = p.y - slingY;
-  // Clamp pull
+  // Only allow pulling DOWN (positive Y) and sideways — not above the anchor
+  dy = Math.max(dy, 0);
+  // Clamp to max pull radius
   const dist = Math.sqrt(dx*dx+dy*dy);
   if(dist > C.MAX_PULL) {
     dx = dx/dist*C.MAX_PULL;
     dy = dy/dist*C.MAX_PULL;
   }
-  // Only allow pulling down-ish (behind the sling)
-  G.pullVec = {x: dx, y: Math.max(dy, -C.MAX_PULL)};
+  G.pullVec = {x: dx, y: dy};
+  // Stretching sound feedback
+  playStretchSound(dist / C.MAX_PULL);
 }
 
 function onPointerUp(e) {
@@ -1702,7 +2268,7 @@ document.getElementById('btn-quit').addEventListener('click', ()=>{
 });
 document.getElementById('btn-retry').addEventListener('click', ()=>startLevel(G.level));
 document.getElementById('btn-next').addEventListener('click', ()=>{
-  if(G.level+1 < 10 && G.level+1 < progress.unlocked) startLevel(G.level+1);
+  if(G.level+1 < LEVEL_DEFS.length && G.level+1 < progress.unlocked) startLevel(G.level+1);
   else showScreen('levels');
 });
 document.getElementById('btn-to-levels').addEventListener('click', ()=>showScreen('levels'));
@@ -1731,7 +2297,21 @@ function drawActiveBall() {
   if(!G.activeBall) return;
   const b = G.activeBall.body;
   const pos = b.position;
-  drawBall(pos.x, pos.y, C.BALL_RADIUS, G.activeBall.type, activeBallTrail);
+
+  // Rainbow trail at combo x5+
+  if(G.combo >= 5 && activeBallTrail.length > 0) {
+    for(let i=0; i<activeBallTrail.length; i++) {
+      const tp = activeBallTrail[i];
+      const hue = (G.frameCount * 8 - i*15) % 360;
+      const frac = 1 - i/activeBallTrail.length;
+      ctx.beginPath();
+      ctx.arc(tp.x, tp.y, C.BALL_RADIUS*(frac*0.7+0.1), 0, Math.PI*2);
+      ctx.fillStyle = `hsla(${hue},100%,60%,${frac*0.35})`;
+      ctx.fill();
+    }
+  }
+
+  drawBall(pos.x, pos.y, C.BALL_RADIUS, G.activeBall.type, G.combo >= 5 ? [] : activeBallTrail, b.angle);
 }
 
 // ============================================================
@@ -1778,6 +2358,11 @@ function gameLoop(ts) {
       if(G.comboTimer === 0) {
         G.combo = 0;
         document.getElementById('hud-combo').textContent = '';
+        document.getElementById('hud-combo').style.fontSize = '';
+        const barEl = document.getElementById('combo-bar');
+        if(barEl) barEl.style.width = '0%';
+        const gameScreen = document.getElementById('screen-game');
+        gameScreen.style.boxShadow = '';
       }
     }
 
@@ -1834,24 +2419,39 @@ function drawTitleAnimation(t) {
 // ============================================================
 // WIND PARTICLES
 // ============================================================
-const windParts = Array.from({length:30},()=>({
-  x:Math.random(), y:Math.random()*0.6+0.1,
-  life:Math.random()
+const windParts = Array.from({length:50},()=>({
+  x: Math.random(),
+  y: Math.random()*0.85+0.08,
+  life: Math.random(),
+  speed: 0.5 + Math.random()*1.2,
+  thickness: 0.5 + Math.random()*2,
+  len: 8 + Math.random()*28,
 }));
 function drawWindParticles(t) {
+  const windDir = Math.sign(G.wind);
   for(const wp of windParts) {
-    wp.x += G.wind * 0.003;
-    wp.life += 0.012;
-    if(wp.x > 1.05) wp.x = -0.05;
-    if(wp.x < -0.05) wp.x = 1.05;
-    if(wp.life > 1) { wp.life=0; wp.x=Math.random(); wp.y=Math.random()*0.6+0.1; }
-    const alpha = Math.sin(wp.life*Math.PI)*0.25;
+    wp.x += G.wind * 0.004 * wp.speed;
+    wp.life += 0.009 + Math.abs(G.wind)*0.006;
+    if(wp.x > 1.08) wp.x = -0.08;
+    if(wp.x < -0.08) wp.x = 1.08;
+    if(wp.life > 1) { wp.life=0; wp.x = windDir < 0 ? 1.0 : 0.0; wp.y=Math.random()*0.85+0.08; }
+    const alpha = Math.sin(wp.life*Math.PI)*(0.15 + Math.abs(G.wind)*0.25);
+    if(alpha < 0.01) continue;
     ctx.beginPath();
-    ctx.moveTo(wp.x*W, wp.y*H);
-    ctx.lineTo(wp.x*W - G.wind*12, wp.y*H);
+    const sx = wp.x*W, sy = wp.y*H;
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - G.wind * wp.len, sy + (Math.random()-0.5)*2);
     ctx.strokeStyle = `rgba(100,200,255,${alpha})`;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = wp.thickness;
     ctx.stroke();
+  }
+  // Wind HUD pulsing arrow
+  const windEl = document.getElementById('hud-wind');
+  if(G.wind !== 0) {
+    const arr = G.wind > 0 ? '►' : '◄';
+    const pulse = 0.6 + 0.4*Math.sin(t*4);
+    windEl.style.opacity = pulse;
+    windEl.textContent = 'WIND: '+arr+arr+' '+Math.abs(G.wind).toFixed(1);
   }
 }
 
