@@ -1,12 +1,12 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T03:26:17.490Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T13:26:03.807Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **276**
+- Total tools scanned: **277**
 - Clean (no findings): **109**
-- With findings:       **167**
+- With findings:       **168**
 
 ### Findings by tag
 
@@ -14,7 +14,8 @@ _Generated 2026-04-15T03:26:17.490Z by `scripts/audit.mjs`. Do not edit by hand.
 |---|---:|
 | `[polish]` | 1 |
 | `[a11y]` | 146 |
-| `[deps]` | 1 |
+| `[deps]` | 2 |
+| `[storage]` | 1 |
 
 ## aviation (40 of 58 with findings)
 
@@ -273,7 +274,7 @@ _Generated 2026-04-15T03:26:17.490Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (73 of 136 with findings)
+## misc (74 of 137 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -286,6 +287,10 @@ _Generated 2026-04-15T03:26:17.490Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/alexs-muscle-atlas.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/angry-skeeball.html
+- `[deps]` external CDN: cdnjs.cloudflare.com
+- `[storage]` localStorage key not prefixed korb_: as_level_progress, as_settings, as_total_score
 
 ### tools/misc/anitas-texas-garden.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
