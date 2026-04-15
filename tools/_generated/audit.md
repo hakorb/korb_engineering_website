@@ -1,11 +1,11 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T03:14:02.400Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T03:26:17.490Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **275**
-- Clean (no findings): **108**
+- Total tools scanned: **276**
+- Clean (no findings): **109**
 - With findings:       **167**
 
 ### Findings by tag
@@ -16,7 +16,7 @@ _Generated 2026-04-15T03:14:02.400Z by `scripts/audit.mjs`. Do not edit by hand.
 | `[a11y]` | 146 |
 | `[deps]` | 1 |
 
-## aviation (40 of 57 with findings)
+## aviation (40 of 58 with findings)
 
 ### tools/aviation/360-to-bim.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
