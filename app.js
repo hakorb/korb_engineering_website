@@ -263,6 +263,7 @@ const SECTIONS = {
       { name: 'Home Improvements Guide', file: './tools/misc/home-improvements.html' },
       { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
       { name: 'Inbox Sandbox', file: './tools/misc/inbox-sandbox.html' },
+      { name: 'International Radio', file: './tools/misc/international-radio.html' },
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: "Kelsey's Teacher Tools", file: './tools/misc/kelseys-teacher-tools.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
@@ -333,6 +334,7 @@ const SECTIONS = {
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },
       { name: 'World Cup 2026', file: './tools/misc/world-cup-2026.html' },
       { name: 'World Explorer', file: './tools/misc/world-explorer.html' },
+      { name: 'World Travel Guide', file: './tools/misc/world-travel-guide.html' },
       { name: 'Word Puzzle', file: './tools/misc/word-puzzle.html' },
       { name: 'YT2MP3', file: './tools/misc/youtube-to-mp3.html' },
       { name: 'YT2MP4', file: './tools/misc/youtube-to-mp4.html' }
@@ -848,6 +850,7 @@ const TOOL_DESCRIPTIONS = {
   'Home Improvements Guide': 'Step-by-step guides for common home improvement projects with tools and materials.',
   'Horse Racing': 'Pick a horse and watch a race with odds, commentary, and a betting purse.',
   'Inbox Sandbox': 'Mock email inbox for practicing triage, filters, and response drafting.',
+  'International Radio': 'Listen to live radio stations from around the world organized by country and genre.',
   'Jung-Ho Bridge': 'Bridge card game with bidding, play, and scoring against AI partners.',
   "Kelsey's Teacher Tools": 'Warm, practical toolkit for primary school teachers: lesson planner, random student picker, classroom timer, group maker, seating chart, behavior points tracker, noise meter, printable worksheets, rubric builder, reward coupons, sub plan template, tips library, and curated free resources.',
   'Korb Cookbook': 'Family cookbook with searchable recipes, photos, and shopping list export.',
@@ -918,6 +921,7 @@ const TOOL_DESCRIPTIONS = {
   'Whiteboard': 'Infinite collaborative whiteboard with sticky notes, pens, and shapes.',
   'World Cup 2026': 'All-in-one daily companion for the 2026 FIFA World Cup (USA/Canada/Mexico): full 104-match schedule, 12-group stage with live standings, knockout bracket, 48 team profiles with outlook, FIFA rankings, outright odds, personal predictions and accuracy tracker, venue guide, and watch log.',
   'World Explorer': 'Interactive globe for exploring countries with facts, flags, and photos.',
+  'World Travel Guide': 'Rick Steves-inspired country-by-country travel guide with tips, customs, food, phrases, and packing lists.',
   'Word Puzzle': 'Daily word puzzles including anagrams, word ladders, and hidden-word grids.',
   'YT2MP3': 'Convert YouTube videos to downloadable MP3 audio files.',
   'YT2MP4': 'Download YouTube videos as MP4 files at selectable resolutions.'
