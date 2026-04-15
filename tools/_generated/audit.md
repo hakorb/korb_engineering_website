@@ -1,12 +1,12 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T13:42:48.556Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T16:28:31.284Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
 - Total tools scanned: **277**
-- Clean (no findings): **109**
-- With findings:       **168**
+- Clean (no findings): **108**
+- With findings:       **169**
 
 ### Findings by tag
 
@@ -14,7 +14,7 @@ _Generated 2026-04-15T13:42:48.556Z by `scripts/audit.mjs`. Do not edit by hand.
 |---|---:|
 | `[polish]` | 1 |
 | `[a11y]` | 146 |
-| `[deps]` | 2 |
+| `[deps]` | 3 |
 | `[storage]` | 1 |
 
 ## aviation (40 of 58 with findings)
@@ -274,7 +274,7 @@ _Generated 2026-04-15T13:42:48.556Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (74 of 137 with findings)
+## misc (75 of 137 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -359,6 +359,9 @@ _Generated 2026-04-15T13:42:48.556Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/evans-zoo-pals.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/file-converter.html
+- `[deps]` external CDN: cdnjs.cloudflare.com
 
 ### tools/misc/flowchart-maker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)

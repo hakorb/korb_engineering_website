@@ -6,6 +6,8 @@
 <meta name="description" content="File Converter | Korb Engineering — a free, browser-based productivity tool from Korb Engineering. No signup, no downloads, works on mobile.">
 <title>File Converter | Korb Engineering</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#050a0f;--surface:#0a1018;--surface2:#0d1520;--border:#1a2535;--cyan:#00d4ff;--orange:#ff9900;--green:#10b981;--red:#ef4444;--text:#e2e8f0;--text-dim:#64748b;--radius:8px}
@@ -190,6 +192,7 @@ input,textarea,select{font-size:16px}
             <option value="gif">GIF</option>
             <option value="ico">ICO</option>
             <option value="tiff">TIFF</option>
+            <option value="pdf">PDF (images to PDF)</option>
           </select>
         </div>
         <div id="qualityRow" class="control-row" style="display:none">
@@ -293,6 +296,7 @@ input,textarea,select{font-size:16px}
     <button onclick="switchSub('text','markdown',this)">Markdown</button>
     <button onclick="switchSub('text','csvjson',this)">CSV / JSON Table</button>
     <button onclick="switchSub('text','yamlconv',this)">YAML</button>
+    <button onclick="switchSub('text','pdftools',this)" style="border-color:var(--orange);color:var(--orange)">📄 PDF Tools</button>
   </div>
 
   <!-- Text Conversions sub-panel -->
@@ -446,6 +450,131 @@ input,textarea,select{font-size:16px}
         <button class="btn btn-sm btn-secondary" onclick="swapFields('yamlInput','yamlOutput')">Swap</button>
       </div>
       <div id="yamlStatus" class="status"></div>
+    </div>
+  </div>
+
+  <!-- PDF Tools sub-panel -->
+  <div id="sub-text-pdftools" class="sub-panel">
+    <div class="main-grid">
+      <div>
+        <!-- Text/HTML to PDF -->
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--orange)"></span>Text / HTML → PDF</h3>
+          <p style="font-size:.7rem;color:var(--text-dim);margin-bottom:10px">Convert text or HTML content into a downloadable PDF document.</p>
+          <textarea id="pdfTextInput" placeholder="Paste text or HTML content here..." style="min-height:160px"></textarea>
+          <div class="control-row" style="margin-top:10px">
+            <label>Title:</label>
+            <input type="text" id="pdfDocTitle" placeholder="Document title" style="flex:1">
+          </div>
+          <div class="control-row">
+            <label>Page Size:</label>
+            <select id="pdfPageSize">
+              <option value="letter">Letter (8.5 x 11)</option>
+              <option value="a4">A4</option>
+              <option value="legal">Legal</option>
+            </select>
+            <label style="min-width:auto">Orient:</label>
+            <select id="pdfOrient">
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Font Size:</label>
+            <input type="number" id="pdfFontSize" value="12" min="8" max="24" style="width:60px">
+            <label style="min-width:auto">Margin:</label>
+            <select id="pdfMargin">
+              <option value="10">Small</option>
+              <option value="20" selected>Normal</option>
+              <option value="30">Large</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-orange" onclick="textToPdf()">Generate PDF</button>
+          </div>
+          <div id="pdfTextStatus" class="status"></div>
+        </div>
+
+        <!-- CSV/JSON to PDF Table -->
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--orange)"></span>CSV / JSON → PDF Table</h3>
+          <p style="font-size:.7rem;color:var(--text-dim);margin-bottom:10px">Convert tabular data into a formatted PDF table.</p>
+          <textarea id="pdfTableInput" placeholder="Paste CSV or JSON array here...&#10;&#10;Example CSV:&#10;Name,Age,City&#10;Alice,30,Austin&#10;Bob,25,Dallas" style="min-height:120px"></textarea>
+          <div class="control-row" style="margin-top:10px">
+            <label>Title:</label>
+            <input type="text" id="pdfTableTitle" placeholder="Table title" style="flex:1">
+          </div>
+          <div class="checkbox-row"><input type="checkbox" id="pdfTableHeader" checked><label for="pdfTableHeader">First row is header</label></div>
+          <button class="btn btn-orange" onclick="tableToPdf()" style="margin-top:8px">Generate PDF Table</button>
+          <div id="pdfTableStatus" class="status"></div>
+        </div>
+      </div>
+
+      <div>
+        <!-- PDF to Text -->
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--orange)"></span>PDF → Text</h3>
+          <p style="font-size:.7rem;color:var(--text-dim);margin-bottom:10px">Extract all text content from a PDF file.</p>
+          <div class="drop-zone" id="pdfTextDropZone" style="padding:20px">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="6" width="28" height="36" rx="3"/><path d="M16 14h16M16 20h16M16 26h10" stroke-linecap="round"/></svg>
+            <p>Drop a PDF file here or <span class="browse" onclick="document.getElementById('pdfTextFileInput').click()">browse</span></p>
+            <input type="file" id="pdfTextFileInput" accept=".pdf">
+          </div>
+          <div id="pdfExtractProgress" style="display:none;margin:8px 0">
+            <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden"><div id="pdfExtractBar" style="background:var(--orange);height:100%;width:0;transition:width .3s"></div></div>
+            <div id="pdfExtractLabel" style="font-size:.7rem;color:var(--text-dim);margin-top:4px"></div>
+          </div>
+          <textarea id="pdfExtractOutput" readonly placeholder="Extracted text will appear here..." style="min-height:160px;display:none"></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn btn-sm btn-green" onclick="copyEl('pdfExtractOutput')" id="pdfCopyBtn" style="display:none">Copy Text</button>
+            <button class="btn btn-sm btn-secondary" onclick="downloadText('pdfExtractOutput','extracted')" id="pdfDlTextBtn" style="display:none">Download .txt</button>
+          </div>
+          <div id="pdfExtractStatus" class="status"></div>
+        </div>
+
+        <!-- PDF to Images -->
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--orange)"></span>PDF → Images</h3>
+          <p style="font-size:.7rem;color:var(--text-dim);margin-bottom:10px">Render each PDF page as a PNG or JPG image.</p>
+          <div class="drop-zone" id="pdfImgDropZone" style="padding:20px">
+            <p>Drop a PDF here or <span class="browse" onclick="document.getElementById('pdfImgFileInput').click()">browse</span></p>
+            <input type="file" id="pdfImgFileInput" accept=".pdf">
+          </div>
+          <div class="control-row" style="margin-top:8px">
+            <label>Format:</label>
+            <select id="pdfImgFormat">
+              <option value="png">PNG</option>
+              <option value="jpeg">JPG</option>
+            </select>
+            <label style="min-width:auto">Scale:</label>
+            <select id="pdfImgScale">
+              <option value="1">1x (72dpi)</option>
+              <option value="2" selected>2x (144dpi)</option>
+              <option value="3">3x (216dpi)</option>
+            </select>
+          </div>
+          <div id="pdfImgProgress" style="display:none;margin:8px 0">
+            <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden"><div id="pdfImgBar" style="background:var(--cyan);height:100%;width:0;transition:width .3s"></div></div>
+            <div id="pdfImgLabel" style="font-size:.7rem;color:var(--text-dim);margin-top:4px"></div>
+          </div>
+          <button class="btn btn-primary" onclick="pdfToImages()" id="pdfToImgBtn" style="display:none;margin-top:8px">Convert Pages</button>
+          <div id="pdfImgResults" class="preview-area" style="margin-top:10px"></div>
+          <div id="pdfImgStatus" class="status"></div>
+        </div>
+
+        <!-- Merge PDFs -->
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--orange)"></span>Merge PDFs</h3>
+          <p style="font-size:.7rem;color:var(--text-dim);margin-bottom:10px">Combine multiple PDF files into one document.</p>
+          <div class="drop-zone" id="pdfMergeDropZone" style="padding:20px">
+            <p>Drop multiple PDFs here or <span class="browse" onclick="document.getElementById('pdfMergeFileInput').click()">browse</span></p>
+            <input type="file" id="pdfMergeFileInput" accept=".pdf" multiple>
+          </div>
+          <div id="pdfMergeList" class="file-list" style="display:none"></div>
+          <button class="btn btn-orange" onclick="mergePdfs()" id="pdfMergeBtn" style="display:none;margin-top:8px">Merge All</button>
+          <div id="pdfMergeStatus" class="status"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2510,9 +2639,376 @@ function reedSolomon(data, numEc) {
   return msg.slice(data.length);
 }
 
+/* ============ PDF.js Setup ============ */
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ============ PDF: Text/HTML → PDF ============ */
+function textToPdf() {
+  const text = document.getElementById('pdfTextInput').value.trim();
+  if (!text) { showStatus('pdfTextStatus', 'Please enter some text.', 'error'); return; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const pageSize = document.getElementById('pdfPageSize').value;
+    const orient = document.getElementById('pdfOrient').value;
+    const fontSize = parseInt(document.getElementById('pdfFontSize').value) || 12;
+    const margin = parseInt(document.getElementById('pdfMargin').value) || 20;
+    const title = document.getElementById('pdfDocTitle').value.trim();
+
+    const doc = new jsPDF({ orientation: orient, unit: 'mm', format: pageSize });
+    const pw = doc.internal.pageSize.getWidth() - margin * 2;
+    const ph = doc.internal.pageSize.getHeight() - margin * 2;
+
+    doc.setFont('helvetica');
+    let y = margin;
+
+    if (title) {
+      doc.setFontSize(fontSize + 4);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, y);
+      y += (fontSize + 4) * 0.6;
+      doc.setFont('helvetica', 'normal');
+    }
+
+    doc.setFontSize(fontSize);
+    // Strip HTML tags for plain text output
+    const plain = text.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    const lines = doc.splitTextToSize(plain, pw);
+    const lineH = fontSize * 0.45;
+
+    for (const line of lines) {
+      if (y + lineH > ph + margin) { doc.addPage(); y = margin; }
+      doc.text(line, margin, y);
+      y += lineH;
+    }
+
+    doc.save((title || 'document') + '.pdf');
+    addHistory({ from: 'Text/HTML', to: 'PDF', size: '' });
+    showStatus('pdfTextStatus', 'PDF generated!', 'success');
+  } catch (e) {
+    showStatus('pdfTextStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ PDF: CSV/JSON → PDF Table ============ */
+function tableToPdf() {
+  const raw = document.getElementById('pdfTableInput').value.trim();
+  if (!raw) { showStatus('pdfTableStatus', 'Please enter CSV or JSON data.', 'error'); return; }
+  try {
+    let rows;
+    if (raw.startsWith('[')) {
+      const arr = JSON.parse(raw);
+      if (arr.length && typeof arr[0] === 'object') {
+        const keys = Object.keys(arr[0]);
+        rows = [keys, ...arr.map(r => keys.map(k => String(r[k] ?? '')))];
+      } else {
+        rows = arr.map(r => Array.isArray(r) ? r.map(String) : [String(r)]);
+      }
+    } else {
+      rows = raw.split('\n').filter(l => l.trim()).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    }
+    if (rows.length < 1) { showStatus('pdfTableStatus', 'No data found.', 'error'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const title = document.getElementById('pdfTableTitle').value.trim();
+    const hasHeader = document.getElementById('pdfTableHeader').checked;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+    const margin = 15;
+    const pw = doc.internal.pageSize.getWidth() - margin * 2;
+    const cols = rows[0].length;
+    const colW = pw / cols;
+    const rowH = 7;
+    let y = margin;
+
+    if (title) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin, y);
+      y += 10;
+    }
+
+    doc.setFontSize(9);
+    rows.forEach((row, ri) => {
+      if (y + rowH > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      const isHeader = ri === 0 && hasHeader;
+      if (isHeader) {
+        doc.setFillColor(0, 80, 120);
+        doc.rect(margin, y - 5, pw, rowH, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+      } else {
+        if (ri % 2 === 0) {
+          doc.setFillColor(240, 240, 240);
+          doc.rect(margin, y - 5, pw, rowH, 'F');
+        }
+        doc.setTextColor(30, 30, 30);
+        doc.setFont('helvetica', 'normal');
+      }
+      row.forEach((cell, ci) => {
+        doc.text(String(cell).substring(0, 40), margin + ci * colW + 2, y);
+      });
+      y += rowH;
+    });
+
+    doc.save((title || 'table') + '.pdf');
+    addHistory({ from: 'CSV/JSON', to: 'PDF Table', size: rows.length + ' rows' });
+    showStatus('pdfTableStatus', 'PDF table generated!', 'success');
+  } catch (e) {
+    showStatus('pdfTableStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ PDF: Extract Text ============ */
+let pdfTextFile = null;
+setupDrop('pdfTextDropZone', 'pdfTextFileInput', files => {
+  pdfTextFile = files[0];
+  extractPdfText();
+});
+
+async function extractPdfText() {
+  if (!pdfTextFile) return;
+  if (typeof pdfjsLib === 'undefined') { showStatus('pdfExtractStatus', 'PDF.js not loaded yet. Please wait and retry.', 'error'); return; }
+  const prog = document.getElementById('pdfExtractProgress');
+  const bar = document.getElementById('pdfExtractBar');
+  const label = document.getElementById('pdfExtractLabel');
+  const output = document.getElementById('pdfExtractOutput');
+  prog.style.display = 'block';
+  output.style.display = 'none';
+  try {
+    const data = await pdfTextFile.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    let allText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      bar.style.width = (i / pdf.numPages * 100) + '%';
+      label.textContent = 'Extracting page ' + i + ' of ' + pdf.numPages + '...';
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(item => item.str).join(' ');
+      allText += (i > 1 ? '\n\n--- Page ' + i + ' ---\n\n' : '') + pageText;
+    }
+    output.value = allText;
+    output.style.display = 'block';
+    document.getElementById('pdfCopyBtn').style.display = '';
+    document.getElementById('pdfDlTextBtn').style.display = '';
+    prog.style.display = 'none';
+    addHistory({ from: 'PDF', to: 'Text', size: pdf.numPages + ' pages' });
+    showStatus('pdfExtractStatus', 'Extracted text from ' + pdf.numPages + ' pages!', 'success');
+  } catch (e) {
+    prog.style.display = 'none';
+    showStatus('pdfExtractStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ PDF: PDF → Images ============ */
+let pdfImgFile = null;
+setupDrop('pdfImgDropZone', 'pdfImgFileInput', files => {
+  pdfImgFile = files[0];
+  document.getElementById('pdfToImgBtn').style.display = '';
+});
+
+async function pdfToImages() {
+  if (!pdfImgFile) return;
+  if (typeof pdfjsLib === 'undefined') { showStatus('pdfImgStatus', 'PDF.js not loaded.', 'error'); return; }
+  const scale = parseFloat(document.getElementById('pdfImgScale').value);
+  const fmt = document.getElementById('pdfImgFormat').value;
+  const prog = document.getElementById('pdfImgProgress');
+  const bar = document.getElementById('pdfImgBar');
+  const label = document.getElementById('pdfImgLabel');
+  const results = document.getElementById('pdfImgResults');
+  prog.style.display = 'block';
+  results.innerHTML = '';
+  try {
+    const data = await pdfImgFile.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      bar.style.width = (i / pdf.numPages * 100) + '%';
+      label.textContent = 'Rendering page ' + i + ' of ' + pdf.numPages + '...';
+      const page = await pdf.getPage(i);
+      const vp = page.getViewport({ scale });
+      const c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height;
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      const mimeType = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+      const dataUrl = c.toDataURL(mimeType, 0.92);
+
+      const box = document.createElement('div');
+      box.className = 'preview-box';
+      box.style.marginBottom = '10px';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.maxHeight = '180px';
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'btn btn-sm btn-green';
+      dlBtn.textContent = 'Download Page ' + i;
+      dlBtn.onclick = () => {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'page-' + i + '.' + (fmt === 'jpeg' ? 'jpg' : 'png');
+        a.click();
+      };
+      box.appendChild(img);
+      box.appendChild(dlBtn);
+      results.appendChild(box);
+    }
+    prog.style.display = 'none';
+    addHistory({ from: 'PDF', to: fmt.toUpperCase() + ' images', size: pdf.numPages + ' pages' });
+    showStatus('pdfImgStatus', 'Rendered ' + pdf.numPages + ' pages!', 'success');
+  } catch (e) {
+    prog.style.display = 'none';
+    showStatus('pdfImgStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ PDF: Merge PDFs ============ */
+let pdfMergeFiles = [];
+setupDrop('pdfMergeDropZone', 'pdfMergeFileInput', files => {
+  pdfMergeFiles = [...pdfMergeFiles, ...Array.from(files)];
+  const list = document.getElementById('pdfMergeList');
+  list.style.display = 'block';
+  list.innerHTML = pdfMergeFiles.map((f, i) => `<div class="file-item"><span class="name">${f.name}</span><span class="size">${fmtSize(f.size)}</span><span class="remove" onclick="removeMergePdf(${i})">✕</span></div>`).join('');
+  document.getElementById('pdfMergeBtn').style.display = pdfMergeFiles.length >= 2 ? '' : 'none';
+});
+
+function removeMergePdf(idx) {
+  pdfMergeFiles.splice(idx, 1);
+  const list = document.getElementById('pdfMergeList');
+  if (pdfMergeFiles.length === 0) { list.style.display = 'none'; document.getElementById('pdfMergeBtn').style.display = 'none'; return; }
+  list.innerHTML = pdfMergeFiles.map((f, i) => `<div class="file-item"><span class="name">${f.name}</span><span class="size">${fmtSize(f.size)}</span><span class="remove" onclick="removeMergePdf(${i})">✕</span></div>`).join('');
+  document.getElementById('pdfMergeBtn').style.display = pdfMergeFiles.length >= 2 ? '' : 'none';
+}
+
+async function mergePdfs() {
+  if (pdfMergeFiles.length < 2) return;
+  if (typeof pdfjsLib === 'undefined' || typeof window.jspdf === 'undefined') {
+    showStatus('pdfMergeStatus', 'Libraries not loaded yet.', 'error'); return;
+  }
+  try {
+    showStatus('pdfMergeStatus', 'Merging...', 'info');
+    const { jsPDF } = window.jspdf;
+    let mergedDoc = null;
+
+    for (let fi = 0; fi < pdfMergeFiles.length; fi++) {
+      const data = await pdfMergeFiles[fi].arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      for (let pi = 1; pi <= pdf.numPages; pi++) {
+        const page = await pdf.getPage(pi);
+        const vp = page.getViewport({ scale: 2 });
+        const c = document.createElement('canvas');
+        c.width = vp.width; c.height = vp.height;
+        await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+
+        const imgData = c.toDataURL('image/jpeg', 0.92);
+        const orient = vp.width > vp.height ? 'landscape' : 'portrait';
+
+        if (!mergedDoc) {
+          mergedDoc = new jsPDF({ orientation: orient, unit: 'px', format: [vp.width, vp.height] });
+        } else {
+          mergedDoc.addPage([vp.width, vp.height], orient);
+        }
+        mergedDoc.addImage(imgData, 'JPEG', 0, 0, vp.width, vp.height);
+      }
+    }
+
+    if (mergedDoc) {
+      mergedDoc.save('merged.pdf');
+      addHistory({ from: pdfMergeFiles.length + ' PDFs', to: 'Merged PDF', size: '' });
+      showStatus('pdfMergeStatus', 'PDFs merged successfully!', 'success');
+    }
+  } catch (e) {
+    showStatus('pdfMergeStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ PDF: Images → PDF (from Image tab) ============ */
+const origConvertImages = typeof convertImages === 'function' ? convertImages : null;
+const _origConvImg = window.convertImages;
+// Patch the image conversion to handle PDF output
+const _patchedConvertImages = window.convertImages;
+
+function imagesToPdf() {
+  if (!imageFiles.length) { showStatus('imgStatus', 'No images loaded.', 'error'); return; }
+  try {
+    const { jsPDF } = window.jspdf;
+    let doc = null;
+    for (let i = 0; i < imageFiles.length; i++) {
+      const img = new Image();
+      const url = URL.createObjectURL(imageFiles[i]);
+      img.src = url;
+      // We need to do this synchronously-ish with canvas
+      const c = document.createElement('canvas');
+      const cctx = c.getContext('2d');
+      // Use a promise chain but for simplicity do it via pre-loaded images
+    }
+    // Use async approach
+    _imagesToPdfAsync();
+  } catch (e) {
+    showStatus('imgStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+async function _imagesToPdfAsync() {
+  try {
+    const { jsPDF } = window.jspdf;
+    let doc = null;
+    for (let i = 0; i < imageFiles.length; i++) {
+      const url = URL.createObjectURL(imageFiles[i]);
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = url;
+      });
+      const orient = img.width > img.height ? 'landscape' : 'portrait';
+      if (!doc) {
+        doc = new jsPDF({ orientation: orient, unit: 'px', format: [img.width, img.height] });
+      } else {
+        doc.addPage([img.width, img.height], orient);
+      }
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, img.width, img.height);
+      URL.revokeObjectURL(url);
+    }
+    if (doc) {
+      doc.save('images.pdf');
+      addHistory({ from: imageFiles.length + ' images', to: 'PDF', size: '' });
+      showStatus('imgStatus', 'PDF created from ' + imageFiles.length + ' image(s)!', 'success');
+    }
+  } catch (e) {
+    showStatus('imgStatus', 'Error creating PDF: ' + e.message, 'error');
+  }
+}
+
 /* ============ Init ============ */
 renderHistory();
 colorFromHex();
+
+// Hook into image format change to handle PDF option
+const _imgFmtEl = document.getElementById('imgFormat');
+if (_imgFmtEl) {
+  _imgFmtEl.addEventListener('change', function() {
+    if (this.value === 'pdf') {
+      document.getElementById('qualityRow').style.display = 'none';
+      document.getElementById('icoSizeRow').style.display = 'none';
+    }
+  });
+}
+
+// Patch convertImages to intercept PDF format
+const __origConvert = window.convertImages;
+window.convertImages = function(batch) {
+  const fmt = document.getElementById('imgFormat').value;
+  if (fmt === 'pdf') {
+    _imagesToPdfAsync();
+    return;
+  }
+  if (__origConvert) __origConvert(batch);
+};
 </script>
 </body>
 </html>
