@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Aviation Project Planner // Korb Engineering — MS Project-style Gantt chart planner with task dependencies, critical path, milestones, and resource tracking for aviation projects.">
+<title>Aviation Project Planner // Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --text:#e2e8f0;--cyan:#00d4ff;--orange:#ff9900;--green:#10b981;
+  --red:#ef4444;--yellow:#f59e0b;--purple:#a855f7;
+  --font:'JetBrains Mono',monospace;
+  --row-h:32px;--task-col:360px;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.6;min-height:100vh;overflow:hidden}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;z-index:100}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:32px;height:32px;border:2px solid var(--cyan);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--cyan);font-size:12px;flex-shrink:0}
+.brand h1{font-size:clamp(12px,2.5vw,16px);font-weight:600;color:var(--cyan)}
+.brand-sub{font-size:11px;color:var(--text);opacity:.6;font-weight:300}
+.header-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font-family:var(--font);font-size:12px;font-weight:500;border:none;border-radius:4px;cursor:pointer;padding:8px 12px;min-height:44px;transition:all .2s}
+button:active{opacity:.8}
+.btn-cyan{background:var(--cyan);color:var(--bg)}
+.btn-orange{background:var(--orange);color:var(--bg)}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{border-color:var(--cyan)}
+.btn-sm{padding:4px 8px;min-height:32px;font-size:11px}
+select{background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font);font-size:16px;padding:8px;min-height:44px}
+input{background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font);font-size:16px;padding:8px;min-height:44px}
+input:focus,select:focus{outline:none;border-color:var(--cyan)}
+
+/* Toolbar */
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.toolbar-group{display:flex;gap:4px;align-items:center;padding:0 8px;border-right:1px solid var(--border)}
+.toolbar-group:last-child{border-right:none}
+.toolbar button{min-height:36px;font-size:11px;padding:6px 10px}
+.toolbar select{min-height:36px;font-size:12px;padding:4px 8px}
+.toolbar-label{font-size:10px;color:var(--text);opacity:.5;text-transform:uppercase;letter-spacing:.5px;margin-right:4px}
+
+/* Main layout */
+.app-body{display:flex;height:calc(100vh - 100px);overflow:hidden}
+.task-panel{width:var(--task-col);min-width:260px;flex-shrink:0;border-right:2px solid var(--border);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.gantt-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.splitter{width:6px;background:var(--border);cursor:col-resize;flex-shrink:0;transition:background .2s}
+.splitter:hover{background:var(--cyan)}
+
+/* Task table header */
+.task-header{display:grid;grid-template-columns:30px 24px 1fr 60px 80px 80px 50px;gap:0;background:var(--surface);border-bottom:1px solid var(--border);padding:0 4px;min-height:var(--row-h);align-items:center;font-size:10px;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.task-header>div{padding:4px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-list{flex:1;overflow-y:auto;overflow-x:hidden}
+
+/* Task row */
+.task-row{display:grid;grid-template-columns:30px 24px 1fr 60px 80px 80px 50px;gap:0;padding:0 4px;min-height:var(--row-h);align-items:center;font-size:11px;border-bottom:1px solid rgba(26,37,53,.5);cursor:pointer;transition:background .1s}
+.task-row:hover{background:rgba(0,212,255,.05)}
+.task-row.selected{background:rgba(0,212,255,.12);border-left:2px solid var(--cyan)}
+.task-row.critical{background:rgba(239,68,68,.08)}
+.task-row.critical .task-name{color:var(--red)}
+.task-row.milestone .task-name{color:var(--yellow);font-style:italic}
+.task-row.summary-task{background:rgba(0,212,255,.04)}
+.task-row.summary-task .task-name{font-weight:700;color:var(--cyan)}
+.task-row>div{padding:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-id{color:var(--text);opacity:.4;font-size:10px;text-align:center}
+.task-icon{text-align:center;font-size:12px}
+.task-name{cursor:text}
+.task-dur{text-align:center;color:var(--orange)}
+.task-date{font-size:10px;color:var(--text);opacity:.7}
+.task-pct{text-align:center;font-size:10px}
+.indent-0 .task-name{padding-left:0}
+.indent-1 .task-name{padding-left:16px}
+.indent-2 .task-name{padding-left:32px}
+.indent-3 .task-name{padding-left:48px}
+.indent-4 .task-name{padding-left:64px}
+
+/* Gantt header + canvas */
+.gantt-header-wrap{overflow:hidden;background:var(--surface);border-bottom:1px solid var(--border)}
+.gantt-canvas-wrap{flex:1;overflow:auto;position:relative}
+canvas#ganttCanvas{display:block}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:14px;color:var(--cyan);margin-bottom:16px;text-transform:uppercase;letter-spacing:1px}
+.modal label{display:block;font-size:11px;color:var(--text);opacity:.7;margin-bottom:4px;margin-top:10px}
+.modal input,.modal select,.modal textarea{width:100%}
+.modal textarea{background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font);font-size:14px;padding:8px;min-height:60px;resize:vertical}
+.modal .btn-row{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* Resource panel */
+.resource-panel{display:none;position:absolute;bottom:0;left:0;right:0;height:200px;background:var(--surface);border-top:2px solid var(--border);z-index:50;overflow:auto;padding:12px}
+.resource-panel.show{display:block}
+.resource-panel h3{font-size:12px;color:var(--cyan);margin-bottom:8px;text-transform:uppercase}
+.resource-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px}
+.resource-bar-name{width:100px;text-align:right;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.resource-bar-track{flex:1;height:18px;background:var(--surface2);border-radius:3px;overflow:hidden;position:relative}
+.resource-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.resource-bar-label{width:40px;font-size:10px;opacity:.6}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--green);color:#fff;padding:12px 20px;border-radius:6px;font-size:12px;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Template selector */
+.template-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.template-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;cursor:pointer;transition:border-color .2s;min-height:44px}
+.template-card:hover{border-color:var(--cyan)}
+.template-card h4{font-size:12px;color:var(--cyan);margin-bottom:4px}
+.template-card p{font-size:10px;opacity:.6}
+
+/* Keyboard help */
+.kb-help{position:fixed;bottom:60px;right:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:10px;z-index:100;display:none;min-width:200px}
+.kb-help.show{display:block}
+.kb-help div{padding:2px 0;display:flex;justify-content:space-between;gap:16px}
+.kb-help kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;color:var(--cyan)}
+
+@media(max-width:768px){
+  :root{--task-col:240px}
+  .task-header,.task-row{grid-template-columns:24px 20px 1fr 40px 0 0 36px}
+  .task-date{display:none}
+  .toolbar{overflow-x:auto;flex-wrap:nowrap}
+  .template-grid{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .app-body{height:calc(100vh - 120px)}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">KE</div>
+    <div>
+      <h1>Aviation Project Planner</h1>
+      <div class="brand-sub">Korb Engineering // Gantt Scheduler</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <select id="projectSelect" title="Load Project"><option value="">-- Projects --</option></select>
+    <button class="btn-cyan" onclick="saveProject()" title="Save Project">Save</button>
+    <button class="btn-outline" onclick="showTemplates()" title="Load Template">Template</button>
+    <button class="btn-outline" onclick="exportCSV()" title="Export CSV">CSV</button>
+  </div>
+</header>
+
+<div class="toolbar" id="toolbar">
+  <div class="toolbar-group">
+    <button class="btn-outline" onclick="addTask()" title="Add Task (Enter)">+ Task</button>
+    <button class="btn-outline" onclick="addMilestone()" title="Add Milestone">&#9670; Mile</button>
+    <button class="btn-outline" onclick="deleteSelected()" title="Delete (Del)">&#10005; Del</button>
+  </div>
+  <div class="toolbar-group">
+    <button class="btn-outline" onclick="indentTask()" title="Indent (Tab)">&#8594; Indent</button>
+    <button class="btn-outline" onclick="outdentTask()" title="Outdent (Shift+Tab)">&#8592; Outdent</button>
+  </div>
+  <div class="toolbar-group">
+    <button class="btn-outline" onclick="moveTaskUp()" title="Move Up">&#8593;</button>
+    <button class="btn-outline" onclick="moveTaskDown()" title="Move Down">&#8595;</button>
+  </div>
+  <div class="toolbar-group">
+    <span class="toolbar-label">Zoom</span>
+    <select id="zoomSelect" onchange="setZoom(this.value)">
+      <option value="day">Day</option>
+      <option value="week" selected>Week</option>
+      <option value="month">Month</option>
+      <option value="quarter">Quarter</option>
+    </select>
+  </div>
+  <div class="toolbar-group">
+    <button class="btn-outline" id="cpBtn" onclick="toggleCriticalPath()" title="Toggle Critical Path">CP</button>
+    <button class="btn-outline" id="blBtn" onclick="saveBaseline()" title="Save Baseline">Baseline</button>
+    <button class="btn-outline" onclick="toggleResources()" title="Resource View">Res</button>
+    <button class="btn-outline" onclick="toggleKbHelp()" title="Keyboard Shortcuts">?</button>
+  </div>
+</div>
+
+<div class="app-body" id="appBody">
+  <div class="task-panel" id="taskPanel">
+    <div class="task-header">
+      <div>#</div>
+      <div></div>
+      <div>Task Name</div>
+      <div>Dur</div>
+      <div>Start</div>
+      <div>End</div>
+      <div>%</div>
+    </div>
+    <div class="task-list" id="taskList"></div>
+  </div>
+  <div class="splitter" id="splitter"></div>
+  <div class="gantt-panel" id="ganttPanel">
+    <div class="gantt-header-wrap" id="ganttHeaderWrap">
+      <canvas id="ganttHeaderCanvas" height="40"></canvas>
+    </div>
+    <div class="gantt-canvas-wrap" id="ganttCanvasWrap">
+      <canvas id="ganttCanvas"></canvas>
+    </div>
+  </div>
+  <div class="resource-panel" id="resourcePanel">
+    <h3>Resource Utilization</h3>
+    <div id="resourceContent"></div>
+  </div>
+</div>
+
+<!-- Task Edit Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <h2>Edit Task</h2>
+    <label>Task Name</label>
+    <input type="text" id="mName" placeholder="Task name">
+    <div class="form-row">
+      <div><label>Duration (days)</label><input type="number" id="mDuration" min="0" value="5"></div>
+      <div><label>% Complete</label><input type="number" id="mPct" min="0" max="100" value="0"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Start Date</label><input type="date" id="mStart"></div>
+      <div><label>End Date</label><input type="date" id="mEnd"></div>
+    </div>
+    <label>Predecessors (e.g. 2FS, 3SS+2)</label>
+    <input type="text" id="mPred" placeholder="e.g. 2FS, 3SS+2, 5FF-1">
+    <label>Resources (comma-separated)</label>
+    <input type="text" id="mResources" placeholder="e.g. John, Jane">
+    <label>Milestone</label>
+    <select id="mMilestone"><option value="0">No</option><option value="1">Yes</option></select>
+    <label>Notes</label>
+    <textarea id="mNotes" placeholder="Task notes..."></textarea>
+    <div class="btn-row">
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn-cyan" onclick="saveTaskModal()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Template Modal -->
+<div class="modal-overlay" id="templateModal">
+  <div class="modal">
+    <h2>Project Templates</h2>
+    <p style="font-size:11px;opacity:.6;margin-bottom:8px">Select a template to start a new project.</p>
+    <div class="template-grid">
+      <div class="template-card" onclick="loadTemplate('maintenance')">
+        <h4>Aircraft Maintenance Check</h4>
+        <p>A/C-check schedule with inspections, repairs, and return to service.</p>
+      </div>
+      <div class="template-card" onclick="loadTemplate('airport')">
+        <h4>Airport Expansion</h4>
+        <p>Terminal expansion with design, permitting, construction, and commissioning.</p>
+      </div>
+      <div class="template-card" onclick="loadTemplate('route')">
+        <h4>New Route Launch</h4>
+        <p>Market analysis, regulatory approvals, scheduling, and marketing launch.</p>
+      </div>
+      <div class="template-card" onclick="loadTemplate('fleet')">
+        <h4>Fleet Acquisition</h4>
+        <p>RFP, evaluation, financing, delivery, and crew training.</p>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn-outline" onclick="closeTemplateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard Help -->
+<div class="kb-help" id="kbHelp">
+  <div><span>Navigate</span><kbd>Arrow Keys</kbd></div>
+  <div><span>Add Task</span><kbd>Enter</kbd></div>
+  <div><span>Delete Task</span><kbd>Delete</kbd></div>
+  <div><span>Indent</span><kbd>Tab</kbd></div>
+  <div><span>Outdent</span><kbd>Shift+Tab</kbd></div>
+  <div><span>Edit Task</span><kbd>E / Dbl-Click</kbd></div>
+  <div><span>Save</span><kbd>Ctrl+S</kbd></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// AVIATION PROJECT PLANNER — Korb Engineering
+// ============================================================
+
+const STORAGE_PREFIX = 'korb_app_aviation_planner_';
+const DEP_TYPES = ['FS','SS','FF','SF'];
+
+let tasks = [];
+let selectedIdx = -1;
+let nextId = 1;
+let zoom = 'week';
+let showCritical = false;
+let baseline = null;
+let showResourcePanel = false;
+let editingIdx = -1;
+let projectName = 'Untitled Project';
+
+// -- Dates --
+function today(){ return stripTime(new Date()); }
+function stripTime(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function diffDays(a,b){ return Math.round((b-a)/(86400000)); }
+function fmtDate(d){ if(!d)return''; const dt=new Date(d); return dt.toISOString().slice(0,10); }
+function parseDate(s){ if(!s)return null; const d=new Date(s+'T00:00:00'); return isNaN(d)?null:d; }
+function dayOfWeek(d){ return new Date(d).getDay(); }
+function weekStart(d){ const r=new Date(d); r.setDate(r.getDate()-r.getDay()); return stripTime(r); }
+function monthStart(d){ const r=new Date(d); r.setDate(1); return stripTime(r); }
+function quarterStart(d){ const r=new Date(d); r.setMonth(Math.floor(r.getMonth()/3)*3,1); return stripTime(r); }
+
+// -- Task creation --
+function createTask(overrides={}){
+  const t = {
+    id: nextId++,
+    name: overrides.name || 'New Task',
+    duration: overrides.duration !== undefined ? overrides.duration : 5,
+    start: overrides.start || today(),
+    end: null,
+    pctComplete: overrides.pctComplete || 0,
+    indent: overrides.indent || 0,
+    milestone: overrides.milestone || false,
+    predecessors: overrides.predecessors || [], // [{taskId, type:'FS', lag:0}]
+    resources: overrides.resources || [],
+    notes: overrides.notes || '',
+    isSummary: false,
+    criticalPath: false
+  };
+  if(t.milestone) t.duration = 0;
+  t.end = addDays(t.start, t.duration);
+  return t;
+}
+
+// -- Dependency parsing --
+function parsePredecessors(str){
+  if(!str || !str.trim()) return [];
+  const parts = str.split(',').map(s=>s.trim()).filter(Boolean);
+  const result = [];
+  for(const p of parts){
+    const m = p.match(/^(\d+)\s*(FS|SS|FF|SF)?\s*([+-]\d+)?$/i);
+    if(m){
+      result.push({
+        taskId: parseInt(m[1]),
+        type: (m[2]||'FS').toUpperCase(),
+        lag: parseInt(m[3]||'0')
+      });
+    }
+  }
+  return result;
+}
+
+function predToString(preds){
+  return preds.map(p=>`${p.taskId}${p.type}${p.lag>0?'+'+p.lag:p.lag<0?''+p.lag:''}`).join(', ');
+}
+
+// -- Identify summary tasks --
+function updateSummaryFlags(){
+  for(let i=0;i<tasks.length;i++){
+    tasks[i].isSummary = false;
+    if(i < tasks.length-1 && tasks[i+1].indent > tasks[i].indent){
+      tasks[i].isSummary = true;
+    }
+  }
+}
+
+// -- Get children of a summary task --
+function getChildren(idx){
+  const parent = tasks[idx];
+  const children = [];
+  for(let i=idx+1; i<tasks.length; i++){
+    if(tasks[i].indent <= parent.indent) break;
+    if(tasks[i].indent === parent.indent+1) children.push(i);
+  }
+  return children;
+}
+
+function getAllDescendants(idx){
+  const parent = tasks[idx];
+  const desc = [];
+  for(let i=idx+1; i<tasks.length; i++){
+    if(tasks[i].indent <= parent.indent) break;
+    desc.push(i);
+  }
+  return desc;
+}
+
+// -- Auto-schedule (forward pass) --
+function autoSchedule(){
+  updateSummaryFlags();
+  const idMap = {};
+  tasks.forEach((t,i)=> idMap[t.id]=i);
+
+  // Schedule leaf tasks based on predecessors
+  // Multiple passes to resolve chains
+  for(let pass=0; pass<tasks.length+1; pass++){
+    let changed = false;
+    for(let i=0;i<tasks.length;i++){
+      const t = tasks[i];
+      if(t.isSummary) continue;
+      if(t.predecessors.length === 0) continue;
+
+      let maxStart = null;
+      for(const pred of t.predecessors){
+        const pi = idMap[pred.taskId];
+        if(pi === undefined) continue;
+        const pt = tasks[pi];
+        let depDate;
+        switch(pred.type){
+          case 'FS': depDate = addDays(pt.end, pred.lag); break;
+          case 'SS': depDate = addDays(pt.start, pred.lag); break;
+          case 'FF': depDate = addDays(pt.end, pred.lag - t.duration); break;
+          case 'SF': depDate = addDays(pt.start, pred.lag - t.duration); break;
+          default: depDate = addDays(pt.end, pred.lag);
+        }
+        if(!maxStart || depDate > maxStart) maxStart = depDate;
+      }
+      if(maxStart && maxStart.getTime() !== t.start.getTime()){
+        t.start = maxStart;
+        t.end = addDays(t.start, t.duration);
+        changed = true;
+      }
+    }
+    if(!changed) break;
+  }
+
+  // Roll up summary tasks
+  for(let i=tasks.length-1; i>=0; i--){
+    if(!tasks[i].isSummary) continue;
+    const descs = getAllDescendants(i);
+    if(descs.length === 0) continue;
+    let minStart = tasks[descs[0]].start;
+    let maxEnd = tasks[descs[0]].end;
+    let totalPct = 0;
+    let leafCount = 0;
+    for(const di of descs){
+      if(tasks[di].start < minStart) minStart = tasks[di].start;
+      if(tasks[di].end > maxEnd) maxEnd = tasks[di].end;
+      if(!tasks[di].isSummary){
+        totalPct += tasks[di].pctComplete;
+        leafCount++;
+      }
+    }
+    tasks[i].start = minStart;
+    tasks[i].end = maxEnd;
+    tasks[i].duration = diffDays(minStart, maxEnd);
+    if(leafCount > 0) tasks[i].pctComplete = Math.round(totalPct / leafCount);
+  }
+}
+
+// -- Critical Path --
+function computeCriticalPath(){
+  const idMap = {};
+  tasks.forEach((t,i)=> idMap[t.id]=i);
+  tasks.forEach(t=> t.criticalPath = false);
+
+  if(tasks.length === 0) return;
+
+  // Find project end
+  let projectEnd = tasks[0].end;
+  let lastIdx = 0;
+  for(let i=1;i<tasks.length;i++){
+    if(!tasks[i].isSummary && tasks[i].end >= projectEnd){
+      projectEnd = tasks[i].end;
+      lastIdx = i;
+    }
+  }
+
+  // Backward pass: find tasks with zero total float
+  // Simplified: tasks on the longest path
+  const es = tasks.map(t=> t.start.getTime());
+  const ef = tasks.map(t=> t.end.getTime());
+  const ls = tasks.map(()=> projectEnd.getTime());
+  const lf = tasks.map(()=> projectEnd.getTime());
+
+  // Compute late finish/start backward
+  for(let i=tasks.length-1; i>=0; i--){
+    if(tasks[i].isSummary) continue;
+    // Find successors
+    let minLF = projectEnd.getTime();
+    for(let j=0;j<tasks.length;j++){
+      if(j===i) continue;
+      for(const pred of tasks[j].predecessors){
+        if(pred.taskId === tasks[i].id){
+          const jls = ls[j];
+          const depLF = pred.type === 'FS' ? jls - pred.lag*86400000 :
+                        pred.type === 'SS' ? jls - pred.lag*86400000 + tasks[i].duration*86400000 :
+                        pred.type === 'FF' ? jls - pred.lag*86400000 + tasks[i].duration*86400000 :
+                        jls - pred.lag*86400000 + tasks[i].duration*86400000;
+          if(depLF < minLF) minLF = depLF;
+        }
+      }
+    }
+    lf[i] = minLF;
+    ls[i] = lf[i] - tasks[i].duration * 86400000;
+  }
+
+  for(let i=0;i<tasks.length;i++){
+    if(tasks[i].isSummary) continue;
+    const totalFloat = ls[i] - es[i];
+    if(Math.abs(totalFloat) < 86400000){ // zero float = critical
+      tasks[i].criticalPath = true;
+    }
+  }
+}
+
+// -- Gantt rendering --
+const COLORS = {
+  bar: '#00d4ff',
+  barCritical: '#ef4444',
+  barSummary: '#00d4ff',
+  progress: '#10b981',
+  milestone: '#f59e0b',
+  baseline: 'rgba(168,85,247,0.4)',
+  dependency: 'rgba(255,153,0,0.6)',
+  todayLine: '#ff9900',
+  gridLine: 'rgba(26,37,53,0.8)',
+  headerBg: '#0a1018',
+  headerText: '#00d4ff',
+  text: '#e2e8f0',
+  textDim: 'rgba(226,232,240,0.4)'
+};
+
+function getZoomConfig(){
+  switch(zoom){
+    case 'day': return {cellWidth:40, unit:'day', majorUnit:'month'};
+    case 'week': return {cellWidth:28, unit:'day', majorUnit:'week'};
+    case 'month': return {cellWidth:8, unit:'day', majorUnit:'month'};
+    case 'quarter': return {cellWidth:3, unit:'day', majorUnit:'quarter'};
+    default: return {cellWidth:28, unit:'day', majorUnit:'week'};
+  }
+}
+
+function getProjectRange(){
+  if(tasks.length === 0) return {start: today(), end: addDays(today(),30)};
+  let minD = tasks[0].start, maxD = tasks[0].end;
+  for(const t of tasks){
+    if(t.start < minD) minD = t.start;
+    if(t.end > maxD) maxD = t.end;
+  }
+  // Add padding
+  minD = addDays(minD, -3);
+  maxD = addDays(maxD, 7);
+  return {start: minD, end: maxD};
+}
+
+function renderGanttHeader(){
+  const canvas = document.getElementById('ganttHeaderCanvas');
+  const wrap = document.getElementById('ganttHeaderWrap');
+  const zc = getZoomConfig();
+  const range = getProjectRange();
+  const totalDays = diffDays(range.start, range.end);
+  const width = totalDays * zc.cellWidth;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = width * dpr;
+  canvas.height = 40 * dpr;
+  canvas.style.width = width + 'px';
+  canvas.style.height = '40px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = COLORS.headerBg;
+  ctx.fillRect(0,0,width,40);
+
+  ctx.font = '10px JetBrains Mono';
+  ctx.textBaseline = 'middle';
+
+  // Major headers
+  let d = new Date(range.start);
+  while(d <= range.end){
+    const x = diffDays(range.start, d) * zc.cellWidth;
+    let label = '';
+    let nextD;
+
+    if(zoom === 'day' || zoom === 'week'){
+      if(zoom === 'day'){
+        // Show month as major
+        if(d.getDate() === 1 || d.getTime() === range.start.getTime()){
+          label = d.toLocaleDateString('en',{month:'short',year:'numeric'});
+          nextD = new Date(d.getFullYear(), d.getMonth()+1, 1);
+        } else {
+          nextD = addDays(d,1);
+          d = nextD; continue;
+        }
+      } else {
+        // week: show week start dates
+        const ws = weekStart(d);
+        if(d.getTime() === ws.getTime() || d.getTime() === range.start.getTime()){
+          label = d.toLocaleDateString('en',{month:'short',day:'numeric'});
+          nextD = addDays(ws, 7);
+        } else {
+          nextD = addDays(d,1);
+          d = nextD; continue;
+        }
+      }
+    } else if(zoom === 'month'){
+      if(d.getDate() === 1 || d.getTime() === range.start.getTime()){
+        label = d.toLocaleDateString('en',{month:'short',year:'2-digit'});
+        nextD = new Date(d.getFullYear(), d.getMonth()+1, 1);
+      } else {
+        nextD = addDays(d,1);
+        d = nextD; continue;
+      }
+    } else {
+      const qs = quarterStart(d);
+      if(d.getTime() === qs.getTime() || d.getTime() === range.start.getTime()){
+        const q = Math.floor(d.getMonth()/3)+1;
+        label = `Q${q} ${d.getFullYear()}`;
+        nextD = new Date(d.getFullYear(), d.getMonth()+3, 1);
+      } else {
+        nextD = addDays(d,1);
+        d = nextD; continue;
+      }
+    }
+
+    ctx.fillStyle = COLORS.headerText;
+    ctx.fillText(label, x+4, 12);
+    ctx.strokeStyle = COLORS.gridLine;
+    ctx.beginPath();
+    ctx.moveTo(x,0); ctx.lineTo(x,40);
+    ctx.stroke();
+
+    d = nextD || addDays(d,1);
+  }
+
+  // Minor headers (day numbers for day/week zoom)
+  if(zoom === 'day' || zoom === 'week'){
+    for(let i=0; i<totalDays; i++){
+      const dd = addDays(range.start, i);
+      const x = i * zc.cellWidth;
+      ctx.fillStyle = COLORS.textDim;
+      const lbl = zoom === 'day' ? dd.getDate().toString() : (dd.getDay()===0?dd.getDate():'');
+      if(lbl) ctx.fillText(lbl, x+2, 30);
+      if(zoom === 'day'){
+        ctx.strokeStyle = 'rgba(26,37,53,0.3)';
+        ctx.beginPath();
+        ctx.moveTo(x,20); ctx.lineTo(x,40);
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function renderGantt(){
+  const canvas = document.getElementById('ganttCanvas');
+  const wrap = document.getElementById('ganttCanvasWrap');
+  const zc = getZoomConfig();
+  const range = getProjectRange();
+  const totalDays = diffDays(range.start, range.end);
+  const width = Math.max(totalDays * zc.cellWidth, wrap.clientWidth);
+  const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--row-h')) || 32;
+  const height = Math.max(tasks.length * rowH + 20, wrap.clientHeight);
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = width + 'px';
+  canvas.style.height = height + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#0e1520';
+  ctx.fillRect(0,0,width,height);
+
+  // Grid lines
+  ctx.strokeStyle = COLORS.gridLine;
+  ctx.lineWidth = 0.5;
+  for(let i=0; i<totalDays; i++){
+    const x = i * zc.cellWidth;
+    const dd = addDays(range.start, i);
+    if(zoom === 'day' || (zoom === 'week' && dd.getDay()===0) ||
+       (zoom === 'month' && dd.getDate()===1) || (zoom === 'quarter' && dd.getDate()===1 && dd.getMonth()%3===0)){
+      ctx.beginPath();
+      ctx.moveTo(x,0); ctx.lineTo(x,height);
+      ctx.stroke();
+    }
+  }
+
+  // Row lines
+  for(let i=0;i<=tasks.length;i++){
+    const y = i*rowH;
+    ctx.strokeStyle = 'rgba(26,37,53,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(0,y); ctx.lineTo(width,y);
+    ctx.stroke();
+  }
+
+  // Selected row highlight
+  if(selectedIdx >= 0 && selectedIdx < tasks.length){
+    ctx.fillStyle = 'rgba(0,212,255,0.05)';
+    ctx.fillRect(0, selectedIdx*rowH, width, rowH);
+  }
+
+  // Today line
+  const todayX = diffDays(range.start, today()) * zc.cellWidth;
+  if(todayX >= 0 && todayX <= width){
+    ctx.strokeStyle = COLORS.todayLine;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(todayX,0); ctx.lineTo(todayX,height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+  }
+
+  // Render tasks
+  const idMap = {};
+  tasks.forEach((t,i)=> idMap[t.id]=i);
+
+  for(let i=0;i<tasks.length;i++){
+    const t = tasks[i];
+    const y = i * rowH;
+    const barH = 14;
+    const barY = y + (rowH - barH)/2;
+    const startX = diffDays(range.start, t.start) * zc.cellWidth;
+    const barW = Math.max(t.duration * zc.cellWidth, 2);
+
+    // Baseline bar
+    if(baseline && baseline[t.id]){
+      const bl = baseline[t.id];
+      const blStartX = diffDays(range.start, parseDate(bl.start)) * zc.cellWidth;
+      const blW = Math.max(bl.duration * zc.cellWidth, 2);
+      ctx.fillStyle = COLORS.baseline;
+      ctx.fillRect(blStartX, barY + barH - 4, blW, 4);
+    }
+
+    if(t.milestone){
+      // Diamond
+      const cx = startX;
+      const cy = barY + barH/2;
+      const sz = 7;
+      ctx.fillStyle = COLORS.milestone;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy-sz);
+      ctx.lineTo(cx+sz, cy);
+      ctx.lineTo(cx, cy+sz);
+      ctx.lineTo(cx-sz, cy);
+      ctx.closePath();
+      ctx.fill();
+      // Label
+      ctx.fillStyle = COLORS.text;
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText(t.name, cx+sz+4, cy+3);
+    } else if(t.isSummary){
+      // Summary bar: thin with end caps
+      const capH = barH;
+      const barThick = 5;
+      const sy = barY + (barH - barThick)/2;
+      ctx.fillStyle = COLORS.barSummary;
+      ctx.fillRect(startX, sy, barW, barThick);
+      // Start cap
+      ctx.beginPath();
+      ctx.moveTo(startX, barY);
+      ctx.lineTo(startX, barY+capH);
+      ctx.lineTo(startX+6, sy+barThick);
+      ctx.lineTo(startX+6, sy);
+      ctx.closePath();
+      ctx.fill();
+      // End cap
+      ctx.beginPath();
+      ctx.moveTo(startX+barW, barY);
+      ctx.lineTo(startX+barW, barY+capH);
+      ctx.lineTo(startX+barW-6, sy+barThick);
+      ctx.lineTo(startX+barW-6, sy);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Regular bar
+      const isCrit = showCritical && t.criticalPath;
+      ctx.fillStyle = isCrit ? COLORS.barCritical : COLORS.bar;
+      ctx.globalAlpha = 0.3;
+      roundRect(ctx, startX, barY, barW, barH, 3);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = isCrit ? COLORS.barCritical : COLORS.bar;
+      ctx.lineWidth = 1;
+      roundRect(ctx, startX, barY, barW, barH, 3);
+      ctx.stroke();
+
+      // Progress fill
+      if(t.pctComplete > 0){
+        const pw = barW * (t.pctComplete/100);
+        ctx.fillStyle = isCrit ? COLORS.barCritical : COLORS.progress;
+        ctx.globalAlpha = 0.7;
+        roundRect(ctx, startX, barY, pw, barH, 3);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Label
+      if(barW > 30){
+        ctx.fillStyle = COLORS.text;
+        ctx.font = '9px JetBrains Mono';
+        ctx.fillText(t.pctComplete+'%', startX+4, barY+barH-3);
+      }
+    }
+  }
+
+  // Dependency arrows
+  ctx.lineWidth = 1.5;
+  for(let i=0;i<tasks.length;i++){
+    const t = tasks[i];
+    for(const pred of t.predecessors){
+      const pi = idMap[pred.taskId];
+      if(pi === undefined) continue;
+      const pt = tasks[pi];
+
+      const fromY = pi * rowH + rowH/2;
+      const toY = i * rowH + rowH/2;
+      let fromX, toX;
+
+      switch(pred.type){
+        case 'FS':
+          fromX = diffDays(range.start, pt.end) * zc.cellWidth;
+          toX = diffDays(range.start, t.start) * zc.cellWidth;
+          break;
+        case 'SS':
+          fromX = diffDays(range.start, pt.start) * zc.cellWidth;
+          toX = diffDays(range.start, t.start) * zc.cellWidth;
+          break;
+        case 'FF':
+          fromX = diffDays(range.start, pt.end) * zc.cellWidth;
+          toX = diffDays(range.start, t.end) * zc.cellWidth;
+          break;
+        case 'SF':
+          fromX = diffDays(range.start, pt.start) * zc.cellWidth;
+          toX = diffDays(range.start, t.end) * zc.cellWidth;
+          break;
+      }
+
+      ctx.strokeStyle = COLORS.dependency;
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      // Route: go right, then down, then to target
+      const midX = fromX + 10;
+      ctx.lineTo(midX, fromY);
+      ctx.lineTo(midX, toY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+
+      // Arrowhead
+      ctx.fillStyle = COLORS.dependency;
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX-5, toY-3);
+      ctx.lineTo(toX-5, toY+3);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Sync header scroll
+  document.getElementById('ganttHeaderWrap').scrollLeft = wrap.scrollLeft;
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// -- Task list rendering --
+function renderTaskList(){
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  for(let i=0;i<tasks.length;i++){
+    const t = tasks[i];
+    const row = document.createElement('div');
+    row.className = 'task-row indent-'+Math.min(t.indent,4);
+    if(i === selectedIdx) row.classList.add('selected');
+    if(showCritical && t.criticalPath) row.classList.add('critical');
+    if(t.milestone) row.classList.add('milestone');
+    if(t.isSummary) row.classList.add('summary-task');
+
+    const icon = t.milestone ? '&#9670;' : t.isSummary ? '&#9660;' : '&#9632;';
+
+    row.innerHTML = `
+      <div class="task-id">${t.id}</div>
+      <div class="task-icon">${icon}</div>
+      <div class="task-name">${escHtml(t.name)}</div>
+      <div class="task-dur">${t.duration}d</div>
+      <div class="task-date">${fmtDate(t.start)}</div>
+      <div class="task-date">${fmtDate(t.end)}</div>
+      <div class="task-pct">${t.pctComplete}%</div>
+    `;
+
+    row.addEventListener('click', ()=> selectTask(i));
+    row.addEventListener('dblclick', ()=> openTaskModal(i));
+    list.appendChild(row);
+  }
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function selectTask(idx){
+  selectedIdx = idx;
+  renderAll();
+}
+
+// -- Task operations --
+function addTask(){
+  const insertAt = selectedIdx >= 0 ? selectedIdx + 1 : tasks.length;
+  const indent = selectedIdx >= 0 ? tasks[selectedIdx].indent : 0;
+  const startDate = selectedIdx >= 0 ? tasks[selectedIdx].end : today();
+  const t = createTask({indent, start: startDate});
+  tasks.splice(insertAt, 0, t);
+  selectedIdx = insertAt;
+  refresh();
+}
+
+function addMilestone(){
+  const insertAt = selectedIdx >= 0 ? selectedIdx + 1 : tasks.length;
+  const indent = selectedIdx >= 0 ? tasks[selectedIdx].indent : 0;
+  const startDate = selectedIdx >= 0 ? tasks[selectedIdx].end : today();
+  const t = createTask({indent, start: startDate, duration: 0, milestone: true, name: 'Milestone'});
+  tasks.splice(insertAt, 0, t);
+  selectedIdx = insertAt;
+  refresh();
+}
+
+function deleteSelected(){
+  if(selectedIdx < 0 || selectedIdx >= tasks.length) return;
+  // If summary, delete children too
+  if(tasks[selectedIdx].isSummary){
+    const descs = getAllDescendants(selectedIdx);
+    tasks.splice(selectedIdx, descs.length + 1);
+  } else {
+    tasks.splice(selectedIdx, 1);
+  }
+  if(selectedIdx >= tasks.length) selectedIdx = tasks.length - 1;
+  refresh();
+}
+
+function indentTask(){
+  if(selectedIdx <= 0) return;
+  if(tasks[selectedIdx].indent < tasks[selectedIdx-1].indent + 1){
+    tasks[selectedIdx].indent++;
+    refresh();
+  }
+}
+
+function outdentTask(){
+  if(selectedIdx < 0) return;
+  if(tasks[selectedIdx].indent > 0){
+    tasks[selectedIdx].indent--;
+    refresh();
+  }
+}
+
+function moveTaskUp(){
+  if(selectedIdx <= 0) return;
+  [tasks[selectedIdx], tasks[selectedIdx-1]] = [tasks[selectedIdx-1], tasks[selectedIdx]];
+  selectedIdx--;
+  refresh();
+}
+
+function moveTaskDown(){
+  if(selectedIdx < 0 || selectedIdx >= tasks.length-1) return;
+  [tasks[selectedIdx], tasks[selectedIdx+1]] = [tasks[selectedIdx+1], tasks[selectedIdx]];
+  selectedIdx++;
+  refresh();
+}
+
+// -- Task modal --
+function openTaskModal(idx){
+  editingIdx = idx;
+  const t = tasks[idx];
+  document.getElementById('mName').value = t.name;
+  document.getElementById('mDuration').value = t.duration;
+  document.getElementById('mPct').value = t.pctComplete;
+  document.getElementById('mStart').value = fmtDate(t.start);
+  document.getElementById('mEnd').value = fmtDate(t.end);
+  document.getElementById('mPred').value = predToString(t.predecessors);
+  document.getElementById('mResources').value = t.resources.join(', ');
+  document.getElementById('mMilestone').value = t.milestone ? '1' : '0';
+  document.getElementById('mNotes').value = t.notes;
+  document.getElementById('taskModal').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('taskModal').classList.remove('show');
+  editingIdx = -1;
+}
+
+function saveTaskModal(){
+  if(editingIdx < 0) return;
+  const t = tasks[editingIdx];
+  t.name = document.getElementById('mName').value || 'Untitled';
+  t.duration = Math.max(0, parseInt(document.getElementById('mDuration').value) || 0);
+  t.pctComplete = Math.min(100, Math.max(0, parseInt(document.getElementById('mPct').value) || 0));
+  const startVal = parseDate(document.getElementById('mStart').value);
+  if(startVal) t.start = startVal;
+  t.milestone = document.getElementById('mMilestone').value === '1';
+  if(t.milestone) t.duration = 0;
+  t.end = addDays(t.start, t.duration);
+  t.predecessors = parsePredecessors(document.getElementById('mPred').value);
+  t.resources = document.getElementById('mResources').value.split(',').map(s=>s.trim()).filter(Boolean);
+  t.notes = document.getElementById('mNotes').value;
+  closeModal();
+  refresh();
+}
+
+// -- Critical path toggle --
+function toggleCriticalPath(){
+  showCritical = !showCritical;
+  document.getElementById('cpBtn').classList.toggle('btn-cyan', showCritical);
+  document.getElementById('cpBtn').classList.toggle('btn-outline', !showCritical);
+  if(showCritical) computeCriticalPath();
+  renderAll();
+}
+
+// -- Baseline --
+function saveBaseline(){
+  baseline = {};
+  for(const t of tasks){
+    baseline[t.id] = {start: fmtDate(t.start), end: fmtDate(t.end), duration: t.duration};
+  }
+  toast('Baseline saved');
+  renderAll();
+}
+
+// -- Zoom --
+function setZoom(z){
+  zoom = z;
+  renderAll();
+}
+
+// -- Resource panel --
+function toggleResources(){
+  showResourcePanel = !showResourcePanel;
+  const panel = document.getElementById('resourcePanel');
+  panel.classList.toggle('show', showResourcePanel);
+  if(showResourcePanel) renderResources();
+}
+
+function renderResources(){
+  const resMap = {};
+  for(const t of tasks){
+    if(t.isSummary) continue;
+    for(const r of t.resources){
+      if(!resMap[r]) resMap[r] = {days:0, tasks:0};
+      resMap[r].days += t.duration;
+      resMap[r].tasks++;
+    }
+  }
+  const maxDays = Math.max(1, ...Object.values(resMap).map(r=>r.days));
+  const content = document.getElementById('resourceContent');
+  content.innerHTML = '';
+  if(Object.keys(resMap).length === 0){
+    content.innerHTML = '<div style="font-size:11px;opacity:.5;padding:8px">No resources assigned. Edit tasks to add resources.</div>';
+    return;
+  }
+  for(const [name, data] of Object.entries(resMap).sort((a,b)=>b[1].days-a[1].days)){
+    const pct = Math.round(data.days/maxDays*100);
+    const color = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--orange)' : 'var(--green)';
+    content.innerHTML += `<div class="resource-bar-row">
+      <div class="resource-bar-name">${escHtml(name)}</div>
+      <div class="resource-bar-track"><div class="resource-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="resource-bar-label">${data.days}d / ${data.tasks}t</div>
+    </div>`;
+  }
+}
+
+// -- Templates --
+function showTemplates(){
+  document.getElementById('templateModal').classList.add('show');
+}
+
+function closeTemplateModal(){
+  document.getElementById('templateModal').classList.remove('show');
+}
+
+function loadTemplate(type){
+  const t = today();
+  tasks = [];
+  nextId = 1;
+  baseline = null;
+
+  const templates = {
+    maintenance: [
+      {name:'A-Check Maintenance', indent:0, duration:14},
+      {name:'Pre-Inspection', indent:1, duration:2},
+      {name:'Document Review', indent:2, duration:1},
+      {name:'MEL/CDL Review', indent:2, duration:1, pred:'3FS'},
+      {name:'Structural Inspection', indent:1, duration:5, pred:'2FS'},
+      {name:'Fuselage Inspection', indent:2, duration:3},
+      {name:'Wing Inspection', indent:2, duration:2, pred:'6FS'},
+      {name:'Landing Gear Inspection', indent:2, duration:2, pred:'6FS'},
+      {name:'Systems Check', indent:1, duration:4, pred:'5FS'},
+      {name:'Avionics Testing', indent:2, duration:2},
+      {name:'Hydraulics Check', indent:2, duration:1, pred:'10FS'},
+      {name:'Engine Borescope', indent:2, duration:2, pred:'10FS'},
+      {name:'Repairs & Modifications', indent:1, duration:5, pred:'9FS'},
+      {name:'Corrective Actions', indent:2, duration:3},
+      {name:'SB/AD Compliance', indent:2, duration:3, pred:'14FS'},
+      {name:'Final Inspection & RTS', indent:1, duration:2, pred:'13FS'},
+      {name:'Quality Assurance Review', indent:2, duration:1},
+      {name:'Test Flight', indent:2, duration:1, pred:'17FS'},
+      {name:'Return to Service', indent:1, duration:0, milestone:true, pred:'16FS'},
+    ],
+    airport: [
+      {name:'Airport Terminal Expansion', indent:0, duration:365},
+      {name:'Planning Phase', indent:1, duration:60},
+      {name:'Feasibility Study', indent:2, duration:30},
+      {name:'Environmental Assessment', indent:2, duration:30, pred:'3FS'},
+      {name:'Stakeholder Consultation', indent:2, duration:20, pred:'3FS'},
+      {name:'Planning Approval', indent:1, duration:0, milestone:true, pred:'2FS'},
+      {name:'Design Phase', indent:1, duration:90, pred:'6FS'},
+      {name:'Architectural Design', indent:2, duration:45},
+      {name:'Structural Engineering', indent:2, duration:30, pred:'8FS'},
+      {name:'MEP Design', indent:2, duration:30, pred:'8FS'},
+      {name:'Security Systems Design', indent:2, duration:20, pred:'9FS'},
+      {name:'Design Complete', indent:1, duration:0, milestone:true, pred:'7FS'},
+      {name:'Procurement', indent:1, duration:45, pred:'12FS'},
+      {name:'Contractor Selection', indent:2, duration:30},
+      {name:'Material Procurement', indent:2, duration:30, pred:'14FS'},
+      {name:'Construction Phase', indent:1, duration:180, pred:'13FS'},
+      {name:'Site Preparation', indent:2, duration:30},
+      {name:'Foundation Work', indent:2, duration:40, pred:'17FS'},
+      {name:'Steel Structure', indent:2, duration:60, pred:'18FS'},
+      {name:'Facade & Roof', indent:2, duration:40, pred:'19FS'},
+      {name:'Interior Fitout', indent:2, duration:50, pred:'20FS'},
+      {name:'Systems Installation', indent:2, duration:30, pred:'20SS+10'},
+      {name:'Commissioning', indent:1, duration:30, pred:'16FS'},
+      {name:'Systems Testing', indent:2, duration:15},
+      {name:'Safety Certification', indent:2, duration:10, pred:'24FS'},
+      {name:'Staff Training', indent:2, duration:10, pred:'24FS'},
+      {name:'Grand Opening', indent:1, duration:0, milestone:true, pred:'23FS'},
+    ],
+    route: [
+      {name:'New Route Launch', indent:0, duration:120},
+      {name:'Market Analysis', indent:1, duration:20},
+      {name:'Demand Forecasting', indent:2, duration:10},
+      {name:'Competitor Analysis', indent:2, duration:8, pred:'3SS'},
+      {name:'Revenue Modeling', indent:2, duration:7, pred:'3FS'},
+      {name:'Go/No-Go Decision', indent:1, duration:0, milestone:true, pred:'2FS'},
+      {name:'Regulatory Approvals', indent:1, duration:45, pred:'6FS'},
+      {name:'Bilateral Agreement Review', indent:2, duration:15},
+      {name:'Slot Allocation', indent:2, duration:20, pred:'8FS'},
+      {name:'Operating Certificate', indent:2, duration:15, pred:'8FS'},
+      {name:'Operations Planning', indent:1, duration:30, pred:'7FS'},
+      {name:'Schedule Development', indent:2, duration:10},
+      {name:'Crew Planning', indent:2, duration:10, pred:'12FS'},
+      {name:'Ground Handling Setup', indent:2, duration:15, pred:'12FS'},
+      {name:'Catering Contracts', indent:2, duration:10, pred:'12FS'},
+      {name:'Marketing & Sales', indent:1, duration:40, pred:'6FS'},
+      {name:'Brand Campaign', indent:2, duration:20},
+      {name:'Fare Loading', indent:2, duration:5, pred:'17FS'},
+      {name:'Distribution Setup', indent:2, duration:10, pred:'17FS'},
+      {name:'Inaugural Flight', indent:1, duration:0, milestone:true, pred:'11FS'},
+    ],
+    fleet: [
+      {name:'Fleet Acquisition Program', indent:0, duration:240},
+      {name:'Requirements Definition', indent:1, duration:30},
+      {name:'Fleet Strategy Review', indent:2, duration:10},
+      {name:'Performance Requirements', indent:2, duration:10, pred:'3FS'},
+      {name:'Financial Analysis', indent:2, duration:15, pred:'3FS'},
+      {name:'RFP Phase', indent:1, duration:30, pred:'2FS'},
+      {name:'RFP Development', indent:2, duration:10},
+      {name:'Manufacturer Proposals', indent:2, duration:20, pred:'7FS'},
+      {name:'Evaluation & Selection', indent:1, duration:30, pred:'6FS'},
+      {name:'Technical Evaluation', indent:2, duration:15},
+      {name:'Commercial Evaluation', indent:2, duration:15, pred:'10SS'},
+      {name:'Factory Visits', indent:2, duration:5, pred:'10FS'},
+      {name:'Board Approval', indent:1, duration:0, milestone:true, pred:'9FS'},
+      {name:'Contract Negotiation', indent:1, duration:45, pred:'13FS'},
+      {name:'Purchase Agreement', indent:2, duration:30},
+      {name:'Financing Arrangement', indent:2, duration:30, pred:'15SS'},
+      {name:'Delivery Preparation', indent:1, duration:60, pred:'14FS'},
+      {name:'Crew Training', indent:2, duration:45},
+      {name:'Maintenance Program', indent:2, duration:30, pred:'18SS'},
+      {name:'Spares Provisioning', indent:2, duration:30, pred:'18SS'},
+      {name:'Operations Manuals', indent:2, duration:20, pred:'18FS'},
+      {name:'First Delivery', indent:1, duration:0, milestone:true, pred:'17FS'},
+    ]
+  };
+
+  const tmpl = templates[type];
+  if(!tmpl) return;
+
+  let cumStart = new Date(t);
+  for(const item of tmpl){
+    const task = createTask({
+      name: item.name,
+      indent: item.indent,
+      duration: item.duration || 0,
+      milestone: item.milestone || false,
+      start: new Date(cumStart)
+    });
+    if(item.pred) task.predecessors = parsePredecessors(item.pred);
+    tasks.push(task);
+  }
+
+  closeTemplateModal();
+  refresh();
+  toast('Template loaded: ' + type);
+}
+
+// -- Save / Load --
+function saveProject(){
+  const name = prompt('Project name:', projectName);
+  if(!name) return;
+  projectName = name;
+  const data = {
+    name: projectName,
+    tasks: tasks.map(t=>({
+      ...t,
+      start: fmtDate(t.start),
+      end: fmtDate(t.end)
+    })),
+    nextId,
+    baseline,
+    savedAt: new Date().toISOString()
+  };
+  localStorage.setItem(STORAGE_PREFIX + name, JSON.stringify(data));
+  refreshProjectList();
+  toast('Project saved: ' + name);
+}
+
+function loadProject(){
+  const sel = document.getElementById('projectSelect');
+  const key = sel.value;
+  if(!key) return;
+  try {
+    const data = JSON.parse(localStorage.getItem(key));
+    projectName = data.name || 'Untitled';
+    nextId = data.nextId || 1;
+    baseline = data.baseline || null;
+    tasks = (data.tasks||[]).map(t=>({
+      ...t,
+      start: parseDate(t.start) || today(),
+      end: parseDate(t.end) || today(),
+      predecessors: t.predecessors || [],
+      resources: t.resources || [],
+      isSummary: false,
+      criticalPath: false
+    }));
+    refresh();
+    toast('Loaded: ' + projectName);
+  } catch(e){
+    toast('Error loading project');
+  }
+}
+
+function refreshProjectList(){
+  const sel = document.getElementById('projectSelect');
+  sel.innerHTML = '<option value="">-- Projects --</option>';
+  for(let i=0;i<localStorage.length;i++){
+    const key = localStorage.key(i);
+    if(key.startsWith(STORAGE_PREFIX)){
+      const name = key.slice(STORAGE_PREFIX.length);
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+// -- Export CSV --
+function exportCSV(){
+  if(tasks.length === 0){ toast('No tasks to export'); return; }
+  let csv = 'ID,WBS,Name,Duration,Start,End,%Complete,Predecessors,Resources,Milestone,Notes\n';
+  for(const t of tasks){
+    csv += [
+      t.id,
+      '  '.repeat(t.indent) + t.id,
+      '"'+t.name.replace(/"/g,'""')+'"',
+      t.duration+'d',
+      fmtDate(t.start),
+      fmtDate(t.end),
+      t.pctComplete+'%',
+      '"'+predToString(t.predecessors)+'"',
+      '"'+t.resources.join('; ')+'"',
+      t.milestone?'Yes':'No',
+      '"'+(t.notes||'').replace(/"/g,'""')+'"'
+    ].join(',') + '\n';
+  }
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (projectName||'project').replace(/\s+/g,'_') + '_tasks.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exported');
+}
+
+// -- Splitter drag --
+function initSplitter(){
+  const splitter = document.getElementById('splitter');
+  const taskPanel = document.getElementById('taskPanel');
+  let startX, startW;
+
+  function onMove(e){
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const newW = Math.max(200, Math.min(600, startW + clientX - startX));
+    taskPanel.style.width = newW + 'px';
+    document.documentElement.style.setProperty('--task-col', newW+'px');
+  }
+  function onUp(){
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    renderAll();
+  }
+
+  splitter.addEventListener('mousedown', e=>{
+    startX = e.clientX;
+    startW = taskPanel.offsetWidth;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+  splitter.addEventListener('touchstart', e=>{
+    startX = e.touches[0].clientX;
+    startW = taskPanel.offsetWidth;
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+  }, {passive:true});
+}
+
+// -- Gantt bar drag-to-resize --
+let dragState = null;
+
+function initGanttInteraction(){
+  const canvas = document.getElementById('ganttCanvas');
+  const wrap = document.getElementById('ganttCanvasWrap');
+
+  canvas.addEventListener('mousedown', e=>{
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const x = (e.clientX - rect.left);
+    const y = (e.clientY - rect.top);
+    const rowH = 32;
+    const taskIdx = Math.floor(y / rowH);
+    if(taskIdx < 0 || taskIdx >= tasks.length) return;
+
+    selectTask(taskIdx);
+    const t = tasks[taskIdx];
+    if(t.isSummary || t.milestone) return;
+
+    const zc = getZoomConfig();
+    const range = getProjectRange();
+    const barStart = diffDays(range.start, t.start) * zc.cellWidth;
+    const barEnd = barStart + t.duration * zc.cellWidth;
+
+    // Check if near right edge (resize) or on bar (move)
+    if(Math.abs(x - barEnd) < 8){
+      dragState = {type:'resize', taskIdx, startX: e.clientX, origDuration: t.duration};
+    } else if(x >= barStart && x <= barEnd){
+      dragState = {type:'move', taskIdx, startX: e.clientX, origStart: new Date(t.start)};
+    }
+
+    if(dragState){
+      document.addEventListener('mousemove', onGanttDrag);
+      document.addEventListener('mouseup', onGanttDragEnd);
+    }
+  });
+
+  canvas.addEventListener('dblclick', e=>{
+    const rect = canvas.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const taskIdx = Math.floor(y / 32);
+    if(taskIdx >= 0 && taskIdx < tasks.length) openTaskModal(taskIdx);
+  });
+}
+
+function onGanttDrag(e){
+  if(!dragState) return;
+  const zc = getZoomConfig();
+  const dx = e.clientX - dragState.startX;
+  const daysDelta = Math.round(dx / zc.cellWidth);
+  const t = tasks[dragState.taskIdx];
+
+  if(dragState.type === 'resize'){
+    t.duration = Math.max(1, dragState.origDuration + daysDelta);
+    t.end = addDays(t.start, t.duration);
+  } else if(dragState.type === 'move'){
+    t.start = addDays(dragState.origStart, daysDelta);
+    t.end = addDays(t.start, t.duration);
+  }
+  renderAll();
+}
+
+function onGanttDragEnd(){
+  dragState = null;
+  document.removeEventListener('mousemove', onGanttDrag);
+  document.removeEventListener('mouseup', onGanttDragEnd);
+  refresh();
+}
+
+// -- Keyboard shortcuts --
+function initKeyboard(){
+  document.addEventListener('keydown', e=>{
+    // Skip if in input/textarea/select
+    const tag = e.target.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      if(selectedIdx < tasks.length-1) selectTask(selectedIdx+1);
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      if(selectedIdx > 0) selectTask(selectedIdx-1);
+    } else if(e.key === 'Tab' && !e.shiftKey){
+      e.preventDefault();
+      indentTask();
+    } else if(e.key === 'Tab' && e.shiftKey){
+      e.preventDefault();
+      outdentTask();
+    } else if(e.key === 'Enter'){
+      e.preventDefault();
+      addTask();
+    } else if(e.key === 'Delete' || e.key === 'Backspace'){
+      e.preventDefault();
+      deleteSelected();
+    } else if(e.key === 'e' || e.key === 'E'){
+      e.preventDefault();
+      if(selectedIdx >= 0) openTaskModal(selectedIdx);
+    } else if(e.key === 's' && (e.ctrlKey || e.metaKey)){
+      e.preventDefault();
+      saveProject();
+    }
+  });
+}
+
+// -- Scroll sync --
+function initScrollSync(){
+  const ganttWrap = document.getElementById('ganttCanvasWrap');
+  const headerWrap = document.getElementById('ganttHeaderWrap');
+  const taskList = document.getElementById('taskList');
+
+  ganttWrap.addEventListener('scroll', ()=>{
+    headerWrap.scrollLeft = ganttWrap.scrollLeft;
+    taskList.scrollTop = ganttWrap.scrollTop;
+  });
+  taskList.addEventListener('scroll', ()=>{
+    ganttWrap.scrollTop = taskList.scrollTop;
+  });
+}
+
+// -- Toast --
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=> el.classList.remove('show'), 2000);
+}
+
+// -- Keyboard help --
+function toggleKbHelp(){
+  document.getElementById('kbHelp').classList.toggle('show');
+}
+
+// -- Refresh --
+function refresh(){
+  autoSchedule();
+  if(showCritical) computeCriticalPath();
+  renderAll();
+}
+
+function renderAll(){
+  renderTaskList();
+  renderGanttHeader();
+  renderGantt();
+  if(showResourcePanel) renderResources();
+}
+
+// -- Init --
+function init(){
+  refreshProjectList();
+  initSplitter();
+  initGanttInteraction();
+  initKeyboard();
+  initScrollSync();
+
+  // Auto-load select on change
+  document.getElementById('projectSelect').addEventListener('change', loadProject);
+
+  // Start with empty project — user can load template
+  renderAll();
+
+  // Handle resize
+  window.addEventListener('resize', ()=> renderAll());
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

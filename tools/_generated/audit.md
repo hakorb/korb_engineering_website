@@ -1,22 +1,22 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T02:49:29.146Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T02:51:59.736Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **271**
+- Total tools scanned: **272**
 - Clean (no findings): **106**
-- With findings:       **165**
+- With findings:       **166**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
 | `[polish]` | 1 |
-| `[a11y]` | 144 |
+| `[a11y]` | 145 |
 | `[deps]` | 1 |
 
-## aviation (39 of 56 with findings)
+## aviation (40 of 57 with findings)
 
 ### tools/aviation/360-to-bim.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
@@ -41,6 +41,10 @@ _Generated 2026-04-15T02:49:29.146Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/aviation-fuel-pricing.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/aviation/aviation-project-planner.html
+- `[a11y]` uses native prompt() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/aviation/buildbook-project.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
