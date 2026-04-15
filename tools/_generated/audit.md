@@ -1,22 +1,22 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T02:46:00.514Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T02:49:29.146Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **270**
+- Total tools scanned: **271**
 - Clean (no findings): **106**
-- With findings:       **164**
+- With findings:       **165**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
 | `[polish]` | 1 |
-| `[a11y]` | 143 |
+| `[a11y]` | 144 |
 | `[deps]` | 1 |
 
-## aviation (38 of 55 with findings)
+## aviation (39 of 56 with findings)
 
 ### tools/aviation/360-to-bim.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
@@ -103,6 +103,9 @@ _Generated 2026-04-15T02:46:00.514Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/aviation/pre-flight-checklist.html
 - `[a11y]` uses native alert(), confirm(), prompt() (prefer KorbUI)
+
+### tools/aviation/probability-impact-matrix.html
+- `[a11y]` uses native alert(), confirm() (prefer KorbUI)
 
 ### tools/aviation/procore-project-manager.html
 - `[a11y]` uses native confirm() (prefer KorbUI)

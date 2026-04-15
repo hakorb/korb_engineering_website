@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Probability Impact Matrix — visual risk assessment with heat-map scoring and mitigation tracking for aviation SMS. A free tool from Korb Engineering.">
+<title>Probability Impact Matrix // Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --text:#e2e8f0;--text-dim:#8892a2;--cyan:#00d4ff;--orange:#ff9900;
+  --green:#10b981;--red:#ef4444;--yellow:#eab308;
+  --font:'JetBrains Mono',monospace;
+}
+html{font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{font-size:1.1rem;font-weight:700;color:var(--cyan);letter-spacing:1px}
+.logo span{color:var(--orange)}
+header h1{font-size:1rem;font-weight:400;color:var(--text-dim)}
+main{max-width:1200px;margin:0 auto;padding:20px}
+h2{font-size:.85rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px}
+
+/* Matrix */
+.matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px}
+.matrix-container{display:flex;align-items:stretch;min-width:420px}
+.y-label{writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);font-size:.7rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:2px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.matrix-grid-wrap{flex:1}
+.matrix{display:grid;grid-template-columns:110px repeat(5,1fr);gap:2px;width:100%}
+.matrix .header-cell{background:var(--surface2);padding:8px 4px;text-align:center;font-size:.65rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;min-height:44px;display:flex;align-items:center;justify-content:center}
+.matrix .row-label{background:var(--surface2);padding:8px 6px;font-size:.68rem;font-weight:600;color:var(--text-dim);display:flex;align-items:center;min-height:54px}
+.matrix .cell{min-height:54px;min-width:54px;border-radius:4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all .2s;position:relative;padding:4px}
+.matrix .cell:hover{filter:brightness(1.3);transform:scale(1.05)}
+.matrix .cell .score{font-size:.75rem;font-weight:700;color:rgba(0,0,0,.7)}
+.matrix .cell .count{font-size:.6rem;font-weight:600;color:rgba(0,0,0,.5)}
+.x-label{text-align:center;font-size:.7rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:2px;padding:8px 0;margin-left:110px}
+
+/* Heat map colors */
+.risk-1,.risk-2{background:#10b981}
+.risk-3,.risk-4{background:#22c55e}
+.risk-5,.risk-6{background:#eab308}
+.risk-8,.risk-9,.risk-10{background:#f97316}
+.risk-12,.risk-15,.risk-16,.risk-20,.risk-25{background:#ef4444}
+
+/* Summary bar */
+.summary-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.summary-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 16px;text-align:center;flex:1;min-width:90px}
+.summary-item .val{font-size:1.4rem;font-weight:700;color:var(--cyan)}
+.summary-item .lbl{font-size:.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.summary-item.high .val{color:var(--red)}
+.summary-item.med .val{color:var(--orange)}
+.summary-item.low .val{color:var(--green)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:24px}
+.modal h3{font-size:.85rem;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+label{display:block;font-size:.72rem;font-weight:500;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;color:var(--text);font-family:var(--font);font-size:16px;min-height:44px;transition:border-color .2s}
+textarea{resize:vertical;min-height:80px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+input::placeholder,textarea::placeholder{color:var(--text-dim)}
+.btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+button{min-height:44px;padding:12px 24px;border:none;border-radius:6px;font-family:var(--font);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px}
+.btn-primary{background:var(--cyan);color:var(--bg)}
+.btn-primary:hover{background:#33ddff}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--cyan)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-sm{min-height:36px;padding:8px 14px;font-size:.72rem}
+
+/* Register table */
+.register-controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.register-controls select,.register-controls input{flex:1;min-width:140px}
+.register-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:.75rem}
+th{background:var(--surface2);padding:10px 8px;text-align:left;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;min-height:44px}
+th:hover{color:var(--cyan)}
+td{padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:hover td{background:var(--surface2)}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.status-open{background:rgba(239,68,68,.15);color:var(--red)}
+.status-in-progress{background:rgba(234,179,8,.15);color:var(--yellow)}
+.status-mitigated{background:rgba(16,185,129,.15);color:var(--green)}
+.status-accepted{background:rgba(0,212,255,.15);color:var(--cyan)}
+
+.score-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700}
+.score-low{background:rgba(16,185,129,.2);color:var(--green)}
+.score-med{background:rgba(234,179,8,.2);color:var(--yellow)}
+.score-high{background:rgba(249,115,22,.2);color:var(--orange)}
+.score-critical{background:rgba(239,68,68,.2);color:var(--red)}
+
+.actions-cell{display:flex;gap:4px;flex-wrap:nowrap}
+.icon-btn{min-height:36px;min-width:36px;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-family:var(--font)}
+.icon-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+
+/* Presets */
+.preset-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.preset-chip{min-height:36px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;font-family:var(--font);font-size:.7rem;color:var(--text-dim);cursor:pointer;transition:all .2s}
+.preset-chip:hover{border-color:var(--orange);color:var(--orange)}
+
+/* Print */
+@media print{
+  body{background:#fff;color:#000}
+  header,.toolbar,.btn-row,.preset-bar,.register-controls,.actions-cell,.icon-btn,button{display:none!important}
+  .card{border:1px solid #ccc;background:#fff}
+  .matrix .cell .score{color:#000}
+  h2{color:#333}
+  th{background:#eee;color:#333}
+  td{border-color:#ccc}
+}
+
+footer{text-align:center;padding:20px;color:var(--text-dim);font-size:.7rem;border-top:1px solid var(--border);margin-top:40px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">KORB<span>.ENG</span></div>
+  <h1>Probability Impact Matrix</h1>
+</header>
+
+<main>
+  <!-- Summary -->
+  <div class="summary-bar">
+    <div class="summary-item" id="sum-total"><div class="val">0</div><div class="lbl">Total Risks</div></div>
+    <div class="summary-item high" id="sum-critical"><div class="val">0</div><div class="lbl">Critical</div></div>
+    <div class="summary-item med" id="sum-high"><div class="val">0</div><div class="lbl">High</div></div>
+    <div class="summary-item low" id="sum-open"><div class="val">0</div><div class="lbl">Open</div></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn-primary btn-sm" onclick="openAddModal()">+ Add Risk</button>
+    <button class="btn-secondary btn-sm" onclick="exportCSV()">Export CSV</button>
+    <button class="btn-secondary btn-sm" onclick="window.print()">Print</button>
+    <button class="btn-secondary btn-sm" onclick="clearAll()">Clear All</button>
+  </div>
+
+  <!-- Presets -->
+  <div class="card">
+    <h2>Aviation Presets</h2>
+    <div class="preset-bar" id="preset-bar"></div>
+  </div>
+
+  <!-- Matrix -->
+  <div class="card">
+    <h2>Risk Matrix</h2>
+    <div class="matrix-wrap">
+      <div class="matrix-container">
+        <div class="y-label">Probability</div>
+        <div class="matrix-grid-wrap">
+          <div class="matrix" id="matrix-grid"></div>
+          <div class="x-label">Impact</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk Register -->
+  <div class="card">
+    <h2>Risk Register</h2>
+    <div class="register-controls">
+      <select id="filter-category" onchange="renderTable()">
+        <option value="">All Categories</option>
+        <option value="Safety">Safety</option>
+        <option value="Operational">Operational</option>
+        <option value="Financial">Financial</option>
+        <option value="Regulatory">Regulatory</option>
+        <option value="Reputational">Reputational</option>
+      </select>
+      <select id="filter-status" onchange="renderTable()">
+        <option value="">All Statuses</option>
+        <option value="Open">Open</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Mitigated">Mitigated</option>
+        <option value="Accepted">Accepted</option>
+      </select>
+      <input type="text" id="filter-search" placeholder="Search risks..." oninput="renderTable()" style="min-width:160px">
+    </div>
+    <div class="register-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortTable('title')">Title</th>
+            <th onclick="sortTable('category')">Category</th>
+            <th onclick="sortTable('probability')">Prob</th>
+            <th onclick="sortTable('impact')">Impact</th>
+            <th onclick="sortTable('score')">Score</th>
+            <th onclick="sortTable('status')">Status</th>
+            <th onclick="sortTable('owner')">Owner</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="register-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="risk-modal">
+  <div class="modal">
+    <h3 id="modal-title">Add Risk</h3>
+    <input type="hidden" id="risk-id">
+    <div class="form-group">
+      <label for="risk-name">Risk Title *</label>
+      <input type="text" id="risk-name" placeholder="e.g., Bird Strike on Approach">
+    </div>
+    <div class="form-group">
+      <label for="risk-desc">Description</label>
+      <textarea id="risk-desc" placeholder="Describe the risk scenario..."></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label for="risk-prob">Probability *</label>
+        <select id="risk-prob">
+          <option value="1">1 — Rare</option>
+          <option value="2">2 — Unlikely</option>
+          <option value="3" selected>3 — Possible</option>
+          <option value="4">4 — Likely</option>
+          <option value="5">5 — Almost Certain</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="risk-impact">Impact *</label>
+        <select id="risk-impact">
+          <option value="1">1 — Negligible</option>
+          <option value="2">2 — Minor</option>
+          <option value="3" selected>3 — Moderate</option>
+          <option value="4">4 — Major</option>
+          <option value="5">5 — Catastrophic</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label for="risk-cat">Category</label>
+        <select id="risk-cat">
+          <option value="Safety">Safety</option>
+          <option value="Operational">Operational</option>
+          <option value="Financial">Financial</option>
+          <option value="Regulatory">Regulatory</option>
+          <option value="Reputational">Reputational</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="risk-status">Status</label>
+        <select id="risk-status">
+          <option value="Open">Open</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Mitigated">Mitigated</option>
+          <option value="Accepted">Accepted</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="risk-owner">Owner</label>
+      <input type="text" id="risk-owner" placeholder="Person responsible">
+    </div>
+    <div class="form-group">
+      <label for="risk-mitigation">Mitigation Plan</label>
+      <textarea id="risk-mitigation" placeholder="Describe mitigation actions..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveRisk()">Save</button>
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<footer>Probability Impact Matrix &mdash; Korb Engineering &copy; 2026</footer>
+
+<script>
+/* ─── Data ─── */
+const STORAGE_KEY = 'korb_pim_risks';
+const PROB_LABELS = ['','Rare','Unlikely','Possible','Likely','Almost Certain'];
+const IMPACT_LABELS = ['','Negligible','Minor','Moderate','Major','Catastrophic'];
+
+const PRESETS = [
+  { title:'Bird Strike', desc:'Bird ingestion or airframe strike during takeoff, approach, or landing.', prob:3, impact:4, cat:'Safety' },
+  { title:'Engine Failure', desc:'Single or multi-engine failure during critical phase of flight.', prob:2, impact:5, cat:'Safety' },
+  { title:'Runway Incursion', desc:'Unauthorized aircraft, vehicle, or person on active runway surface.', prob:3, impact:5, cat:'Safety' },
+  { title:'Weather Delay', desc:'Thunderstorms, low visibility, or wind shear causing operational delays.', prob:4, impact:3, cat:'Operational' },
+  { title:'Crew Fatigue', desc:'Flight crew exceeding duty time limits or reporting fatigued.', prob:3, impact:4, cat:'Regulatory' },
+  { title:'FOD on Runway', desc:'Foreign object debris on movement area posing ingestion or tire damage risk.', prob:3, impact:3, cat:'Safety' }
+];
+
+let risks = [];
+let sortCol = 'score';
+let sortDir = -1;
+
+/* ─── Init ─── */
+function init(){
+  loadData();
+  buildMatrix();
+  renderPresets();
+  renderTable();
+  updateSummary();
+}
+
+function loadData(){
+  try{ risks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch(e){ risks = []; }
+}
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(risks));
+}
+
+/* ─── Matrix ─── */
+function riskScore(p,i){ return p*i; }
+function riskClass(s){
+  if(s>=15) return 'risk-'+s;
+  if(s>=12) return 'risk-12';
+  if(s>=8) return 'risk-'+Math.min(s,10);
+  if(s>=5) return 'risk-'+Math.min(s,6);
+  return 'risk-'+Math.min(s,2);
+}
+
+function buildMatrix(){
+  const grid = document.getElementById('matrix-grid');
+  grid.innerHTML = '';
+  // header row
+  grid.innerHTML += '<div class="header-cell"></div>';
+  for(let i=1;i<=5;i++){
+    grid.innerHTML += `<div class="header-cell">${IMPACT_LABELS[i]}</div>`;
+  }
+  // rows: probability 5 down to 1
+  for(let p=5;p>=1;p--){
+    grid.innerHTML += `<div class="row-label">${p} — ${PROB_LABELS[p]}</div>`;
+    for(let i=1;i<=5;i++){
+      const s = riskScore(p,i);
+      const count = risks.filter(r=>r.probability===p && r.impact===i).length;
+      grid.innerHTML += `<div class="cell ${riskClass(s)}" onclick="cellClick(${p},${i})" title="P${p} x I${i} = ${s}"><span class="score">${s}</span>${count?`<span class="count">${count} risk${count>1?'s':''}</span>`:''}</div>`;
+    }
+  }
+}
+
+function cellClick(p,i){
+  document.getElementById('risk-prob').value = p;
+  document.getElementById('risk-impact').value = i;
+  openAddModal();
+}
+
+/* ─── Presets ─── */
+function renderPresets(){
+  const bar = document.getElementById('preset-bar');
+  bar.innerHTML = PRESETS.map((pr,idx)=>`<button class="preset-chip" onclick="addPreset(${idx})">${pr.title}</button>`).join('');
+}
+function addPreset(idx){
+  const pr = PRESETS[idx];
+  if(risks.find(r=>r.title===pr.title)){
+    if(!confirm(`"${pr.title}" already exists. Add a duplicate?`)) return;
+  }
+  risks.push({ id:uid(), title:pr.title, description:pr.desc, probability:pr.prob, impact:pr.impact, score:riskScore(pr.prob,pr.impact), category:pr.cat, status:'Open', owner:'', mitigation:'', created:new Date().toISOString() });
+  saveData(); refresh();
+}
+
+/* ─── Modal ─── */
+function openAddModal(){
+  document.getElementById('modal-title').textContent = 'Add Risk';
+  document.getElementById('risk-id').value = '';
+  document.getElementById('risk-name').value = '';
+  document.getElementById('risk-desc').value = '';
+  document.getElementById('risk-owner').value = '';
+  document.getElementById('risk-mitigation').value = '';
+  document.getElementById('risk-status').value = 'Open';
+  document.getElementById('risk-cat').value = 'Safety';
+  document.getElementById('risk-modal').classList.add('active');
+}
+function openEditModal(id){
+  const r = risks.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('modal-title').textContent = 'Edit Risk';
+  document.getElementById('risk-id').value = r.id;
+  document.getElementById('risk-name').value = r.title;
+  document.getElementById('risk-desc').value = r.description||'';
+  document.getElementById('risk-prob').value = r.probability;
+  document.getElementById('risk-impact').value = r.impact;
+  document.getElementById('risk-cat').value = r.category;
+  document.getElementById('risk-status').value = r.status;
+  document.getElementById('risk-owner').value = r.owner||'';
+  document.getElementById('risk-mitigation').value = r.mitigation||'';
+  document.getElementById('risk-modal').classList.add('active');
+}
+function closeModal(){ document.getElementById('risk-modal').classList.remove('active'); }
+
+function saveRisk(){
+  const title = document.getElementById('risk-name').value.trim();
+  if(!title){ alert('Title is required.'); return; }
+  const id = document.getElementById('risk-id').value;
+  const prob = parseInt(document.getElementById('risk-prob').value);
+  const impact = parseInt(document.getElementById('risk-impact').value);
+  const data = {
+    title,
+    description: document.getElementById('risk-desc').value.trim(),
+    probability: prob,
+    impact,
+    score: riskScore(prob, impact),
+    category: document.getElementById('risk-cat').value,
+    status: document.getElementById('risk-status').value,
+    owner: document.getElementById('risk-owner').value.trim(),
+    mitigation: document.getElementById('risk-mitigation').value.trim()
+  };
+  if(id){
+    const idx = risks.findIndex(r=>r.id===id);
+    if(idx>=0) Object.assign(risks[idx], data);
+  } else {
+    data.id = uid();
+    data.created = new Date().toISOString();
+    risks.push(data);
+  }
+  saveData(); closeModal(); refresh();
+}
+
+function deleteRisk(id){
+  if(!confirm('Delete this risk?')) return;
+  risks = risks.filter(r=>r.id!==id);
+  saveData(); refresh();
+}
+
+/* ─── Table ─── */
+function sortTable(col){
+  if(sortCol===col) sortDir *= -1;
+  else { sortCol=col; sortDir=1; }
+  renderTable();
+}
+
+function getFiltered(){
+  const cat = document.getElementById('filter-category').value;
+  const stat = document.getElementById('filter-status').value;
+  const q = document.getElementById('filter-search').value.toLowerCase();
+  return risks.filter(r=>{
+    if(cat && r.category!==cat) return false;
+    if(stat && r.status!==stat) return false;
+    if(q && !r.title.toLowerCase().includes(q) && !(r.description||'').toLowerCase().includes(q) && !(r.owner||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderTable(){
+  const filtered = getFiltered();
+  filtered.sort((a,b)=>{
+    let av=a[sortCol], bv=b[sortCol];
+    if(typeof av==='string') av=av.toLowerCase();
+    if(typeof bv==='string') bv=bv.toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  const tbody = document.getElementById('register-body');
+  if(!filtered.length){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:30px">No risks recorded. Click a matrix cell or use a preset to add one.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(r=>{
+    const sc = scoreBadge(r.score);
+    const st = statusBadge(r.status);
+    return `<tr>
+      <td style="font-weight:600">${esc(r.title)}</td>
+      <td>${esc(r.category)}</td>
+      <td>${r.probability}</td>
+      <td>${r.impact}</td>
+      <td>${sc}</td>
+      <td>${st}</td>
+      <td>${esc(r.owner||'—')}</td>
+      <td><div class="actions-cell">
+        <button class="icon-btn" onclick="openEditModal('${r.id}')" title="Edit">&#9998;</button>
+        <button class="icon-btn" onclick="deleteRisk('${r.id}')" title="Delete">&#10005;</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function scoreBadge(s){
+  let cls='score-low';
+  if(s>=15) cls='score-critical';
+  else if(s>=8) cls='score-high';
+  else if(s>=4) cls='score-med';
+  return `<span class="score-badge ${cls}">${s}</span>`;
+}
+function statusBadge(s){
+  const cls = 'status-'+s.toLowerCase().replace(/\s+/g,'-');
+  return `<span class="status-badge ${cls}">${s}</span>`;
+}
+
+/* ─── Summary ─── */
+function updateSummary(){
+  document.querySelector('#sum-total .val').textContent = risks.length;
+  document.querySelector('#sum-critical .val').textContent = risks.filter(r=>r.score>=15).length;
+  document.querySelector('#sum-high .val').textContent = risks.filter(r=>r.score>=8 && r.score<15).length;
+  document.querySelector('#sum-open .val').textContent = risks.filter(r=>r.status==='Open').length;
+}
+
+/* ─── Export ─── */
+function exportCSV(){
+  if(!risks.length){ alert('No risks to export.'); return; }
+  const headers = ['Title','Description','Probability','Impact','Score','Category','Status','Owner','Mitigation','Created'];
+  const rows = risks.map(r=>[r.title,r.description||'',r.probability,r.impact,r.score,r.category,r.status,r.owner||'',r.mitigation||'',r.created||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','),...rows].join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'korb_risk_register_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ─── Clear ─── */
+function clearAll(){
+  if(!confirm('Delete ALL risks? This cannot be undone.')) return;
+  risks = [];
+  saveData(); refresh();
+}
+
+/* ─── Helpers ─── */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function refresh(){ buildMatrix(); renderTable(); updateSummary(); }
+
+// Close modal on overlay click
+document.getElementById('risk-modal').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+// Keyboard
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeModal(); });
+
+init();
+</script>
+</body>
+</html>
