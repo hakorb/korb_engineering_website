@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes,viewport-fit=cover"/>
+<title>Evan's Zoo Pals // Korb Engineering</title>
+<meta name="description" content="Interactive digital safari for kids to explore animals while eating dinner — tap to discover facts, sounds, and animations."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#050a0f;--panel:#0a1520;--panel2:#0d1a28;--text:#d0e8f0;--muted:#6a8a9a;
+  --cyan:#00d4ff;--orange:#ff9900;--gold:#ffd700;--green:#00e676;--red:#ff4444;
+  --border:#1a2a3a;--border-light:#2a3a4a;
+  --shadow:0 4px 20px rgba(0,0,0,.4);--radius:12px;
+  --font:'JetBrains Mono',monospace;
+  --nav-h:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);font-size:15px;line-height:1.5;color:var(--text);background:var(--bg);
+  min-height:100vh;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;
+  padding-bottom:calc(var(--nav-h) + 20px);}
+button,select,input,textarea{font-family:var(--font);border:none;outline:none;font-size:16px;}
+button{cursor:pointer;-webkit-touch-callout:none;user-select:none;}
+a{color:var(--cyan);text-decoration:none;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:3px;}
+
+/* HEADER */
+.app-header{text-align:center;padding:20px 16px 10px;background:linear-gradient(180deg,#0a1520 0%,var(--bg) 100%);}
+.app-header h1{font-size:clamp(22px,5vw,32px);font-weight:700;
+  background:linear-gradient(135deg,var(--cyan),var(--orange));-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;line-height:1.3;}
+.app-header .subtitle{font-size:13px;color:var(--orange);font-style:italic;margin-top:2px;letter-spacing:0.5px;}
+
+/* NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--panel);
+  border-top:1px solid var(--border);display:flex;z-index:100;
+  padding-bottom:env(safe-area-inset-bottom,0);}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:none;color:var(--muted);font-size:10px;gap:2px;transition:color .15s;padding:0;
+  min-height:44px;min-width:44px;}
+.nav button.active{color:var(--cyan);}
+.nav button .nav-icon{font-size:22px;}
+
+/* PAGES */
+.page{display:none;padding:12px 16px 20px;animation:fadeIn .3s ease;}
+.page.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* BITE TRACKER */
+.bite-section{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin:12px 0;text-align:center;}
+.bite-bar{width:100%;height:20px;background:var(--panel2);border-radius:10px;overflow:hidden;margin:10px 0;
+  border:1px solid var(--border);}
+.bite-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));border-radius:10px;
+  transition:width .5s cubic-bezier(.4,0,.2,1);}
+.bite-btn{width:100%;min-height:56px;background:linear-gradient(135deg,var(--orange),#ff6600);color:#fff;
+  border-radius:var(--radius);font-size:18px;font-weight:700;letter-spacing:1px;
+  transition:transform .15s,box-shadow .15s;border:none;}
+.bite-btn:active{transform:scale(.95);}
+.bite-btn.disabled{opacity:.4;pointer-events:none;}
+.bite-count{font-size:clamp(28px,7vw,42px);font-weight:700;color:var(--cyan);margin:6px 0;}
+.bite-label{color:var(--muted);font-size:13px;}
+
+/* HABITAT GRID */
+.habitat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px;}
+.habitat-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;min-height:120px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  position:relative;overflow:hidden;}
+.habitat-card:active{transform:scale(.96);}
+.habitat-card.unlocked{border-color:var(--cyan);}
+.habitat-card.unlocked:hover{background:var(--panel2);box-shadow:0 0 20px rgba(0,212,255,.15);}
+.habitat-card.locked{opacity:.5;cursor:default;}
+.habitat-card.locked::after{content:'🔒';position:absolute;top:8px;right:8px;font-size:16px;}
+.habitat-emoji{font-size:40px;line-height:1;}
+.habitat-name{font-size:13px;font-weight:600;color:var(--text);}
+.habitat-progress{font-size:11px;color:var(--muted);}
+.habitat-card.completed{border-color:var(--green);box-shadow:0 0 12px rgba(0,230,118,.15);}
+.habitat-card.completed .habitat-name{color:var(--green);}
+
+/* SAFARI VIEW */
+.safari-view{position:relative;min-height:60vh;}
+.safari-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.safari-back{min-width:44px;min-height:44px;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;color:var(--cyan);font-size:20px;display:flex;align-items:center;justify-content:center;}
+.safari-title{font-size:clamp(18px,4vw,24px);font-weight:700;color:var(--cyan);}
+.safari-biome{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ANIMAL CARDS */
+.animal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;}
+.animal-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 8px;text-align:center;cursor:pointer;transition:all .25s;min-height:100px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  position:relative;}
+.animal-card:active{transform:scale(.92);}
+.animal-card.discovered{border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.2);}
+.animal-card.hidden-game{border-style:dashed;border-color:var(--muted);}
+.animal-emoji{font-size:36px;transition:transform .3s;}
+.animal-card.discovered .animal-emoji{animation:bounce 0.6s ease;}
+.animal-name{font-size:11px;font-weight:500;color:var(--text);}
+.animal-card.undiscovered .animal-emoji{filter:brightness(0.3);}
+.animal-card.undiscovered .animal-name{color:var(--border-light);}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* ANIMAL DETAIL MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(5,10,15,.85);z-index:200;display:none;
+  align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--cyan);border-radius:16px;padding:24px;
+  max-width:380px;width:100%;max-height:80vh;overflow-y:auto;position:relative;}
+.modal-close{position:absolute;top:12px;right:12px;min-width:44px;min-height:44px;
+  background:none;color:var(--muted);font-size:24px;display:flex;align-items:center;justify-content:center;}
+.modal-emoji{font-size:64px;text-align:center;display:block;margin:0 auto 12px;}
+.modal-name{font-size:20px;font-weight:700;color:var(--cyan);text-align:center;margin-bottom:4px;}
+.modal-habitat{font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px;}
+.modal-fact{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;
+  font-size:13px;color:var(--text);margin-bottom:12px;line-height:1.6;}
+.modal-fact .fact-label{color:var(--gold);font-weight:600;font-size:11px;text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:4px;}
+.modal-actions{display:flex;gap:8px;margin-top:12px;}
+.modal-actions button{flex:1;min-height:48px;border-radius:8px;font-weight:600;font-size:14px;
+  transition:transform .1s;}
+.modal-actions button:active{transform:scale(.95);}
+.sound-btn{background:linear-gradient(135deg,var(--cyan),#0088aa);color:#fff;}
+.animate-btn{background:linear-gradient(135deg,var(--orange),#cc6600);color:#fff;}
+
+/* JOURNAL */
+.journal-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.journal-entry{display:flex;align-items:center;gap:12px;background:var(--panel);
+  border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
+.journal-entry .je-emoji{font-size:28px;}
+.journal-entry .je-info{flex:1;}
+.journal-entry .je-name{font-size:14px;font-weight:600;color:var(--text);}
+.journal-entry .je-habitat{font-size:11px;color:var(--muted);}
+.journal-entry .je-time{font-size:10px;color:var(--border-light);}
+
+/* STICKERS */
+.sticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:10px;margin-top:12px;}
+.sticker{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:10px;text-align:center;font-size:36px;transition:transform .2s;position:relative;}
+.sticker.earned{border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.2);animation:pop .4s ease;}
+.sticker.locked{opacity:.25;filter:grayscale(1);}
+.sticker .sticker-label{font-size:9px;color:var(--muted);margin-top:4px;display:block;}
+@keyframes pop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+/* MINI-GAME */
+.mini-game{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin-top:16px;}
+.mini-game h3{font-size:15px;color:var(--orange);margin-bottom:8px;}
+.mini-game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;}
+.mini-game-cell{min-height:70px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;
+  transition:all .2s;min-width:44px;}
+.mini-game-cell:active{transform:scale(.9);}
+.mini-game-cell.found{border-color:var(--green);background:rgba(0,230,118,.1);}
+.mini-game-cell.wrong{animation:shake .4s ease;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+.game-msg{text-align:center;padding:12px;font-size:14px;font-weight:600;color:var(--green);
+  margin-top:8px;opacity:0;transition:opacity .3s;}
+.game-msg.show{opacity:1;}
+
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;}
+.stat-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
+.stat-num{font-size:clamp(20px,5vw,28px);font-weight:700;color:var(--cyan);}
+.stat-label{font-size:10px;color:var(--muted);margin-top:2px;}
+
+/* UNLOCK TOAST */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);
+  background:linear-gradient(135deg,var(--cyan),var(--orange));color:#fff;
+  padding:14px 24px;border-radius:12px;font-weight:700;font-size:14px;z-index:300;
+  text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5);transition:transform .4s cubic-bezier(.4,0,.2,1);
+  max-width:90vw;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* RESET BTN */
+.reset-btn{background:var(--panel);border:1px solid var(--red);color:var(--red);border-radius:8px;
+  padding:10px 20px;font-size:12px;margin-top:20px;}
+
+/* CONFETTI */
+.confetti-container{position:fixed;inset:0;pointer-events:none;z-index:250;overflow:hidden;}
+.confetti-piece{position:absolute;width:10px;height:10px;border-radius:2px;animation:confettiFall 2s ease-out forwards;}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+@media(min-width:600px){
+  .habitat-grid{grid-template-columns:repeat(3,1fr);}
+  .animal-grid{grid-template-columns:repeat(4,1fr);}
+  .page{max-width:600px;margin:0 auto;}
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1>🦁 Evan's Zoo Pals 🐘</h1>
+  <div class="subtitle">Mealtime Safari Adventure!</div>
+</div>
+
+<!-- PAGE: Safari Map -->
+<div class="page active" id="page-safari">
+  <div class="bite-section">
+    <div class="bite-label">BITES EATEN</div>
+    <div class="bite-count" id="biteCount">0</div>
+    <div class="bite-bar"><div class="bite-fill" id="biteFill" style="width:0%"></div></div>
+    <div class="bite-label" id="biteGoal">Eat 5 bites to unlock the next habitat!</div>
+    <button class="bite-btn" id="biteBtn" onclick="addBite()">🍽️ ATE A BITE!</button>
+  </div>
+
+  <h2 style="font-size:16px;color:var(--orange);margin:16px 0 4px;">Safari Habitats</h2>
+  <div class="habitat-grid" id="habitatGrid"></div>
+</div>
+
+<!-- PAGE: Habitat (Safari View) -->
+<div class="page" id="page-habitat">
+  <div class="safari-header">
+    <button class="safari-back" onclick="showPage('safari')">←</button>
+    <div>
+      <div class="safari-title" id="safariTitle"></div>
+      <div class="safari-biome" id="safariBiome"></div>
+    </div>
+  </div>
+  <div class="animal-grid" id="animalGrid"></div>
+  <div class="mini-game" id="miniGame" style="display:none"></div>
+</div>
+
+<!-- PAGE: Journal -->
+<div class="page" id="page-journal">
+  <h2 style="font-size:18px;color:var(--cyan);margin-bottom:4px;">📓 Safari Journal</h2>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Animals you've discovered on your safari!</p>
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-num" id="statDiscovered">0</div><div class="stat-label">Discovered</div></div>
+    <div class="stat-box"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total</div></div>
+    <div class="stat-box"><div class="stat-num" id="statHabitats">0</div><div class="stat-label">Habitats</div></div>
+  </div>
+  <div class="journal-list" id="journalList"></div>
+</div>
+
+<!-- PAGE: Stickers -->
+<div class="page" id="page-stickers">
+  <h2 style="font-size:18px;color:var(--gold);margin-bottom:4px;">⭐ Sticker Collection</h2>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Complete habitats and mini-games to earn stickers!</p>
+  <div class="sticker-grid" id="stickerGrid"></div>
+  <button class="reset-btn" onclick="confirmReset()">Reset All Progress</button>
+</div>
+
+<!-- ANIMAL DETAIL MODAL -->
+<div class="modal-overlay" id="animalModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <span class="modal-emoji" id="modalEmoji"></span>
+    <div class="modal-name" id="modalName"></div>
+    <div class="modal-habitat" id="modalHabitat"></div>
+    <div class="modal-fact">
+      <div class="fact-label">🌟 Fun Fact</div>
+      <div id="modalFact"></div>
+    </div>
+    <div class="modal-fact">
+      <div class="fact-label">🍽️ Favorite Food</div>
+      <div id="modalFood"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="sound-btn" onclick="playAnimalSound()">🔊 Sound</button>
+      <button class="animate-btn" onclick="animateAnimal()">✨ Animate</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- NAV -->
+<div class="nav">
+  <button class="active" onclick="showPage('safari')" data-page="safari">
+    <span class="nav-icon">🗺️</span>Safari
+  </button>
+  <button onclick="showPage('journal')" data-page="journal">
+    <span class="nav-icon">📓</span>Journal
+  </button>
+  <button onclick="showPage('stickers')" data-page="stickers">
+    <span class="nav-icon">⭐</span>Stickers
+  </button>
+</div>
+
+<script>
+/* ======= DATA ======= */
+const HABITATS = [
+  {
+    id:'savanna', name:'African Savanna', emoji:'🌅', biome:'Golden grasslands with scattered acacia trees',
+    unlockBites:0, color:'#f4a460',
+    animals:[
+      {id:'lion',emoji:'🦁',name:'Lion',fact:'Lions are the only cats that live in groups called prides!',food:'Zebras and antelope',sound:{type:'roar',freq:120,dur:1.2}},
+      {id:'elephant',emoji:'🐘',name:'Elephant',fact:'Elephants can remember things for over 50 years!',food:'Grass, bark, and roots',sound:{type:'trumpet',freq:400,dur:0.8}},
+      {id:'giraffe',emoji:'🦒',name:'Giraffe',fact:'A giraffe\'s tongue is 18 inches long and purple!',food:'Acacia tree leaves',sound:{type:'hum',freq:200,dur:0.6}},
+      {id:'zebra',emoji:'🦓',name:'Zebra',fact:'Every zebra has a unique stripe pattern, like fingerprints!',food:'Tall grasses',sound:{type:'bark',freq:350,dur:0.4}},
+      {id:'hippo',emoji:'🦛',name:'Hippo',fact:'Hippos can hold their breath underwater for 5 minutes!',food:'Short grasses at night',sound:{type:'grunt',freq:80,dur:0.5}},
+    ],
+    game:{type:'find',label:'Find the Hidden Lion!',target:'lion',decoys:['🌿','🌾','🪨','🌳','🌵','🦎','🐜','🌻']}
+  },
+  {
+    id:'jungle', name:'Tropical Jungle', emoji:'🌴', biome:'Dense canopy with waterfalls and vines',
+    unlockBites:5, color:'#2ecc71',
+    animals:[
+      {id:'monkey',emoji:'🐒',name:'Monkey',fact:'Monkeys use different alarm calls for different predators!',food:'Bananas and insects',sound:{type:'chatter',freq:600,dur:0.3}},
+      {id:'parrot',emoji:'🦜',name:'Parrot',fact:'Parrots can learn over 100 words and phrases!',food:'Fruits, nuts, and seeds',sound:{type:'squawk',freq:800,dur:0.5}},
+      {id:'tiger',emoji:'🐅',name:'Tiger',fact:'Tigers are the largest wild cats — some weigh 660 pounds!',food:'Deer and wild boar',sound:{type:'roar',freq:100,dur:1.0}},
+      {id:'frog',emoji:'🐸',name:'Tree Frog',fact:'Poison dart frogs are tiny but super colorful as a warning!',food:'Ants, flies, and crickets',sound:{type:'croak',freq:500,dur:0.4}},
+      {id:'snake',emoji:'🐍',name:'Python',fact:'Pythons can go a whole year without eating after a big meal!',food:'Rodents and small mammals',sound:{type:'hiss',freq:2000,dur:0.8}},
+    ],
+    game:{type:'match',label:'Match the Animal Sound!',pairs:[{emoji:'🐒',name:'Monkey'},{emoji:'🦜',name:'Parrot'},{emoji:'🐅',name:'Tiger'}]}
+  },
+  {
+    id:'ocean', name:'Deep Ocean', emoji:'🌊', biome:'Coral reefs and mysterious deep waters',
+    unlockBites:10, color:'#3498db',
+    animals:[
+      {id:'dolphin',emoji:'🐬',name:'Dolphin',fact:'Dolphins sleep with one eye open — half their brain stays awake!',food:'Fish and squid',sound:{type:'click',freq:1200,dur:0.2}},
+      {id:'whale',emoji:'🐋',name:'Whale',fact:'Blue whales are the largest animals that ever lived on Earth!',food:'Tiny krill by the ton',sound:{type:'whale',freq:60,dur:2.0}},
+      {id:'octopus',emoji:'🐙',name:'Octopus',fact:'Octopuses have three hearts and blue blood!',food:'Crabs, clams, and fish',sound:{type:'splash',freq:300,dur:0.3}},
+      {id:'turtle',emoji:'🐢',name:'Sea Turtle',fact:'Sea turtles can live to be over 100 years old!',food:'Jellyfish and seagrass',sound:{type:'splash',freq:250,dur:0.4}},
+      {id:'shark',emoji:'🦈',name:'Shark',fact:'Sharks have been around for 450 million years — before dinosaurs!',food:'Fish, seals, and squid',sound:{type:'splash',freq:150,dur:0.6}},
+    ],
+    game:{type:'find',label:'Find the Hidden Octopus!',target:'octopus',decoys:['🪸','🐚','🌊','🫧','🪨','🐠','🦐','🌿']}
+  },
+  {
+    id:'arctic', name:'Frozen Arctic', emoji:'❄️', biome:'Ice sheets, tundra, and Northern Lights',
+    unlockBites:15, color:'#74b9ff',
+    animals:[
+      {id:'polar_bear',emoji:'🐻‍❄️',name:'Polar Bear',fact:'Polar bear skin is actually black — their fur just looks white!',food:'Seals and fish',sound:{type:'roar',freq:140,dur:0.9}},
+      {id:'penguin',emoji:'🐧',name:'Penguin',fact:'Emperor penguins can dive 1,800 feet deep!',food:'Fish, squid, and krill',sound:{type:'honk',freq:450,dur:0.5}},
+      {id:'walrus',emoji:'🦭',name:'Walrus',fact:'Walrus tusks can grow up to 3 feet long!',food:'Clams and mussels',sound:{type:'bellow',freq:100,dur:0.7}},
+      {id:'owl',emoji:'🦉',name:'Snowy Owl',fact:'Snowy owls can turn their heads 270 degrees!',food:'Lemmings and rabbits',sound:{type:'hoot',freq:350,dur:0.6}},
+      {id:'fox',emoji:'🦊',name:'Arctic Fox',fact:'Arctic fox fur changes from white in winter to brown in summer!',food:'Lemmings and berries',sound:{type:'bark',freq:500,dur:0.3}},
+    ],
+    game:{type:'match',label:'Match the Arctic Animal Sound!',pairs:[{emoji:'🐻‍❄️',name:'Polar Bear'},{emoji:'🐧',name:'Penguin'},{emoji:'🦉',name:'Snowy Owl'}]}
+  },
+  {
+    id:'rainforest', name:'Amazon Rainforest', emoji:'🌿', biome:'World\'s largest tropical rainforest',
+    unlockBites:20, color:'#00b894',
+    animals:[
+      {id:'toucan',emoji:'🦜',name:'Toucan',fact:'A toucan\'s beak is one-third of its whole body length!',food:'Fruit, insects, and lizards',sound:{type:'squawk',freq:700,dur:0.4}},
+      {id:'sloth',emoji:'🦥',name:'Sloth',fact:'Sloths only poop once a week — they climb down to do it!',food:'Leaves and buds',sound:{type:'hum',freq:180,dur:1.0}},
+      {id:'jaguar',emoji:'🐆',name:'Jaguar',fact:'Jaguars have the strongest bite of any big cat!',food:'Deer, fish, and caimans',sound:{type:'roar',freq:90,dur:1.1}},
+      {id:'ant',emoji:'🐜',name:'Leafcutter Ant',fact:'Leafcutter ants farm mushrooms — they\'re tiny farmers!',food:'Fungus they grow themselves',sound:{type:'click',freq:3000,dur:0.1}},
+      {id:'butterfly',emoji:'🦋',name:'Blue Morpho',fact:'Blue morpho butterflies aren\'t really blue — it\'s a light trick!',food:'Rotting fruit and tree sap',sound:{type:'flutter',freq:1500,dur:0.3}},
+    ],
+    game:{type:'find',label:'Find the Hidden Sloth!',target:'sloth',decoys:['🌿','🍃','🌱','🪵','🌺','🍄','🪶','🌸']}
+  },
+  {
+    id:'desert', name:'Sahara Desert', emoji:'🏜️', biome:'Endless sand dunes and oases',
+    unlockBites:25, color:'#fdcb6e',
+    animals:[
+      {id:'camel',emoji:'🐪',name:'Camel',fact:'Camels can drink 30 gallons of water in just 13 minutes!',food:'Dry grasses and thorny plants',sound:{type:'grunt',freq:120,dur:0.8}},
+      {id:'scorpion',emoji:'🦂',name:'Scorpion',fact:'Scorpions glow under ultraviolet light — nobody knows why!',food:'Insects and spiders',sound:{type:'click',freq:2500,dur:0.15}},
+      {id:'lizard',emoji:'🦎',name:'Gecko',fact:'Geckos can walk on walls and even ceilings using tiny hairs on their feet!',food:'Insects and worms',sound:{type:'chirp',freq:900,dur:0.2}},
+      {id:'eagle',emoji:'🦅',name:'Golden Eagle',fact:'Golden eagles can spot a rabbit from 2 miles away!',food:'Rabbits, snakes, and fish',sound:{type:'screech',freq:1000,dur:0.6}},
+      {id:'fennec',emoji:'🦊',name:'Fennec Fox',fact:'Fennec foxes have huge ears to help them cool down in the heat!',food:'Insects, lizards, and plants',sound:{type:'bark',freq:700,dur:0.25}},
+    ],
+    game:{type:'match',label:'Match the Desert Animal Sound!',pairs:[{emoji:'🐪',name:'Camel'},{emoji:'🦅',name:'Golden Eagle'},{emoji:'🦂',name:'Scorpion'}]}
+  }
+];
+
+const STICKERS = [
+  {id:'first_bite',emoji:'🍽️',label:'First Bite',desc:'Ate your first bite!'},
+  {id:'five_bites',emoji:'⭐',label:'5 Bites',desc:'Ate 5 bites!'},
+  {id:'ten_bites',emoji:'🌟',label:'10 Bites',desc:'Ate 10 bites!'},
+  {id:'savanna_done',emoji:'🦁',label:'Savanna Pro',desc:'Found all savanna animals!'},
+  {id:'jungle_done',emoji:'🐅',label:'Jungle Expert',desc:'Found all jungle animals!'},
+  {id:'ocean_done',emoji:'🐬',label:'Ocean Diver',desc:'Found all ocean animals!'},
+  {id:'arctic_done',emoji:'🐧',label:'Arctic Explorer',desc:'Found all arctic animals!'},
+  {id:'rainforest_done',emoji:'🦥',label:'Rainforest Ranger',desc:'Found all rainforest animals!'},
+  {id:'desert_done',emoji:'🐪',label:'Desert Nomad',desc:'Found all desert animals!'},
+  {id:'game_win',emoji:'🎮',label:'Game Champ',desc:'Won a mini-game!'},
+  {id:'all_animals',emoji:'🏆',label:'Safari Master',desc:'Discovered every animal!'},
+  {id:'full_dinner',emoji:'👑',label:'Clean Plate King',desc:'Ate 30 bites!'},
+];
+
+/* ======= STATE ======= */
+const LS = k => 'korb_zoo_' + k;
+let state = loadState();
+
+function loadState(){
+  try{
+    const s = localStorage.getItem(LS('state'));
+    if(s) return JSON.parse(s);
+  }catch(e){}
+  return {bites:0, discovered:[], stickers:[], journalTimes:{}, currentHabitat:null};
+}
+function saveState(){
+  try{localStorage.setItem(LS('state'),JSON.stringify(state));}catch(e){}
+}
+
+/* ======= AUDIO ENGINE ======= */
+let audioCtx;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSound(snd){
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  const t = ctx.currentTime;
+  switch(snd.type){
+    case 'roar':
+      osc.type='sawtooth';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.exponentialRampToValueAtTime(snd.freq*0.4,t+snd.dur);
+      gain.gain.setValueAtTime(0.3,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'trumpet':
+      osc.type='square';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.setValueAtTime(snd.freq*1.5,t+0.1);
+      osc.frequency.exponentialRampToValueAtTime(snd.freq*0.8,t+snd.dur);
+      gain.gain.setValueAtTime(0.25,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'hum':
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq,t);
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'bark':case 'honk':
+      osc.type='square';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.setValueAtTime(snd.freq*1.3,t+0.05);
+      osc.frequency.setValueAtTime(snd.freq*0.7,t+0.1);
+      gain.gain.setValueAtTime(0.3,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'grunt':case 'bellow':
+      osc.type='sawtooth';osc.frequency.setValueAtTime(snd.freq,t);
+      gain.gain.setValueAtTime(0.25,t);
+      gain.gain.setValueAtTime(0.15,t+0.1);
+      gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'chatter':
+      osc.type='square';
+      for(let i=0;i<6;i++){
+        osc.frequency.setValueAtTime(snd.freq*(1+Math.random()*0.5),t+i*0.05);
+      }
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'squawk':case 'screech':
+      osc.type='sawtooth';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.linearRampToValueAtTime(snd.freq*1.8,t+0.1);
+      osc.frequency.linearRampToValueAtTime(snd.freq*0.6,t+snd.dur);
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'croak':
+      osc.type='triangle';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.setValueAtTime(snd.freq*0.7,t+0.15);
+      osc.frequency.setValueAtTime(snd.freq*1.1,t+0.25);
+      gain.gain.setValueAtTime(0.3,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'hiss':
+      // Use noise-like effect with high freq
+      osc.type='sawtooth';osc.frequency.setValueAtTime(snd.freq,t);
+      gain.gain.setValueAtTime(0.1,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'click':
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq,t);
+      gain.gain.setValueAtTime(0.3,t);gain.gain.exponentialRampToValueAtTime(0.01,t+0.05);
+      // Add a second click
+      setTimeout(()=>playSound({...snd,dur:0.05}),100);
+      break;
+    case 'whale':
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.linearRampToValueAtTime(snd.freq*2,t+snd.dur*0.5);
+      osc.frequency.linearRampToValueAtTime(snd.freq,t+snd.dur);
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'splash':
+      osc.type='triangle';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.exponentialRampToValueAtTime(50,t+snd.dur);
+      gain.gain.setValueAtTime(0.3,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'hoot':
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.setValueAtTime(snd.freq*0.8,t+0.2);
+      gain.gain.setValueAtTime(0.25,t);gain.gain.setValueAtTime(0.15,t+0.15);
+      gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'chirp':
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq,t);
+      osc.frequency.linearRampToValueAtTime(snd.freq*2,t+snd.dur*0.5);
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    case 'flutter':
+      osc.type='triangle';
+      for(let i=0;i<8;i++){
+        osc.frequency.setValueAtTime(snd.freq+i*100,t+i*0.04);
+      }
+      gain.gain.setValueAtTime(0.1,t);gain.gain.exponentialRampToValueAtTime(0.01,t+snd.dur);
+      break;
+    default:
+      osc.type='sine';osc.frequency.setValueAtTime(snd.freq||440,t);
+      gain.gain.setValueAtTime(0.2,t);gain.gain.exponentialRampToValueAtTime(0.01,t+(snd.dur||0.5));
+  }
+  osc.start(t);
+  osc.stop(t+(snd.dur||0.5)+0.1);
+}
+
+function playSuccessSound(){
+  const ctx=getAudioCtx();const t=ctx.currentTime;
+  [523,659,784].forEach((f,i)=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);o.type='sine';
+    o.frequency.setValueAtTime(f,t+i*0.12);
+    g.gain.setValueAtTime(0.2,t+i*0.12);g.gain.exponentialRampToValueAtTime(0.01,t+i*0.12+0.3);
+    o.start(t+i*0.12);o.stop(t+i*0.12+0.35);
+  });
+}
+
+/* ======= BITE TRACKER ======= */
+function addBite(){
+  state.bites++;
+  saveState();
+  updateBiteUI();
+  checkBiteStickers();
+  checkHabitatUnlocks();
+  // Fun feedback
+  const btn=document.getElementById('biteBtn');
+  btn.textContent='😋 YUM!';
+  setTimeout(()=>{btn.textContent='🍽️ ATE A BITE!';},600);
+  playSuccessSound();
+}
+
+function updateBiteUI(){
+  document.getElementById('biteCount').textContent = state.bites;
+  // Find next locked habitat
+  const nextLocked = HABITATS.find(h=>h.unlockBites>state.bites);
+  if(nextLocked){
+    const remaining = nextLocked.unlockBites - state.bites;
+    const pct = Math.min(100, ((state.bites - (nextLocked.unlockBites - 5)) / 5) * 100);
+    document.getElementById('biteFill').style.width = Math.max(0,pct)+'%';
+    document.getElementById('biteGoal').textContent = `Eat ${remaining} more bite${remaining!==1?'s':''} to unlock ${nextLocked.name}!`;
+  } else {
+    document.getElementById('biteFill').style.width = '100%';
+    document.getElementById('biteGoal').textContent = 'All habitats unlocked! Keep eating! 🎉';
+  }
+}
+
+function checkBiteStickers(){
+  if(state.bites>=1) awardSticker('first_bite');
+  if(state.bites>=5) awardSticker('five_bites');
+  if(state.bites>=10) awardSticker('ten_bites');
+  if(state.bites>=30) awardSticker('full_dinner');
+}
+
+/* ======= HABITAT MANAGEMENT ======= */
+function isHabitatUnlocked(h){return state.bites >= h.unlockBites;}
+
+function checkHabitatUnlocks(){
+  HABITATS.forEach(h=>{
+    if(isHabitatUnlocked(h)){
+      const card = document.querySelector(`[data-habitat="${h.id}"]`);
+      if(card && card.classList.contains('locked')){
+        card.classList.remove('locked');
+        card.classList.add('unlocked');
+        showToast(`🎉 ${h.name} unlocked!`);
+        spawnConfetti();
+      }
+    }
+  });
+  renderHabitatGrid();
+}
+
+function getHabitatProgress(h){
+  return h.animals.filter(a=>state.discovered.includes(a.id)).length;
+}
+
+function renderHabitatGrid(){
+  const grid = document.getElementById('habitatGrid');
+  grid.innerHTML = HABITATS.map(h=>{
+    const unlocked = isHabitatUnlocked(h);
+    const prog = getHabitatProgress(h);
+    const total = h.animals.length;
+    const completed = prog === total;
+    const cls = completed ? 'completed' : (unlocked ? 'unlocked' : 'locked');
+    return `<div class="habitat-card ${cls}" data-habitat="${h.id}"
+      onclick="${unlocked ? `openHabitat('${h.id}')` : ''}">
+      <span class="habitat-emoji">${h.emoji}</span>
+      <span class="habitat-name">${h.name}</span>
+      <span class="habitat-progress">${unlocked ? `${prog}/${total} animals` : `🔒 ${h.unlockBites} bites`}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ======= SAFARI VIEW ======= */
+function openHabitat(id){
+  const h = HABITATS.find(x=>x.id===id);
+  if(!h || !isHabitatUnlocked(h)) return;
+  state.currentHabitat = id;
+  saveState();
+
+  document.getElementById('safariTitle').textContent = h.emoji + ' ' + h.name;
+  document.getElementById('safariBiome').textContent = h.biome;
+
+  renderAnimalGrid(h);
+  renderMiniGame(h);
+  showPage('habitat');
+}
+
+function renderAnimalGrid(h){
+  const grid = document.getElementById('animalGrid');
+  grid.innerHTML = h.animals.map(a=>{
+    const disc = state.discovered.includes(a.id);
+    return `<div class="animal-card ${disc?'discovered':'undiscovered'}" onclick="tapAnimal('${h.id}','${a.id}')">
+      <span class="animal-emoji" id="emoji-${a.id}">${a.emoji}</span>
+      <span class="animal-name">${disc ? a.name : '???'}</span>
+    </div>`;
+  }).join('');
+}
+
+function tapAnimal(habitatId, animalId){
+  const h = HABITATS.find(x=>x.id===habitatId);
+  const a = h.animals.find(x=>x.id===animalId);
+  if(!a) return;
+
+  // Discover on tap
+  if(!state.discovered.includes(animalId)){
+    state.discovered.push(animalId);
+    state.journalTimes[animalId] = Date.now();
+    saveState();
+    playSuccessSound();
+    spawnConfetti();
+    showToast(`🌟 You discovered ${a.name}!`);
+    renderAnimalGrid(h);
+    renderHabitatGrid();
+    checkHabitatStickers(h);
+    checkAllAnimals();
+    updateJournal();
+  }
+  // Show modal
+  showAnimalModal(a, h);
+}
+
+let currentAnimal = null;
+function showAnimalModal(a, h){
+  currentAnimal = a;
+  document.getElementById('modalEmoji').textContent = a.emoji;
+  document.getElementById('modalName').textContent = a.name;
+  document.getElementById('modalHabitat').textContent = h.name;
+  document.getElementById('modalFact').textContent = a.fact;
+  document.getElementById('modalFood').textContent = a.food;
+  document.getElementById('animalModal').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('animalModal').classList.remove('show');
+  currentAnimal = null;
+}
+
+function playAnimalSound(){
+  if(currentAnimal) playSound(currentAnimal.sound);
+}
+
+function animateAnimal(){
+  if(!currentAnimal) return;
+  const el = document.getElementById('modalEmoji');
+  el.style.animation='none';
+  void el.offsetWidth;
+  const anims = ['bounce 0.6s ease','wiggle 0.5s ease','float 1s ease'];
+  el.style.animation = anims[Math.floor(Math.random()*anims.length)];
+}
+
+/* ======= MINI-GAMES ======= */
+function renderMiniGame(h){
+  const mg = document.getElementById('miniGame');
+  const game = h.game;
+  if(!game){mg.style.display='none';return;}
+  mg.style.display='block';
+
+  if(game.type==='find'){
+    renderFindGame(mg, h, game);
+  } else if(game.type==='match'){
+    renderMatchGame(mg, h, game);
+  }
+}
+
+function renderFindGame(container, h, game){
+  const target = h.animals.find(a=>a.id===game.target);
+  // Place target in random position
+  const cells = [...game.decoys];
+  const pos = Math.floor(Math.random()*9);
+  cells.splice(pos, 0, target.emoji);
+  // Trim to 9
+  const grid = cells.slice(0,9);
+
+  container.innerHTML = `
+    <h3>🔍 ${game.label}</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Tap the cell hiding ${target.name}!</p>
+    <div class="mini-game-grid">
+      ${grid.map((c,i)=>`<div class="mini-game-cell" data-idx="${i}" onclick="findGameTap(this,${i},${i===pos},'${h.id}')">${c}</div>`).join('')}
+    </div>
+    <div class="game-msg" id="gameMsg-${h.id}"></div>
+  `;
+}
+
+function findGameTap(el, idx, correct, habitatId){
+  if(el.classList.contains('found')) return;
+  if(correct){
+    el.classList.add('found');
+    el.style.fontSize='36px';
+    const msg = document.getElementById('gameMsg-'+habitatId);
+    msg.textContent='🎉 You found it! Great job, Evan!';
+    msg.classList.add('show');
+    playSuccessSound();
+    awardSticker('game_win');
+  } else {
+    el.classList.add('wrong');
+    setTimeout(()=>el.classList.remove('wrong'),400);
+  }
+}
+
+function renderMatchGame(container, h, game){
+  // Create pairs of emoji and name
+  const pairs = game.pairs;
+  let leftItems = pairs.map((p,i)=>({type:'emoji',val:p.emoji,idx:i}));
+  let rightItems = pairs.map((p,i)=>({type:'name',val:p.name,idx:i}));
+  // Shuffle right side
+  rightItems.sort(()=>Math.random()-0.5);
+
+  container.innerHTML = `
+    <h3>🎵 ${game.label}</h3>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Tap an animal, then tap its name to match!</p>
+    <div style="display:flex;gap:12px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+        ${leftItems.map(l=>`<div class="mini-game-cell match-cell" data-side="left" data-idx="${l.idx}"
+          onclick="matchTap(this,'left',${l.idx},'${h.id}')" style="font-size:28px;">${l.val}</div>`).join('')}
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+        ${rightItems.map(r=>`<div class="mini-game-cell match-cell" data-side="right" data-idx="${r.idx}"
+          onclick="matchTap(this,'right',${r.idx},'${h.id}')" style="font-size:13px;font-weight:600;color:var(--text);">${r.val}</div>`).join('')}
+      </div>
+    </div>
+    <div class="game-msg" id="gameMsg-${h.id}"></div>
+  `;
+  window._matchState = {selected:null, matched:0, total:pairs.length};
+}
+
+function matchTap(el, side, idx, habitatId){
+  if(el.classList.contains('found')) return;
+  const ms = window._matchState;
+  if(!ms.selected){
+    ms.selected = {el, side, idx};
+    el.style.borderColor = 'var(--orange)';
+  } else {
+    if(ms.selected.side === side){
+      // Deselect old, select new
+      ms.selected.el.style.borderColor = '';
+      ms.selected = {el, side, idx};
+      el.style.borderColor = 'var(--orange)';
+    } else {
+      // Check match
+      if(ms.selected.idx === idx){
+        ms.selected.el.classList.add('found');
+        el.classList.add('found');
+        ms.selected.el.style.borderColor = '';
+        ms.matched++;
+        playSuccessSound();
+        if(ms.matched >= ms.total){
+          const msg = document.getElementById('gameMsg-'+habitatId);
+          msg.textContent='🎉 All matched! You\'re amazing, Evan!';
+          msg.classList.add('show');
+          awardSticker('game_win');
+        }
+      } else {
+        ms.selected.el.style.borderColor = '';
+        ms.selected.el.classList.add('wrong');
+        el.classList.add('wrong');
+        setTimeout(()=>{
+          ms.selected.el.classList.remove('wrong');
+          el.classList.remove('wrong');
+          ms.selected = null;
+        },400);
+        ms.selected = null;
+        return;
+      }
+      ms.selected = null;
+    }
+  }
+}
+
+/* ======= STICKERS ======= */
+function awardSticker(id){
+  if(state.stickers.includes(id)) return;
+  state.stickers.push(id);
+  saveState();
+  const s = STICKERS.find(x=>x.id===id);
+  if(s) showToast(`⭐ Sticker earned: ${s.label}!`);
+  renderStickers();
+}
+
+function checkHabitatStickers(h){
+  const prog = getHabitatProgress(h);
+  if(prog === h.animals.length){
+    awardSticker(h.id + '_done');
+  }
+}
+
+function checkAllAnimals(){
+  const total = HABITATS.reduce((s,h)=>s+h.animals.length,0);
+  if(state.discovered.length >= total){
+    awardSticker('all_animals');
+    spawnConfetti();
+  }
+}
+
+function renderStickers(){
+  const grid = document.getElementById('stickerGrid');
+  grid.innerHTML = STICKERS.map(s=>{
+    const earned = state.stickers.includes(s.id);
+    return `<div class="sticker ${earned?'earned':'locked'}" title="${s.desc}">
+      ${s.emoji}<span class="sticker-label">${s.label}</span>
+    </div>`;
+  }).join('');
+}
+
+/* ======= JOURNAL ======= */
+function updateJournal(){
+  const list = document.getElementById('journalList');
+  const entries = [];
+  HABITATS.forEach(h=>{
+    h.animals.forEach(a=>{
+      if(state.discovered.includes(a.id)){
+        entries.push({...a, habitat:h.name, time:state.journalTimes[a.id]||0});
+      }
+    });
+  });
+  entries.sort((a,b)=>(b.time||0)-(a.time||0));
+
+  list.innerHTML = entries.length ? entries.map(e=>{
+    const timeStr = e.time ? new Date(e.time).toLocaleDateString() : '';
+    return `<div class="journal-entry">
+      <span class="je-emoji">${e.emoji}</span>
+      <div class="je-info">
+        <div class="je-name">${e.name}</div>
+        <div class="je-habitat">${e.habitat}</div>
+      </div>
+      <span class="je-time">${timeStr}</span>
+    </div>`;
+  }).join('') : '<p style="text-align:center;color:var(--muted);padding:30px;">No animals discovered yet. Start exploring! 🌍</p>';
+
+  document.getElementById('statDiscovered').textContent = state.discovered.length;
+  document.getElementById('statTotal').textContent = HABITATS.reduce((s,h)=>s+h.animals.length,0);
+  document.getElementById('statHabitats').textContent = HABITATS.filter(h=>isHabitatUnlocked(h)).length;
+}
+
+/* ======= NAVIGATION ======= */
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const target = id==='habitat' ? 'page-habitat' : 'page-'+id;
+  document.getElementById(target).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.page===id || (id==='habitat' && b.dataset.page==='safari'));
+  });
+  if(id==='journal') updateJournal();
+  if(id==='stickers') renderStickers();
+  if(id==='safari'){renderHabitatGrid();updateBiteUI();}
+}
+
+/* ======= TOAST ======= */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+/* ======= CONFETTI ======= */
+function spawnConfetti(){
+  const c = document.createElement('div');
+  c.className='confetti-container';
+  const colors=['#00d4ff','#ff9900','#ffd700','#00e676','#ff4444','#e040fb'];
+  for(let i=0;i<30;i++){
+    const p = document.createElement('div');
+    p.className='confetti-piece';
+    p.style.cssText=`left:${Math.random()*100}%;top:-10px;background:${colors[i%colors.length]};
+      width:${6+Math.random()*8}px;height:${6+Math.random()*8}px;
+      animation-delay:${Math.random()*0.5}s;animation-duration:${1.5+Math.random()}s;`;
+    c.appendChild(p);
+  }
+  document.body.appendChild(c);
+  setTimeout(()=>c.remove(),3000);
+}
+
+/* ======= RESET ======= */
+function confirmReset(){
+  if(confirm('Reset all safari progress? This cannot be undone!')){
+    state = {bites:0, discovered:[], stickers:[], journalTimes:{}, currentHabitat:null};
+    saveState();
+    showPage('safari');
+    showToast('Progress reset. New adventure begins!');
+  }
+}
+
+/* ======= INIT ======= */
+renderHabitatGrid();
+updateBiteUI();
+renderStickers();
+updateJournal();
+
+// Close modal on overlay click
+document.getElementById('animalModal').addEventListener('click', e=>{
+  if(e.target.classList.contains('modal-overlay')) closeModal();
+});
+</script>
+</body>
+</html>

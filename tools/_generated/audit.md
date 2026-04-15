@@ -1,19 +1,19 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T02:02:17.102Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T02:12:48.764Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **267**
+- Total tools scanned: **268**
 - Clean (no findings): **106**
-- With findings:       **161**
+- With findings:       **162**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
 | `[polish]` | 1 |
-| `[a11y]` | 140 |
+| `[a11y]` | 141 |
 | `[deps]` | 1 |
 
 ## aviation (38 of 55 with findings)
@@ -258,7 +258,7 @@ _Generated 2026-04-15T02:02:17.102Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (71 of 132 with findings)
+## misc (72 of 133 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -333,6 +333,9 @@ _Generated 2026-04-15T02:02:17.102Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/evans-daily-sweepstakes.html
 - `[a11y]` uses native alert(), confirm() (prefer KorbUI)
+
+### tools/misc/evans-zoo-pals.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/flowchart-maker.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
