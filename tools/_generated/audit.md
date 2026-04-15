@@ -1,6 +1,6 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T21:50:48.148Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T22:25:50.925Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
