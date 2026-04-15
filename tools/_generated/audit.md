@@ -1,6 +1,6 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T16:28:31.284Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T21:35:38.004Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
@@ -15,7 +15,6 @@ _Generated 2026-04-15T16:28:31.284Z by `scripts/audit.mjs`. Do not edit by hand.
 | `[polish]` | 1 |
 | `[a11y]` | 146 |
 | `[deps]` | 3 |
-| `[storage]` | 1 |
 
 ## aviation (40 of 58 with findings)
 
@@ -290,7 +289,6 @@ _Generated 2026-04-15T16:28:31.284Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/angry-skeeball.html
 - `[deps]` external CDN: cdnjs.cloudflare.com
-- `[storage]` localStorage key not prefixed korb_: as_level_progress, as_settings, as_total_score
 
 ### tools/misc/anitas-texas-garden.html
 - `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
