@@ -1,6 +1,8 @@
 # content/
 
-GitHub-hosted media libraries for tools that play or read files.
+GitHub-hosted data and media libraries for tools. Store anything a
+tool needs: audio, video, ebooks, golfer profiles, course data,
+recipes, presets — any JSON or binary content.
 
 Each subfolder corresponds to one tool slug. Drop files into the
 appropriate subfolder, list them in that folder's `manifest.json`,
@@ -15,7 +17,7 @@ content/
   <tool-slug>/
     manifest.json     # required — schema below
     README.md         # optional — tool-specific notes
-    audio/ video/ books/ covers/ ...   # any media files
+    audio/ video/ books/ covers/ data/ ...   # media or data files
 ```
 
 ## manifest.json schema
