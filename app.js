@@ -253,6 +253,7 @@ const SECTIONS = {
       { name: 'Habit Tracker', file: './tools/misc/habit-tracker.html' },
       { name: 'Harrison Rocks', file: './tools/misc/harrison-rocks.html' },
       { name: "Harrison's Blog", file: './tools/misc/harrisons-blog.html' },
+      { name: "Harrison's iPod", file: './tools/misc/harrisons-ipod.html' },
       { name: "Hendryx's Social Skills", file: './tools/misc/hendryxs-social-skills.html' },
       { name: 'Home Improvements Guide', file: './tools/misc/home-improvements.html' },
       { name: 'Horse Racing', file: './tools/misc/horse-racing.html' },
