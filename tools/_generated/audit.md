@@ -1,19 +1,19 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-15T02:51:59.736Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-15T02:53:58.547Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **272**
+- Total tools scanned: **273**
 - Clean (no findings): **106**
-- With findings:       **166**
+- With findings:       **167**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
 | `[polish]` | 1 |
-| `[a11y]` | 145 |
+| `[a11y]` | 146 |
 | `[deps]` | 1 |
 
 ## aviation (40 of 57 with findings)
@@ -149,7 +149,7 @@ _Generated 2026-04-15T02:51:59.736Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/aviation/wind-rose-generator.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
-## civil (37 of 60 with findings)
+## civil (38 of 61 with findings)
 
 ### tools/civil/DailyFieldReport.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -159,6 +159,10 @@ _Generated 2026-04-15T02:51:59.736Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/civil/bid-express.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
+
+### tools/civil/build-orchestrator.html
+- `[a11y]` uses native alert(), confirm(), prompt() (prefer KorbUI)
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/civil/claim-dispute-drafter.html
