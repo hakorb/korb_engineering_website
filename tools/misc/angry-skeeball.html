@@ -3,18 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="Angry Skeeball — physics-based slingshot arcade with 20 levels, endless mode, achievements, teleporters, conveyors, and neon visuals. Korb Engineering.">
-<title>Angry Skeeball // Korb Engineering</title>
+<meta name="description" content="korb.skeeball — physics-based slingshot arcade with 20 levels, endless mode, achievements, teleporters, conveyors, black holes, and neon visuals. Korb Engineering.">
+<title>korb.skeeball // Korb Engineering</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Chakra+Petch:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100dvh;overflow:hidden;background:#050a0f;touch-action:none;user-select:none;-webkit-user-select:none;font-family:'Chakra Petch',sans-serif}
-canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
+canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block;touch-action:none;-webkit-touch-callout:none}
 #ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;font-family:'Press Start 2P',monospace;color:#fff}
 #ui *{pointer-events:auto}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10}
 .screen.active{display:flex}
+
+/* GAME SCREEN - touch passthrough */
+#screen-game{pointer-events:none}
+#screen-game .hud{pointer-events:none}
+#screen-game .hud > *{pointer-events:auto}
+#screen-game .ball-queue{pointer-events:auto}
+#screen-game .combo-bar-wrap{pointer-events:none}
+#screen-game .ability-hint{pointer-events:none}
+#screen-game .level-banner{pointer-events:none}
 
 /* TITLE */
 .title-bg{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(0,229,255,.07) 0%,transparent 65%)}
@@ -119,7 +128,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
   <!-- TITLE SCREEN -->
   <div class="screen active" id="screen-title">
     <div class="title-bg"></div>
-    <div class="title-logo">ANGRY<br>SKEEBALL</div>
+    <div class="title-logo">korb.<br>skeeball</div>
     <div class="title-sub">PHYSICS ARCADE</div>
     <div class="ball-type-row" id="title-ball-anim" style="margin-bottom:28px"></div>
     <div class="tap-start">TAP TO START</div>
@@ -151,6 +160,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
       <div class="stats-row">Obstacles Broken <span id="stat-broken">0</span></div>
       <div class="stats-row">Achievements <span id="stat-achs">0</span></div>
       <div class="stats-row">Endless Best <span id="stat-endless">0</span></div>
+      <div class="stats-row">Wall Bounces <span id="stat-bounces">0</span></div>
       <div style="text-align:center;margin-top:18px">
         <button class="btn" id="btn-back-stats">BACK</button>
       </div>
@@ -225,7 +235,7 @@ canvas#game{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
 // ============================================================
 // CONSTANTS & CONFIG
 // ============================================================
-const C = {
+var C = {
   BG: '#050a0f',
   CYAN: '#00e5ff',
   ORANGE: '#ff9900',
@@ -253,10 +263,11 @@ const C = {
   STORE_KEY_BROKEN: 'korb_angryskeeball_broken',
   STORE_KEY_ENDLESS: 'korb_angryskeeball_endless_best',
   STORE_KEY_TUTORIAL: 'korb_angryskeeball_tutorial_done',
+  STORE_KEY_BOUNCES: 'korb_angryskeeball_wallbounces',
 };
 
 // Ball type configs
-const BALL_TYPES = {
+var BALL_TYPES = {
   standard: { color: C.CYAN,    glow: C.CYAN,    mass: 1.0, restitution: 0.45, label: 'STD', frictionAir: 0.010, trailStyle: 'normal'  },
   heavy:    { color: C.ORANGE,  glow: C.ORANGE,  mass: 2.8, restitution: 0.15, label: 'HVY', frictionAir: 0.022, trailStyle: 'heavy'   },
   bouncy:   { color: C.MAGENTA, glow: C.MAGENTA, mass: 0.6, restitution: 0.95, label: 'BNC', frictionAir: 0.006, trailStyle: 'sparkle' },
@@ -264,12 +275,29 @@ const BALL_TYPES = {
   bomb:     { color: C.RED,     glow: C.RED,     mass: 1.5, restitution: 0.20, label: 'BMB', frictionAir: 0.013, trailStyle: 'smoke'   },
 };
 
+// Hole radius based on point value (inverse relationship)
+function holeRadiusForPts(pts) {
+  if(pts >= 200) return 7;
+  if(pts >= 100) return 10;
+  if(pts >= 50) return 16;
+  if(pts >= 20) return 20;
+  return 24;
+}
+
+function holeColorForPts(pts) {
+  if(pts >= 200) return '#ff3333';
+  if(pts >= 100) return '#ff00ff';
+  if(pts >= 50) return '#ffeb3b';
+  if(pts >= 20) return '#00e5ff';
+  return '#6688ff';
+}
+
 // ============================================================
 // ACHIEVEMENT DEFINITIONS
 // ============================================================
-const ACHIEVEMENT_DEFS = {
+var ACHIEVEMENT_DEFS = {
   first_score: { name:'First Blood', desc:'Score your first points', icon:'\u{1F3AF}' },
-  hit_100:     { name:'Bullseye', desc:'Hit the 100pt center hole', icon:'\u{1F4A5}' },
+  hit_100:     { name:'Bullseye', desc:'Hit the 100pt hole', icon:'\u{1F4A5}' },
   combo_3:     { name:'Triple Threat', desc:'Get a x3 combo', icon:'\u{26A1}' },
   combo_5:     { name:'Combo King', desc:'Get a x5 combo', icon:'\u{1F451}' },
   star_3:      { name:'Perfect', desc:'Get 3 stars on any level', icon:'\u{2B50}' },
@@ -278,231 +306,417 @@ const ACHIEVEMENT_DEFS = {
   break_10:    { name:'Demolition', desc:'Break 10 obstacles total', icon:'\u{1F4A3}' },
   total_5000:  { name:'Score Hoarder', desc:'Accumulate 5,000 points', icon:'\u{1F4B0}' },
   total_25000: { name:'Score Legend', desc:'Accumulate 25,000 points', icon:'\u{1F48E}' },
-  no_miss:     { name:'Sharpshooter', desc:'Hit all 5 holes in a level', icon:'\u{1F3AF}' },
+  no_miss:     { name:'Sharpshooter', desc:'Hit all holes in a level', icon:'\u{1F3AF}' },
   bomb_multi:  { name:'Explosive', desc:'Destroy 3+ obstacles with one bomb', icon:'\u{1F525}' },
+  black_hole_survivor: { name:'Event Horizon', desc:'Have a ball consumed by a black hole', icon:'\u{1F30C}' },
+  wall_bounce: { name:'Bank Shot', desc:'Score after bouncing off a wall', icon:'\u{1F3B1}' },
 };
 
 // ============================================================
-// LEVEL DEFINITIONS
+// LEVEL DEFINITIONS (all 20 levels with holes, blackHoles, 5 balls each)
 // ============================================================
-const LEVEL_DEFS = [
+var LEVEL_DEFS = [
   // Level 1: Tutorial
-  { name:'TUTORIAL', stars:[300,600,900], balls:['standard','standard','standard'], wind:0, obstacles:[], powerups:[] },
+  { name:'TUTORIAL', stars:[300,600,900],
+    balls:['standard','standard','standard','standard','standard'], wind:0, obstacles:[], powerups:[],
+    holes:[
+      {pts:10, fx:0.20, fy:0.15},{pts:10, fx:0.80, fy:0.15},
+      {pts:20, fx:0.15, fy:0.85},{pts:20, fx:0.85, fy:0.85},
+      {pts:50, fx:0.50, fy:0.10},{pts:100, fx:0.50, fy:0.90}
+    ],
+    blackHoles:[]
+  },
   // Level 2: Wooden Planks
-  { name:'PLANK WALL', stars:[400,800,1200], balls:['standard','standard','heavy'], wind:0,
+  { name:'PLANK WALL', stars:[400,800,1200],
+    balls:['standard','standard','standard','standard','heavy'], wind:0,
     obstacles:[
-      {type:'wood', fx:0.38, fy:0.48, fw:0.16, fh:0.03, angle:0},
-      {type:'wood', fx:0.60, fy:0.52, fw:0.16, fh:0.03, angle:0},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.36}] },
+      {type:'wood', fx:0.30, fy:0.35, fw:0.16, fh:0.03, angle:0},
+      {type:'wood', fx:0.70, fy:0.65, fw:0.16, fh:0.03, angle:0},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.25}],
+    holes:[
+      {pts:10, fx:0.15, fy:0.12},{pts:10, fx:0.85, fy:0.12},
+      {pts:20, fx:0.10, fy:0.88},{pts:20, fx:0.90, fy:0.88},
+      {pts:50, fx:0.50, fy:0.08},{pts:100, fx:0.50, fy:0.92}
+    ],
+    blackHoles:[]
+  },
   // Level 3: Steel maze
-  { name:'STEEL MAZE', stars:[500,900,1400], balls:['standard','heavy','standard'], wind:0,
+  { name:'STEEL MAZE', stars:[500,900,1400],
+    balls:['standard','standard','heavy','standard','standard'], wind:0,
     obstacles:[
-      {type:'steel', fx:0.28, fy:0.42, fw:0.22, fh:0.025, angle:0},
-      {type:'steel', fx:0.62, fy:0.50, fw:0.22, fh:0.025, angle:0},
-      {type:'steel', fx:0.44, fy:0.58, fw:0.18, fh:0.025, angle:0.18},
-    ], powerups:[] },
+      {type:'steel', fx:0.25, fy:0.30, fw:0.22, fh:0.025, angle:0},
+      {type:'steel', fx:0.75, fy:0.70, fw:0.22, fh:0.025, angle:0},
+      {type:'steel', fx:0.50, fy:0.25, fw:0.18, fh:0.025, angle:0.18},
+    ], powerups:[],
+    holes:[
+      {pts:10, fx:0.12, fy:0.12},{pts:10, fx:0.88, fy:0.12},
+      {pts:20, fx:0.12, fy:0.88},{pts:20, fx:0.88, fy:0.88},
+      {pts:50, fx:0.50, fy:0.08},{pts:100, fx:0.50, fy:0.92}
+    ],
+    blackHoles:[]
+  },
   // Level 4: Bumper field
-  { name:'BUMPER FIELD', stars:[600,1000,1600], balls:['bouncy','bouncy','standard'], wind:0,
+  { name:'BUMPER FIELD', stars:[600,1000,1600],
+    balls:['standard','bouncy','bouncy','standard','standard'], wind:0,
     obstacles:[
-      {type:'bumper', fx:0.30, fy:0.44, fr:0.04},
-      {type:'bumper', fx:0.55, fy:0.38, fr:0.04},
-      {type:'bumper', fx:0.70, fy:0.52, fr:0.035},
-      {type:'bumper', fx:0.42, fy:0.58, fr:0.035},
-    ], powerups:[{type:'precision',fx:0.50,fy:0.30}] },
+      {type:'bumper', fx:0.25, fy:0.30, fr:0.04},
+      {type:'bumper', fx:0.75, fy:0.30, fr:0.04},
+      {type:'bumper', fx:0.25, fy:0.70, fr:0.035},
+      {type:'bumper', fx:0.75, fy:0.70, fr:0.035},
+    ], powerups:[{type:'precision',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.10, fy:0.10},{pts:10, fx:0.90, fy:0.10},
+      {pts:20, fx:0.10, fy:0.90},{pts:20, fx:0.90, fy:0.90},
+      {pts:50, fx:0.50, fy:0.08},{pts:100, fx:0.50, fy:0.92}
+    ],
+    blackHoles:[]
+  },
   // Level 5: Windmill gauntlet
-  { name:'WINDMILL', stars:[700,1100,1700], balls:['standard','curve','standard'], wind:0,
+  { name:'WINDMILL', stars:[700,1100,1700],
+    balls:['standard','standard','curve','standard','heavy'], wind:0,
     obstacles:[
-      {type:'windmill', fx:0.32, fy:0.42, flen:0.12, speed:1.2},
-      {type:'windmill', fx:0.68, fy:0.48, flen:0.10, speed:-1.6},
-    ], powerups:[] },
+      {type:'windmill', fx:0.30, fy:0.30, flen:0.12, speed:1.2},
+      {type:'windmill', fx:0.70, fy:0.70, flen:0.10, speed:-1.6},
+    ], powerups:[],
+    holes:[
+      {pts:10, fx:0.10, fy:0.10},{pts:10, fx:0.90, fy:0.10},
+      {pts:20, fx:0.10, fy:0.90},{pts:20, fx:0.90, fy:0.90},
+      {pts:50, fx:0.50, fy:0.06},{pts:50, fx:0.50, fy:0.94},
+      {pts:100, fx:0.08, fy:0.50}
+    ],
+    blackHoles:[]
+  },
   // Level 6: Glass + bumpers
-  { name:'GLASS FIELD', stars:[800,1300,1900], balls:['heavy','standard','bouncy'], wind:0,
+  { name:'GLASS FIELD', stars:[800,1300,1900],
+    balls:['heavy','standard','standard','bouncy','standard'], wind:0,
     obstacles:[
-      {type:'glass', fx:0.36, fy:0.45, fw:0.14, fh:0.025, angle:-0.15},
-      {type:'glass', fx:0.62, fy:0.48, fw:0.14, fh:0.025, angle:0.15},
-      {type:'bumper', fx:0.50, fy:0.40, fr:0.04},
-    ], powerups:[{type:'ghost',fx:0.50,fy:0.55}] },
+      {type:'glass', fx:0.30, fy:0.30, fw:0.14, fh:0.025, angle:-0.15},
+      {type:'glass', fx:0.70, fy:0.70, fw:0.14, fh:0.025, angle:0.15},
+      {type:'bumper', fx:0.50, fy:0.25, fr:0.04},
+    ], powerups:[{type:'ghost',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.12, fy:0.08},{pts:10, fx:0.88, fy:0.08},
+      {pts:20, fx:0.08, fy:0.50},{pts:20, fx:0.92, fy:0.50},
+      {pts:50, fx:0.50, fy:0.06},{pts:100, fx:0.50, fy:0.94}
+    ],
+    blackHoles:[]
+  },
   // Level 7: Moving platforms
-  { name:'MOVING MAZE', stars:[900,1500,2100], balls:['standard','curve','heavy'], wind:0,
+  { name:'MOVING MAZE', stars:[900,1500,2100],
+    balls:['standard','standard','curve','heavy','standard'], wind:0,
     obstacles:[
-      {type:'mover', fx:0.30, fy:0.44, fw:0.18, fh:0.025, rangeX:0.18, speed:0.8},
-      {type:'mover', fx:0.65, fy:0.55, fw:0.15, fh:0.025, rangeX:0.14, speed:-1.0},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.35}] },
-  // Level 8: Gravity well + steel
-  { name:'GRAVITY WELL', stars:[1000,1700,2400], balls:['standard','standard','curve'], wind:0.3,
+      {type:'mover', fx:0.30, fy:0.30, fw:0.18, fh:0.025, rangeX:0.18, speed:0.8},
+      {type:'mover', fx:0.70, fy:0.70, fw:0.15, fh:0.025, rangeX:0.14, speed:-1.0},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.10, fy:0.08},{pts:10, fx:0.90, fy:0.08},
+      {pts:20, fx:0.10, fy:0.92},{pts:20, fx:0.90, fy:0.92},
+      {pts:50, fx:0.06, fy:0.50},{pts:100, fx:0.94, fy:0.50}
+    ],
+    blackHoles:[]
+  },
+  // Level 8: Gravity well + steel + first black hole
+  { name:'GRAVITY WELL', stars:[1000,1700,2400],
+    balls:['standard','standard','standard','curve','standard'], wind:0.3,
     obstacles:[
-      {type:'gravity', fx:0.50, fy:0.46, fr:0.06, strength:0.0006},
-      {type:'steel', fx:0.28, fy:0.50, fw:0.14, fh:0.025, angle:0.3},
-      {type:'steel', fx:0.72, fy:0.50, fw:0.14, fh:0.025, angle:-0.3},
-    ], powerups:[] },
+      {type:'gravity', fx:0.30, fy:0.30, fr:0.06, strength:0.0006},
+      {type:'steel', fx:0.20, fy:0.70, fw:0.14, fh:0.025, angle:0.3},
+      {type:'steel', fx:0.80, fy:0.30, fw:0.14, fh:0.025, angle:-0.3},
+    ], powerups:[],
+    holes:[
+      {pts:10, fx:0.10, fy:0.10},{pts:10, fx:0.90, fy:0.10},
+      {pts:20, fx:0.10, fy:0.90},{pts:20, fx:0.90, fy:0.90},
+      {pts:50, fx:0.50, fy:0.06},{pts:100, fx:0.50, fy:0.94}
+    ],
+    blackHoles:[
+      {fx:0.70, fy:0.70, fr:0.04}
+    ]
+  },
   // Level 9: Gauntlet
-  { name:'GAUNTLET', stars:[1200,2000,2800], balls:['heavy','bouncy','bomb'], wind:0.2,
+  { name:'GAUNTLET', stars:[1200,2000,2800],
+    balls:['heavy','standard','bouncy','bomb','standard'], wind:0.2,
     obstacles:[
-      {type:'wood', fx:0.32, fy:0.44, fw:0.15, fh:0.025, angle:0},
-      {type:'glass', fx:0.62, fy:0.44, fw:0.15, fh:0.025, angle:0},
-      {type:'bumper', fx:0.50, fy:0.50, fr:0.04},
-      {type:'windmill', fx:0.35, fy:0.60, flen:0.09, speed:1.8},
-      {type:'mover', fx:0.68, fy:0.57, fw:0.14, fh:0.025, rangeX:0.12, speed:1.2},
-      {type:'bouncePad', fx:0.25, fy:0.52, fw:0.10, fh:0.025, angle:-0.5},
-      {type:'bouncePad', fx:0.75, fy:0.52, fw:0.10, fh:0.025, angle:0.5},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.33}] },
+      {type:'wood', fx:0.25, fy:0.25, fw:0.15, fh:0.025, angle:0},
+      {type:'glass', fx:0.75, fy:0.25, fw:0.15, fh:0.025, angle:0},
+      {type:'bumper', fx:0.30, fy:0.70, fr:0.04},
+      {type:'windmill', fx:0.70, fy:0.70, flen:0.09, speed:1.8},
+      {type:'bouncePad', fx:0.15, fy:0.35, fw:0.10, fh:0.025, angle:-0.5},
+      {type:'bouncePad', fx:0.85, fy:0.65, fw:0.10, fh:0.025, angle:0.5},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.08, fy:0.08},{pts:10, fx:0.92, fy:0.08},
+      {pts:20, fx:0.08, fy:0.92},{pts:20, fx:0.92, fy:0.92},
+      {pts:50, fx:0.50, fy:0.06},{pts:100, fx:0.50, fy:0.94},
+      {pts:50, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.70, fy:0.30, fr:0.035}
+    ]
+  },
   // Level 10: Boss
-  { name:'BOSS LEVEL', stars:[1500,2500,3500], balls:['bomb','curve','bouncy','heavy'], wind:0.35,
+  { name:'BOSS LEVEL', stars:[1500,2500,3500],
+    balls:['bomb','curve','bouncy','heavy','standard'], wind:0.35,
     obstacles:[
-      {type:'windmill', fx:0.28, fy:0.40, flen:0.13, speed:2.2},
-      {type:'windmill', fx:0.72, fy:0.40, flen:0.13, speed:-1.9},
-      {type:'windmill', fx:0.50, fy:0.54, flen:0.10, speed:2.8},
-      {type:'gravity', fx:0.50, fy:0.44, fr:0.065, strength:0.0008},
-      {type:'mover', fx:0.35, fy:0.62, fw:0.16, fh:0.025, rangeX:0.14, speed:1.4},
-      {type:'mover', fx:0.65, fy:0.62, fw:0.16, fh:0.025, rangeX:0.14, speed:-1.4},
-      {type:'steel', fx:0.20, fy:0.50, fw:0.10, fh:0.025, angle:0.5},
-      {type:'steel', fx:0.80, fy:0.50, fw:0.10, fh:0.025, angle:-0.5},
-      {type:'glass', fx:0.38, fy:0.56, fw:0.12, fh:0.025, angle:0},
-      {type:'glass', fx:0.62, fy:0.56, fw:0.12, fh:0.025, angle:0},
-    ], powerups:[{type:'precision',fx:0.30,fy:0.34},{type:'2x',fx:0.70,fy:0.34}] },
+      {type:'windmill', fx:0.20, fy:0.20, flen:0.13, speed:2.2},
+      {type:'windmill', fx:0.80, fy:0.80, flen:0.13, speed:-1.9},
+      {type:'gravity', fx:0.25, fy:0.75, fr:0.065, strength:0.0008},
+      {type:'mover', fx:0.30, fy:0.25, fw:0.16, fh:0.025, rangeX:0.14, speed:1.4},
+      {type:'mover', fx:0.70, fy:0.75, fw:0.16, fh:0.025, rangeX:0.14, speed:-1.4},
+      {type:'steel', fx:0.15, fy:0.35, fw:0.10, fh:0.025, angle:0.5},
+      {type:'steel', fx:0.85, fy:0.65, fw:0.10, fh:0.025, angle:-0.5},
+    ], powerups:[{type:'precision',fx:0.20,fy:0.15},{type:'2x',fx:0.80,fy:0.85}],
+    holes:[
+      {pts:10, fx:0.08, fy:0.08},{pts:10, fx:0.92, fy:0.08},
+      {pts:20, fx:0.08, fy:0.92},{pts:20, fx:0.92, fy:0.92},
+      {pts:50, fx:0.50, fy:0.06},{pts:100, fx:0.50, fy:0.94},
+      {pts:50, fx:0.94, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.75, fy:0.25, fr:0.04}
+    ]
+  },
   // Level 11: Turbulence
-  { name:'TURBULENCE', stars:[1800,2800,4000], balls:['curve','standard','standard'], wind:0.6,
+  { name:'TURBULENCE', stars:[1800,2800,4000],
+    balls:['curve','standard','standard','standard','standard'], wind:0.6,
     obstacles:[
-      {type:'glass', fx:0.30, fy:0.40, fw:0.16, fh:0.025, angle:-0.2},
-      {type:'glass', fx:0.60, fy:0.40, fw:0.16, fh:0.025, angle:0.2},
-      {type:'glass', fx:0.45, fy:0.52, fw:0.20, fh:0.025, angle:0},
-      {type:'steel', fx:0.22, fy:0.56, fw:0.12, fh:0.025, angle:0.4},
-      {type:'steel', fx:0.78, fy:0.56, fw:0.12, fh:0.025, angle:-0.4},
-    ], powerups:[{type:'precision',fx:0.50,fy:0.35}] },
+      {type:'glass', fx:0.25, fy:0.25, fw:0.16, fh:0.025, angle:-0.2},
+      {type:'glass', fx:0.75, fy:0.75, fw:0.16, fh:0.025, angle:0.2},
+      {type:'steel', fx:0.20, fy:0.70, fw:0.12, fh:0.025, angle:0.4},
+      {type:'steel', fx:0.80, fy:0.30, fw:0.12, fh:0.025, angle:-0.4},
+    ], powerups:[{type:'precision',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.08, fy:0.08},{pts:10, fx:0.92, fy:0.08},
+      {pts:20, fx:0.08, fy:0.92},{pts:20, fx:0.92, fy:0.92},
+      {pts:50, fx:0.06, fy:0.50},{pts:50, fx:0.94, fy:0.50},
+      {pts:100, fx:0.50, fy:0.06}
+    ],
+    blackHoles:[
+      {fx:0.50, fy:0.88, fr:0.04}
+    ]
+  },
   // Level 12: Pinball
-  { name:'PINBALL', stars:[2000,3200,4500], balls:['bouncy','bouncy','standard','curve'], wind:0,
+  { name:'PINBALL', stars:[2000,3200,4500],
+    balls:['bouncy','bouncy','standard','curve','standard'], wind:0,
     obstacles:[
-      {type:'bumper', fx:0.28, fy:0.36, fr:0.038},
-      {type:'bumper', fx:0.50, fy:0.32, fr:0.038},
-      {type:'bumper', fx:0.72, fy:0.36, fr:0.038},
-      {type:'bumper', fx:0.36, fy:0.50, fr:0.032},
-      {type:'bumper', fx:0.64, fy:0.50, fr:0.032},
-      {type:'bumper', fx:0.50, fy:0.58, fr:0.032},
-      {type:'bouncePad', fx:0.25, fy:0.64, fw:0.10, fh:0.022, angle:-0.5},
-      {type:'bouncePad', fx:0.75, fy:0.64, fw:0.10, fh:0.022, angle:0.5},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.44}] },
+      {type:'bumper', fx:0.20, fy:0.20, fr:0.038},
+      {type:'bumper', fx:0.80, fy:0.20, fr:0.038},
+      {type:'bumper', fx:0.20, fy:0.80, fr:0.032},
+      {type:'bumper', fx:0.80, fy:0.80, fr:0.032},
+      {type:'bumper', fx:0.35, fy:0.35, fr:0.032},
+      {type:'bumper', fx:0.65, fy:0.65, fr:0.032},
+      {type:'bouncePad', fx:0.15, fy:0.25, fw:0.10, fh:0.022, angle:-0.5},
+      {type:'bouncePad', fx:0.85, fy:0.75, fw:0.10, fh:0.022, angle:0.5},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.18}],
+    holes:[
+      {pts:10, fx:0.50, fy:0.06},{pts:10, fx:0.50, fy:0.94},
+      {pts:20, fx:0.06, fy:0.50},{pts:20, fx:0.94, fy:0.50},
+      {pts:50, fx:0.08, fy:0.08},{pts:100, fx:0.92, fy:0.92}
+    ],
+    blackHoles:[
+      {fx:0.50, fy:0.15, fr:0.035}
+    ]
+  },
   // Level 13: Labyrinth
-  { name:'LABYRINTH', stars:[2200,3500,5000], balls:['heavy','standard','bomb'], wind:0.1,
+  { name:'LABYRINTH', stars:[2200,3500,5000],
+    balls:['heavy','standard','standard','bomb','standard'], wind:0.1,
     obstacles:[
-      {type:'steel', fx:0.22, fy:0.35, fw:0.20, fh:0.025, angle:0},
-      {type:'steel', fx:0.60, fy:0.38, fw:0.22, fh:0.025, angle:0},
-      {type:'steel', fx:0.35, fy:0.48, fw:0.18, fh:0.025, angle:0.25},
-      {type:'steel', fx:0.68, fy:0.52, fw:0.18, fh:0.025, angle:-0.25},
-      {type:'steel', fx:0.25, fy:0.60, fw:0.16, fh:0.025, angle:0},
-      {type:'steel', fx:0.65, fy:0.62, fw:0.16, fh:0.025, angle:0},
-      {type:'wood',  fx:0.50, fy:0.55, fw:0.14, fh:0.022, angle:0},
-    ], powerups:[] },
+      {type:'steel', fx:0.20, fy:0.25, fw:0.20, fh:0.025, angle:0},
+      {type:'steel', fx:0.80, fy:0.75, fw:0.22, fh:0.025, angle:0},
+      {type:'steel', fx:0.25, fy:0.70, fw:0.18, fh:0.025, angle:0.25},
+      {type:'steel', fx:0.75, fy:0.30, fw:0.18, fh:0.025, angle:-0.25},
+      {type:'wood',  fx:0.30, fy:0.35, fw:0.14, fh:0.022, angle:0},
+      {type:'wood',  fx:0.70, fy:0.65, fw:0.14, fh:0.022, angle:0},
+    ], powerups:[],
+    holes:[
+      {pts:10, fx:0.08, fy:0.08},{pts:10, fx:0.92, fy:0.08},
+      {pts:20, fx:0.08, fy:0.92},{pts:20, fx:0.92, fy:0.92},
+      {pts:50, fx:0.50, fy:0.06},{pts:100, fx:0.50, fy:0.94},
+      {pts:50, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.75, fy:0.25, fr:0.04},
+      {fx:0.25, fy:0.75, fr:0.035}
+    ]
+  },
   // Level 14: Chaos Engine
-  { name:'CHAOS ENGINE', stars:[2500,4000,5800], balls:['bomb','curve','bouncy','heavy'], wind:0.4,
+  { name:'CHAOS ENGINE', stars:[2500,4000,5800],
+    balls:['bomb','curve','bouncy','heavy','standard'], wind:0.4,
     obstacles:[
-      {type:'windmill', fx:0.25, fy:0.38, flen:0.11, speed:2.5},
-      {type:'windmill', fx:0.50, fy:0.44, flen:0.11, speed:-3.0},
-      {type:'windmill', fx:0.75, fy:0.38, flen:0.11, speed:2.0},
-      {type:'gravity',  fx:0.35, fy:0.52, fr:0.055, strength:0.0007},
-      {type:'gravity',  fx:0.65, fy:0.52, fr:0.055, strength:0.0007},
-      {type:'mover',    fx:0.50, fy:0.64, fw:0.18, fh:0.025, rangeX:0.20, speed:1.6},
-      {type:'glass',    fx:0.30, fy:0.58, fw:0.12, fh:0.025, angle:0.3},
-      {type:'glass',    fx:0.70, fy:0.58, fw:0.12, fh:0.025, angle:-0.3},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.30}] },
+      {type:'windmill', fx:0.20, fy:0.20, flen:0.11, speed:2.5},
+      {type:'windmill', fx:0.80, fy:0.80, flen:0.11, speed:-3.0},
+      {type:'gravity',  fx:0.25, fy:0.75, fr:0.055, strength:0.0007},
+      {type:'gravity',  fx:0.75, fy:0.25, fr:0.055, strength:0.0007},
+      {type:'mover',    fx:0.30, fy:0.25, fw:0.18, fh:0.025, rangeX:0.20, speed:1.6},
+      {type:'glass',    fx:0.70, fy:0.75, fw:0.12, fh:0.025, angle:-0.3},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.20}],
+    holes:[
+      {pts:10, fx:0.08, fy:0.08},{pts:10, fx:0.92, fy:0.08},
+      {pts:20, fx:0.08, fy:0.92},{pts:20, fx:0.92, fy:0.92},
+      {pts:50, fx:0.06, fy:0.50},{pts:50, fx:0.94, fy:0.50},
+      {pts:100, fx:0.50, fy:0.06}
+    ],
+    blackHoles:[
+      {fx:0.50, fy:0.88, fr:0.04},
+      {fx:0.30, fy:0.30, fr:0.035}
+    ]
+  },
   // Level 15: Grand Master
-  { name:'GRAND MASTER', stars:[3500,5500,8000], balls:['bomb','curve','bouncy','heavy','standard'], wind:0.45,
+  { name:'GRAND MASTER', stars:[3500,5500,8000],
+    balls:['bomb','curve','bouncy','heavy','standard'], wind:0.45,
     obstacles:[
-      {type:'windmill', fx:0.20, fy:0.36, flen:0.12, speed:2.8},
-      {type:'windmill', fx:0.80, fy:0.36, flen:0.12, speed:-2.4},
-      {type:'windmill', fx:0.50, fy:0.50, flen:0.10, speed:3.2},
-      {type:'gravity',  fx:0.38, fy:0.44, fr:0.06, strength:0.0009},
-      {type:'gravity',  fx:0.62, fy:0.44, fr:0.06, strength:0.0009},
-      {type:'bumper',   fx:0.27, fy:0.54, fr:0.038},
-      {type:'bumper',   fx:0.73, fy:0.54, fr:0.038},
-      {type:'bumper',   fx:0.50, fy:0.60, fr:0.035},
-      {type:'mover',    fx:0.28, fy:0.65, fw:0.14, fh:0.022, rangeX:0.12, speed:1.8},
-      {type:'mover',    fx:0.72, fy:0.65, fw:0.14, fh:0.022, rangeX:0.12, speed:-1.8},
-      {type:'steel',    fx:0.50, fy:0.40, fw:0.10, fh:0.022, angle:0},
-      {type:'glass',    fx:0.35, fy:0.58, fw:0.12, fh:0.022, angle:0.15},
-      {type:'glass',    fx:0.65, fy:0.58, fw:0.12, fh:0.022, angle:-0.15},
-      {type:'wood',     fx:0.50, fy:0.68, fw:0.20, fh:0.022, angle:0},
-    ], powerups:[{type:'precision',fx:0.25,fy:0.30},{type:'2x',fx:0.75,fy:0.30}] },
+      {type:'windmill', fx:0.15, fy:0.20, flen:0.12, speed:2.8},
+      {type:'windmill', fx:0.85, fy:0.80, flen:0.12, speed:-2.4},
+      {type:'gravity',  fx:0.25, fy:0.30, fr:0.06, strength:0.0009},
+      {type:'gravity',  fx:0.75, fy:0.70, fr:0.06, strength:0.0009},
+      {type:'bumper',   fx:0.20, fy:0.75, fr:0.038},
+      {type:'bumper',   fx:0.80, fy:0.25, fr:0.038},
+      {type:'mover',    fx:0.25, fy:0.25, fw:0.14, fh:0.022, rangeX:0.12, speed:1.8},
+      {type:'mover',    fx:0.75, fy:0.75, fw:0.14, fh:0.022, rangeX:0.12, speed:-1.8},
+      {type:'steel',    fx:0.20, fy:0.35, fw:0.10, fh:0.022, angle:0},
+      {type:'wood',     fx:0.80, fy:0.65, fw:0.14, fh:0.022, angle:0},
+    ], powerups:[{type:'precision',fx:0.15,fy:0.12},{type:'2x',fx:0.85,fy:0.88}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:50, fx:0.50, fy:0.96},
+      {pts:100, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.30, fy:0.70, fr:0.04},
+      {fx:0.70, fy:0.30, fr:0.04}
+    ]
+  },
   // Level 16: Portal Maze
-  { name:'PORTAL MAZE', stars:[4000,6500,9000], balls:['standard','curve','heavy','bouncy'], wind:0.2,
+  { name:'PORTAL MAZE', stars:[4000,6500,9000],
+    balls:['standard','curve','heavy','bouncy','standard'], wind:0.2,
     obstacles:[
-      {type:'teleporter', fx:0.20, fy:0.40, fr:0.035, pairId:0},
-      {type:'teleporter', fx:0.80, fy:0.55, fr:0.035, pairId:0},
-      {type:'teleporter', fx:0.35, fy:0.60, fr:0.035, pairId:1},
-      {type:'teleporter', fx:0.65, fy:0.38, fr:0.035, pairId:1},
-      {type:'steel', fx:0.50, fy:0.45, fw:0.18, fh:0.022, angle:0},
-      {type:'steel', fx:0.30, fy:0.52, fw:0.14, fh:0.022, angle:0.3},
-      {type:'steel', fx:0.70, fy:0.52, fw:0.14, fh:0.022, angle:-0.3},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.32}] },
+      {type:'teleporter', fx:0.15, fy:0.20, fr:0.035, pairId:0},
+      {type:'teleporter', fx:0.85, fy:0.80, fr:0.035, pairId:0},
+      {type:'teleporter', fx:0.25, fy:0.80, fr:0.035, pairId:1},
+      {type:'teleporter', fx:0.75, fy:0.20, fr:0.035, pairId:1},
+      {type:'steel', fx:0.30, fy:0.30, fw:0.18, fh:0.022, angle:0},
+      {type:'steel', fx:0.70, fy:0.70, fw:0.14, fh:0.022, angle:0.3},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.18}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:100, fx:0.50, fy:0.96},
+      {pts:50, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.80, fy:0.50, fr:0.04},
+      {fx:0.20, fy:0.50, fr:0.035}
+    ]
+  },
   // Level 17: Conveyor Chaos
-  { name:'CONVEYOR CHAOS', stars:[4500,7000,10000], balls:['standard','heavy','bouncy','curve'], wind:0.3,
+  { name:'CONVEYOR CHAOS', stars:[4500,7000,10000],
+    balls:['standard','heavy','bouncy','curve','standard'], wind:0.3,
     obstacles:[
-      {type:'conveyor', fx:0.35, fy:0.45, fw:0.22, fh:0.025, dir:1},
-      {type:'conveyor', fx:0.65, fy:0.55, fw:0.22, fh:0.025, dir:-1},
-      {type:'conveyor', fx:0.50, fy:0.65, fw:0.28, fh:0.025, dir:1},
-      {type:'bumper', fx:0.25, fy:0.50, fr:0.035},
-      {type:'bumper', fx:0.75, fy:0.50, fr:0.035},
-      {type:'bumper', fx:0.50, fy:0.38, fr:0.04},
-    ], powerups:[{type:'precision',fx:0.50,fy:0.30}] },
+      {type:'conveyor', fx:0.25, fy:0.25, fw:0.22, fh:0.025, dir:1},
+      {type:'conveyor', fx:0.75, fy:0.75, fw:0.22, fh:0.025, dir:-1},
+      {type:'conveyor', fx:0.30, fy:0.75, fw:0.20, fh:0.025, dir:1},
+      {type:'bumper', fx:0.20, fy:0.35, fr:0.035},
+      {type:'bumper', fx:0.80, fy:0.65, fr:0.035},
+    ], powerups:[{type:'precision',fx:0.50,fy:0.18}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:100, fx:0.50, fy:0.96},
+      {pts:200, fx:0.94, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.30, fy:0.30, fr:0.04},
+      {fx:0.70, fy:0.70, fr:0.035}
+    ]
+  },
   // Level 18: Portal Pinball
-  { name:'PORTAL PINBALL', stars:[5000,8000,11500], balls:['bouncy','standard','bomb','curve'], wind:0,
+  { name:'PORTAL PINBALL', stars:[5000,8000,11500],
+    balls:['bouncy','standard','bomb','curve','standard'], wind:0,
     obstacles:[
-      {type:'teleporter', fx:0.22, fy:0.38, fr:0.035, pairId:0},
-      {type:'teleporter', fx:0.78, fy:0.58, fr:0.035, pairId:0},
-      {type:'bumper', fx:0.35, fy:0.45, fr:0.035},
-      {type:'bumper', fx:0.65, fy:0.45, fr:0.035},
-      {type:'bumper', fx:0.50, fy:0.55, fr:0.04},
-      {type:'bumper', fx:0.30, fy:0.60, fr:0.032},
-      {type:'bumper', fx:0.70, fy:0.60, fr:0.032},
-      {type:'glass', fx:0.45, fy:0.50, fw:0.12, fh:0.022, angle:0.2},
-      {type:'glass', fx:0.55, fy:0.40, fw:0.12, fh:0.022, angle:-0.2},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.33},{type:'ghost',fx:0.50,fy:0.62}] },
+      {type:'teleporter', fx:0.15, fy:0.20, fr:0.035, pairId:0},
+      {type:'teleporter', fx:0.85, fy:0.80, fr:0.035, pairId:0},
+      {type:'bumper', fx:0.25, fy:0.30, fr:0.035},
+      {type:'bumper', fx:0.75, fy:0.70, fr:0.035},
+      {type:'bumper', fx:0.30, fy:0.70, fr:0.032},
+      {type:'bumper', fx:0.70, fy:0.30, fr:0.032},
+      {type:'glass', fx:0.25, fy:0.25, fw:0.12, fh:0.022, angle:0.2},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.18},{type:'ghost',fx:0.50,fy:0.82}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:100, fx:0.50, fy:0.96},
+      {pts:200, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.80, fy:0.50, fr:0.04},
+      {fx:0.35, fy:0.35, fr:0.035}
+    ]
+  },
   // Level 19: The Gauntlet II
-  { name:'GAUNTLET II', stars:[5500,9000,13000], balls:['bomb','curve','bouncy','heavy','standard'], wind:0.5,
+  { name:'GAUNTLET II', stars:[5500,9000,13000],
+    balls:['bomb','curve','bouncy','heavy','standard'], wind:0.5,
     obstacles:[
-      {type:'teleporter', fx:0.18, fy:0.42, fr:0.032, pairId:0},
-      {type:'teleporter', fx:0.82, fy:0.56, fr:0.032, pairId:0},
-      {type:'conveyor', fx:0.50, fy:0.48, fw:0.24, fh:0.022, dir:1},
-      {type:'conveyor', fx:0.35, fy:0.62, fw:0.18, fh:0.022, dir:-1},
-      {type:'windmill', fx:0.30, fy:0.38, flen:0.10, speed:2.8},
-      {type:'windmill', fx:0.70, fy:0.38, flen:0.10, speed:-2.5},
-      {type:'gravity', fx:0.50, fy:0.44, fr:0.05, strength:0.0008},
-      {type:'bumper', fx:0.40, fy:0.55, fr:0.032},
-      {type:'bumper', fx:0.60, fy:0.55, fr:0.032},
-      {type:'glass', fx:0.25, fy:0.52, fw:0.10, fh:0.022, angle:0.3},
-      {type:'glass', fx:0.75, fy:0.52, fw:0.10, fh:0.022, angle:-0.3},
-      {type:'wood', fx:0.50, fy:0.58, fw:0.14, fh:0.022, angle:0},
-      {type:'steel', fx:0.50, fy:0.68, fw:0.18, fh:0.022, angle:0},
-    ], powerups:[{type:'2x',fx:0.50,fy:0.30}] },
+      {type:'teleporter', fx:0.12, fy:0.20, fr:0.032, pairId:0},
+      {type:'teleporter', fx:0.88, fy:0.80, fr:0.032, pairId:0},
+      {type:'conveyor', fx:0.30, fy:0.25, fw:0.24, fh:0.022, dir:1},
+      {type:'conveyor', fx:0.70, fy:0.75, fw:0.18, fh:0.022, dir:-1},
+      {type:'windmill', fx:0.20, fy:0.25, flen:0.10, speed:2.8},
+      {type:'windmill', fx:0.80, fy:0.75, flen:0.10, speed:-2.5},
+      {type:'gravity', fx:0.25, fy:0.30, fr:0.05, strength:0.0008},
+      {type:'bumper', fx:0.30, fy:0.70, fr:0.032},
+      {type:'bumper', fx:0.70, fy:0.30, fr:0.032},
+      {type:'glass', fx:0.20, fy:0.35, fw:0.10, fh:0.022, angle:0.3},
+      {type:'wood', fx:0.80, fy:0.65, fw:0.14, fh:0.022, angle:0},
+    ], powerups:[{type:'2x',fx:0.50,fy:0.18}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:100, fx:0.50, fy:0.96},
+      {pts:200, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.75, fy:0.25, fr:0.04},
+      {fx:0.25, fy:0.75, fr:0.04},
+      {fx:0.50, fy:0.15, fr:0.03}
+    ]
+  },
   // Level 20: Ultimate
-  { name:'ULTIMATE', stars:[7000,11000,16000], balls:['bomb','curve','bouncy','heavy','standard'], wind:0.6,
+  { name:'ULTIMATE', stars:[7000,11000,16000],
+    balls:['bomb','bomb','curve','bouncy','heavy'], wind:0.6,
     obstacles:[
-      {type:'teleporter', fx:0.15, fy:0.36, fr:0.032, pairId:0},
-      {type:'teleporter', fx:0.85, fy:0.60, fr:0.032, pairId:0},
-      {type:'teleporter', fx:0.30, fy:0.66, fr:0.032, pairId:1},
-      {type:'teleporter', fx:0.70, fy:0.36, fr:0.032, pairId:1},
-      {type:'conveyor', fx:0.50, fy:0.42, fw:0.24, fh:0.022, dir:-1},
-      {type:'conveyor', fx:0.35, fy:0.58, fw:0.20, fh:0.022, dir:1},
-      {type:'conveyor', fx:0.65, fy:0.68, fw:0.20, fh:0.022, dir:-1},
-      {type:'windmill', fx:0.25, fy:0.44, flen:0.11, speed:3.0},
-      {type:'windmill', fx:0.75, fy:0.44, flen:0.11, speed:-2.8},
-      {type:'windmill', fx:0.50, fy:0.52, flen:0.09, speed:3.5},
-      {type:'gravity', fx:0.40, fy:0.48, fr:0.05, strength:0.001},
-      {type:'gravity', fx:0.60, fy:0.48, fr:0.05, strength:0.001},
-      {type:'bumper', fx:0.35, fy:0.38, fr:0.032},
-      {type:'bumper', fx:0.65, fy:0.38, fr:0.032},
-      {type:'bumper', fx:0.50, fy:0.62, fr:0.035},
-      {type:'steel', fx:0.20, fy:0.50, fw:0.10, fh:0.022, angle:0.5},
-      {type:'steel', fx:0.80, fy:0.50, fw:0.10, fh:0.022, angle:-0.5},
-      {type:'glass', fx:0.40, fy:0.56, fw:0.10, fh:0.022, angle:0.2},
-      {type:'glass', fx:0.60, fy:0.56, fw:0.10, fh:0.022, angle:-0.2},
-      {type:'wood', fx:0.50, fy:0.72, fw:0.22, fh:0.022, angle:0},
-    ], powerups:[{type:'precision',fx:0.25,fy:0.30},{type:'2x',fx:0.75,fy:0.30},{type:'ghost',fx:0.50,fy:0.64}] },
+      {type:'teleporter', fx:0.10, fy:0.15, fr:0.032, pairId:0},
+      {type:'teleporter', fx:0.90, fy:0.85, fr:0.032, pairId:0},
+      {type:'teleporter', fx:0.25, fy:0.85, fr:0.032, pairId:1},
+      {type:'teleporter', fx:0.75, fy:0.15, fr:0.032, pairId:1},
+      {type:'conveyor', fx:0.25, fy:0.25, fw:0.24, fh:0.022, dir:-1},
+      {type:'conveyor', fx:0.75, fy:0.75, fw:0.20, fh:0.022, dir:1},
+      {type:'windmill', fx:0.18, fy:0.25, flen:0.11, speed:3.0},
+      {type:'windmill', fx:0.82, fy:0.75, flen:0.11, speed:-2.8},
+      {type:'gravity', fx:0.25, fy:0.30, fr:0.05, strength:0.001},
+      {type:'gravity', fx:0.75, fy:0.70, fr:0.05, strength:0.001},
+      {type:'bumper', fx:0.25, fy:0.25, fr:0.032},
+      {type:'bumper', fx:0.75, fy:0.75, fr:0.032},
+      {type:'steel', fx:0.15, fy:0.35, fw:0.10, fh:0.022, angle:0.5},
+      {type:'steel', fx:0.85, fy:0.65, fw:0.10, fh:0.022, angle:-0.5},
+    ], powerups:[{type:'precision',fx:0.15,fy:0.12},{type:'2x',fx:0.85,fy:0.88},{type:'ghost',fx:0.50,fy:0.82}],
+    holes:[
+      {pts:10, fx:0.06, fy:0.06},{pts:10, fx:0.94, fy:0.06},
+      {pts:20, fx:0.06, fy:0.94},{pts:20, fx:0.94, fy:0.94},
+      {pts:50, fx:0.50, fy:0.04},{pts:100, fx:0.50, fy:0.96},
+      {pts:200, fx:0.06, fy:0.50}
+    ],
+    blackHoles:[
+      {fx:0.30, fy:0.25, fr:0.04},
+      {fx:0.70, fy:0.75, fr:0.04},
+      {fx:0.50, fy:0.15, fr:0.035}
+    ]
+  },
 ];
 
 // ============================================================
 // GAME STATE
 // ============================================================
-let G = {
+var G = {
   screen: 'title',
   level: 0,
   score: 0,
@@ -531,6 +745,7 @@ let G = {
   bouncePads: [],
   teleporters: [],
   conveyors: [],
+  blackHoles: [],
   targets: [],
   hitTargets: new Set(),
   hitCounts: {},
@@ -541,8 +756,14 @@ let G = {
   levelBannerAlpha: 0,
   levelBannerTimer: 0,
   bumperFlash: {},
+  wallFlash: {left:0, right:0, top:0, bottom:0},
+  wallBounces: 0,
+  ballHasBouncedWall: false,
   starAnimFrame: 0,
   showAbilityHint: false,
+  // Hole vortex animation
+  holeVortex: {},
+  holeSuckAnim: null,
   // Epic slow-mo
   epicSlowMo: 0,
   epicTarget: null,
@@ -564,13 +785,14 @@ let G = {
   bombBrokenThisDetonation: 0,
 };
 
-let progress = JSON.parse(localStorage.getItem(C.STORE_KEY_PROG)||'{"unlocked":1,"stars":[]}');
-let settings = JSON.parse(localStorage.getItem(C.STORE_KEY_SET)||'{"sound":true}');
-let totalScore = parseInt(localStorage.getItem(C.STORE_KEY_TOT)||'0');
-let achievements = JSON.parse(localStorage.getItem(C.STORE_KEY_ACH)||'{}');
-let bestCombo = parseInt(localStorage.getItem(C.STORE_KEY_BEST_COMBO)||'0');
-let totalBroken = parseInt(localStorage.getItem(C.STORE_KEY_BROKEN)||'0');
-let endlessBest = parseInt(localStorage.getItem(C.STORE_KEY_ENDLESS)||'0');
+var progress = JSON.parse(localStorage.getItem(C.STORE_KEY_PROG)||'{"unlocked":1,"stars":[]}');
+var settings = JSON.parse(localStorage.getItem(C.STORE_KEY_SET)||'{"sound":true}');
+var totalScore = parseInt(localStorage.getItem(C.STORE_KEY_TOT)||'0');
+var achievements = JSON.parse(localStorage.getItem(C.STORE_KEY_ACH)||'{}');
+var bestCombo = parseInt(localStorage.getItem(C.STORE_KEY_BEST_COMBO)||'0');
+var totalBroken = parseInt(localStorage.getItem(C.STORE_KEY_BROKEN)||'0');
+var endlessBest = parseInt(localStorage.getItem(C.STORE_KEY_ENDLESS)||'0');
+var totalWallBounces = parseInt(localStorage.getItem(C.STORE_KEY_BOUNCES)||'0');
 
 function saveProgress() {
   localStorage.setItem(C.STORE_KEY_PROG, JSON.stringify(progress));
@@ -579,13 +801,14 @@ function saveProgress() {
   localStorage.setItem(C.STORE_KEY_BROKEN, String(totalBroken));
   localStorage.setItem(C.STORE_KEY_ENDLESS, String(endlessBest));
   localStorage.setItem(C.STORE_KEY_ACH, JSON.stringify(achievements));
+  localStorage.setItem(C.STORE_KEY_BOUNCES, String(totalWallBounces));
 }
 
 // ============================================================
 // ACHIEVEMENT SYSTEM
 // ============================================================
-let achToastQueue = [];
-let achToastTimer = 0;
+var achToastQueue = [];
+var achToastTimer = 0;
 
 function unlockAchievement(id) {
   if(achievements[id]) return;
@@ -598,9 +821,9 @@ function unlockAchievement(id) {
 
 function showNextAchToast() {
   if(achToastQueue.length === 0) { achToastTimer = 0; return; }
-  const id = achToastQueue.shift();
-  const def = ACHIEVEMENT_DEFS[id];
-  const toast = document.getElementById('achievement-toast');
+  var id = achToastQueue.shift();
+  var def = ACHIEVEMENT_DEFS[id];
+  var toast = document.getElementById('achievement-toast');
   document.getElementById('ach-toast-icon').textContent = def.icon;
   document.getElementById('ach-toast-name').textContent = def.name;
   toast.classList.add('show');
@@ -661,10 +884,10 @@ function renderAchievementsBar() {
 // ============================================================
 // CANVAS & RESIZE
 // ============================================================
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0, DPR = 1;
-let slingX = 0, slingY = 0;
+var canvas = document.getElementById('game');
+var ctx = canvas.getContext('2d');
+var W = 0, H = 0, DPR = 1;
+var slingX = 0, slingY = 0;
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -676,7 +899,7 @@ function resize() {
   canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   slingX = W * 0.5;
-  slingY = H * 0.82;
+  slingY = H * 0.5;
   if (G.screen === 'game') {
     rebuildLevel(G.level);
   }
@@ -686,19 +909,19 @@ window.addEventListener('resize', resize);
 // ============================================================
 // MATTER.JS ENGINE
 // ============================================================
-const { Engine, World, Bodies, Body, Events, Composite, Vector } = Matter;
-let engine, world;
+var MEngine = Matter.Engine, MWorld = Matter.World, MBodies = Matter.Bodies, MBody = Matter.Body, MEvents = Matter.Events, MComposite = Matter.Composite, MVector = Matter.Vector;
+var engine, world;
 
 function initEngine() {
-  if (engine) { Engine.clear(engine); World.clear(world); }
-  engine = Engine.create({ gravity: { x: 0, y: C.GRAVITY }, positionIterations: 10, velocityIterations: 8 });
+  if (engine) { MEngine.clear(engine); MWorld.clear(world); }
+  engine = MEngine.create({ gravity: { x: 0, y: C.GRAVITY }, positionIterations: 10, velocityIterations: 8 });
   world = engine.world;
 }
 
 // ============================================================
 // AUDIO (Web Audio API)
 // ============================================================
-let audioCtx = null;
+var audioCtx = null;
 function getAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
@@ -727,13 +950,21 @@ function sfxCombo()   { playTone(660,'sine',0.3,0.22); playTone(880,'sine',0.2,0
 function sfxBounce()  { playTone(350,'sine',0.09,0.12); }
 function sfxBumper()  { playTone(500,'sawtooth',0.12,0.18); playTone(700,'sine',0.08,0.12); }
 function sfxHole(pts) { playTone(600+pts*3,'sine',0.35,0.22); playTone(900+pts*4,'sine',0.25,0.16); }
+function sfxWallBounce() { playTone(250,'sine',0.08,0.10); playTone(400,'sine',0.06,0.06); }
+
+function sfxBlackHole() {
+  playTone(50,'sawtooth',0.5,0.25);
+  playTone(40,'square',0.6,0.2,-20);
+  setTimeout(function(){playTone(30,'sawtooth',0.4,0.18);},100);
+  setTimeout(function(){playTone(20,'square',0.5,0.15);},200);
+}
 
 // New sound effects
 function sfxLevelComplete() {
-  playTone(523,'sine',0.2,0.2); // C5
-  setTimeout(function(){playTone(659,'sine',0.2,0.2);},120); // E5
-  setTimeout(function(){playTone(784,'sine',0.2,0.2);},240); // G5
-  setTimeout(function(){playTone(1047,'sine',0.35,0.22);},360); // C6
+  playTone(523,'sine',0.2,0.2);
+  setTimeout(function(){playTone(659,'sine',0.2,0.2);},120);
+  setTimeout(function(){playTone(784,'sine',0.2,0.2);},240);
+  setTimeout(function(){playTone(1047,'sine',0.35,0.22);},360);
 }
 function sfxLevelFail() {
   playTone(400,'sawtooth',0.25,0.16);
@@ -762,7 +993,7 @@ function sfxMenuClick() {
   playTone(700,'square',0.04,0.10);
 }
 
-let lastStretchVol = 0;
+var lastStretchVol = 0;
 function playStretchSound(t) {
   if(!settings.sound) return;
   if(Math.abs(t - lastStretchVol) < 0.06) return;
@@ -856,100 +1087,111 @@ function drawBackground(t) {
   vg.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = vg;
   ctx.fillRect(0,0,W,H);
+
+  // Wall flash effects
+  drawWallFlash(t);
+}
+
+function drawWallFlash(t) {
+  var wf = G.wallFlash;
+  if(wf.left > 0) {
+    ctx.fillStyle = 'rgba(0,229,255,' + (wf.left/10*0.5) + ')';
+    ctx.fillRect(0, 0, 4, H);
+    wf.left -= 0.5;
+  }
+  if(wf.right > 0) {
+    ctx.fillStyle = 'rgba(0,229,255,' + (wf.right/10*0.5) + ')';
+    ctx.fillRect(W-4, 0, 4, H);
+    wf.right -= 0.5;
+  }
+  if(wf.top > 0) {
+    ctx.fillStyle = 'rgba(0,229,255,' + (wf.top/10*0.5) + ')';
+    ctx.fillRect(0, 0, W, 4);
+    wf.top -= 0.5;
+  }
+  if(wf.bottom > 0) {
+    ctx.fillStyle = 'rgba(0,229,255,' + (wf.bottom/10*0.5) + ')';
+    ctx.fillRect(0, H-4, W, 4);
+    wf.bottom -= 0.5;
+  }
 }
 
 // ============================================================
-// SCORING TARGETS
+// SCORING HOLES (scattered positions from level def)
 // ============================================================
-var HOLE_CONFIG = [
-  { pts:10,  color:'#6688ff', arcAngle: Math.PI*1.12 },
-  { pts:10,  color:'#6688ff', arcAngle: Math.PI*0.88 },
-  { pts:20,  color:'#00e5ff', arcAngle: Math.PI*1.22 },
-  { pts:20,  color:'#00e5ff', arcAngle: Math.PI*0.78 },
-  { pts:100, color:'#ff00ff', arcAngle: Math.PI*1.50 },
-];
-var RING_CONFIG = [
-  { pts:10,  color:'#6688ff' },
-  { pts:10,  color:'#6688ff' },
-  { pts:20,  color:'#00e5ff' },
-  { pts:20,  color:'#00e5ff' },
-  { pts:100, color:'#ff00ff' },
-];
-var RING_RADII = [18, 18, 16, 16, 14];
-
 var holePositions = [];
-var ringCenterX = 0, ringCenterY = 0;
+var holeConfigs = [];
 
-function setRingPositions() {
-  ringCenterX = W * 0.5;
-  ringCenterY = H * 0.10;
-  var arcR = W * 0.30;
-  var arcCX = W * 0.5;
-  var arcCY = H * 0.22;
-  var angles = [Math.PI*1.72, Math.PI*1.56, Math.PI*1.40, Math.PI*1.24, Math.PI*1.08];
-  holePositions = angles.map(function(a, i) {
-    return { x: arcCX + Math.cos(a) * arcR, y: arcCY + Math.sin(a) * arcR, ri: i };
-  });
-  ringCenterX = arcCX;
-  ringCenterY = arcCY;
+function setHolePositions() {
+  var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
+  if(!def || !def.holes) return;
+  holePositions = [];
+  holeConfigs = [];
+  for(var i=0; i<def.holes.length; i++) {
+    var h = def.holes[i];
+    holePositions.push({
+      x: h.fx * W,
+      y: h.fy * H,
+      ri: i
+    });
+    holeConfigs.push({
+      pts: h.pts,
+      color: holeColorForPts(h.pts),
+      radius: holeRadiusForPts(h.pts)
+    });
+  }
 }
 
-function drawBackboard(t) {
-  setRingPositions();
-  var bw = W * 0.88, bh = H * 0.19;
-  var bx = W * 0.5 - bw * 0.5, by = H * 0.005;
-
-  var grad = ctx.createLinearGradient(bx, by, bx, by+bh);
-  grad.addColorStop(0, 'rgba(10,20,35,0.98)');
-  grad.addColorStop(1, 'rgba(5,12,22,0.92)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.roundRect(bx, by, bw, bh, [0,0,18,18]);
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(0,229,255,0.35)';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#00e5ff';
-  ctx.shadowBlur = 12;
-  ctx.beginPath();
-  ctx.roundRect(bx, by, bw, bh, [0,0,18,18]);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  var rampGrad = ctx.createLinearGradient(bx, by+bh-10, bx, by+bh+6);
-  rampGrad.addColorStop(0, 'rgba(0,229,255,0.25)');
-  rampGrad.addColorStop(1, 'rgba(0,229,255,0)');
-  ctx.fillStyle = rampGrad;
-  ctx.beginPath();
-  ctx.moveTo(bx, by+bh-4);
-  ctx.lineTo(bx+bw, by+bh-4);
-  ctx.lineTo(bx+bw*0.55, by+bh+8);
-  ctx.lineTo(bx+bw*0.45, by+bh+8);
-  ctx.closePath();
-  ctx.fill();
+function drawHoles(t) {
+  setHolePositions();
 
   for(var i=0; i<holePositions.length; i++) {
     var hp = holePositions[i];
-    var rc = RING_CONFIG[i];
-    var r = RING_RADII[i];
+    var rc = holeConfigs[i];
+    var r = rc.radius;
     var isHit = G.hitTargets && G.hitTargets.has(i);
     var pulse = 1 + 0.05*Math.sin(t*2.5 + i*0.9);
 
+    // Vortex animation if being sucked
+    var vortex = G.holeVortex[i];
+    if(vortex && vortex > 0) {
+      ctx.save();
+      ctx.translate(hp.x, hp.y);
+      var vortexSpd = (1 - vortex/15) * 12;
+      for(var seg=0; seg<4; seg++) {
+        var segAngle = t*vortexSpd + seg*(Math.PI/2);
+        ctx.beginPath();
+        ctx.arc(0, 0, r*1.2*pulse, segAngle, segAngle+0.8);
+        ctx.strokeStyle = rc.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.6;
+        ctx.shadowColor = rc.color;
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Dark circle (the "hole" opening)
     ctx.beginPath();
     ctx.arc(hp.x, hp.y, r*pulse + 5, 0, Math.PI*2);
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fill();
 
+    // Glowing ring
     ctx.beginPath();
     ctx.arc(hp.x, hp.y, r*pulse, 0, Math.PI*2);
     ctx.strokeStyle = rc.color;
     ctx.lineWidth = isHit ? 2 : 3.5;
     ctx.shadowColor = rc.color;
     ctx.shadowBlur = isHit ? 5 : 20;
-    ctx.globalAlpha = isHit ? 0.4 : 1.0;
+    ctx.globalAlpha = isHit ? 0.25 : 1.0;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
+    // Inner dark
     ctx.beginPath();
     ctx.arc(hp.x, hp.y, r*pulse * 0.72, 0, Math.PI*2);
     ctx.fillStyle = isHit ? 'rgba(0,0,0,0.95)' : 'rgba(5,8,15,0.9)';
@@ -963,9 +1205,11 @@ function drawBackboard(t) {
       ctx.fill();
     }
 
-    ctx.globalAlpha = isHit ? 0.3 : 0.9;
+    // Score label inside
+    ctx.globalAlpha = isHit ? 0.2 : 0.9;
     ctx.fillStyle = rc.color;
-    ctx.font = 'bold ' + (r > 16 ? 8 : 7) + "px 'Press Start 2P', monospace";
+    var fontSize = r > 20 ? 8 : r > 14 ? 7 : 6;
+    ctx.font = 'bold ' + fontSize + "px 'Press Start 2P', monospace";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = rc.color;
@@ -976,7 +1220,88 @@ function drawBackboard(t) {
   }
 }
 
-function drawRings(t) { drawBackboard(t); }
+// ============================================================
+// BLACK HOLE RENDERING
+// ============================================================
+function drawBlackHoles(t) {
+  for(var i=0;i<G.blackHoles.length;i++) {
+    var bh = G.blackHoles[i];
+    drawBlackHole(bh, t);
+  }
+}
+
+function drawBlackHole(bh, t) {
+  var x = bh.x, y = bh.y, r = bh.r;
+
+  // Outer warping effect
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Accretion disk rings
+  for(var ring=3; ring>0; ring--) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r*(0.6+ring*0.25), 0, Math.PI*2);
+    var ringAlpha = 0.08/ring;
+    ctx.strokeStyle = 'rgba(255,60,0,' + ringAlpha + ')';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // Spinning accretion disk (red/orange spiral)
+  for(var arm=0; arm<3; arm++) {
+    ctx.save();
+    ctx.rotate(t*2 + arm*(Math.PI*2/3));
+    ctx.beginPath();
+    for(var sp=0; sp<20; sp++) {
+      var angle = sp*0.3;
+      var dist = r*0.3 + sp*r*0.06;
+      var px = Math.cos(angle)*dist;
+      var py = Math.sin(angle)*dist;
+      if(sp===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    var spiralAlpha = 0.4 + 0.2*Math.sin(t*3);
+    ctx.strokeStyle = arm === 0 ? 'rgba(255,100,0,'+spiralAlpha+')' : arm === 1 ? 'rgba(255,50,0,'+(spiralAlpha*0.7)+')' : 'rgba(200,0,0,'+(spiralAlpha*0.5)+')';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Dark void center
+  ctx.beginPath();
+  ctx.arc(0, 0, r*0.5, 0, Math.PI*2);
+  var voidGrad = ctx.createRadialGradient(0,0,0,0,0,r*0.5);
+  voidGrad.addColorStop(0, 'rgba(0,0,0,1)');
+  voidGrad.addColorStop(0.7, 'rgba(0,0,0,0.95)');
+  voidGrad.addColorStop(1, 'rgba(20,0,30,0.6)');
+  ctx.fillStyle = voidGrad;
+  ctx.fill();
+
+  // Event horizon glow
+  ctx.beginPath();
+  ctx.arc(0, 0, r*0.55, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(100,0,150,0.5)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#6600aa';
+  ctx.shadowBlur = 15;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Ambient particles being drawn in
+  if(G.frameCount % 3 === 0) {
+    var pAngle = Math.random()*Math.PI*2;
+    var pDist = r*1.2;
+    G.particles.push({
+      x: x + Math.cos(pAngle)*pDist,
+      y: y + Math.sin(pAngle)*pDist,
+      vx: -Math.cos(pAngle)*1.5,
+      vy: -Math.sin(pAngle)*1.5,
+      r: 1, life: 0.5, decay: 0.03,
+      color: '#ff4400'
+    });
+  }
+
+  ctx.restore();
+}
 
 // ============================================================
 // SLINGSHOT DRAWING
@@ -1047,21 +1372,6 @@ function drawSlingshot(t) {
     ctx.shadowBlur = 0;
   }
 
-  // Lane guide gradient (faint)
-  if(!G.launched && G.screen === 'game') {
-    var lg = ctx.createLinearGradient(slingX, slingY - 20, slingX, H*0.25);
-    lg.addColorStop(0, 'rgba(0,229,255,0.04)');
-    lg.addColorStop(1, 'rgba(0,229,255,0)');
-    ctx.fillStyle = lg;
-    ctx.beginPath();
-    ctx.moveTo(slingX - 30, slingY - 20);
-    ctx.lineTo(slingX + 30, slingY - 20);
-    ctx.lineTo(slingX + 60, H*0.25);
-    ctx.lineTo(slingX - 60, H*0.25);
-    ctx.closePath();
-    ctx.fill();
-  }
-
   // Cradle cup under idle ball
   if(!G.launched && !G.activeBall) {
     var cy = by - C.BALL_RADIUS + 3;
@@ -1104,7 +1414,7 @@ function drawRubberBand(ballX, ballY, t) {
 }
 
 // ============================================================
-// TRAJECTORY PREVIEW
+// TRAJECTORY PREVIEW (works in all directions now)
 // ============================================================
 function drawTrajectory() {
   if(!G.dragging || !G.pullVec) return;
@@ -1125,7 +1435,7 @@ function drawTrajectory() {
     dvy += grav;
     dvx *= (1 - bt.frictionAir);
     px += dvx; py += dvy;
-    if(py < -20 || px < -10 || px > W+10) break;
+    if(py < -20 || py > H+20 || px < -10 || px > W+10) break;
 
     var alpha = (1-i/C.TRAJ_DOTS)*0.65;
     var r = (1-i/C.TRAJ_DOTS)*4+1.5;
@@ -1262,7 +1572,7 @@ function drawIdleBall(t) {
     drawRubberBand(slingX, slingY-C.BALL_RADIUS+bob, t);
   } else {
     var pullX = Math.min(Math.max(G.pullVec.x,-C.MAX_PULL),C.MAX_PULL);
-    var pullY = Math.min(Math.max(G.pullVec.y, 0), C.MAX_PULL);
+    var pullY = Math.min(Math.max(G.pullVec.y,-C.MAX_PULL),C.MAX_PULL);
     var bx = slingX + pullX;
     var by = slingY + pullY;
     var dragAngle = pullX / C.MAX_PULL * 0.4;
@@ -1289,7 +1599,7 @@ function drawObstacles(t) {
   for(var oi=0;oi<G.levelObjects.length;oi++) {
     var obj = G.levelObjects[oi];
     if(!obj.body || obj.broken) continue;
-    if(obj.type === 'teleporter' || obj.type === 'conveyor') continue; // drawn separately
+    if(obj.type === 'teleporter' || obj.type === 'conveyor') continue;
     drawObstacle(obj, t);
   }
   for(var mi=0;mi<G.movingPlatforms.length;mi++) {
@@ -1303,11 +1613,9 @@ function drawObstacles(t) {
   for(var gi=0;gi<G.gravWells.length;gi++) {
     drawGravityWell(G.gravWells[gi], t);
   }
-  // Teleporters
   for(var ti=0;ti<G.teleporters.length;ti++) {
     drawTeleporter(G.teleporters[ti], t);
   }
-  // Conveyors
   for(var ci=0;ci<G.conveyors.length;ci++) {
     drawConveyor(G.conveyors[ci], t);
   }
@@ -1317,11 +1625,9 @@ function drawObstacle(obj, t) {
   var b = obj.body;
   var pos = b.position;
   var angle = b.angle;
-
   ctx.save();
   ctx.translate(pos.x, pos.y);
   ctx.rotate(angle);
-
   switch(obj.type) {
     case 'wood': drawWoodPlank(obj, t); break;
     case 'steel': drawSteelBeam(obj, t); break;
@@ -1330,7 +1636,6 @@ function drawObstacle(obj, t) {
     case 'mover': drawMoverPlatform(obj, t); break;
     case 'bouncePad': drawBouncePad(obj, t); break;
   }
-
   ctx.restore();
 }
 
@@ -1497,7 +1802,6 @@ function drawWindmill(wm, t) {
   var pos = wm.body.position;
   ctx.save();
   ctx.translate(pos.x, pos.y);
-
   ctx.beginPath();
   ctx.arc(0, 0, 7, 0, Math.PI*2);
   ctx.fillStyle = '#1a3a1a';
@@ -1507,7 +1811,6 @@ function drawWindmill(wm, t) {
   ctx.shadowBlur = 8;
   ctx.fill(); ctx.stroke();
   ctx.shadowBlur = 0;
-
   ctx.rotate(wm.body.angle);
   for(var i=0; i<2; i++) {
     ctx.save();
@@ -1532,7 +1835,6 @@ function drawGravityWell(gw, t) {
   var r = gw.r;
   ctx.save();
   ctx.translate(gw.x, gw.y);
-
   for(var i=3; i>0; i--) {
     ctx.beginPath();
     ctx.arc(0, 0, r*i*pulse*0.5, 0, Math.PI*2);
@@ -1540,7 +1842,6 @@ function drawGravityWell(gw, t) {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
-
   ctx.rotate(t*1.5);
   ctx.beginPath();
   ctx.arc(0, 0, r*0.7, 0, Math.PI*1.5);
@@ -1570,8 +1871,6 @@ function drawGravityWell(gw, t) {
 function drawTeleporter(tp, t) {
   var x = tp.x, y = tp.y, r = tp.r;
   var pulse = 1 + 0.1*Math.sin(t*3 + tp.pairId*2);
-
-  // Outer ring
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(t * 2 * (tp.pairId % 2 === 0 ? 1 : -1));
@@ -1585,7 +1884,6 @@ function drawTeleporter(tp, t) {
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  // Inner swirl
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-t * 3);
@@ -1599,7 +1897,6 @@ function drawTeleporter(tp, t) {
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  // Center
   ctx.beginPath();
   ctx.arc(x, y, r*0.25, 0, Math.PI*2);
   ctx.fillStyle = '#cc66ff';
@@ -1608,7 +1905,6 @@ function drawTeleporter(tp, t) {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Portal particles
   if(G.frameCount % 4 === 0) {
     var angle = Math.random()*Math.PI*2;
     G.particles.push({
@@ -1627,11 +1923,8 @@ function drawTeleporter(tp, t) {
 // ============================================================
 function drawConveyor(cv, t) {
   var x = cv.x, y = cv.y, hw = cv.hw, hh = cv.hh, dir = cv.dir;
-
   ctx.save();
   ctx.translate(x, y);
-
-  // Platform body - striped
   var grad = ctx.createLinearGradient(-hw, -hh, -hw, hh);
   grad.addColorStop(0, dir > 0 ? '#cc6600' : '#006688');
   grad.addColorStop(0.5, dir > 0 ? '#ff9900' : '#00aacc');
@@ -1640,13 +1933,10 @@ function drawConveyor(cv, t) {
   ctx.beginPath();
   ctx.roundRect(-hw, -hh, hw*2, hh*2, 3);
   ctx.fill();
-
-  // Animated arrows
   ctx.save();
   ctx.beginPath();
   ctx.rect(-hw, -hh, hw*2, hh*2);
   ctx.clip();
-
   var arrowSpacing = 20;
   var offset = ((t * 60 * dir) % arrowSpacing);
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
@@ -1658,8 +1948,6 @@ function drawConveyor(cv, t) {
     ctx.fillText(arrow, ax, 0);
   }
   ctx.restore();
-
-  // Border
   ctx.strokeStyle = dir > 0 ? C.ORANGE : C.CYAN;
   ctx.lineWidth = 2;
   ctx.shadowColor = dir > 0 ? C.ORANGE : C.CYAN;
@@ -1668,7 +1956,6 @@ function drawConveyor(cv, t) {
   ctx.roundRect(-hw, -hh, hw*2, hh*2, 3);
   ctx.stroke();
   ctx.shadowBlur = 0;
-
   ctx.restore();
 }
 
@@ -1730,6 +2017,24 @@ function spawnExplosion(x, y) {
   spawnParticles(x, y, '#ffff00', 10, 4);
   G.screenShake = 18;
   sfxBreak();
+}
+
+function spawnBlackHoleImplosion(x, y) {
+  // Inward-pulling particles
+  for(var i=0;i<30;i++) {
+    var angle = (i/30)*Math.PI*2;
+    var dist = 60+Math.random()*40;
+    G.particles.push({
+      x: x + Math.cos(angle)*dist,
+      y: y + Math.sin(angle)*dist,
+      vx: -Math.cos(angle)*4,
+      vy: -Math.sin(angle)*4,
+      r: 2+Math.random()*3,
+      life: 1.0,
+      decay: 0.04+Math.random()*0.03,
+      color: i%3===0 ? '#ffffff' : i%3===1 ? '#ff4400' : '#aa00ff'
+    });
+  }
 }
 
 function spawnDebrisRect(x, y, color, count) {
@@ -1835,7 +2140,7 @@ function spawnConfetti(count) {
 function breakObjectWood(obj, bx, by) {
   if(obj.broken) return;
   obj.broken = true;
-  World.remove(world, obj.body);
+  MWorld.remove(world, obj.body);
   spawnDebrisRect(bx, by, '#8B5E3C', 8);
   spawnDebrisRect(bx, by, '#c09050', 5);
   spawnParticles(bx, by, C.WOOD, 12, 4);
@@ -1856,7 +2161,6 @@ function updateParticles() {
     p.life -= p.decay;
     if(p.life<=0) G.particles.splice(i,1);
   }
-  // Confetti update
   for(var j=G.confetti.length-1; j>=0; j--) {
     var c = G.confetti[j];
     c.x += c.vx; c.y += c.vy;
@@ -1952,39 +2256,57 @@ function spawnFloatScore(x, y, pts, color) {
 function buildLevel(levelIdx) {
   initEngine();
   var def = G.endlessMode ? generateEndlessLayout() : LEVEL_DEFS[levelIdx];
+  if(G.endlessMode) G.currentEndlessDef = def;
   G.levelObjects = [];
   G.gravWells = [];
   G.movingPlatforms = [];
   G.windmills = [];
   G.teleporters = [];
   G.conveyors = [];
+  G.blackHoles = [];
   G.hitTargets = new Set();
   G.hitCounts = {};
   G.particles = [];
   G.floatScores = [];
   G.brokenBodies = [];
+  G.holeVortex = {};
+  G.holeSuckAnim = null;
+  G.wallFlash = {left:0, right:0, top:0, bottom:0};
+  G.wallBounces = 0;
+  G.ballHasBouncedWall = false;
 
-  // Walls
-  var wallOpts = { isStatic:true, restitution:0.3, friction:0.1, collisionFilter:{category:0x0002,mask:0x0001} };
-  var floor = Bodies.rectangle(W/2, H+C.WALL_T/2, W*2, C.WALL_T, wallOpts);
-  var wallL = Bodies.rectangle(-C.WALL_T/2, H/2, C.WALL_T, H*2, wallOpts);
-  var wallR = Bodies.rectangle(W+C.WALL_T/2, H/2, C.WALL_T, H*2, wallOpts);
-  World.add(world, [floor, wallL, wallR]);
+  // Walls with good restitution
+  var wallOpts = { isStatic:true, restitution:0.65, friction:0.1, label:'wall', collisionFilter:{category:0x0002,mask:0x0001} };
+  var floor = MBodies.rectangle(W/2, H+C.WALL_T/2, W*2, C.WALL_T, { isStatic:true, restitution:0.65, friction:0.1, label:'wall_bottom', collisionFilter:{category:0x0002,mask:0x0001} });
+  var ceiling = MBodies.rectangle(W/2, -C.WALL_T/2, W*2, C.WALL_T, { isStatic:true, restitution:0.65, friction:0.1, label:'wall_top', collisionFilter:{category:0x0002,mask:0x0001} });
+  var wallL = MBodies.rectangle(-C.WALL_T/2, H/2, C.WALL_T, H*2, { isStatic:true, restitution:0.65, friction:0.1, label:'wall_left', collisionFilter:{category:0x0002,mask:0x0001} });
+  var wallR = MBodies.rectangle(W+C.WALL_T/2, H/2, C.WALL_T, H*2, { isStatic:true, restitution:0.65, friction:0.1, label:'wall_right', collisionFilter:{category:0x0002,mask:0x0001} });
+  MWorld.add(world, [floor, ceiling, wallL, wallR]);
 
-  // Scoring hole bodies
+  // Scoring hole bodies (scattered)
   G.targets = [];
-  setRingPositions();
+  setHolePositions();
   for(var i=0; i<holePositions.length; i++) {
     var hp = holePositions[i];
-    var r = RING_RADII[i] + 4;
-    var sensor = Bodies.circle(hp.x, hp.y, r, {
+    var hr = holeConfigs[i].radius + 4;
+    var sensor = MBodies.circle(hp.x, hp.y, hr, {
       isStatic:true, isSensor:true,
       label:'target_'+i,
       collisionFilter:{category:0x0004, mask:0x0001}
     });
     sensor.ringIndex = i;
-    World.add(world, sensor);
+    MWorld.add(world, sensor);
     G.targets.push(sensor);
+  }
+
+  // Build black holes
+  if(def.blackHoles) {
+    for(var bhi=0; bhi<def.blackHoles.length; bhi++) {
+      var bhd = def.blackHoles[bhi];
+      var bhx = bhd.fx*W, bhy = bhd.fy*H;
+      var bhr = bhd.fr*Math.min(W,H);
+      G.blackHoles.push({ x:bhx, y:bhy, r:bhr, idx:bhi });
+    }
   }
 
   // Build obstacles
@@ -1996,11 +2318,11 @@ function buildLevel(levelIdx) {
   for(var pi=0; pi<def.powerups.length; pi++) {
     var pd = def.powerups[pi];
     var px = pd.fx*W, py = pd.fy*H;
-    var body = Bodies.circle(px, py, 16, {
+    var body = MBodies.circle(px, py, 16, {
       isStatic:true, isSensor:true, label:'powerup_'+pi,
       collisionFilter:{category:0x0008, mask:0x0001}
     });
-    World.add(world, body);
+    MWorld.add(world, body);
     G.levelObjects.push({ body:body, type:'powerup', puType:pd.type, collected:false, idx:pi });
   }
 
@@ -2008,17 +2330,17 @@ function buildLevel(levelIdx) {
   G.wind = def.wind * (Math.random()>0.5?1:-1);
 
   // Ball queue
-  G.ballQueue = def.balls ? def.balls.slice() : ['standard','standard','standard'];
+  G.ballQueue = def.balls ? def.balls.slice() : ['standard','standard','standard','standard','standard'];
   G.currentBallIdx = 0;
   G.activeBall = null;
   G.launched = false;
 
   // Collision events
-  Events.on(engine, 'collisionStart', handleCollision);
+  MEvents.on(engine, 'collisionStart', handleCollision);
 }
 
 function rebuildLevel(idx) {
-  Events.off(engine, 'collisionStart');
+  MEvents.off(engine, 'collisionStart');
   buildLevel(idx);
 }
 
@@ -2027,7 +2349,7 @@ function buildObstacle(od, idx) {
 
   if(od.type === 'wood' || od.type === 'steel' || od.type === 'glass' || od.type === 'bouncePad') {
     var hw = od.fw*W*0.5, hh = (od.fh||0.025)*H*0.5;
-    var body = Bodies.rectangle(x, y, hw*2, hh*2, {
+    var body = MBodies.rectangle(x, y, hw*2, hh*2, {
       isStatic: true,
       angle: od.angle||0,
       restitution: od.type==='bouncePad' ? 1.4 : od.type==='glass' ? 0.5 : od.type==='steel' ? 0.6 : 0.3,
@@ -2035,39 +2357,39 @@ function buildObstacle(od, idx) {
       label: od.type+'_'+idx,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, body);
+    MWorld.add(world, body);
     G.levelObjects.push({ body:body, type:od.type, hw:hw, hh:hh, broken:false, idx:idx });
   } else if(od.type === 'bumper') {
     var r = od.fr*Math.min(W,H);
-    var body2 = Bodies.circle(x, y, r, {
+    var body2 = MBodies.circle(x, y, r, {
       isStatic:true,
       restitution:1.6,
       friction:0,
       label:'bumper_'+idx,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, body2);
+    MWorld.add(world, body2);
     G.levelObjects.push({ body:body2, type:'bumper', fr:r, broken:false, idx:idx });
   } else if(od.type === 'windmill') {
     var len = od.flen*Math.min(W,H);
-    var pivot = Bodies.circle(x, y, 6, {
+    var pivot = MBodies.circle(x, y, 6, {
       isStatic:true, isSensor:true, label:'wm_pivot_'+idx,
       collisionFilter:{category:0,mask:0}
     });
-    var blade1 = Bodies.rectangle(x+len/2, y, len, 10, {
+    var blade1 = MBodies.rectangle(x+len/2, y, len, 10, {
       isStatic:true, label:'windmill_'+idx,
       restitution:0.5, friction:0.05,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, [pivot, blade1]);
+    MWorld.add(world, [pivot, blade1]);
     G.windmills.push({ body:blade1, pivotX:x, pivotY:y, bladeLen:len, speed:od.speed, angle:0 });
   } else if(od.type === 'mover') {
     var hw2 = od.fw*W*0.5, hh2 = (od.fh||0.025)*H*0.5;
-    var body3 = Bodies.rectangle(x, y, hw2*2, hh2*2, {
+    var body3 = MBodies.rectangle(x, y, hw2*2, hh2*2, {
       isStatic:true, restitution:0.4, friction:0.3, label:'mover_'+idx,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, body3);
+    MWorld.add(world, body3);
     var range = od.rangeX*W;
     G.movingPlatforms.push({ body:body3, type:'mover', hw:hw2, hh:hh2, startX:x, range:range, speed:od.speed*(W/800), t:0, broken:false, idx:idx });
     G.levelObjects.push({ body:body3, type:'mover', hw:hw2, hh:hh2, broken:false, idx:idx });
@@ -2076,20 +2398,20 @@ function buildObstacle(od, idx) {
     G.gravWells.push({ x:x, y:y, r:gr, strength:od.strength||0.0005, idx:idx });
   } else if(od.type === 'teleporter') {
     var tr = od.fr*Math.min(W,H);
-    var sensorT = Bodies.circle(x, y, tr, {
+    var sensorT = MBodies.circle(x, y, tr, {
       isStatic:true, isSensor:true, label:'teleporter_'+idx,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, sensorT);
+    MWorld.add(world, sensorT);
     G.teleporters.push({ body:sensorT, x:x, y:y, r:tr, pairId:od.pairId, cooldown:0, idx:idx });
     G.levelObjects.push({ body:sensorT, type:'teleporter', broken:false, idx:idx });
   } else if(od.type === 'conveyor') {
     var chw = od.fw*W*0.5, chh = (od.fh||0.025)*H*0.5;
-    var bodyC = Bodies.rectangle(x, y, chw*2, chh*2, {
+    var bodyC = MBodies.rectangle(x, y, chw*2, chh*2, {
       isStatic:true, restitution:0.3, friction:0.8, label:'conveyor_'+idx,
       collisionFilter:{category:0x0002, mask:0x0001}
     });
-    World.add(world, bodyC);
+    MWorld.add(world, bodyC);
     G.conveyors.push({ body:bodyC, x:x, y:y, hw:chw, hh:chh, dir:od.dir||1, idx:idx });
     G.levelObjects.push({ body:bodyC, type:'conveyor', hw:chw, hh:chh, broken:false, idx:idx });
   }
@@ -2109,12 +2431,25 @@ function handleCollision(evt) {
 
     var lbl = other.label || '';
 
+    // Wall bounce detection
+    if(lbl.startsWith('wall_')) {
+      G.wallBounces++;
+      G.ballHasBouncedWall = true;
+      totalWallBounces++;
+      sfxWallBounce();
+      if(lbl === 'wall_left') G.wallFlash.left = 10;
+      else if(lbl === 'wall_right') G.wallFlash.right = 10;
+      else if(lbl === 'wall_top') G.wallFlash.top = 10;
+      else if(lbl === 'wall_bottom') G.wallFlash.bottom = 10;
+      continue;
+    }
+
     // Target rings / scoring holes
     if(lbl.startsWith('target_')) {
       var ri = parseInt(lbl.split('_')[1]);
       if(!G.hitTargets.has(ri)) {
         G.hitTargets.add(ri);
-        var rc = RING_CONFIG[ri];
+        var rc = holeConfigs[ri];
         var pts = rc.pts;
         G.combo++;
         G.comboTimer = 120;
@@ -2124,18 +2459,30 @@ function handleCollision(evt) {
         G.score += pts;
         sfxHole(pts);
         var hp = holePositions[ri];
-        var hx = hp ? hp.x : ringCenterX;
-        var hy = hp ? hp.y : ringCenterY;
+        var hx = hp ? hp.x : W*0.5;
+        var hy = hp ? hp.y : H*0.5;
+
+        // Vortex animation
+        G.holeVortex[ri] = 15;
+
+        // Particle burst in hole's color
         spawnParticles(hx, hy, rc.color, 28, 7);
         spawnParticles(hx, hy, '#ffffff', 10, 4);
         spawnFloatScore(hx, hy - 20, pts, rc.color);
         if(G.combo >= 3) sfxCombo();
-        G.screenShake = 8;
+
+        // Screen shake proportional to points
+        G.screenShake = Math.min(8 + pts/30, 20);
         updateHUD();
         checkAchievements();
 
-        // Epic shot for 100pt hole (ring index 4)
-        if(rc.pts === 100) {
+        // Wall bounce achievement
+        if(G.ballHasBouncedWall) {
+          unlockAchievement('wall_bounce');
+        }
+
+        // Epic shot for 100+ pt hole
+        if(rc.pts >= 100) {
           unlockAchievement('hit_100');
           G.epicSlowMo = 60;
           G.epicTarget = {x:hx, y:hy};
@@ -2145,8 +2492,9 @@ function handleCollision(evt) {
           sfxEpicShot();
         }
 
-        // Check no-miss achievement
-        if(G.hitTargets.size === 5) {
+        // Check no-miss achievement (all holes hit)
+        var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
+        if(def && def.holes && G.hitTargets.size === def.holes.length) {
           unlockAchievement('no_miss');
         }
 
@@ -2226,17 +2574,13 @@ function handleCollision(evt) {
       var tpIdx = parseInt(lbl.split('_')[1]);
       var tp = G.teleporters.find(function(t){return t.idx===tpIdx;});
       if(tp && tp.cooldown <= 0) {
-        // Find pair
         var pair2 = G.teleporters.find(function(t2){return t2.pairId===tp.pairId && t2.idx!==tp.idx;});
         if(pair2) {
-          // Teleport ball
-          Body.setPosition(ball, {x:pair2.x, y:pair2.y});
-          // Keep velocity
+          MBody.setPosition(ball, {x:pair2.x, y:pair2.y});
           sfxTeleport();
           spawnParticles(tp.x, tp.y, '#cc88ff', 16, 5);
           spawnParticles(pair2.x, pair2.y, '#cc88ff', 16, 5);
           G.screenShake = 6;
-          // Set cooldown on both
           tp.cooldown = 30;
           pair2.cooldown = 30;
         }
@@ -2248,7 +2592,7 @@ function handleCollision(evt) {
 function breakObject(obj, bx, by, color) {
   if(obj.broken) return;
   obj.broken = true;
-  World.remove(world, obj.body);
+  MWorld.remove(world, obj.body);
   spawnParticles(bx, by, color, 20, 5);
   G.score += 50;
   totalBroken++;
@@ -2279,7 +2623,7 @@ function launchBall() {
   var type = G.ballQueue[G.currentBallIdx];
   var bt = BALL_TYPES[type] || BALL_TYPES.standard;
 
-  var body = Bodies.circle(slingX, slingY, C.BALL_RADIUS, {
+  var body = MBodies.circle(slingX, slingY, C.BALL_RADIUS, {
     restitution: bt.restitution,
     friction: 0.1,
     frictionAir: bt.frictionAir,
@@ -2292,16 +2636,17 @@ function launchBall() {
   var vx = -(G.pullVec.x / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
   var vy = -(G.pullVec.y / C.MAX_PULL) * C.LAUNCH_FORCE * massScale;
 
-  World.add(world, body);
-  Body.setVelocity(body, {x:vx, y:vy});
+  MWorld.add(world, body);
+  MBody.setVelocity(body, {x:vx, y:vy});
 
   var spinDir = G.pullVec.x > 0 ? 1 : -1;
-  Body.setAngularVelocity(body, spinDir * (Math.abs(G.pullVec.x) / C.MAX_PULL) * 0.35 + 0.1);
+  MBody.setAngularVelocity(body, spinDir * (Math.abs(G.pullVec.x) / C.MAX_PULL) * 0.35 + 0.1);
 
   G.activeBall = { body:body, type:type };
   G.launched = true;
   G.ballsFired++;
   G.settleFrames = 0;
+  G.ballHasBouncedWall = false;
   activeBallTrail = [];
   lastStretchVol = 0;
 
@@ -2323,7 +2668,6 @@ function launchBall() {
     hint2.style.display = 'block';
   }
 
-  // Tutorial step advance
   if(G.tutorialStep === 1) G.tutorialStep = 2;
 }
 
@@ -2335,7 +2679,7 @@ function updateBallPhysics() {
   // Wind
   if(G.wind !== 0) {
     var windForce = G.wind * 0.0006 * b.mass;
-    Body.applyForce(b, pos, {x: windForce, y: 0});
+    MBody.applyForce(b, pos, {x: windForce, y: 0});
   }
 
   // Gravity wells
@@ -2346,10 +2690,41 @@ function updateBallPhysics() {
     var dist = Math.sqrt(dx*dx+dy*dy);
     if(dist < gw.r*4 && dist > 5) {
       var force = gw.strength * b.mass / (dist * 0.01 + 0.1);
-      Body.applyForce(b, pos, {
+      MBody.applyForce(b, pos, {
         x: (dx/dist)*force,
         y: (dy/dist)*force
       });
+    }
+  }
+
+  // Black holes - stronger gravitational pull + consumption
+  for(var bhi=0;bhi<G.blackHoles.length;bhi++) {
+    var bh = G.blackHoles[bhi];
+    var bdx = bh.x - pos.x;
+    var bdy = bh.y - pos.y;
+    var bdist = Math.sqrt(bdx*bdx+bdy*bdy);
+    if(bdist < bh.r*5 && bdist > 1) {
+      // Strong attraction
+      var bforce = 0.002 * b.mass / (bdist * 0.005 + 0.05);
+      MBody.applyForce(b, pos, {
+        x: (bdx/bdist)*bforce,
+        y: (bdy/bdist)*bforce
+      });
+    }
+    // Ball consumed by black hole center
+    if(bdist < bh.r * 0.4) {
+      // Dramatic implosion
+      sfxBlackHole();
+      spawnBlackHoleImplosion(bh.x, bh.y);
+      G.screenShake = 20;
+      G.epicFlash = 8;
+      unlockAchievement('black_hole_survivor');
+      MWorld.remove(world, b);
+      G.activeBall = null;
+      G.launched = false;
+      document.getElementById('ability-hint').style.display = 'none';
+      setTimeout(nextBall, 600);
+      return;
     }
   }
 
@@ -2359,13 +2734,13 @@ function updateBallPhysics() {
     var cdx = pos.x - cv.x;
     var cdy = pos.y - cv.y;
     if(Math.abs(cdx) < cv.hw + C.BALL_RADIUS && Math.abs(cdy) < cv.hh + C.BALL_RADIUS + 10) {
-      Body.applyForce(b, pos, {x: cv.dir * 0.0008 * b.mass, y: 0});
+      MBody.applyForce(b, pos, {x: cv.dir * 0.0008 * b.mass, y: 0});
     }
   }
 
   // Curve ball boost
   if(G.activeBall.type === 'curve' && G.curveBoost) {
-    Body.applyForce(b, pos, {x: b.velocity.x * 0.003, y: -0.022 * b.mass});
+    MBody.applyForce(b, pos, {x: b.velocity.x * 0.003, y: -0.022 * b.mass});
     G.curveBoost = false;
     document.getElementById('ability-hint').style.display = 'none';
   }
@@ -2375,7 +2750,7 @@ function updateBallPhysics() {
     G.bombBrokenThisDetonation = 0;
     spawnExplosion(pos.x, pos.y);
     document.getElementById('ability-hint').style.display = 'none';
-    var allBodies = Composite.allBodies(world);
+    var allBodies = MComposite.allBodies(world);
     for(var bi=0;bi<allBodies.length;bi++) {
       var ob = allBodies[bi];
       if(ob === b) continue;
@@ -2384,10 +2759,9 @@ function updateBallPhysics() {
       var dist2 = Math.sqrt(dx2*dx2+dy2*dy2);
       if(dist2 < 150 && dist2 > 1) {
         var force2 = 0.12/dist2;
-        Body.applyForce(ob, ob.position, {x:(dx2/dist2)*force2, y:(dy2/dist2)*force2});
+        MBody.applyForce(ob, ob.position, {x:(dx2/dist2)*force2, y:(dy2/dist2)*force2});
       }
     }
-    // Break nearby breakable obstacles
     for(var li=0;li<G.levelObjects.length;li++) {
       var lo = G.levelObjects[li];
       if(lo.broken || !lo.body) continue;
@@ -2400,12 +2774,11 @@ function updateBallPhysics() {
         }
       }
     }
-    // Check bomb_multi achievement
     if(G.bombBrokenThisDetonation >= 3) {
       unlockAchievement('bomb_multi');
     }
     G.bombDetonate = false;
-    World.remove(world, b);
+    MWorld.remove(world, b);
     G.activeBall = null;
     G.launched = false;
     nextBall();
@@ -2416,9 +2789,14 @@ function updateBallPhysics() {
   activeBallTrail.unshift({x:pos.x, y:pos.y, angle: b.angle});
   if(activeBallTrail.length > 22) activeBallTrail.pop();
 
-  // Off-screen
-  if(pos.y > H+80 || pos.x < -100 || pos.x > W+100) {
-    World.remove(world, b);
+  // Update hole vortex timers
+  for(var hv in G.holeVortex) {
+    if(G.holeVortex[hv] > 0) G.holeVortex[hv]--;
+  }
+
+  // Off-screen (all 4 sides now since sling is in center)
+  if(pos.y > H+80 || pos.y < -80 || pos.x < -100 || pos.x > W+100) {
+    MWorld.remove(world, b);
     G.activeBall = null;
     G.launched = false;
     document.getElementById('ability-hint').style.display = 'none';
@@ -2426,12 +2804,12 @@ function updateBallPhysics() {
     return;
   }
 
-  // Settle detection
+  // Settle detection (anywhere on screen, not just bottom)
   var spd = Math.sqrt(b.velocity.x*b.velocity.x+b.velocity.y*b.velocity.y);
-  if(pos.y > H*0.65 && spd < 1.5) {
+  if(spd < 1.0) {
     G.settleFrames++;
-    if(G.settleFrames > 45) {
-      World.remove(world, b);
+    if(G.settleFrames > 60) {
+      MWorld.remove(world, b);
       G.activeBall = null;
       G.launched = false;
       document.getElementById('ability-hint').style.display = 'none';
@@ -2446,8 +2824,8 @@ function updateWindmills() {
   for(var i=0;i<G.windmills.length;i++) {
     var wm = G.windmills[i];
     wm.angle = (wm.angle||0) + wm.speed * 0.03;
-    Body.setAngle(wm.body, wm.angle);
-    Body.setAngularVelocity(wm.body, 0);
+    MBody.setAngle(wm.body, wm.angle);
+    MBody.setAngularVelocity(wm.body, 0);
   }
 }
 
@@ -2457,8 +2835,8 @@ function updateMovers() {
     if(mp.broken) continue;
     mp.t += mp.speed * 0.02;
     var newX = mp.startX + Math.sin(mp.t) * mp.range * 0.5;
-    Body.setPosition(mp.body, {x:newX, y:mp.body.position.y});
-    Body.setVelocity(mp.body, {x:0,y:0});
+    MBody.setPosition(mp.body, {x:newX, y:mp.body.position.y});
+    MBody.setVelocity(mp.body, {x:0,y:0});
   }
 }
 
@@ -2476,9 +2854,7 @@ function nextBall() {
 
   if(G.endlessMode) {
     if(G.currentBallIdx >= G.ballQueue.length) {
-      // Check if we earned bonus ball
       if(G.endlessLastScored) {
-        // Add bonus ball
         var allTypes = Object.keys(BALL_TYPES);
         G.ballQueue.push(allTypes[G.endlessThrows % allTypes.length]);
         G.endlessLastScored = false;
@@ -2488,20 +2864,16 @@ function nextBall() {
       }
     }
     G.endlessThrows++;
-    // Extra ball every 1000 pts
     if(G.score > 0 && G.score % 1000 < 100 && G.endlessBallsLeft < G.ballQueue.length) {
       var allTypes2 = Object.keys(BALL_TYPES);
       G.ballQueue.push(allTypes2[Math.floor(Math.random()*allTypes2.length)]);
     }
-    // Difficulty increase every 5 throws
     if(G.endlessThrows % 5 === 0) {
       G.endlessDifficulty++;
       G.wind = (Math.random() - 0.5) * Math.min(G.endlessDifficulty * 0.15, 0.8);
-      // Regenerate obstacles
-      Events.off(engine, 'collisionStart');
+      MEvents.off(engine, 'collisionStart');
       buildLevel(G.level);
     }
-    // Reset hit targets for next round
     G.hitTargets = new Set();
     updateBallQueueUI();
     updateHUD();
@@ -2612,7 +2984,6 @@ function endLevel() {
   saveProgress();
   checkAchievements();
 
-  // Tutorial complete
   if(G.level === 0 && !localStorage.getItem(C.STORE_KEY_TUTORIAL)) {
     localStorage.setItem(C.STORE_KEY_TUTORIAL, 'done');
   }
@@ -2631,18 +3002,14 @@ function showResults(stars) {
     'Balls used <span>'+G.ballsFired+'</span>';
 
   showScreen('results');
-
-  // Play appropriate sound
   if(stars >= 1) sfxLevelComplete();
   else sfxLevelFail();
 
-  // Confetti for 3 stars
   G.confetti = [];
   if(stars === 3) {
     spawnConfetti(60);
   }
 
-  // Animate stars
   var starsEl = document.getElementById('res-stars');
   starsEl.textContent = '\u2606\u2606\u2606';
   var starChars = ['\u2605\u2606\u2606','\u2605\u2605\u2606','\u2605\u2605\u2605'];
@@ -2672,8 +3039,12 @@ function generateEndlessLayout() {
 
   for(var i=0;i<numObs;i++) {
     var type = obstacleTypes[Math.floor(Math.random()*obstacleTypes.length)];
-    var fx = 0.20 + Math.random()*0.60;
-    var fy = 0.35 + Math.random()*0.30;
+    var fx = 0.15 + Math.random()*0.70;
+    var fy = 0.15 + Math.random()*0.70;
+    // Avoid center sling area
+    if(fx > 0.38 && fx < 0.62 && fy > 0.38 && fy < 0.62) {
+      fy = fy < 0.5 ? 0.20 : 0.80;
+    }
 
     if(type === 'bumper') {
       obstacles.push({type:type, fx:fx, fy:fy, fr:0.03+Math.random()*0.02});
@@ -2685,7 +3056,7 @@ function generateEndlessLayout() {
       obstacles.push({type:type, fx:fx, fy:fy, fw:0.12+Math.random()*0.10, fh:0.022, rangeX:0.1+Math.random()*0.1, speed:(Math.random()-0.5)*2});
     } else if(type === 'teleporter') {
       obstacles.push({type:'teleporter', fx:fx, fy:fy, fr:0.03, pairId:i});
-      obstacles.push({type:'teleporter', fx:0.20+Math.random()*0.60, fy:0.35+Math.random()*0.30, fr:0.03, pairId:i});
+      obstacles.push({type:'teleporter', fx:0.15+Math.random()*0.70, fy:0.15+Math.random()*0.70, fr:0.03, pairId:i});
     } else if(type === 'conveyor') {
       obstacles.push({type:'conveyor', fx:fx, fy:fy, fw:0.15+Math.random()*0.12, fh:0.022, dir:Math.random()>0.5?1:-1});
     } else {
@@ -2696,13 +3067,40 @@ function generateEndlessLayout() {
   // Maybe a powerup
   if(Math.random() > 0.5) {
     var puTypes = ['2x','precision','ghost'];
-    powerups.push({type:puTypes[Math.floor(Math.random()*puTypes.length)], fx:0.3+Math.random()*0.4, fy:0.30+Math.random()*0.10});
+    powerups.push({type:puTypes[Math.floor(Math.random()*puTypes.length)], fx:0.3+Math.random()*0.4, fy:0.15+Math.random()*0.20});
   }
 
-  // Cycle ball types
+  // Scattered holes for endless
+  var holes = [];
+  var numHoles = 5 + Math.min(G.endlessDifficulty, 2);
+  var holePtsOptions = [10,10,20,20,50,100];
+  for(var hi=0; hi<numHoles; hi++) {
+    var hfx = 0.06 + Math.random()*0.88;
+    var hfy = 0.06 + Math.random()*0.88;
+    if(hfx > 0.38 && hfx < 0.62 && hfy > 0.38 && hfy < 0.62) {
+      hfy = hfy < 0.5 ? 0.10 : 0.90;
+    }
+    holes.push({pts:holePtsOptions[hi % holePtsOptions.length], fx:hfx, fy:hfy});
+  }
+
+  // Black holes for endless (after difficulty 3)
+  var blackHoles = [];
+  if(G.endlessDifficulty >= 3) {
+    var numBH = Math.min(Math.floor((G.endlessDifficulty - 2) / 2), 3);
+    for(var bhi=0; bhi<numBH; bhi++) {
+      var bhfx = 0.20 + Math.random()*0.60;
+      var bhfy = 0.20 + Math.random()*0.60;
+      if(bhfx > 0.38 && bhfx < 0.62 && bhfy > 0.38 && bhfy < 0.62) {
+        bhfy = bhfy < 0.5 ? 0.25 : 0.75;
+      }
+      blackHoles.push({fx:bhfx, fy:bhfy, fr:0.03+Math.random()*0.02});
+    }
+  }
+
+  // Cycle ball types - 5 balls
   var allTypes = Object.keys(BALL_TYPES);
   var balls = [];
-  for(var b=0;b<3;b++) {
+  for(var b=0;b<5;b++) {
     balls.push(allTypes[(G.endlessThrows + b) % allTypes.length]);
   }
 
@@ -2712,7 +3110,9 @@ function generateEndlessLayout() {
     balls: balls,
     wind: G.wind || 0,
     obstacles: obstacles,
-    powerups: powerups
+    powerups: powerups,
+    holes: holes,
+    blackHoles: blackHoles
   };
 }
 
@@ -2797,8 +3197,7 @@ function drawTutorial(t) {
   ctx.globalAlpha = alpha;
 
   if(G.tutorialStep === 1 && !G.launched) {
-    // Arrow pointing at slingshot
-    var ax = slingX, ay = slingY + 50;
+    var ax = slingX, ay = slingY + 60;
     ctx.fillStyle = C.YELLOW;
     ctx.beginPath();
     ctx.moveTo(ax, ay - 25);
@@ -2812,27 +3211,18 @@ function drawTutorial(t) {
     ctx.fillStyle = C.YELLOW;
     ctx.shadowColor = C.YELLOW;
     ctx.shadowBlur = 10;
-    ctx.fillText('PULL BACK', ax, ay + 10);
-    ctx.fillText('& RELEASE!', ax, ay + 24);
+    ctx.fillText('PULL ANY', ax, ay + 10);
+    ctx.fillText('DIRECTION!', ax, ay + 24);
     ctx.shadowBlur = 0;
   } else if(G.tutorialStep === 2 && G.launched) {
-    // Arrow at target holes
-    var tx = W*0.5, ty = H*0.28;
-    ctx.fillStyle = C.YELLOW;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty + 10);
-    ctx.lineTo(tx - 10, ty + 25);
-    ctx.lineTo(tx + 10, ty + 25);
-    ctx.closePath();
-    ctx.fill();
     ctx.globalAlpha = 0.9;
     ctx.font = "bold 9px 'Press Start 2P', monospace";
     ctx.textAlign = 'center';
     ctx.fillStyle = C.YELLOW;
     ctx.shadowColor = C.YELLOW;
     ctx.shadowBlur = 10;
-    ctx.fillText('AIM FOR', tx, ty + 40);
-    ctx.fillText('THE HOLES!', tx, ty + 54);
+    ctx.fillText('AIM FOR', W*0.5, H*0.15);
+    ctx.fillText('THE HOLES!', W*0.5, H*0.15+14);
     ctx.shadowBlur = 0;
   }
 
@@ -2928,6 +3318,7 @@ function renderStats() {
   document.getElementById('stat-broken').textContent = totalBroken;
   document.getElementById('stat-achs').textContent = achCount + '/' + Object.keys(ACHIEVEMENT_DEFS).length;
   document.getElementById('stat-endless').textContent = endlessBest;
+  document.getElementById('stat-bounces').textContent = totalWallBounces;
 }
 
 function startLevel(idx) {
@@ -2985,7 +3376,7 @@ var pointerId = null;
 
 function getPos(e) {
   if(e.touches) {
-    var t = e.changedTouches[0];
+    var t = e.changedTouches ? e.changedTouches[0] : e.touches[0];
     return {x:t.clientX, y:t.clientY};
   }
   return {x:e.clientX, y:e.clientY};
@@ -2993,7 +3384,7 @@ function getPos(e) {
 
 function isNearSling(p) {
   var dx = p.x - slingX, dy = p.y - slingY;
-  return Math.sqrt(dx*dx+dy*dy) < 80;
+  return Math.sqrt(dx*dx+dy*dy) < 100;
 }
 
 function onPointerDown(e) {
@@ -3019,7 +3410,7 @@ function onPointerMove(e) {
   var p = getPos(e);
   var dx = p.x - slingX;
   var dy = p.y - slingY;
-  dy = Math.max(dy, 0);
+  // No restriction on direction - can pull any way
   var dist = Math.sqrt(dx*dx+dy*dy);
   if(dist > C.MAX_PULL) {
     dx = dx/dist*C.MAX_PULL;
@@ -3039,12 +3430,42 @@ function onPointerUp(e) {
   }
 }
 
+// Canvas mouse events
 canvas.addEventListener('mousedown', onPointerDown);
 canvas.addEventListener('mousemove', onPointerMove);
 canvas.addEventListener('mouseup', onPointerUp);
 canvas.addEventListener('touchstart', function(e){e.preventDefault();onPointerDown(e);}, {passive:false});
 canvas.addEventListener('touchmove',  function(e){e.preventDefault();onPointerMove(e);},  {passive:false});
 canvas.addEventListener('touchend',   function(e){e.preventDefault();onPointerUp(e);},   {passive:false});
+
+// Document-level touch handlers as fallback for mobile
+document.addEventListener('touchstart', function(e) {
+  if(G.screen === 'game' && !G.paused) {
+    var t = e.touches[0];
+    if(!e.target.closest('.btn, .pause-btn, .ball-indicator, .pause-overlay')) {
+      e.preventDefault();
+      onPointerDown(e);
+    }
+  }
+}, {passive: false});
+
+document.addEventListener('touchmove', function(e) {
+  if(G.screen === 'game' && !G.paused && G.dragging) {
+    if(!e.target.closest('.btn, .pause-btn, .ball-indicator, .pause-overlay')) {
+      e.preventDefault();
+      onPointerMove(e);
+    }
+  }
+}, {passive: false});
+
+document.addEventListener('touchend', function(e) {
+  if(G.screen === 'game' && !G.paused && G.dragging) {
+    if(!e.target.closest('.btn, .pause-btn, .ball-indicator, .pause-overlay')) {
+      e.preventDefault();
+      onPointerUp(e);
+    }
+  }
+}, {passive: false});
 
 // ============================================================
 // UI BUTTON WIRING
@@ -3167,10 +3588,10 @@ function gameLoop(ts) {
   } else if(G.screen === 'game' && !G.paused) {
     // Physics step with slow-mo support
     if(G.epicSlowMo > 0) {
-      Engine.update(engine, 16.67 * 0.25);
+      MEngine.update(engine, 16.67 * 0.25);
       G.epicSlowMo--;
     } else {
-      Engine.update(engine, 16.67);
+      MEngine.update(engine, 16.67);
     }
     updateBallPhysics();
     updateWindmills();
@@ -3200,7 +3621,8 @@ function gameLoop(ts) {
       }
     }
 
-    drawRings(t);
+    drawHoles(t);
+    drawBlackHoles(t);
     drawObstacles(t);
     drawPowerups(t);
     drawSlingshot(t);
@@ -3215,11 +3637,11 @@ function gameLoop(ts) {
     if(G.wind !== 0) drawWindParticles(t);
 
   } else if(G.screen === 'game' && G.paused) {
-    drawRings(t);
+    drawHoles(t);
+    drawBlackHoles(t);
     drawObstacles(t);
     drawSlingshot(t);
   } else if(G.screen === 'results' || G.screen === 'endless-results') {
-    // Keep rendering confetti on results screen
     drawBackground(t);
     updateParticles();
     drawParticles();
