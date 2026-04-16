@@ -105,6 +105,7 @@ const SECTIONS = {
       { name: 'OpenProject', file: './tools/civil/openproject.html' },
       { name: 'Pavement Evaluator', file: './tools/aviation/airfield-pavement-evaluator.html' },
       { name: 'Pavement Management Plan', file: './tools/aviation/pavement-management-plan.html' },
+      { name: 'Parkhill Command Center', file: './tools/aviation/parkhill-command-center.html' },
       { name: 'PDF Editor', file: './tools/civil/pdf-editor.html' },
       { name: 'Performance Spec', file: './tools/aviation/performance-spec-tool.html' },
       { name: 'PERT Calculator', file: './tools/aviation/pert-calculator.html' },
@@ -195,7 +196,6 @@ const SECTIONS = {
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Korb Zoo Tycoon', file: './tools/hk/zoo-tycoon.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
-      { name: 'Parkhill Command Center', file: './tools/hk/parkhill-command-center.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
       { name: 'Travel Planner', file: './tools/hk/travel-planner.html' },
       { name: 'Video Player', file: './tools/hk/video-player.html' }
