@@ -898,8 +898,8 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  slingX = W * 0.5;
-  slingY = H * 0.5;
+  slingX = W * 0.15;
+  slingY = H * 0.82;
   if (G.screen === 'game') {
     rebuildLevel(G.level);
   }
@@ -2271,6 +2271,7 @@ function buildLevel(levelIdx) {
   G.brokenBodies = [];
   G.holeVortex = {};
   G.holeSuckAnim = null;
+  G.levelEnded = false;
   G.wallFlash = {left:0, right:0, top:0, bottom:0};
   G.wallBounces = 0;
   G.ballHasBouncedWall = false;
@@ -2312,6 +2313,28 @@ function buildLevel(levelIdx) {
   // Build obstacles
   for(var oi=0; oi<def.obstacles.length; oi++) {
     buildObstacle(def.obstacles[oi], oi);
+  }
+
+  // ===== AUTO-INJECT CENTER BLACK HOLE + BUMPER RING (every level) =====
+  // Center of screen = center of gravity
+  var hasCenterBH = false;
+  for(var cbi=0;cbi<G.blackHoles.length;cbi++){
+    var cb = G.blackHoles[cbi];
+    if(Math.abs(cb.x - W*0.5) < 40 && Math.abs(cb.y - H*0.5) < 40){ hasCenterBH = true; break; }
+  }
+  if(!hasCenterBH){
+    var bhRadius = Math.min(W,H) * 0.05;
+    G.blackHoles.push({ x: W*0.5, y: H*0.5, r: bhRadius, idx: G.blackHoles.length });
+  }
+  // Ring of 6 bumpers around center the player must avoid
+  var ringR = Math.min(W,H) * 0.22;
+  var bumperFr = 0.028;
+  var ringCount = 6;
+  for(var rb=0; rb<ringCount; rb++){
+    var ang = (rb / ringCount) * Math.PI * 2 + Math.PI/6;
+    var bxf = 0.5 + Math.cos(ang) * (ringR / W);
+    var byf = 0.5 + Math.sin(ang) * (ringR / H);
+    buildObstacle({type:'bumper', fx:bxf, fy:byf, fr:bumperFr}, def.obstacles.length + rb);
   }
 
   // Build power-up sensors
@@ -2492,10 +2515,20 @@ function handleCollision(evt) {
           sfxEpicShot();
         }
 
-        // Check no-miss achievement (all holes hit)
+        // Check no-miss achievement (all holes hit) + end level
         var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
         if(def && def.holes && G.hitTargets.size === def.holes.length) {
           unlockAchievement('no_miss');
+          if(!G.endlessMode && !G.levelEnded) {
+            G.levelEnded = true;
+            // Clean up active ball so it doesn't linger
+            if(G.activeBall && G.activeBall.body){
+              try { MWorld.remove(world, G.activeBall.body); } catch(e){}
+              G.activeBall = null;
+              G.launched = false;
+            }
+            setTimeout(endLevel, 600);
+          }
         }
 
         // Endless scoring flag
@@ -2881,7 +2914,7 @@ function nextBall() {
   }
 
   if(G.currentBallIdx >= G.ballQueue.length) {
-    endLevel();
+    if(!G.levelEnded){ G.levelEnded = true; endLevel(); }
     return;
   }
   updateBallQueueUI();
@@ -3500,8 +3533,14 @@ document.getElementById('btn-quit').addEventListener('click', function(){
 document.getElementById('btn-retry').addEventListener('click', function(){ sfxMenuClick(); startLevel(G.level); });
 document.getElementById('btn-next').addEventListener('click', function(){
   sfxMenuClick();
-  if(G.level+1 < LEVEL_DEFS.length && G.level+1 < progress.unlocked) startLevel(G.level+1);
-  else showScreen('levels');
+  if(G.level+1 < LEVEL_DEFS.length) {
+    // Always allow progression — unlock the next level so the UI stays consistent
+    progress.unlocked = Math.max(progress.unlocked, G.level+2);
+    saveProgress();
+    startLevel(G.level+1);
+  } else {
+    showScreen('levels');
+  }
 });
 document.getElementById('btn-to-levels').addEventListener('click', function(){ sfxMenuClick(); showScreen('levels'); });
 
