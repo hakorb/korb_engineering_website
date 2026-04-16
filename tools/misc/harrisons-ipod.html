@@ -1083,6 +1083,74 @@ async function autoSyncLibrary() {
   } catch (e) { /* manifest not found or offline — silent */ }
 }
 
+async function syncFromMusicLibrary() {
+  try {
+    var mlDb = await new Promise(function(resolve, reject) {
+      var req = indexedDB.open('korb_music_library', 1);
+      req.onupgradeneeded = function(e) {
+        // DB didn't exist before — close and delete it so we don't create an empty one
+        e.target.transaction.abort();
+        reject(new Error('no_db'));
+      };
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function() { reject(new Error('open_failed')); };
+    });
+
+    var tracks = await new Promise(function(resolve, reject) {
+      try {
+        var tx = mlDb.transaction('tracks', 'readonly');
+        var store = tx.objectStore('tracks');
+        var req = store.getAll();
+        req.onsuccess = function() { resolve(req.result || []); };
+        req.onerror = function() { reject(new Error('read_failed')); };
+      } catch (err) { reject(err); }
+    });
+
+    if (!tracks || tracks.length === 0) { mlDb.close(); return; }
+
+    var haveFilename = new Set(songs.map(function(s) { return (s.filename || '').toLowerCase(); }));
+    var haveTitleArtist = new Set(songs.map(function(s) {
+      return (s.title || '').toLowerCase() + '|||' + (s.artist || '').toLowerCase();
+    }));
+
+    var added = 0;
+    for (var i = 0; i < tracks.length; i++) {
+      var t = tracks[i];
+      if (!t || !t.blob) continue;
+
+      var fn = (t.filename || '').toLowerCase();
+      var ta = (t.title || '').toLowerCase() + '|||' + (t.artist || '').toLowerCase();
+
+      if (fn && haveFilename.has(fn)) continue;
+      if (t.title && t.artist && haveTitleArtist.has(ta)) continue;
+
+      var entry = {
+        title: t.title || 'Unknown Title',
+        artist: t.artist || 'Unknown Artist',
+        album: t.album || 'Unknown Album',
+        filename: t.filename || '',
+        blob: t.blob,
+        dateAdded: t.timestamp || Date.now()
+      };
+
+      var id = await dbAdd('songs', entry);
+      entry.id = id;
+      songs.push(entry);
+      playQueue.push(id);
+      haveFilename.add(fn);
+      haveTitleArtist.add(ta);
+      added++;
+    }
+
+    mlDb.close();
+
+    if (added > 0) {
+      showToast('Synced ' + added + ' track' + (added !== 1 ? 's' : '') + ' from Music Library', 3000);
+      renderScreen();
+    }
+  } catch (e) { /* korb_music_library not found or inaccessible — silent */ }
+}
+
 // ===================== PLAYLIST CREATION =====================
 function createPlaylist() {
   const name = prompt('Playlist name:');
@@ -1291,6 +1359,8 @@ async function init() {
 
   // Auto-sync from repo library after boot
   autoSyncLibrary();
+  // Cross-sync from korb_music_library (YT2MP3 / Music Library app)
+  syncFromMusicLibrary();
 }
 
 init();
