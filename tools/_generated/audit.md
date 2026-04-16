@@ -1,18 +1,18 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-16T02:55:02.454Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-16T14:32:41.493Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **280**
+- Total tools scanned: **281**
 - Clean (no findings): **107**
-- With findings:       **173**
+- With findings:       **174**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
-| `[mobile]` | 1 |
+| `[mobile]` | 2 |
 | `[polish]` | 1 |
 | `[a11y]` | 148 |
 | `[deps]` | 6 |
@@ -274,7 +274,7 @@ _Generated 2026-04-16T02:55:02.454Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (79 of 140 with findings)
+## misc (80 of 141 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -511,6 +511,9 @@ _Generated 2026-04-16T02:55:02.454Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/tip-calculator.html
 - `[a11y]` uses native prompt() (prefer KorbUI)
+
+### tools/misc/tool-request.html
+- `[mobile]` input font-size appears <16px (iOS will zoom)
 
 ### tools/misc/ultimate-survival-guide.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
