@@ -1,20 +1,21 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-16T02:15:00.895Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-16T02:21:08.167Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **277**
-- Clean (no findings): **108**
-- With findings:       **169**
+- Total tools scanned: **278**
+- Clean (no findings): **107**
+- With findings:       **171**
 
 ### Findings by tag
 
 | Tag | Count |
 |---|---:|
+| `[mobile]` | 1 |
 | `[polish]` | 1 |
-| `[a11y]` | 146 |
-| `[deps]` | 3 |
+| `[a11y]` | 147 |
+| `[deps]` | 5 |
 
 ## aviation (40 of 58 with findings)
 
@@ -273,7 +274,7 @@ _Generated 2026-04-16T02:15:00.895Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (75 of 137 with findings)
+## misc (77 of 138 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -451,6 +452,11 @@ _Generated 2026-04-16T02:15:00.895Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[a11y]` uses native confirm() (prefer KorbUI)
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
+### tools/misc/music-library.html
+- `[mobile]` input font-size appears <16px (iOS will zoom)
+- `[a11y]` uses native confirm(), prompt() (prefer KorbUI)
+- `[deps]` external CDN: cdn.jsdelivr.net
+
 ### tools/misc/olivias-digital-escape-room.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
@@ -513,6 +519,9 @@ _Generated 2026-04-16T02:15:00.895Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/world-explorer.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/youtube-to-mp3.html
+- `[deps]` external CDN: cdn.jsdelivr.net
 
 ## hk (16 of 21 with findings)
 

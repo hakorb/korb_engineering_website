@@ -681,6 +681,15 @@ a:hover { text-shadow: var(--cyan-glow); }
     </div>
   </div>
 
+  <!-- Music Library Integration -->
+  <div class="panel" id="musicLibPanel" style="display:none">
+    <div class="panel-label">Music Library</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span class="status-text success-status" id="mlStatus">&#10003; Saved to Music Library</span>
+      <a href="music-library.html" style="font-size:0.75rem; color:var(--cyan);">Open Library &rarr;</a>
+    </div>
+  </div>
+
   <!-- Instructions -->
   <div class="panel instructions">
     <div class="panel-label">How To Use</div>
@@ -690,7 +699,7 @@ a:hover { text-shadow: var(--cyan-glow); }
       <li>In the browser dialog, select <strong style="color:var(--cyan)">This Tab</strong> and click Share</li>
       <li>The video will begin playing and audio will be captured in real time</li>
       <li>Click <strong style="color:var(--red)">STOP RECORDING</strong> or wait for the video to end</li>
-      <li>Your audio file will download automatically as <code style="color:var(--orange)">.webm</code></li>
+      <li>Your audio file will download automatically as <code style="color:var(--orange)">.mp3</code></li>
     </ol>
   </div>
 
@@ -713,6 +722,7 @@ a:hover { text-shadow: var(--cyan-glow); }
 <!-- Korb badge -->
 <div class="korb-badge">KORB ENGINEERING</div>
 
+<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
 <script>
 // ===================================================================
 // STATE
@@ -968,7 +978,7 @@ function stopRecording() {
   waveform.classList.remove('active');
 }
 
-function finishRecording(mimeType) {
+async function finishRecording(mimeType) {
   if (recordedChunks.length === 0) {
     showError('No audio data was captured. Make sure you shared the correct tab with audio enabled.');
     setStatus('Ready', '');
@@ -977,39 +987,189 @@ function finishRecording(mimeType) {
     return;
   }
 
-  const blob = new Blob(recordedChunks, { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const filename = 'youtube-audio-' + currentVideoId + '.webm';
+  setStatus('Converting to MP3...', '');
 
-  // Auto-download
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const webmBlob = new Blob(recordedChunks, { type: mimeType });
 
-  // Revoke after a short delay
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  try {
+    // Decode webm to PCM
+    var arrayBuffer = await webmBlob.arrayBuffer();
+    var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-  // Calculate duration
-  const durationMs = Date.now() - recordingStartTime;
-  const durationStr = formatTime(durationMs);
+    // Encode to MP3 using lamejs
+    var mp3Blob = encodeMP3(audioBuffer);
+    audioCtx.close();
 
-  // Save to history
-  saveToHistory(currentVideoId, urlInput.value.trim(), durationStr);
+    var url = URL.createObjectURL(mp3Blob);
+    var title = getVideoTitle();
+    var filename = sanitizeFilename(title || ('youtube-audio-' + currentVideoId)) + '.mp3';
 
-  // UI
-  setStatus('Download complete!', 'success-status');
-  showToast('Audio saved! (' + filename + ')', 'success');
-  recordBtn.disabled = false;
+    // Auto-download
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
 
-  // Fade timer after a moment
-  setTimeout(() => {
-    timerDisplay.classList.remove('visible');
-  }, 3000);
+    // Also store for music library integration
+    try {
+      var meta = {
+        videoId: currentVideoId,
+        title: title || currentVideoId,
+        artist: 'YouTube',
+        duration: formatTime(Date.now() - recordingStartTime),
+        timestamp: Date.now(),
+        filename: filename
+      };
+      sessionStorage.setItem('korb_yt2mp3_last_recording', JSON.stringify(meta));
+      await storeInMusicLibraryDB(mp3Blob, meta);
+    } catch(e) { /* Music library integration is optional */ }
+
+    // Calculate duration
+    var durationMs = Date.now() - recordingStartTime;
+    var durationStr = formatTime(durationMs);
+    saveToHistory(currentVideoId, urlInput.value.trim(), durationStr);
+
+    setStatus('Download complete! (.mp3)', 'success-status');
+    showToast('MP3 saved! (' + filename + ')', 'success');
+    recordBtn.disabled = false;
+
+    // Show "Add to Music Library" panel
+    showMusicLibraryOption(meta);
+
+    setTimeout(function() { timerDisplay.classList.remove('visible'); }, 3000);
+
+  } catch(err) {
+    console.error('MP3 conversion error:', err);
+    // Fallback: download as webm
+    var fallbackUrl = URL.createObjectURL(webmBlob);
+    var fallbackFilename = 'youtube-audio-' + currentVideoId + '.webm';
+    var fallbackA = document.createElement('a');
+    fallbackA.href = fallbackUrl;
+    fallbackA.download = fallbackFilename;
+    document.body.appendChild(fallbackA);
+    fallbackA.click();
+    document.body.removeChild(fallbackA);
+    setTimeout(function() { URL.revokeObjectURL(fallbackUrl); }, 5000);
+
+    var fallbackDurationMs = Date.now() - recordingStartTime;
+    saveToHistory(currentVideoId, urlInput.value.trim(), formatTime(fallbackDurationMs));
+    setStatus('Downloaded as .webm (MP3 conversion failed)', 'success-status');
+    showToast('Saved as .webm fallback', 'success');
+    recordBtn.disabled = false;
+    setTimeout(function() { timerDisplay.classList.remove('visible'); }, 3000);
+  }
 
   cleanup();
+}
+
+function encodeMP3(audioBuffer) {
+  var numChannels = audioBuffer.numberOfChannels;
+  var sampleRate = audioBuffer.sampleRate;
+  var kbps = 192;
+
+  var mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
+  var mp3Data = [];
+
+  var left = audioBuffer.getChannelData(0);
+  var right = numChannels > 1 ? audioBuffer.getChannelData(1) : left;
+
+  var sampleBlockSize = 1152;
+  var leftInt16 = floatTo16BitPCM(left);
+  var rightInt16 = floatTo16BitPCM(right);
+
+  for (var i = 0; i < leftInt16.length; i += sampleBlockSize) {
+    var leftChunk = leftInt16.subarray(i, i + sampleBlockSize);
+    var rightChunk = rightInt16.subarray(i, i + sampleBlockSize);
+    var mp3buf = numChannels > 1
+      ? mp3encoder.encodeBuffer(leftChunk, rightChunk)
+      : mp3encoder.encodeBuffer(leftChunk);
+    if (mp3buf.length > 0) {
+      mp3Data.push(mp3buf);
+    }
+  }
+
+  var end = mp3encoder.flush();
+  if (end.length > 0) {
+    mp3Data.push(end);
+  }
+
+  return new Blob(mp3Data, { type: 'audio/mp3' });
+}
+
+function floatTo16BitPCM(float32Array) {
+  var int16 = new Int16Array(float32Array.length);
+  for (var i = 0; i < float32Array.length; i++) {
+    var s = Math.max(-1, Math.min(1, float32Array[i]));
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return int16;
+}
+
+function getVideoTitle() {
+  try {
+    if (player) {
+      var data = player.getVideoData();
+      if (data && data.title) return data.title;
+    }
+  } catch(e) {}
+  return '';
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[<>:"/\\|?*]+/g, '').replace(/\s+/g, '_').substring(0, 100);
+}
+
+function showMusicLibraryOption(meta) {
+  var panel = document.getElementById('musicLibPanel');
+  panel.style.display = 'block';
+  var status = document.getElementById('mlStatus');
+  status.textContent = '\u2713 "' + (meta.title || meta.videoId) + '" saved to Music Library';
+}
+
+// ===================================================================
+// INDEXEDDB MUSIC LIBRARY INTEGRATION
+// ===================================================================
+var ML_DB_NAME = 'korb_music_library';
+var ML_DB_VERSION = 1;
+
+function openMusicLibraryDB() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(ML_DB_NAME, ML_DB_VERSION);
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains('tracks')) {
+        var store = db.createObjectStore('tracks', { keyPath: 'id', autoIncrement: true });
+        store.createIndex('title', 'title', { unique: false });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+}
+
+async function storeInMusicLibraryDB(blob, meta) {
+  var db = await openMusicLibraryDB();
+  var tx = db.transaction('tracks', 'readwrite');
+  var store = tx.objectStore('tracks');
+  store.add({
+    title: meta.title,
+    artist: meta.artist || 'YouTube',
+    duration: meta.duration,
+    filename: meta.filename,
+    videoId: meta.videoId,
+    blob: blob,
+    timestamp: meta.timestamp,
+    source: 'yt2mp3'
+  });
+  return new Promise(function(resolve, reject) {
+    tx.oncomplete = resolve;
+    tx.onerror = function() { reject(tx.error); };
+  });
 }
 
 function cleanup() {
