@@ -1,12 +1,12 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-16T02:43:30.584Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-16T02:55:02.454Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **279**
+- Total tools scanned: **280**
 - Clean (no findings): **107**
-- With findings:       **172**
+- With findings:       **173**
 
 ### Findings by tag
 
@@ -15,7 +15,7 @@ _Generated 2026-04-16T02:43:30.584Z by `scripts/audit.mjs`. Do not edit by hand.
 | `[mobile]` | 1 |
 | `[polish]` | 1 |
 | `[a11y]` | 148 |
-| `[deps]` | 5 |
+| `[deps]` | 6 |
 
 ## aviation (40 of 58 with findings)
 
@@ -274,7 +274,7 @@ _Generated 2026-04-16T02:43:30.584Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (78 of 139 with findings)
+## misc (79 of 140 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -309,6 +309,10 @@ _Generated 2026-04-16T02:43:30.584Z by `scripts/audit.mjs`. Do not edit by hand.
 
 ### tools/misc/build-your-own-korb-site.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/bumper-pool.html
+- `[deps]` external CDN: cdnjs.cloudflare.com
+- `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/checkers.html
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
