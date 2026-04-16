@@ -2236,6 +2236,22 @@ function drawParticles() {
 // ============================================================
 // FLOAT SCORES
 // ============================================================
+function spawnCallout(x, y, text, color) {
+  color = color || '#ffdd33';
+  var el = document.createElement('div');
+  el.className = 'float-score';
+  el.style.left = (x/W*100)+'%';
+  el.style.top = (y/H*100)+'%';
+  el.style.color = color;
+  el.style.textShadow = '0 0 18px ' + color + ', 0 0 6px #000';
+  el.style.fontSize = '20px';
+  el.style.fontWeight = '900';
+  el.style.letterSpacing = '1px';
+  el.textContent = text;
+  document.getElementById('ui').appendChild(el);
+  setTimeout(function(){el.remove();}, 1400);
+}
+
 function spawnFloatScore(x, y, pts, color) {
   color = color || C.YELLOW;
   var el = document.createElement('div');
@@ -2268,6 +2284,8 @@ function buildLevel(levelIdx) {
   G.hitCounts = {};
   G.particles = [];
   G.floatScores = [];
+  G.callouts = [];
+  G.whiteHoles = [];
   G.brokenBodies = [];
   G.holeVortex = {};
   G.holeSuckAnim = null;
@@ -2329,6 +2347,21 @@ function buildLevel(levelIdx) {
     vx: (Math.random() - 0.5) * 1.2,
     vy: (Math.random() - 0.5) * 1.2
   });
+
+  // ===== ROAMING WHITE HOLE REPULSOR (from level 3+) =====
+  // Pushes balls outward — opposite of black hole. Harder to use carefully.
+  if(levelIdx >= 2 || G.endlessMode) {
+    var whR = Math.min(W,H) * 0.04;
+    var whAngle = Math.random() * Math.PI * 2;
+    var whDist = Math.min(W,H) * (0.2 + Math.random() * 0.15);
+    var whX = W*0.5 + Math.cos(whAngle) * whDist;
+    var whY = H*0.5 + Math.sin(whAngle) * whDist;
+    G.whiteHoles.push({
+      x: whX, y: whY, r: whR,
+      vx: (Math.random() - 0.5) * 0.9,
+      vy: (Math.random() - 0.5) * 0.9
+    });
+  }
 
   // Build power-up sensors
   for(var pi=0; pi<def.powerups.length; pi++) {
@@ -2471,7 +2504,12 @@ function handleCollision(evt) {
         G.comboTimer = 120;
         var mult = G.powerup==='2x' ? 2 : 1;
         var comboMult = 1 + (G.combo-1)*0.35;
-        pts = Math.round(pts * mult * comboMult);
+        // Wall-bounce trick-shot multiplier
+        var wb = G.wallBounces|0;
+        var bounceMult = wb >= 4 ? 3 : wb >= 3 ? 2 : wb >= 2 ? 1.5 : wb >= 1 ? 1.25 : 1;
+        // Last-ball bonus: final ball in the queue gets 2x drama
+        var lastBallMult = (!G.endlessMode && G.currentBallIdx === G.ballQueue.length - 1) ? 2 : 1;
+        pts = Math.round(pts * mult * comboMult * bounceMult * lastBallMult);
         G.score += pts;
         sfxHole(pts);
         var hp = holePositions[ri];
@@ -2492,9 +2530,20 @@ function handleCollision(evt) {
         updateHUD();
         checkAchievements();
 
-        // Wall bounce achievement
+        // Wall bounce achievement + trick-shot callout
         if(G.ballHasBouncedWall) {
           unlockAchievement('wall_bounce');
+        }
+        if(wb >= 3) {
+          spawnCallout(hx, hy - 48, 'TRICK SHOT!', '#ffdd33');
+        } else if(wb >= 2) {
+          spawnCallout(hx, hy - 48, 'BANK SHOT', '#66e6ff');
+        }
+        if(lastBallMult > 1) {
+          spawnCallout(W*0.5, H*0.25, 'FINAL BALL BONUS', '#ff66ee');
+        }
+        if(G.combo >= 5) {
+          spawnCallout(hx, hy - 68, 'ON FIRE! x' + G.combo, '#ff6600');
         }
 
         // Epic shot for 100+ pt hole
@@ -2723,6 +2772,9 @@ function updateBallPhysics() {
     }
   }
 
+  // White holes (repulsors)
+  applyWhiteHoleForces(b, pos);
+
   // Black holes - stronger gravitational pull + consumption
   for(var bhi=0;bhi<G.blackHoles.length;bhi++) {
     var bh = G.blackHoles[bhi];
@@ -2869,6 +2921,77 @@ function updateMovers() {
 function updateTeleporterCooldowns() {
   for(var i=0;i<G.teleporters.length;i++) {
     if(G.teleporters[i].cooldown > 0) G.teleporters[i].cooldown--;
+  }
+}
+
+function updateRoamingWhiteHoles() {
+  if(!G.whiteHoles) return;
+  var margin = 60;
+  var slingBuffer = Math.min(W,H) * 0.18;
+  for(var i=0;i<G.whiteHoles.length;i++) {
+    var wh = G.whiteHoles[i];
+    wh.x += wh.vx;
+    wh.y += wh.vy;
+    if(wh.x < margin){ wh.x = margin; wh.vx = Math.abs(wh.vx); }
+    if(wh.x > W - margin){ wh.x = W - margin; wh.vx = -Math.abs(wh.vx); }
+    if(wh.y < margin){ wh.y = margin; wh.vy = Math.abs(wh.vy); }
+    if(wh.y > H - margin){ wh.y = H - margin; wh.vy = -Math.abs(wh.vy); }
+    var sdx = wh.x - slingX, sdy = wh.y - slingY;
+    var sd = Math.sqrt(sdx*sdx + sdy*sdy);
+    if(sd < slingBuffer && sd > 0.01){
+      wh.x = slingX + (sdx/sd) * slingBuffer;
+      wh.y = slingY + (sdy/sd) * slingBuffer;
+      wh.vx = (sdx/sd) * Math.abs(wh.vx || 1);
+      wh.vy = (sdy/sd) * Math.abs(wh.vy || 1);
+    }
+  }
+}
+
+function applyWhiteHoleForces(b, pos) {
+  if(!G.whiteHoles) return;
+  for(var i=0;i<G.whiteHoles.length;i++) {
+    var wh = G.whiteHoles[i];
+    var dx = pos.x - wh.x;
+    var dy = pos.y - wh.y;
+    var dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist < wh.r*6 && dist > 1) {
+      var force = 0.0015 * b.mass / (dist * 0.005 + 0.05);
+      MBody.applyForce(b, pos, {
+        x: (dx/dist) * force,
+        y: (dy/dist) * force
+      });
+    }
+  }
+}
+
+function drawWhiteHoles(t) {
+  if(!G.whiteHoles) return;
+  for(var i=0;i<G.whiteHoles.length;i++) {
+    var wh = G.whiteHoles[i];
+    var r = wh.r;
+    ctx.save();
+    ctx.translate(wh.x, wh.y);
+    // Outward shockwave rings
+    for(var ring=3; ring>0; ring--) {
+      var pulse = (t*2 + ring*0.5) % 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r*(0.5 + pulse*1.5), 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(150,230,255,' + (0.25*(1-pulse)) + ')';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    // Bright core
+    var coreGrad = ctx.createRadialGradient(0,0,0,0,0,r);
+    coreGrad.addColorStop(0, 'rgba(255,255,255,1)');
+    coreGrad.addColorStop(0.4, 'rgba(180,230,255,0.9)');
+    coreGrad.addColorStop(1, 'rgba(100,180,255,0.1)');
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI*2);
+    ctx.fillStyle = coreGrad;
+    ctx.shadowColor = '#a0e0ff';
+    ctx.shadowBlur = 20;
+    ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -3655,6 +3778,7 @@ function gameLoop(ts) {
     updateMovers();
     updateTeleporterCooldowns();
     updateRoamingBlackHoles();
+    updateRoamingWhiteHoles();
     updateParticles();
 
     // Combo timer
@@ -3681,6 +3805,7 @@ function gameLoop(ts) {
 
     drawHoles(t);
     drawBlackHoles(t);
+    drawWhiteHoles(t);
     drawObstacles(t);
     drawPowerups(t);
     drawSlingshot(t);
@@ -3697,6 +3822,7 @@ function gameLoop(ts) {
   } else if(G.screen === 'game' && G.paused) {
     drawHoles(t);
     drawBlackHoles(t);
+    drawWhiteHoles(t);
     drawObstacles(t);
     drawSlingshot(t);
   } else if(G.screen === 'results' || G.screen === 'endless-results') {
