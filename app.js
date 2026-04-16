@@ -195,6 +195,7 @@ const SECTIONS = {
       { name: 'Korb Travel', file: './tools/hk/super-secret-access/tripit-clone.html' },
       { name: 'Korb Zoo Tycoon', file: './tools/hk/zoo-tycoon.html' },
       { name: 'Metadata Scrubber', file: './tools/hk/korb-metadata-scrubber.html' },
+      { name: 'Parkhill Command Center', file: './tools/hk/parkhill-command-center.html' },
       { name: 'Threat Source Identifier', file: './tools/hk/threat-identifier.html' },
       { name: 'Travel Planner', file: './tools/hk/travel-planner.html' },
       { name: 'Video Player', file: './tools/hk/video-player.html' }
