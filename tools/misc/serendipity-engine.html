@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Serendipity Engine — an anti-algorithm social feed that maximizes discovery. Open-source content from Reddit, Wikipedia, NASA, museums, and more. Korb Engineering.">
+<title>Serendipity Engine // Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+--bg:#050a0f;--panel:#0a1118;--card:#0d1a24;
+--cyan:#00d4ff;--orange:#ff6600;--green:#00ff88;--red:#ff3344;
+--yellow:#ffd700;--purple:#6364ff;
+--border:#1a2a3a;--text:#c8d6e5;--text-dim:#5a6a7a;--text-bright:#e8f0f8;
+--reddit:#ff4500;--hn:#ff6600;--wiki:#636466;--nasa:#0B3D91;
+--met:#E4002B;--mastodon:#6364FF;--quote:#00d4ff;--book:#00ff88;
+}
+@font-face{font-family:'DSEG14';src:url('https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Regular.woff2') format('woff2');font-display:swap;}
+html,body{min-height:100%;overflow-x:hidden;}
+body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;position:relative;}
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;
+background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:#2a3a4a;}
+a{color:var(--cyan);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* HEADER */
+#app-header{background:var(--panel);border-bottom:1px solid var(--border);padding:16px 20px;position:sticky;top:0;z-index:100;}
+.header-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+.header-title{font-size:22px;font-weight:700;color:var(--cyan);letter-spacing:3px;text-transform:uppercase;}
+.header-subtitle{font-size:11px;color:var(--orange);letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.header-stats{display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+.stat-block{text-align:center;}
+.stat-label{font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;}
+.stat-value{font-family:'DSEG14','IBM Plex Mono',monospace;font-size:16px;color:var(--cyan);}
+.stat-value.timer{color:var(--orange);}
+
+/* CHAOS DIAL */
+.chaos-section{margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.chaos-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap;}
+.chaos-slider{flex:1;min-width:150px;max-width:400px;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;
+background:linear-gradient(90deg,var(--cyan),var(--orange),var(--red));outline:none;cursor:pointer;}
+.chaos-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--text-bright);border:2px solid var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(0,212,255,0.4);}
+.chaos-slider::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--text-bright);border:2px solid var(--cyan);cursor:pointer;}
+.chaos-value{font-family:'DSEG14','IBM Plex Mono',monospace;font-size:14px;color:var(--orange);min-width:35px;text-align:right;}
+
+/* CATEGORY FILTERS */
+.filter-bar{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.filter-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;margin-right:4px;}
+.filter-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:3px 10px;border-radius:12px;border:1px solid var(--border);
+background:transparent;color:var(--text-dim);cursor:pointer;transition:all .2s;letter-spacing:0.5px;}
+.filter-pill:hover{border-color:var(--cyan);color:var(--text);}
+.filter-pill.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,212,255,0.08);}
+.filter-pill.blocked{border-color:var(--red);color:var(--red);background:rgba(255,51,68,0.08);text-decoration:line-through;}
+
+/* FEED */
+#feed{padding:16px;column-count:3;column-gap:16px;}
+@media(max-width:1024px){#feed{column-count:2;}}
+@media(max-width:640px){#feed{column-count:1;padding:12px;}}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;break-inside:avoid;margin-bottom:16px;
+overflow:hidden;transition:box-shadow .3s,border-color .3s;position:relative;opacity:0;transform:translateY(20px);animation:cardIn .4s ease forwards;}
+.card:hover{box-shadow:0 0 20px rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.3);}
+@keyframes cardIn{to{opacity:1;transform:translateY(0);}}
+.card-source-border{position:absolute;left:0;top:0;bottom:0;width:3px;}
+.card-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;gap:8px;}
+.source-badge{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:3px;color:#fff;}
+.cat-badge{font-size:9px;color:var(--text-dim);letter-spacing:0.5px;text-transform:uppercase;}
+.card-body{padding:6px 12px 10px;}
+.card-title{font-size:13px;font-weight:600;color:var(--text-bright);margin-bottom:6px;line-height:1.4;}
+.card-title a{color:var(--text-bright);}
+.card-title a:hover{color:var(--cyan);}
+.card-excerpt{font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+.card-image{width:100%;max-height:300px;object-fit:cover;display:block;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.card-footer{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid rgba(26,42,58,0.5);}
+.why-btn{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);
+background:transparent;color:var(--text-dim);cursor:pointer;transition:all .2s;}
+.why-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+.card-link{font-size:10px;color:var(--text-dim);transition:color .2s;}
+.card-link:hover{color:var(--cyan);}
+.why-tooltip{display:none;font-size:10px;color:var(--cyan);padding:6px 12px;background:rgba(0,212,255,0.06);border-top:1px solid rgba(0,212,255,0.15);}
+.why-tooltip.show{display:block;}
+
+/* SKELETON */
+.skeleton{background:var(--card);border:1px solid var(--border);border-radius:6px;break-inside:avoid;margin-bottom:16px;overflow:hidden;}
+.skel-bar{background:linear-gradient(90deg,var(--border),rgba(26,42,58,0.5),var(--border));background-size:200%;border-radius:3px;animation:shimmer 1.5s infinite;}
+@keyframes shimmer{0%{background-position:200%}100%{background-position:-200%}}
+.skel-header{padding:12px;display:flex;justify-content:space-between;}
+.skel-body{padding:8px 12px 16px;}
+.skel-line{height:10px;margin-bottom:8px;}
+.skel-img{height:140px;width:100%;}
+
+/* CONTROLS */
+#controls{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;z-index:100;}
+.ctrl-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 20px;border-radius:4px;border:1px solid var(--border);
+background:var(--card);color:var(--cyan);cursor:pointer;transition:all .2s;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.ctrl-btn:hover{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,0.15);}
+.ctrl-btn.primary{background:var(--cyan);color:var(--bg);border-color:var(--cyan);}
+.ctrl-btn.primary:hover{background:#33dfff;box-shadow:0 0 16px rgba(0,212,255,0.3);}
+.ctrl-btn.danger{color:var(--red);border-color:rgba(255,51,68,0.3);}
+.ctrl-btn.danger:hover{border-color:var(--red);}
+.items-count{font-size:11px;color:var(--text-dim);}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);
+border-radius:8px;padding:12px 24px;font-size:12px;color:var(--text);z-index:200;opacity:0;transition:opacity .4s;pointer-events:none;
+max-width:90%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.5);}
+.toast.show{opacity:1;pointer-events:auto;}
+.toast .dismiss{color:var(--cyan);cursor:pointer;margin-left:12px;font-weight:600;}
+
+/* BREAK OVERLAY */
+#break-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,10,15,0.92);z-index:300;
+justify-content:center;align-items:center;flex-direction:column;text-align:center;padding:20px;}
+#break-overlay.show{display:flex;}
+#break-overlay h2{font-size:20px;color:var(--cyan);letter-spacing:2px;margin-bottom:12px;}
+#break-overlay p{font-size:13px;color:var(--text-dim);margin-bottom:20px;max-width:400px;}
+#break-overlay button{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:10px 28px;border-radius:4px;border:1px solid var(--cyan);
+background:transparent;color:var(--cyan);cursor:pointer;transition:all .2s;}
+#break-overlay button:hover{background:var(--cyan);color:var(--bg);}
+
+/* ERROR BANNER */
+.error-banner{background:rgba(255,51,68,0.08);border:1px solid rgba(255,51,68,0.2);border-radius:4px;padding:8px 16px;margin:8px 16px 0;
+font-size:11px;color:var(--red);text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="app-header">
+  <div class="header-top">
+    <div>
+      <div class="header-title">Serendipity Engine</div>
+      <div class="header-subtitle">The Anti-Algorithm</div>
+    </div>
+    <div class="header-stats">
+      <div class="stat-block">
+        <div class="stat-label">Diversity</div>
+        <div class="stat-value" id="entropy-score">--</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Discovered</div>
+        <div class="stat-value" id="items-discovered">0</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Session</div>
+        <div class="stat-value timer" id="session-timer">00:00</div>
+      </div>
+    </div>
+  </div>
+  <div class="chaos-section">
+    <span class="chaos-label">POPULAR</span>
+    <input type="range" class="chaos-slider" id="chaos-dial" min="0" max="100" value="50">
+    <span class="chaos-label">RANDOM</span>
+    <span class="chaos-value" id="chaos-value">50</span>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <span class="filter-label">FILTERS:</span>
+  </div>
+</div>
+
+<div id="error-area"></div>
+<div id="feed"></div>
+
+<div id="controls">
+  <button class="ctrl-btn primary" id="btn-shuffle" onclick="shuffleFeed()">Shuffle</button>
+  <button class="ctrl-btn" id="btn-more" onclick="loadMore()">Load More</button>
+  <button class="ctrl-btn danger" id="btn-reset" onclick="resetHistory()">Reset History</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="break-overlay">
+  <h2>Time for a Break?</h2>
+  <p>You have been exploring for 30 minutes. Maybe bookmark something interesting and step away for a bit. The world will still be here when you get back.</p>
+  <button onclick="dismissBreak()">Keep Exploring</button>
+</div>
+
+<script>
+/* ===== SUBREDDIT POOL ===== */
+const SUBREDDIT_POOL = {
+  science: ['science','space','physics','chemistry','biology','geology','Astronomy','EarthScience','dataisbeautiful'],
+  nature: ['EarthPorn','NatureIsFuckingLit','wildlifephotography','birdwatching','gardening','plants','mycology'],
+  art: ['Art','museum','ArtHistory','DigitalArt','watercolor','Pottery','streetart','architecture'],
+  history: ['history','HistoryPorn','OldSchoolCool','ColorizedHistory','AskHistorians','TheWayWeWere'],
+  philosophy: ['philosophy','Stoicism','Buddhism','meditation','Showerthoughts'],
+  diy: ['DIY','woodworking','metalworking','3Dprinting','electronics','Arduino','engineering'],
+  food: ['food','Cooking','recipes','Baking','fermentation','cocktails'],
+  wholesome: ['MadeMeSmile','HumansBeingBros','UpliftingNews','wholesomememes','happy'],
+  books: ['books','bookporn','suggestmeabook','literature','poetry'],
+  music: ['listentothis','Music','WeAreTheMusicMakers','musictheory','vinyl'],
+  travel: ['travel','CityPorn','VillagePorn','AbandonedPorn','CozyPlaces'],
+  animals: ['aww','AnimalsBeingBros','NatureIsFuckingLit','Aquariums','cats','dogs','birding'],
+  curiosity: ['todayilearned','explainlikeimfive','interestingasfuck','mildlyinteresting','Damnthatsinteresting'],
+  creative: ['WritingPrompts','worldbuilding','mapmaking','PixelArt','generative'],
+  humor: ['funny','comics','ProgrammerHumor','dadjokes','puns'],
+};
+const ALL_CATEGORIES = Object.keys(SUBREDDIT_POOL);
+
+const SOURCE_COLORS = {
+  reddit: '#ff4500', hackernews: '#ff6600', wikipedia: '#636466',
+  nasa: '#0B3D91', met: '#E4002B', mastodon: '#6364FF',
+  quote: '#00d4ff', book: '#00ff88'
+};
+const SOURCE_LABELS = {
+  reddit: 'REDDIT', hackernews: 'HACKER NEWS', wikipedia: 'WIKIPEDIA',
+  nasa: 'NASA', met: 'ART', mastodon: 'MASTODON', quote: 'QUOTE', book: 'BOOK'
+};
+
+/* ===== STATE ===== */
+let history = loadJSON('korb_serendipity_history', {categories:{},sources:{},subreddits:{},totalItems:0});
+let blockedCats = loadJSON('korb_serendipity_blocked', []);
+let chaosLevel = parseInt(localStorage.getItem('korb_serendipity_chaos') || '50');
+let sessionStart = Date.now();
+let sessionItems = 0;
+let feedItems = [];
+let isLoading = false;
+let toastTimeout = null;
+let breakDismissed = false;
+let shownToast10 = false;
+let shownToast20 = false;
+
+function loadJSON(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e) { return fallback; }
+}
+function saveHistory() { localStorage.setItem('korb_serendipity_history', JSON.stringify(history)); }
+function saveBlocked() { localStorage.setItem('korb_serendipity_blocked', JSON.stringify(blockedCats)); }
+
+/* ===== INIT ===== */
+document.getElementById('chaos-dial').value = chaosLevel;
+document.getElementById('chaos-value').textContent = chaosLevel;
+document.getElementById('chaos-dial').addEventListener('input', function() {
+  chaosLevel = parseInt(this.value);
+  document.getElementById('chaos-value').textContent = chaosLevel;
+  localStorage.setItem('korb_serendipity_chaos', String(chaosLevel));
+});
+
+buildFilterBar();
+updateStats();
+setInterval(updateTimer, 1000);
+setInterval(checkSessionReminders, 5000);
+shuffleFeed();
+
+/* ===== FILTER BAR ===== */
+function buildFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  bar.innerHTML = '<span class="filter-label">FILTERS:</span>';
+  ALL_CATEGORIES.forEach(cat => {
+    const pill = document.createElement('button');
+    pill.className = 'filter-pill' + (blockedCats.includes(cat) ? ' blocked' : '');
+    pill.textContent = cat;
+    pill.onclick = () => toggleFilter(cat, pill);
+    bar.appendChild(pill);
+  });
+}
+function toggleFilter(cat, pill) {
+  const idx = blockedCats.indexOf(cat);
+  if (idx >= 0) { blockedCats.splice(idx, 1); pill.classList.remove('blocked'); }
+  else { blockedCats.push(cat); pill.classList.add('blocked'); }
+  saveBlocked();
+}
+
+/* ===== ANTI-ALGORITHM CORE ===== */
+function pickCategories(count) {
+  const available = ALL_CATEGORIES.filter(c => !blockedCats.includes(c));
+  if (available.length === 0) return ALL_CATEGORIES.slice(0, count);
+  const counts = available.map(c => ({ cat: c, seen: history.categories[c] || 0 }));
+  counts.sort((a, b) => a.seen - b.seen);
+  const maxSeen = Math.max(1, counts[counts.length - 1].seen);
+  const weighted = counts.map(c => ({ cat: c.cat, weight: (maxSeen - c.seen + 1) + (chaosLevel / 20) * Math.random() * maxSeen }));
+  weighted.sort((a, b) => b.weight - a.weight);
+  return weighted.slice(0, Math.min(count, weighted.length)).map(w => w.cat);
+}
+
+function pickSubreddit(category) {
+  const subs = SUBREDDIT_POOL[category] || SUBREDDIT_POOL.curiosity;
+  const scored = subs.map(s => ({ sub: s, seen: history.subreddits[s] || 0 }));
+  scored.sort((a, b) => a.seen - b.seen);
+  const topN = scored.slice(0, Math.max(2, Math.ceil(scored.length * 0.5)));
+  return topN[Math.floor(Math.random() * topN.length)].sub;
+}
+
+function recordSeen(source, category, subreddit) {
+  history.sources[source] = (history.sources[source] || 0) + 1;
+  if (category) history.categories[category] = (history.categories[category] || 0) + 1;
+  if (subreddit) history.subreddits[subreddit] = (history.subreddits[subreddit] || 0) + 1;
+  history.totalItems = (history.totalItems || 0) + 1;
+  sessionItems++;
+  saveHistory();
+  updateStats();
+}
+
+function computeEntropy() {
+  const cats = ALL_CATEGORIES.map(c => history.categories[c] || 0);
+  const total = cats.reduce((a, b) => a + b, 0);
+  if (total === 0) return 100;
+  const n = cats.length;
+  const ideal = total / n;
+  let deviation = 0;
+  cats.forEach(c => { deviation += Math.abs(c - ideal); });
+  const maxDev = total * 2 * (1 - 1/n);
+  return Math.round(Math.max(0, (1 - deviation / Math.max(1, maxDev)) * 100));
+}
+
+function whyReason(source, category) {
+  const catCount = history.categories[category] || 0;
+  const avgCount = ALL_CATEGORIES.reduce((s, c) => s + (history.categories[c] || 0), 0) / ALL_CATEGORIES.length;
+  if (catCount < avgCount * 0.5) return 'You haven\'t explored ' + category + ' content recently';
+  if (chaosLevel > 70) return 'Randomly selected for maximum serendipity';
+  if (source === 'reddit' && chaosLevel < 30) return 'Trending on Reddit right now';
+  if (source === 'hackernews' && chaosLevel < 30) return 'Popular on Hacker News';
+  return 'Random discovery from ' + (SOURCE_LABELS[source] || source);
+}
+
+/* ===== UPDATE UI ===== */
+function updateStats() {
+  document.getElementById('entropy-score').textContent = computeEntropy() + '%';
+  document.getElementById('items-discovered').textContent = String(sessionItems);
+}
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('session-timer').textContent = m + ':' + s;
+}
+function checkSessionReminders() {
+  const mins = (Date.now() - sessionStart) / 60000;
+  if (mins >= 10 && !shownToast10) { shownToast10 = true; showToast('You\'ve been here 10 minutes -- great exploring!'); }
+  if (mins >= 20 && !shownToast20) { shownToast20 = true; showToast('20 minutes of discovery. Maybe bookmark something and come back later?'); }
+  if (mins >= 30 && !breakDismissed) { document.getElementById('break-overlay').classList.add('show'); }
+}
+function dismissBreak() { breakDismissed = true; document.getElementById('break-overlay').classList.remove('show'); }
+function showToast(msg, duration) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg + '<span class="dismiss" onclick="hideToast()">OK</span>';
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(hideToast, duration || 8000);
+}
+function hideToast() { document.getElementById('toast').classList.remove('show'); }
+
+/* ===== FETCH HELPERS ===== */
+function fetchWithTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 8000);
+  return fetch(url, { signal: ctrl.signal }).then(r => { clearTimeout(timer); return r; })
+    .catch(e => { clearTimeout(timer); throw e; });
+}
+
+function cacheGet(key) {
+  try { const d = sessionStorage.getItem('se_' + key); if (d) return JSON.parse(d); } catch(e) {} return null;
+}
+function cacheSet(key, val) {
+  try { sessionStorage.setItem('se_' + key, JSON.stringify(val)); } catch(e) {}
+}
+
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  const el = document.createElement('textarea');
+  el.innerHTML = str;
+  return el.value;
+}
+
+/* ===== SOURCE FETCHERS ===== */
+
+async function fetchReddit(category) {
+  const sub = pickSubreddit(category);
+  const sort = chaosLevel < 40 ? 'hot' : (chaosLevel < 70 ? 'top' : 'new');
+  const cacheKey = 'reddit_' + sub + '_' + sort;
+  let data = cacheGet(cacheKey);
+  if (!data) {
+    try {
+      const r = await fetchWithTimeout('https://www.reddit.com/r/' + sub + '/' + sort + '.json?limit=10&t=week', 8000);
+      const j = await r.json();
+      data = (j.data && j.data.children) ? j.data.children.map(c => c.data) : [];
+      cacheSet(cacheKey, data);
+    } catch(e) { return []; }
+  }
+  const shuffled = data.sort(() => Math.random() - 0.5).slice(0, 2);
+  return shuffled.map(post => {
+    let img = null;
+    if (post.preview && post.preview.images && post.preview.images[0]) {
+      img = decodeHtmlEntities(post.preview.images[0].source.url);
+    } else if (post.url && /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(post.url)) {
+      img = post.url;
+    } else if (post.thumbnail && post.thumbnail.startsWith('http')) {
+      img = post.thumbnail;
+    }
+    return {
+      source: 'reddit', category: category, subreddit: sub,
+      title: post.title || 'Untitled',
+      excerpt: post.selftext ? post.selftext.substring(0, 250) : '',
+      image: img,
+      url: 'https://www.reddit.com' + post.permalink,
+      why: whyReason('reddit', category)
+    };
+  });
+}
+
+async function fetchHackerNews() {
+  const listType = chaosLevel < 40 ? 'topstories' : (chaosLevel < 70 ? 'beststories' : 'newstories');
+  const cacheKey = 'hn_' + listType;
+  let ids = cacheGet(cacheKey);
+  if (!ids) {
+    try {
+      const r = await fetchWithTimeout('https://hacker-news.firebaseio.com/v0/' + listType + '.json', 8000);
+      ids = await r.json();
+      cacheSet(cacheKey, ids);
+    } catch(e) { return []; }
+  }
+  const picks = [];
+  const used = new Set();
+  while (picks.length < 3 && used.size < 20) {
+    const idx = Math.floor(Math.random() * Math.min(ids.length, chaosLevel < 40 ? 30 : 200));
+    if (used.has(idx)) continue;
+    used.add(idx);
+    picks.push(ids[idx]);
+  }
+  const items = [];
+  for (const id of picks) {
+    try {
+      let item = cacheGet('hn_item_' + id);
+      if (!item) {
+        const r = await fetchWithTimeout('https://hacker-news.firebaseio.com/v0/item/' + id + '.json', 8000);
+        item = await r.json();
+        cacheSet('hn_item_' + id, item);
+      }
+      if (item && item.title) {
+        items.push({
+          source: 'hackernews', category: 'curiosity', subreddit: null,
+          title: item.title,
+          excerpt: item.text ? item.text.replace(/<[^>]+>/g, '').substring(0, 200) : (item.url ? new URL(item.url).hostname : ''),
+          image: null,
+          url: item.url || ('https://news.ycombinator.com/item?id=' + id),
+          why: whyReason('hackernews', 'curiosity')
+        });
+      }
+    } catch(e) {}
+  }
+  return items;
+}
+
+async function fetchWikipedia(count) {
+  const items = [];
+  for (let i = 0; i < (count || 2); i++) {
+    try {
+      const r = await fetchWithTimeout('https://en.wikipedia.org/api/rest_v1/page/random/summary', 8000);
+      const data = await r.json();
+      items.push({
+        source: 'wikipedia', category: 'curiosity', subreddit: null,
+        title: data.title || 'Wikipedia',
+        excerpt: data.extract ? data.extract.substring(0, 300) : '',
+        image: data.thumbnail ? data.thumbnail.source : (data.originalimage ? data.originalimage.source : null),
+        url: data.content_urls ? data.content_urls.desktop.page : 'https://en.wikipedia.org',
+        why: whyReason('wikipedia', 'curiosity')
+      });
+    } catch(e) {}
+  }
+  return items;
+}
+
+async function fetchNASA() {
+  const cacheKey = 'nasa_apod';
+  let data = cacheGet(cacheKey);
+  if (!data) {
+    try {
+      const r = await fetchWithTimeout('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=3', 8000);
+      data = await r.json();
+      cacheSet(cacheKey, data);
+    } catch(e) { return []; }
+  }
+  if (!Array.isArray(data)) return [];
+  return data.map(item => ({
+    source: 'nasa', category: 'science', subreddit: null,
+    title: item.title || 'NASA APOD',
+    excerpt: item.explanation ? item.explanation.substring(0, 250) : '',
+    image: item.media_type === 'image' ? item.url : null,
+    url: item.hdurl || item.url || 'https://apod.nasa.gov',
+    why: whyReason('nasa', 'science')
+  }));
+}
+
+async function fetchMet() {
+  const terms = ['sunflower','ocean','mountain','portrait','landscape','abstract','sculpture','ancient','medieval','impressionist','japanese','african'];
+  const term = terms[Math.floor(Math.random() * terms.length)];
+  const cacheKey = 'met_' + term;
+  let ids = cacheGet(cacheKey);
+  if (!ids) {
+    try {
+      const r = await fetchWithTimeout('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=' + term, 8000);
+      const data = await r.json();
+      ids = data.objectIDs ? data.objectIDs.slice(0, 50) : [];
+      cacheSet(cacheKey, ids);
+    } catch(e) { return []; }
+  }
+  if (ids.length === 0) return [];
+  const picks = [];
+  for (let i = 0; i < 2 && i < ids.length; i++) {
+    const oid = ids[Math.floor(Math.random() * ids.length)];
+    try {
+      let obj = cacheGet('met_obj_' + oid);
+      if (!obj) {
+        const r = await fetchWithTimeout('https://collectionapi.metmuseum.org/public/collection/v1/objects/' + oid, 8000);
+        obj = await r.json();
+        cacheSet('met_obj_' + oid, obj);
+      }
+      if (obj && obj.primaryImage) {
+        picks.push({
+          source: 'met', category: 'art', subreddit: null,
+          title: obj.title || 'Artwork',
+          excerpt: [obj.artistDisplayName, obj.objectDate, obj.medium].filter(Boolean).join(' -- '),
+          image: obj.primaryImageSmall || obj.primaryImage,
+          url: obj.objectURL || 'https://www.metmuseum.org',
+          why: whyReason('met', 'art')
+        });
+      }
+    } catch(e) {}
+  }
+  return picks;
+}
+
+async function fetchMastodon() {
+  const cacheKey = 'mastodon_public';
+  let data = cacheGet(cacheKey);
+  if (!data) {
+    try {
+      const r = await fetchWithTimeout('https://mastodon.social/api/v1/timelines/public?limit=10', 8000);
+      data = await r.json();
+      cacheSet(cacheKey, data);
+    } catch(e) { return []; }
+  }
+  if (!Array.isArray(data)) return [];
+  const shuffled = data.sort(() => Math.random() - 0.5).slice(0, 2);
+  return shuffled.map(post => {
+    const text = (post.content || '').replace(/<[^>]+>/g, '');
+    let img = null;
+    if (post.media_attachments && post.media_attachments.length > 0 && post.media_attachments[0].preview_url) {
+      img = post.media_attachments[0].preview_url;
+    }
+    return {
+      source: 'mastodon', category: 'curiosity', subreddit: null,
+      title: (post.account ? '@' + post.account.username : 'Mastodon') + ': ' + text.substring(0, 80),
+      excerpt: text.substring(0, 250),
+      image: img,
+      url: post.url || 'https://mastodon.social',
+      why: whyReason('mastodon', 'curiosity')
+    };
+  });
+}
+
+async function fetchQuotes() {
+  try {
+    const r = await fetchWithTimeout('https://api.quotable.io/quotes/random?limit=3', 8000);
+    const data = await r.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(q => ({
+      source: 'quote', category: 'philosophy', subreddit: null,
+      title: '"' + q.content + '"',
+      excerpt: '-- ' + q.author,
+      image: null,
+      url: 'https://quotable.io',
+      why: whyReason('quote', 'philosophy')
+    }));
+  } catch(e) { return []; }
+}
+
+async function fetchBooks() {
+  const subjects = ['science_fiction','philosophy','history','art','poetry','mathematics','astronomy','cooking','architecture','music','nature','psychology'];
+  const subj = subjects[Math.floor(Math.random() * subjects.length)];
+  const offset = Math.floor(Math.random() * 50);
+  const cacheKey = 'book_' + subj + '_' + offset;
+  let data = cacheGet(cacheKey);
+  if (!data) {
+    try {
+      const r = await fetchWithTimeout('https://openlibrary.org/subjects/' + subj + '.json?limit=5&offset=' + offset, 8000);
+      data = await r.json();
+      cacheSet(cacheKey, data);
+    } catch(e) { return []; }
+  }
+  if (!data || !data.works) return [];
+  const shuffled = data.works.sort(() => Math.random() - 0.5).slice(0, 2);
+  return shuffled.map(w => {
+    const coverId = w.cover_id || (w.cover_edition_key ? null : null);
+    const img = coverId ? ('https://covers.openlibrary.org/b/id/' + coverId + '-M.jpg') : null;
+    return {
+      source: 'book', category: 'books', subreddit: null,
+      title: w.title || 'A Book',
+      excerpt: w.authors ? w.authors.map(a => a.name).join(', ') : '',
+      image: img,
+      url: 'https://openlibrary.org' + w.key,
+      why: whyReason('book', 'books')
+    };
+  });
+}
+
+/* ===== FEED GENERATION ===== */
+
+function showSkeletons(count) {
+  const feed = document.getElementById('feed');
+  feed.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const sk = document.createElement('div');
+    sk.className = 'skeleton';
+    sk.innerHTML = '<div class="skel-header"><div class="skel-bar" style="width:60px;height:14px;"></div><div class="skel-bar" style="width:50px;height:12px;"></div></div>'
+      + (Math.random() > 0.5 ? '<div class="skel-bar skel-img"></div>' : '')
+      + '<div class="skel-body"><div class="skel-bar skel-line" style="width:90%;"></div><div class="skel-bar skel-line" style="width:70%;"></div><div class="skel-bar skel-line" style="width:80%;"></div></div>';
+    feed.appendChild(sk);
+  }
+}
+
+function renderCards(items, append) {
+  const feed = document.getElementById('feed');
+  if (!append) feed.innerHTML = '';
+  items.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (i * 80) + 'ms';
+    const srcColor = SOURCE_COLORS[item.source] || '#666';
+    const srcLabel = SOURCE_LABELS[item.source] || item.source.toUpperCase();
+    let imgHtml = '';
+    if (item.image) {
+      imgHtml = '<img class="card-image" loading="lazy" src="' + escHtml(item.image) + '" alt="" onerror="this.style.display=\'none\'">';
+    }
+    card.innerHTML =
+      '<div class="card-source-border" style="background:' + srcColor + ';"></div>' +
+      '<div class="card-header">' +
+        '<span class="source-badge" style="background:' + srcColor + ';">' + srcLabel + '</span>' +
+        '<span class="cat-badge">' + escHtml(item.category || '') + '</span>' +
+      '</div>' +
+      imgHtml +
+      '<div class="card-body">' +
+        '<div class="card-title"><a href="' + escHtml(item.url) + '" target="_blank" rel="noopener">' + escHtml(item.title) + '</a></div>' +
+        (item.excerpt ? '<div class="card-excerpt">' + escHtml(item.excerpt) + '</div>' : '') +
+      '</div>' +
+      '<div class="card-footer">' +
+        '<button class="why-btn" onclick="toggleWhy(this)">Why?</button>' +
+        '<a class="card-link" href="' + escHtml(item.url) + '" target="_blank" rel="noopener">Open &rarr;</a>' +
+      '</div>' +
+      '<div class="why-tooltip">' + escHtml(item.why || '') + '</div>';
+    feed.appendChild(card);
+    recordSeen(item.source, item.category, item.subreddit);
+  });
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toggleWhy(btn) {
+  const tooltip = btn.closest('.card').querySelector('.why-tooltip');
+  tooltip.classList.toggle('show');
+}
+
+function enforceSourceDiversity(items) {
+  const sourceCounts = {};
+  const result = [];
+  const overflow = [];
+  items.forEach(item => {
+    const c = sourceCounts[item.source] || 0;
+    if (c < 3) { result.push(item); sourceCounts[item.source] = c + 1; }
+    else { overflow.push(item); }
+  });
+  /* backfill with overflow if we need more */
+  overflow.forEach(item => {
+    if (result.length < 20) result.push(item);
+  });
+  return result;
+}
+
+async function generateFeed() {
+  if (isLoading) return;
+  isLoading = true;
+  showSkeletons(12);
+  document.getElementById('error-area').innerHTML = '';
+  const errors = [];
+
+  /* pick categories for reddit fetches */
+  const cats = pickCategories(6);
+  const redditCats = cats.slice(0, 4);
+  const fetchers = [];
+
+  redditCats.forEach(cat => fetchers.push(fetchReddit(cat).catch(e => { errors.push('Reddit'); return []; })));
+  fetchers.push(fetchHackerNews().catch(e => { errors.push('Hacker News'); return []; }));
+  fetchers.push(fetchWikipedia(chaosLevel > 60 ? 3 : 2).catch(e => { errors.push('Wikipedia'); return []; }));
+  fetchers.push(fetchNASA().catch(e => { errors.push('NASA'); return []; }));
+  fetchers.push(fetchMet().catch(e => { errors.push('Met Museum'); return []; }));
+  fetchers.push(fetchMastodon().catch(e => { errors.push('Mastodon'); return []; }));
+  fetchers.push(fetchQuotes().catch(e => { errors.push('Quotes'); return []; }));
+  fetchers.push(fetchBooks().catch(e => { errors.push('Books'); return []; }));
+
+  const results = await Promise.all(fetchers);
+  let allItems = results.flat();
+
+  /* shuffle */
+  allItems.sort(() => Math.random() - 0.5);
+
+  /* enforce source diversity */
+  allItems = enforceSourceDiversity(allItems);
+
+  if (errors.length > 0) {
+    document.getElementById('error-area').innerHTML = '<div class="error-banner">Some sources unavailable: ' + errors.join(', ') + '</div>';
+  }
+
+  if (allItems.length === 0) {
+    document.getElementById('feed').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim);">No content loaded. Check your connection and try again.</div>';
+  } else {
+    feedItems = allItems;
+    renderCards(allItems, false);
+  }
+  isLoading = false;
+}
+
+async function shuffleFeed() {
+  /* clear session cache to get fresh data */
+  try {
+    const keys = Object.keys(sessionStorage);
+    keys.forEach(k => { if (k.startsWith('se_')) sessionStorage.removeItem(k); });
+  } catch(e) {}
+  await generateFeed();
+}
+
+async function loadMore() {
+  if (isLoading) return;
+  isLoading = true;
+  const cats = pickCategories(3);
+  const fetchers = [];
+  cats.forEach(cat => fetchers.push(fetchReddit(cat).catch(() => [])));
+  fetchers.push(fetchWikipedia(1).catch(() => []));
+  fetchers.push(fetchBooks().catch(() => []));
+  const results = await Promise.all(fetchers);
+  let items = results.flat().sort(() => Math.random() - 0.5);
+  items = enforceSourceDiversity(items);
+  renderCards(items, true);
+  isLoading = false;
+}
+
+function resetHistory() {
+  if (!confirm('Clear all tracking history? Your feed diversity score will reset.')) return;
+  history = { categories: {}, sources: {}, subreddits: {}, totalItems: 0 };
+  saveHistory();
+  blockedCats = [];
+  saveBlocked();
+  buildFilterBar();
+  sessionItems = 0;
+  updateStats();
+  showToast('History cleared. A fresh start!');
+}
+</script>
+</body>
+</html>

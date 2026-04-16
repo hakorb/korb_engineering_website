@@ -1,12 +1,12 @@
 # Korb Engineering tool audit
 
-_Generated 2026-04-16T02:21:08.167Z by `scripts/audit.mjs`. Do not edit by hand._
+_Generated 2026-04-16T02:35:15.068Z by `scripts/audit.mjs`. Do not edit by hand._
 
 ## Summary
 
-- Total tools scanned: **278**
+- Total tools scanned: **279**
 - Clean (no findings): **107**
-- With findings:       **171**
+- With findings:       **172**
 
 ### Findings by tag
 
@@ -14,7 +14,7 @@ _Generated 2026-04-16T02:21:08.167Z by `scripts/audit.mjs`. Do not edit by hand.
 |---|---:|
 | `[mobile]` | 1 |
 | `[polish]` | 1 |
-| `[a11y]` | 147 |
+| `[a11y]` | 148 |
 | `[deps]` | 5 |
 
 ## aviation (40 of 58 with findings)
@@ -274,7 +274,7 @@ _Generated 2026-04-16T02:21:08.167Z by `scripts/audit.mjs`. Do not edit by hand.
 ### tools/civil/wbs-builder.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
-## misc (77 of 138 with findings)
+## misc (78 of 139 with findings)
 
 ### tools/misc/3d-print-library.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
@@ -479,6 +479,9 @@ _Generated 2026-04-16T02:21:08.167Z by `scripts/audit.mjs`. Do not edit by hand.
 - `[xss]` innerHTML write appears near localStorage/JSON.parse — verify escape or use textContent
 
 ### tools/misc/retro-arcade.html
+- `[a11y]` uses native confirm() (prefer KorbUI)
+
+### tools/misc/serendipity-engine.html
 - `[a11y]` uses native confirm() (prefer KorbUI)
 
 ### tools/misc/sop-creator.html
