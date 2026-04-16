@@ -179,6 +179,60 @@ canvas { display: block; width: 100%; height: 100%; background: var(--bg); touch
 var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 var W = 0, H = 0;
+
+// ================== AUDIO ==================
+var AC = null;
+function ensureAudio(){
+  if(!AC){
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return null; }
+  }
+  if(AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function beep(freq, dur, type, vol){
+  var ac = ensureAudio(); if(!ac) return;
+  type = type || 'square'; vol = vol == null ? 0.12 : vol;
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.value = vol;
+  o.connect(g); g.connect(ac.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  o.stop(ac.currentTime + dur);
+}
+function noise(dur, vol){
+  var ac = ensureAudio(); if(!ac) return;
+  vol = vol == null ? 0.1 : vol;
+  var sr = ac.sampleRate;
+  var buf = ac.createBuffer(1, sr * dur, sr);
+  var data = buf.getChannelData(0);
+  for(var i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * (1 - i/data.length);
+  var src = ac.createBufferSource();
+  src.buffer = buf;
+  var g = ac.createGain();
+  g.gain.value = vol;
+  src.connect(g); g.connect(ac.destination);
+  src.start();
+}
+function sfxShoot(){ beep(900 + Math.random()*60, 0.05, 'square', 0.05); }
+function sfxExplode(size){
+  var ac = ensureAudio(); if(!ac) return;
+  var f = 200 - size * 6;
+  beep(f, 0.18, 'sawtooth', 0.1);
+  noise(0.22, 0.08);
+}
+function sfxBomb(){ noise(0.6, 0.2); beep(60, 0.5, 'sawtooth', 0.2); }
+function sfxPickup(){ beep(1200, 0.08, 'sine', 0.15); setTimeout(function(){beep(1800,0.08,'sine',0.15);},60); }
+function sfxDeath(){ beep(400, 0.3, 'sawtooth', 0.2); setTimeout(function(){beep(200,0.4,'sawtooth',0.2);},100); }
+function sfxWave(){ beep(440, 0.12, 'sine', 0.12); setTimeout(function(){beep(660,0.12,'sine',0.12);},100); setTimeout(function(){beep(880,0.16,'sine',0.12);},200); }
+function sfxMultUp(){ beep(1500, 0.08, 'triangle', 0.1); }
+function sfxBossWarn(){
+  for(var i=0;i<3;i++){
+    (function(n){ setTimeout(function(){ beep(220, 0.2, 'sawtooth', 0.15); }, n*250); })(i);
+  }
+}
+
+
 function resize(){
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth;
@@ -189,7 +243,7 @@ function resize(){
   canvas.style.height = H + 'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', function(){ resize(); if(G && G.stars && G.stars.length) initStars(); });
 resize();
 
 // ================== STATE ==================
@@ -207,11 +261,20 @@ var G = {
   multTimer: 0,        // frames until mult decays
   player: null,
   bullets: [],
+  enemyBullets: [],
   enemies: [],
   particles: [],
+  stars: [],
+  powerups: [],
+  edgeWarnings: [],
   gravityWells: [],
+  bossActive: false,
+  bossIntroTimer: 0,
   spawnTimer: 0,
   spawnCooldown: 60,
+  comboKills: 0,
+  comboKillTimer: 0,
+  floatTexts: [],
   time: 0,
   shake: 0,
   bombFlash: 0,
@@ -299,6 +362,18 @@ setupJoy(joyL, stickL, touchL);
 setupJoy(joyR, stickR, touchR);
 bombBtn.addEventListener('click', useBomb);
 
+// ================== STARFIELD ==================
+function initStars(){
+  G.stars = [];
+  for(var i=0;i<80;i++){
+    G.stars.push({
+      x: Math.random()*W, y: Math.random()*H,
+      z: 0.3 + Math.random()*0.7,
+      twinkle: Math.random()*Math.PI*2
+    });
+  }
+}
+
 // ================== PLAYER ==================
 function makePlayer(){
   return {
@@ -306,7 +381,53 @@ function makePlayer(){
     vx: 0, vy: 0,
     aim: 0,
     fireCD: 0,
+    trail: [],
+    // Power-up effects
+    rapidTimer: 0,
+    spreadTimer: 0,
+    pierceTimer: 0,
+    shieldTimer: 0,
+    magnetTimer: 0,
   };
+}
+
+// ================== POWER-UPS ==================
+// Types: rapid, spread, pierce, shield, magnet, life, bomb
+var POWERUP_COLORS = {
+  rapid: '#ffdd33', spread: '#ff99cc', pierce: '#66eeff',
+  shield: '#88ff88', magnet: '#cc99ff', life: '#ff3366', bomb: '#5eff7f'
+};
+var POWERUP_LABELS = {
+  rapid: 'RAPID', spread: 'SPREAD', pierce: 'PIERCE',
+  shield: 'SHIELD', magnet: 'MAGNET', life: '+LIFE', bomb: '+BOMB'
+};
+function spawnPowerup(x, y){
+  var roll = Math.random();
+  if(roll > 0.22) return; // ~22% drop rate
+  var types = ['rapid','spread','pierce','shield','magnet'];
+  if(Math.random() < 0.08) types.push('life');
+  if(Math.random() < 0.12) types.push('bomb');
+  var t = types[Math.floor(Math.random()*types.length)];
+  G.powerups.push({
+    x: x, y: y, vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2,
+    r: 11, life: 600, type: t, rot: 0, pulse: 0
+  });
+}
+function applyPowerup(p){
+  sfxPickup();
+  spawnFloatText(p.x, p.y - 20, POWERUP_LABELS[p.type], POWERUP_COLORS[p.type]);
+  var dur = 540; // 9 sec at 60fps
+  if(p.type === 'rapid') G.player.rapidTimer = Math.max(G.player.rapidTimer, dur);
+  else if(p.type === 'spread') G.player.spreadTimer = Math.max(G.player.spreadTimer, dur);
+  else if(p.type === 'pierce') G.player.pierceTimer = Math.max(G.player.pierceTimer, dur);
+  else if(p.type === 'shield') G.player.shieldTimer = Math.max(G.player.shieldTimer, dur);
+  else if(p.type === 'magnet') G.player.magnetTimer = Math.max(G.player.magnetTimer, dur);
+  else if(p.type === 'life'){ G.lives = Math.min(6, G.lives + 1); }
+  else if(p.type === 'bomb'){ G.bombs = Math.min(6, G.bombs + 1); }
+  updateHUD();
+}
+function spawnFloatText(x, y, text, color){
+  G.floatTexts.push({x:x, y:y, text:text, color:color, life: 60, maxLife: 60});
 }
 
 // ================== ENEMIES ==================
@@ -328,6 +449,14 @@ function spawnEnemy(type, x, y){
   else if(type === 'pinwheel'){ e.color = '#cc88ff'; e.r = 16; e.points = 120; e.spin = 0; }
   else if(type === 'snakeSeg'){ e.color = '#ffaa33'; e.r = 12; e.points = 40; }
   else if(type === 'gravityWell'){ e.color = '#ffaacc'; e.r = 18; e.points = 500; e.pullR = 220; e.hp = 30; }
+  else if(type === 'rocketeer'){ e.color = '#ff9933'; e.r = 15; e.points = 150; e.fireCD = 90; }
+  else if(type === 'bigCircle'){ e.color = '#ff3388'; e.r = 28; e.points = 300; e.hp = 8; }
+  else if(type === 'boss'){
+    e.color = '#ff0066'; e.r = 55; e.points = 5000;
+    e.hp = 80 + G.wave * 12; e.maxHp = e.hp;
+    e.fireCD = 60; e.phase = 0; e.phaseTimer = 0;
+    e.spawn = 120;
+  }
   return e;
 }
 
@@ -365,11 +494,18 @@ function spawnSnake(){
 }
 
 // ================== BULLETS ==================
-function fireBullet(x, y, ang){
+function fireBullet(x, y, ang, piercing){
   G.bullets.push({
     x: x, y: y,
     vx: Math.cos(ang)*11, vy: Math.sin(ang)*11,
-    life: 120, r: 3,
+    life: 120, r: 3, pierce: piercing ? 4 : 0
+  });
+}
+function fireEnemyBullet(x, y, ang, speed){
+  speed = speed || 4;
+  G.enemyBullets.push({
+    x: x, y: y, vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
+    life: 240, r: 4
   });
 }
 
@@ -408,9 +544,9 @@ function nextWave(){
   G.waveKillsDone = 0;
   G.waveKillsNeeded = 10 + G.wave * 4;
   G.spawnCooldown = Math.max(12, 60 - G.wave * 2);
-  // Give a bomb every 3 waves
   if(G.wave % 3 === 0 && G.bombs < 5) G.bombs++;
-  // Wave transition particle effect
+  sfxWave();
+  spawnFloatText(W/2, H*0.35, 'WAVE ' + G.wave, '#b76bff');
   for(var i=0;i<60;i++){
     var ang = Math.random()*Math.PI*2;
     var sp = 2 + Math.random()*4;
@@ -421,6 +557,18 @@ function nextWave(){
       color: '#b76bff', len: 16
     });
   }
+  // Boss wave every 5
+  if(G.wave % 5 === 0 && !G.bossActive){
+    // Clear regular enemies
+    for(var i=0;i<G.enemies.length;i++){
+      explode(G.enemies[i].x, G.enemies[i].y, G.enemies[i].color, 10);
+      G.enemies[i].alive = false;
+    }
+    G.enemies = [];
+    G.bossIntroTimer = 120;
+    sfxBossWarn();
+    spawnFloatText(W/2, H*0.5, '!! BOSS INCOMING !!', '#ff0066');
+  }
 }
 
 // ================== BOMB ==================
@@ -429,6 +577,9 @@ function useBomb(){
   G.bombs--;
   G.bombFlash = 30;
   G.shake = 25;
+  sfxBomb();
+  // Clear enemy bullets too
+  G.enemyBullets = [];
   // Kill all enemies
   for(var i=0;i<G.enemies.length;i++){
     var e = G.enemies[i];
@@ -491,48 +642,81 @@ function update(){
 
   if(p.fireCD > 0) p.fireCD--;
   if(firing && p.fireCD <= 0){
-    // Spread: single shot, offset from ship sides
+    var piercing = p.pierceTimer > 0;
     var ox = Math.cos(p.aim + Math.PI/2) * 6;
     var oy = Math.sin(p.aim + Math.PI/2) * 6;
-    fireBullet(p.x + ox, p.y + oy, p.aim);
-    fireBullet(p.x - ox, p.y - oy, p.aim);
-    p.fireCD = 6;
+    fireBullet(p.x + ox, p.y + oy, p.aim, piercing);
+    fireBullet(p.x - ox, p.y - oy, p.aim, piercing);
+    if(p.spreadTimer > 0){
+      fireBullet(p.x, p.y, p.aim + 0.25, piercing);
+      fireBullet(p.x, p.y, p.aim - 0.25, piercing);
+    }
+    sfxShoot();
+    p.fireCD = p.rapidTimer > 0 ? 3 : 6;
   }
 
-  // Spawn enemies
-  G.spawnTimer++;
-  if(G.spawnTimer >= G.spawnCooldown){
-    G.spawnTimer = 0;
-    var wave = G.wave;
-    var rand = Math.random();
-    if(wave < 3) spawnGrunt();
-    else if(wave < 5){
-      if(rand < 0.6) spawnGrunt();
-      else spawnAnywhere('weaver');
-    } else if(wave < 8){
-      if(rand < 0.4) spawnGrunt();
-      else if(rand < 0.7) spawnAnywhere('weaver');
-      else spawnAnywhere('splitter');
-    } else if(wave < 12){
-      if(rand < 0.3) spawnGrunt();
-      else if(rand < 0.55) spawnAnywhere('weaver');
-      else if(rand < 0.75) spawnAnywhere('splitter');
-      else spawnAnywhere('pinwheel');
-    } else {
-      if(rand < 0.2) spawnGrunt();
-      else if(rand < 0.4) spawnAnywhere('weaver');
-      else if(rand < 0.55) spawnAnywhere('splitter');
-      else if(rand < 0.75) spawnAnywhere('pinwheel');
-      else if(rand < 0.9) spawnAnywhere('gravityWell');
-      else spawnSnake();
+  // Decay power-up timers
+  if(p.rapidTimer > 0) p.rapidTimer--;
+  if(p.spreadTimer > 0) p.spreadTimer--;
+  if(p.pierceTimer > 0) p.pierceTimer--;
+  if(p.shieldTimer > 0) p.shieldTimer--;
+  if(p.magnetTimer > 0) p.magnetTimer--;
+
+  // Ship trail
+  p.trail.push({x: p.x, y: p.y, life: 12});
+  if(p.trail.length > 14) p.trail.shift();
+  for(var ti=0;ti<p.trail.length;ti++) p.trail[ti].life--;
+
+  // Spawn enemies (skip normal spawns during boss fight)
+  if(!G.bossActive){
+    G.spawnTimer++;
+    if(G.spawnTimer >= G.spawnCooldown){
+      G.spawnTimer = 0;
+      var wave = G.wave;
+      var rand = Math.random();
+      if(wave < 3) spawnGrunt();
+      else if(wave < 5){
+        if(rand < 0.6) spawnGrunt();
+        else spawnAnywhere('weaver');
+      } else if(wave < 8){
+        if(rand < 0.35) spawnGrunt();
+        else if(rand < 0.6) spawnAnywhere('weaver');
+        else if(rand < 0.82) spawnAnywhere('splitter');
+        else spawnAnywhere('rocketeer');
+      } else if(wave < 12){
+        if(rand < 0.22) spawnGrunt();
+        else if(rand < 0.42) spawnAnywhere('weaver');
+        else if(rand < 0.58) spawnAnywhere('splitter');
+        else if(rand < 0.72) spawnAnywhere('pinwheel');
+        else if(rand < 0.88) spawnAnywhere('rocketeer');
+        else spawnAnywhere('bigCircle');
+      } else {
+        if(rand < 0.15) spawnGrunt();
+        else if(rand < 0.32) spawnAnywhere('weaver');
+        else if(rand < 0.48) spawnAnywhere('splitter');
+        else if(rand < 0.62) spawnAnywhere('pinwheel');
+        else if(rand < 0.74) spawnAnywhere('rocketeer');
+        else if(rand < 0.84) spawnAnywhere('bigCircle');
+        else if(rand < 0.94) spawnAnywhere('gravityWell');
+        else spawnSnake();
+      }
+      if(wave >= 6 && G.snakeCooldown <= 0 && Math.random() < 0.08){
+        spawnSnake();
+        G.snakeCooldown = 600;
+      }
     }
-    // Snake injection
-    if(wave >= 6 && G.snakeCooldown <= 0 && Math.random() < 0.08){
-      spawnSnake();
-      G.snakeCooldown = 600;
+    if(G.snakeCooldown > 0) G.snakeCooldown--;
+  }
+
+  // Boss intro timer
+  if(G.bossIntroTimer > 0){
+    G.bossIntroTimer--;
+    if(G.bossIntroTimer === 1){
+      // Actually spawn the boss at center
+      G.enemies.push(spawnEnemy('boss', W/2, H*0.2));
+      G.bossActive = true;
     }
   }
-  if(G.snakeCooldown > 0) G.snakeCooldown--;
 
   // Update enemies
   for(var i=0;i<G.enemies.length;i++){
@@ -588,6 +772,52 @@ function update(){
         // Parent died — become head
         e.isHead = true;
       }
+    } else if(t === 'rocketeer'){
+      // Keeps distance and shoots at player
+      var prefD = 260;
+      var factor = d > prefD + 40 ? 1.2 : d < prefD - 40 ? -1.2 : 0;
+      e.vx = (dx/d) * factor;
+      e.vy = (dy/d) * factor;
+      e.fireCD--;
+      if(e.fireCD <= 0 && d < 500){
+        fireEnemyBullet(e.x, e.y, Math.atan2(dy, dx), 5);
+        e.fireCD = 75;
+        beep(500, 0.06, 'square', 0.06);
+      }
+    } else if(t === 'bigCircle'){
+      // Slow, tough, splits into pinwheels on death
+      e.vx = (dx/d) * 0.9;
+      e.vy = (dy/d) * 0.9;
+    } else if(t === 'boss'){
+      e.phaseTimer++;
+      // Hover + oscillate
+      var targetY = H * 0.25 + Math.sin(e.phaseTimer * 0.02) * 40;
+      var targetX = W/2 + Math.sin(e.phaseTimer * 0.013) * W * 0.3;
+      e.vx = (targetX - e.x) * 0.02;
+      e.vy = (targetY - e.y) * 0.02;
+      // Fire pattern based on phase
+      e.fireCD--;
+      if(e.fireCD <= 0){
+        if(e.hp > e.maxHp * 0.66){
+          // Phase 1: single aimed shot
+          fireEnemyBullet(e.x, e.y, Math.atan2(dy,dx), 4.5);
+          e.fireCD = 30;
+        } else if(e.hp > e.maxHp * 0.33){
+          // Phase 2: 3-shot spread
+          var ang = Math.atan2(dy, dx);
+          fireEnemyBullet(e.x, e.y, ang, 5);
+          fireEnemyBullet(e.x, e.y, ang + 0.3, 5);
+          fireEnemyBullet(e.x, e.y, ang - 0.3, 5);
+          e.fireCD = 55;
+        } else {
+          // Phase 3: radial burst
+          for(var bi=0;bi<12;bi++){
+            fireEnemyBullet(e.x, e.y, (bi/12)*Math.PI*2, 4);
+          }
+          e.fireCD = 100;
+        }
+        beep(180, 0.1, 'sawtooth', 0.1);
+      }
     } else if(t === 'gravityWell'){
       e.vx *= 0.98; e.vy *= 0.98;
       if(e.life % 120 === 0){
@@ -642,22 +872,41 @@ function update(){
       var e = G.enemies[j];
       if(!e.alive || e.spawn > 0) continue;
       if(dist(b.x,b.y,e.x,e.y) < e.r + b.r + 2){
-        b.life = 0;
-        if(e.type === 'gravityWell'){
+        if(e.type === 'gravityWell' || e.type === 'bigCircle' || e.type === 'boss'){
           e.hp--;
           explode(b.x, b.y, '#ff99bb', 3);
+          if(b.pierce > 0){ b.pierce--; } else { b.life = 0; }
           if(e.hp <= 0){
-            explode(e.x, e.y, '#ffaacc', 60);
-            G.shake = 14;
+            explode(e.x, e.y, e.color, e.type === 'boss' ? 120 : 60);
+            G.shake = e.type === 'boss' ? 40 : 14;
             addScore(e.points);
+            sfxExplode(e.r);
+            spawnPowerup(e.x, e.y);
+            if(e.type === 'boss'){
+              G.bossActive = false;
+              spawnFloatText(W/2, H/2, 'BOSS DOWN!', '#ffdd33');
+              G.bombs = Math.min(6, G.bombs + 1);
+              G.lives = Math.min(6, G.lives + 1);
+            } else if(e.type === 'bigCircle'){
+              // Split into 4 weavers
+              for(var s=0;s<4;s++){
+                var a = (s/4) * Math.PI * 2;
+                var m = spawnEnemy('weaver', e.x + Math.cos(a)*6, e.y + Math.sin(a)*6);
+                m.vx = Math.cos(a) * 3; m.vy = Math.sin(a) * 3;
+                m.spawn = 10;
+                G.enemies.push(m);
+              }
+            }
             e.alive = false;
           }
         } else {
+          if(b.pierce > 0){ b.pierce--; } else { b.life = 0; }
           explode(e.x, e.y, e.color, e.type === 'splitter' ? 26 : 18);
           addScore(e.points);
+          sfxExplode(e.r);
           G.shake = Math.min(8, G.shake + 3);
+          spawnPowerup(e.x, e.y);
           if(e.type === 'splitter'){
-            // Spawn 3 mini splitters
             for(var s=0;s<3;s++){
               var ang = Math.random()*Math.PI*2;
               var m = spawnEnemy('mini', e.x + Math.cos(ang)*6, e.y + Math.sin(ang)*6);
@@ -670,6 +919,75 @@ function update(){
         }
         break;
       }
+    }
+  }
+
+  // Enemy bullets
+  for(var i=0;i<G.enemyBullets.length;i++){
+    var eb = G.enemyBullets[i];
+    eb.x += eb.vx; eb.y += eb.vy; eb.life--;
+    if(eb.x < -20 || eb.x > W+20 || eb.y < -20 || eb.y > H+20) eb.life = 0;
+    if(G.invuln <= 0 && dist(eb.x,eb.y,p.x,p.y) < p.r + eb.r){
+      eb.life = 0;
+      if(p.shieldTimer > 0){
+        p.shieldTimer = 0;
+        explode(p.x, p.y, '#88ff88', 30);
+        G.shake = 10;
+        sfxExplode(20);
+      } else {
+        hitPlayer(); break;
+      }
+    }
+  }
+  G.enemyBullets = G.enemyBullets.filter(function(b){return b.life > 0;});
+
+  // Power-ups
+  for(var i=0;i<G.powerups.length;i++){
+    var pu = G.powerups[i];
+    pu.rot += 0.08; pu.pulse += 0.1;
+    pu.life--;
+    // Magnet effect
+    if(p.magnetTimer > 0){
+      var mdx = p.x - pu.x, mdy = p.y - pu.y;
+      var md = Math.sqrt(mdx*mdx+mdy*mdy) || 1;
+      if(md < 400){
+        pu.vx += (mdx/md) * 0.4;
+        pu.vy += (mdy/md) * 0.4;
+      }
+    }
+    pu.x += pu.vx; pu.y += pu.vy;
+    pu.vx *= 0.97; pu.vy *= 0.97;
+    if(pu.x < pu.r){ pu.x = pu.r; pu.vx = Math.abs(pu.vx); }
+    if(pu.x > W-pu.r){ pu.x = W-pu.r; pu.vx = -Math.abs(pu.vx); }
+    if(pu.y < pu.r){ pu.y = pu.r; pu.vy = Math.abs(pu.vy); }
+    if(pu.y > H-pu.r){ pu.y = H-pu.r; pu.vy = -Math.abs(pu.vy); }
+    if(dist(pu.x,pu.y,p.x,p.y) < p.r + pu.r + 4){
+      applyPowerup(pu);
+      pu.life = 0;
+    }
+  }
+  G.powerups = G.powerups.filter(function(p){return p.life > 0;});
+
+  // Float texts
+  for(var i=0;i<G.floatTexts.length;i++){
+    var ft = G.floatTexts[i];
+    ft.y -= 0.8;
+    ft.life--;
+  }
+  G.floatTexts = G.floatTexts.filter(function(f){return f.life > 0;});
+
+  // Starfield animation (subtle drift)
+  for(var i=0;i<G.stars.length;i++){
+    var s = G.stars[i];
+    s.twinkle += 0.03;
+  }
+
+  // Edge warnings for off-screen enemies
+  G.edgeWarnings = [];
+  for(var i=0;i<G.enemies.length;i++){
+    var e = G.enemies[i];
+    if(e.spawn > 0 && (e.x < 0 || e.x > W || e.y < 0 || e.y > H)){
+      G.edgeWarnings.push({x: e.x, y: e.y, color: e.color});
     }
   }
 
@@ -708,6 +1026,15 @@ function findNearestBullet(e){
 }
 
 function hitPlayer(){
+  if(G.player.shieldTimer > 0){
+    G.player.shieldTimer = 0;
+    G.invuln = 60;
+    explode(G.player.x, G.player.y, '#88ff88', 40);
+    G.shake = 14;
+    sfxExplode(20);
+    return;
+  }
+  sfxDeath();
   G.lives--;
   G.invuln = 120;
   G.shake = 30;
@@ -771,15 +1098,45 @@ function drawGrid(){
   ctx.stroke();
 }
 
+function drawStars(){
+  for(var i=0;i<G.stars.length;i++){
+    var s = G.stars[i];
+    var a = 0.3 + 0.3 * Math.sin(s.twinkle);
+    ctx.fillStyle = 'rgba(180,180,255,' + (a * s.z) + ')';
+    ctx.fillRect(s.x, s.y, s.z*2, s.z*2);
+  }
+}
+
 function drawPlayer(){
   var p = G.player;
   if(!p) return;
+  // Trail
+  for(var i=0;i<p.trail.length;i++){
+    var tr = p.trail[i];
+    var a = tr.life / 12;
+    if(a <= 0) continue;
+    ctx.fillStyle = 'rgba(0,234,255,' + (a*0.35) + ')';
+    ctx.beginPath();
+    ctx.arc(tr.x, tr.y, 4*a, 0, Math.PI*2);
+    ctx.fill();
+  }
   if(G.invuln > 0 && Math.floor(G.invuln/4)%2 === 0) return;
   ctx.save();
   ctx.translate(p.x, p.y);
+  // Shield
+  if(p.shieldTimer > 0){
+    var sa = p.shieldTimer < 60 ? 0.4 + 0.6 * Math.sin(G.time*0.3) : 0.9;
+    ctx.strokeStyle = 'rgba(136,255,136,' + sa + ')';
+    ctx.shadowColor = '#88ff88';
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.r + 8, 0, Math.PI*2);
+    ctx.stroke();
+  }
   ctx.rotate(p.aim);
-  ctx.strokeStyle = '#00eaff';
-  ctx.shadowColor = '#00eaff';
+  ctx.strokeStyle = p.rapidTimer > 0 ? '#ffdd33' : '#00eaff';
+  ctx.shadowColor = p.rapidTimer > 0 ? '#ffdd33' : '#00eaff';
   ctx.shadowBlur = 18;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -789,13 +1146,124 @@ function drawPlayer(){
   ctx.lineTo(-8, 8);
   ctx.closePath();
   ctx.stroke();
-  // Engine flames
   ctx.strokeStyle = 'rgba(255,200,80,0.8)';
   ctx.beginPath();
   ctx.moveTo(-4, 0);
   ctx.lineTo(-10 - Math.random()*4, 0);
   ctx.stroke();
   ctx.restore();
+}
+
+function drawEnemyBullet(b){
+  ctx.save();
+  ctx.strokeStyle = '#ff66cc';
+  ctx.fillStyle = '#ff66cc';
+  ctx.shadowColor = '#ff3399';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPowerup(pu){
+  var a = pu.life < 90 ? (Math.floor(pu.life/6)%2 ? 0.4 : 1) : 1;
+  ctx.save();
+  ctx.translate(pu.x, pu.y);
+  ctx.rotate(pu.rot);
+  ctx.globalAlpha = a;
+  var color = POWERUP_COLORS[pu.type];
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14 + Math.sin(pu.pulse)*6;
+  ctx.lineWidth = 2;
+  // Hexagon
+  ctx.beginPath();
+  for(var i=0;i<6;i++){
+    var a2 = i/6*Math.PI*2;
+    var x = Math.cos(a2)*pu.r, y = Math.sin(a2)*pu.r;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  // Letter
+  ctx.rotate(-pu.rot);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 11px Orbitron, monospace';
+  ctx.fillText((POWERUP_LABELS[pu.type]||'?').charAt(0), 0, 1);
+  ctx.restore();
+}
+
+function drawEdgeWarnings(){
+  for(var i=0;i<G.edgeWarnings.length;i++){
+    var w = G.edgeWarnings[i];
+    var cx = Math.max(20, Math.min(W-20, w.x));
+    var cy = Math.max(20, Math.min(H-20, w.y));
+    var angle = Math.atan2(w.y - cy, w.x - cx);
+    if(isNaN(angle)) angle = 0;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.strokeStyle = w.color;
+    ctx.shadowColor = w.color;
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6 + 0.4*Math.sin(G.time*0.3);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-10, -6);
+    ctx.lineTo(-10, 6);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawFloatTexts(){
+  for(var i=0;i<G.floatTexts.length;i++){
+    var ft = G.floatTexts[i];
+    var a = ft.life / ft.maxLife;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = ft.color;
+    ctx.shadowColor = ft.color;
+    ctx.shadowBlur = 12;
+    ctx.font = 'bold 18px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.restore();
+  }
+}
+
+function drawBossHealth(){
+  // If boss exists
+  for(var i=0;i<G.enemies.length;i++){
+    var e = G.enemies[i];
+    if(e.type !== 'boss') continue;
+    var pct = e.hp / e.maxHp;
+    var bw = W * 0.7;
+    var bh = 10;
+    var bx = (W - bw) / 2;
+    var by = H - 30;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(bx-2, by-2, bw+4, bh+4);
+    ctx.fillStyle = '#ff0066';
+    ctx.shadowColor = '#ff0066';
+    ctx.shadowBlur = 14;
+    ctx.fillRect(bx, by, bw * pct, bh);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BOSS', W/2, by - 4);
+    ctx.restore();
+    break;
+  }
 }
 
 function drawEnemy(e){
@@ -859,6 +1327,75 @@ function drawEnemy(e){
       ctx.arc(e.r*0.4, e.r*0.3, 2, 0, Math.PI*2);
       ctx.fill();
     }
+  } else if(e.type === 'rocketeer'){
+    // Hexagonal fighter with firing indicator
+    ctx.rotate(e.life * 0.02);
+    ctx.beginPath();
+    for(var i=0;i<6;i++){
+      var a = i/6*Math.PI*2;
+      var px = Math.cos(a)*e.r, py = Math.sin(a)*e.r;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    // Inner triangle
+    ctx.beginPath();
+    ctx.moveTo(e.r*0.5, 0);
+    ctx.lineTo(-e.r*0.4, -e.r*0.4);
+    ctx.lineTo(-e.r*0.4, e.r*0.4);
+    ctx.closePath();
+    ctx.stroke();
+    // Fire warning glow
+    if(e.fireCD < 30){
+      ctx.globalAlpha = spawnA * (1 - e.fireCD/30);
+      ctx.beginPath();
+      ctx.arc(0,0,e.r*1.3,0,Math.PI*2);
+      ctx.stroke();
+    }
+  } else if(e.type === 'bigCircle'){
+    // Tough pink circle with hp rings
+    var pctHp = e.hp / 8;
+    for(var r=0;r<3;r++){
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r - r*4, 0, Math.PI*2);
+      ctx.globalAlpha = spawnA * (0.9 - r*0.2) * pctHp;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = spawnA;
+    // Spinning cross
+    ctx.rotate(e.life * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(-e.r*0.6, 0); ctx.lineTo(e.r*0.6, 0);
+    ctx.moveTo(0, -e.r*0.6); ctx.lineTo(0, e.r*0.6);
+    ctx.stroke();
+  } else if(e.type === 'boss'){
+    // Giant rotating ring with internal geometry, pulsing
+    var pulse = 1 + 0.05 * Math.sin(e.life*0.1);
+    ctx.rotate(e.life * 0.01);
+    // Outer thick ring
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, e.r*pulse, 0, Math.PI*2);
+    ctx.stroke();
+    // 6-point star
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(var i=0;i<12;i++){
+      var a = i/12*Math.PI*2;
+      var rr = i%2===0 ? e.r*0.7 : e.r*0.4;
+      var px = Math.cos(a)*rr, py = Math.sin(a)*rr;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    // Inner rotating square
+    ctx.rotate(-e.life * 0.03);
+    ctx.strokeRect(-e.r*0.25, -e.r*0.25, e.r*0.5, e.r*0.5);
+    // Core
+    ctx.fillStyle = '#ff0066';
+    ctx.beginPath();
+    ctx.arc(0, 0, e.r*0.12, 0, Math.PI*2);
+    ctx.fill();
   } else if(e.type === 'gravityWell'){
     // Pulsing ring + inner vortex
     ctx.rotate(e.life * 0.05);
@@ -924,12 +1461,25 @@ function render(){
     ctx.translate((Math.random()-0.5)*G.shake, (Math.random()-0.5)*G.shake);
   }
 
+  drawStars();
   drawGrid();
 
   for(var i=0;i<G.particles.length;i++) drawParticle(G.particles[i]);
+  for(var i=0;i<G.powerups.length;i++) drawPowerup(G.powerups[i]);
   for(var i=0;i<G.enemies.length;i++) drawEnemy(G.enemies[i]);
+  for(var i=0;i<G.enemyBullets.length;i++) drawEnemyBullet(G.enemyBullets[i]);
   for(var i=0;i<G.bullets.length;i++) drawBullet(G.bullets[i]);
   drawPlayer();
+  drawEdgeWarnings();
+  drawFloatTexts();
+  drawBossHealth();
+
+  // Boss incoming warning
+  if(G.bossIntroTimer > 0){
+    var flash = Math.floor(G.bossIntroTimer/8)%2;
+    ctx.fillStyle = flash ? 'rgba(255,0,102,0.25)' : 'rgba(255,0,102,0.1)';
+    ctx.fillRect(0,0,W,H);
+  }
 
   if(G.bombFlash > 0){
     ctx.fillStyle = 'rgba(94,255,127,'+(G.bombFlash/30*0.6)+')';
@@ -951,6 +1501,26 @@ function updateHUD(){
   document.getElementById('hud-mult').textContent = 'x' + G.mult;
   document.getElementById('hud-mult-bar').style.width = (G.multProgress*100) + '%';
   document.getElementById('hud-wave').textContent = G.wave;
+  // Power-up status strip
+  var ps = document.getElementById('pu-status');
+  if(!ps){
+    ps = document.createElement('div');
+    ps.id = 'pu-status';
+    ps.style.cssText = 'position:fixed;left:50%;top:10px;transform:translateX(-50%);display:flex;gap:8px;z-index:11;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:11px;letter-spacing:2px;';
+    document.body.appendChild(ps);
+  }
+  if(G.player){
+    var items = [];
+    if(G.player.rapidTimer > 0) items.push(['RAPID', G.player.rapidTimer, '#ffdd33']);
+    if(G.player.spreadTimer > 0) items.push(['SPREAD', G.player.spreadTimer, '#ff99cc']);
+    if(G.player.pierceTimer > 0) items.push(['PIERCE', G.player.pierceTimer, '#66eeff']);
+    if(G.player.shieldTimer > 0) items.push(['SHIELD', G.player.shieldTimer, '#88ff88']);
+    if(G.player.magnetTimer > 0) items.push(['MAGNET', G.player.magnetTimer, '#cc99ff']);
+    ps.innerHTML = items.map(function(it){
+      var pct = Math.min(100, it[1]/540*100);
+      return '<div style="background:rgba(0,0,0,0.6);border:1px solid '+it[2]+';color:'+it[2]+';padding:4px 8px;border-radius:3px;box-shadow:0 0 10px '+it[2]+'44;"><span style="text-shadow:0 0 8px '+it[2]+'">'+it[0]+'</span> <span style="opacity:0.6">'+Math.ceil(it[1]/60)+'s</span></div>';
+    }).join('');
+  }
   var lives = '';
   for(var i=0;i<G.lives;i++) lives += '\u25C6';
   document.getElementById('hud-lives').textContent = lives || '-';
@@ -973,9 +1543,13 @@ function startGame(){
   G.multTimer = 0;
   G.spawnTimer = 0;
   G.spawnCooldown = 60;
-  G.enemies = []; G.bullets = []; G.particles = [];
+  G.enemies = []; G.bullets = []; G.enemyBullets = []; G.particles = [];
+  G.powerups = []; G.floatTexts = []; G.edgeWarnings = [];
+  G.bossActive = false; G.bossIntroTimer = 0;
   G.player = makePlayer();
   G.invuln = 60;
+  initStars();
+  ensureAudio();
   document.getElementById('title').classList.remove('active');
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('pause').classList.remove('active');
