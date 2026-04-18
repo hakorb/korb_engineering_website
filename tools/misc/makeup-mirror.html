@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Makeup Mirror // Korb Engineering</title>
+<meta name="description" content="Turn your phone into a ring light + mirror. The screen itself illuminates your face while the selfie camera shows a centered mirror view.">
+<meta name="theme-color" content="#ffffff">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { width: 100%; height: 100dvh; overflow: hidden; }
+body {
+  background: #ffffff;
+  transition: background-color 0.25s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #222;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+}
+
+#stage {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#mirror-wrap {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #111;
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,0.06),
+    0 8px 28px rgba(0,0,0,0.18),
+    inset 0 0 30px rgba(255,255,255,0.25);
+  transition: width 0.2s ease, height 0.2s ease;
+  width: 65vmin; height: 65vmin; /* overridden by JS */
+  max-width: 95vmin; max-height: 95vmin;
+}
+
+#mirror-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.14);
+  pointer-events: none;
+}
+
+#video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirrored by default */
+  transform-origin: center;
+  transition: transform 0.2s ease;
+  background: #0a0a0a;
+}
+
+.message {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #0a0a0a;
+  border-radius: 50%;
+}
+.message button {
+  margin-top: 14px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.35);
+  padding: 10px 18px;
+  border-radius: 22px;
+  font: inherit;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+/* ───── Controls ───── */
+#controls {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(env(safe-area-inset-bottom), 18px);
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(30,30,30,0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.05);
+  z-index: 10;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#controls::-webkit-scrollbar { display: none; }
+#controls button, #controls .tone {
+  flex: 0 0 auto;
+  min-width: 44px; min-height: 44px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
+  border-radius: 22px;
+  padding: 0 14px;
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#controls button:active, #controls .tone:active { transform: scale(0.96); }
+#controls button.on { background: rgba(255,255,255,0.85); color: #111; border-color: rgba(255,255,255,0.9); }
+.tone {
+  width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+  border-radius: 50%; padding: 0;
+  border: 2px solid rgba(255,255,255,0.4);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.06) inset;
+}
+.tone.active { border-color: #000; box-shadow: 0 0 0 2px rgba(0,0,0,0.2), 0 0 0 4px rgba(255,255,255,0.9); }
+
+#slider-group {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 10px;
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+#slider-group input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 80px; height: 4px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 2px;
+  outline: none;
+}
+#slider-group input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(0,0,0,0.25);
+}
+#slider-group input[type=range]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; border: none;
+  cursor: pointer;
+}
+
+#back-link {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 14px);
+  left: 14px;
+  color: #222;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(10px);
+  padding: 8px 14px;
+  border-radius: 20px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  z-index: 10;
+  min-height: 44px;
+  display: inline-flex; align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: opacity 0.3s ease;
+}
+
+.fade-out { opacity: 0 !important; pointer-events: none; }
+
+/* Adjust text color based on background brightness (set via JS) */
+body.dark-bg #back-link { color: #222; background: rgba(255,255,255,0.8); }
+body.warm-bg #back-link { color: #6b4a1a; background: rgba(255,255,255,0.75); }
+body.cool-bg #back-link { color: #1a4a6b; background: rgba(255,255,255,0.75); }
+
+#fullscreen-hint {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 14px 22px;
+  border-radius: 14px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#fullscreen-hint.show { opacity: 1; }
+
+@media (max-width: 420px) {
+  #controls { gap: 6px; padding: 8px 10px; bottom: 12px; }
+  #controls button, #controls .tone { font-size: 12px; padding: 0 10px; min-width: 40px; }
+  #slider-group input[type=range] { width: 64px; }
+}
+</style>
+</head>
+<body>
+
+<a href="../../index.html#misc" id="back-link">&larr; BACK</a>
+
+<div id="stage">
+  <div id="mirror-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="message" id="msg" style="display:none">
+      <div>
+        <div id="msg-text">Tap below to enable your selfie camera.</div>
+        <button id="msg-btn">ENABLE CAMERA</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="tone active" data-tone="pure" style="background:#ffffff" title="Pure White"></div>
+  <div class="tone" data-tone="warm" style="background:#fff4e0" title="Warm"></div>
+  <div class="tone" data-tone="cool" style="background:#e0f0ff" title="Cool"></div>
+  <div class="tone" data-tone="neutral" style="background:#f5f5f5" title="Neutral"></div>
+
+  <div id="slider-group">
+    <span>SIZE</span>
+    <input type="range" id="sizeSlider" min="30" max="95" value="65">
+  </div>
+
+  <div id="slider-group" style="padding-left:0">
+    <span>ZOOM</span>
+    <input type="range" id="zoomSlider" min="100" max="300" value="100">
+  </div>
+
+  <button id="flipBtn" class="on" title="Mirror flip">&#8644;</button>
+  <button id="fullscreenBtn" title="Fullscreen">&#9974;</button>
+</div>
+
+<div id="fullscreen-hint">Controls hidden — tap anywhere to show</div>
+
+<script>
+(function(){
+'use strict';
+
+var video = document.getElementById('video');
+var msg = document.getElementById('msg');
+var msgText = document.getElementById('msg-text');
+var msgBtn = document.getElementById('msg-btn');
+var wrap = document.getElementById('mirror-wrap');
+var controls = document.getElementById('controls');
+var backLink = document.getElementById('back-link');
+var flipBtn = document.getElementById('flipBtn');
+var fsBtn = document.getElementById('fullscreenBtn');
+var sizeSlider = document.getElementById('sizeSlider');
+var zoomSlider = document.getElementById('zoomSlider');
+var hint = document.getElementById('fullscreen-hint');
+var toneEls = document.querySelectorAll('.tone');
+
+var TONES = {
+  pure:    { bg: '#ffffff', cls: '' },
+  warm:    { bg: '#fff4e0', cls: 'warm-bg' },
+  cool:    { bg: '#e0f0ff', cls: 'cool-bg' },
+  neutral: { bg: '#f5f5f5', cls: '' }
+};
+
+var state = {
+  tone: localStorage.getItem('korb_makeup_tone') || 'pure',
+  size: parseInt(localStorage.getItem('korb_makeup_size') || '65', 10),
+  zoom: parseInt(localStorage.getItem('korb_makeup_zoom') || '100', 10),
+  flipped: localStorage.getItem('korb_makeup_flipped') !== 'false',
+  stream: null,
+  wakeLock: null,
+  controlsVisible: true,
+  fadeTimer: null,
+};
+
+function setTone(name){
+  if(!TONES[name]) name = 'pure';
+  state.tone = name;
+  document.body.style.backgroundColor = TONES[name].bg;
+  document.body.className = TONES[name].cls;
+  toneEls.forEach(function(el){ el.classList.toggle('active', el.dataset.tone === name); });
+  localStorage.setItem('korb_makeup_tone', name);
+}
+
+function setSize(pct){
+  state.size = pct;
+  wrap.style.width = pct + 'vmin';
+  wrap.style.height = pct + 'vmin';
+  localStorage.setItem('korb_makeup_size', pct);
+}
+
+function setZoom(pct){
+  state.zoom = pct;
+  var scale = pct / 100;
+  var flip = state.flipped ? -1 : 1;
+  video.style.transform = 'scaleX(' + flip + ') scale(' + scale + ')';
+  localStorage.setItem('korb_makeup_zoom', pct);
+}
+
+function setFlip(flipped){
+  state.flipped = flipped;
+  flipBtn.classList.toggle('on', flipped);
+  setZoom(state.zoom);
+  localStorage.setItem('korb_makeup_flipped', flipped ? 'true' : 'false');
+}
+
+// ─── Camera ───
+function showMessage(text){
+  msgText.textContent = text;
+  msg.style.display = 'flex';
+}
+function hideMessage(){ msg.style.display = 'none'; }
+
+async function startCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    showMessage('Camera API not supported in this browser. Try Safari or Chrome.');
+    return;
+  }
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 1280 }
+      },
+      audio: false
+    });
+    state.stream = stream;
+    video.srcObject = stream;
+    hideMessage();
+    tryWakeLock();
+  } catch(err){
+    console.warn('Camera denied:', err);
+    if(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'){
+      showMessage('Camera permission denied. Please enable it in your browser settings and reload.');
+    } else if(err.name === 'NotFoundError'){
+      showMessage('No camera found on this device.');
+    } else {
+      showMessage('Couldn\'t start the camera: ' + (err.message || err.name));
+    }
+  }
+}
+
+msgBtn.addEventListener('click', startCamera);
+
+// ─── Wake lock ───
+async function tryWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  try {
+    state.wakeLock = await navigator.wakeLock.request('screen');
+  } catch(e){ /* user may have revoked; fine */ }
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible' && !state.wakeLock) tryWakeLock();
+});
+
+// ─── Fullscreen ───
+function toggleFullscreen(){
+  var el = document.documentElement;
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){
+    if(el.requestFullscreen) el.requestFullscreen();
+    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else {
+    if(document.exitFullscreen) document.exitFullscreen();
+    else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+
+// ─── Auto-hide controls ───
+function showControls(){
+  if(state.fadeTimer){ clearTimeout(state.fadeTimer); }
+  state.controlsVisible = true;
+  controls.classList.remove('fade-out');
+  backLink.classList.remove('fade-out');
+  state.fadeTimer = setTimeout(hideControls, 3500);
+}
+function hideControls(){
+  state.controlsVisible = false;
+  controls.classList.add('fade-out');
+  backLink.classList.add('fade-out');
+  hint.classList.add('show');
+  setTimeout(function(){ hint.classList.remove('show'); }, 1200);
+}
+
+document.addEventListener('pointerdown', function(e){
+  // If click is inside controls, just restart the timer
+  if(controls.contains(e.target) || backLink.contains(e.target)){
+    showControls();
+    return;
+  }
+  // Otherwise toggle
+  if(state.controlsVisible) hideControls(); else showControls();
+});
+
+// ─── Wiring ───
+toneEls.forEach(function(el){
+  el.addEventListener('click', function(){ setTone(el.dataset.tone); showControls(); });
+});
+sizeSlider.addEventListener('input', function(){ setSize(parseInt(sizeSlider.value,10)); });
+zoomSlider.addEventListener('input', function(){ setZoom(parseInt(zoomSlider.value,10)); });
+flipBtn.addEventListener('click', function(e){ e.stopPropagation(); setFlip(!state.flipped); showControls(); });
+fsBtn.addEventListener('click', function(e){ e.stopPropagation(); toggleFullscreen(); showControls(); });
+
+// ─── Init ───
+setTone(state.tone);
+setSize(state.size);
+setFlip(state.flipped);
+setZoom(state.zoom);
+sizeSlider.value = state.size;
+zoomSlider.value = state.zoom;
+showControls();
+
+// Auto-prompt for camera
+startCamera();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PHOTO GEOTAGGER // KORB ENGINEERING</title>
+<link rel="stylesheet" href="../../vendor/leaflet-1.9.4.css">
+<style>
+  :root{
+    --bg:#0a0f0a; --panel:#0f1510; --ink:#9cff9c; --ink-dim:#4a8c4a;
+    --amber:#ffb86b; --red:#ff5a5a; --border:#1e2a1e; --hover:#15201a;
+    --accent:#00ff88;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13px;min-height:100vh;min-height:100dvh;}
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  header{border-bottom:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;gap:6px;background:var(--panel);position:sticky;top:0;z-index:1000;}
+  header h1{font-size:14px;font-weight:600;letter-spacing:0.5px;color:var(--accent);}
+  header .sub{font-size:10px;color:var(--ink-dim);}
+  .back{font-size:11px;}
+  .privacy{background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);padding:6px 10px;font-size:10px;margin:10px 14px 0;border-radius:2px;}
+  main{padding:10px 14px 80px;display:flex;flex-direction:column;gap:12px;}
+  .panel{background:var(--panel);border:1px solid var(--border);padding:12px;border-radius:3px;}
+  .panel h2{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px dashed var(--border);padding-bottom:6px;}
+  .dropzone{border:2px dashed var(--ink-dim);border-radius:4px;padding:24px 14px;text-align:center;background:#080d08;transition:0.15s;cursor:pointer;}
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent);background:#0c1a0c;color:var(--accent);}
+  .dropzone .ico{font-size:28px;margin-bottom:6px;}
+  .dropzone .hint{font-size:10px;color:var(--ink-dim);margin-top:6px;}
+  input[type=file]{display:none;}
+  .btn{background:transparent;border:1px solid var(--ink-dim);color:var(--ink);padding:7px 12px;font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px;letter-spacing:0.5px;text-transform:uppercase;transition:0.12s;}
+  .btn:hover{border-color:var(--accent);color:var(--accent);background:var(--hover);}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .btn.danger:hover{border-color:var(--red);color:var(--red);}
+  .btn.primary{border-color:var(--accent);color:var(--accent);}
+  .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  #map{width:100%;height:60vh;min-height:360px;border:1px solid var(--border);border-radius:3px;background:#020502;}
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border-radius:3px;border:1px solid var(--accent);}
+  .leaflet-popup-tip{background:var(--panel);border:1px solid var(--accent);}
+  .leaflet-popup-content{margin:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .leaflet-popup-content img{max-width:200px;max-height:150px;display:block;border:1px solid var(--border);margin-bottom:6px;}
+  .leaflet-popup-content .meta{font-size:9px;color:var(--ink-dim);}
+  .leaflet-container{background:#020502;}
+  .leaflet-control-attribution{background:rgba(10,15,10,0.85) !important;color:var(--ink-dim) !important;font-size:9px !important;}
+  .leaflet-control-attribution a{color:var(--accent) !important;}
+  .pin-num{background:var(--accent);color:#000;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #000;box-shadow:0 0 4px #000;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+  .stat{text-align:center;padding:8px;background:#080d08;border:1px solid var(--border);border-radius:2px;}
+  .stat .v{font-size:18px;color:var(--accent);font-weight:700;}
+  .stat .l{font-size:9px;color:var(--ink-dim);text-transform:uppercase;margin-top:2px;}
+  .photo-list{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;padding-right:4px;}
+  .photo-item{display:flex;gap:10px;padding:8px;background:#080d08;border:1px solid var(--border);border-radius:2px;cursor:pointer;transition:0.12s;align-items:center;}
+  .photo-item:hover{border-color:var(--accent);background:var(--hover);}
+  .photo-item.no-gps{border-left:2px solid var(--amber);}
+  .photo-item img{width:48px;height:48px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+  .photo-item .info{flex:1;min-width:0;font-size:10px;}
+  .photo-item .info .name{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px;}
+  .photo-item .info .meta{color:var(--ink-dim);font-size:9px;}
+  .photo-item .num{color:var(--accent);font-weight:700;font-size:14px;padding:0 4px;min-width:24px;text-align:center;}
+  .photo-item .del{background:transparent;border:none;color:var(--ink-dim);cursor:pointer;font-size:14px;padding:4px 6px;}
+  .photo-item .del:hover{color:var(--red);}
+  .empty{text-align:center;padding:30px 14px;color:var(--ink-dim);font-size:10px;}
+  .no-gps-section{border-top:1px dashed var(--border);margin-top:10px;padding-top:10px;}
+  .no-gps-section h3{font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .loading{color:var(--amber);text-align:center;padding:10px;font-size:10px;display:none;}
+  .loading.active{display:block;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--accent);padding:10px 16px;font-size:11px;border-radius:2px;z-index:2000;display:none;max-width:90vw;text-align:center;}
+  .toast.show{display:block;animation:fade 3s;}
+  @keyframes fade{0%{opacity:0;}15%{opacity:1;}85%{opacity:1;}100%{opacity:0;}}
+  footer{text-align:center;font-size:9px;color:var(--ink-dim);padding:14px;border-top:1px solid var(--border);}
+  @media(min-width:900px){
+    main{display:grid;grid-template-columns:1fr 340px;gap:14px;}
+    main .drop-panel{grid-column:1/-1;}
+    #map{height:70vh;}
+    .stats{grid-template-columns:repeat(3,1fr);}
+  }
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-track{background:#050805;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--ink-dim);}
+</style>
+</head>
+<body>
+<header>
+  <div><a class="back" href="../../index.html#civil">&larr; BACK</a></div>
+  <h1>&gt; PHOTO GEOTAGGER / AS-BUILT SITE MAP</h1>
+  <div class="sub">EXIF GPS extraction // Leaflet mapping // KML/GeoJSON/PDF export</div>
+</header>
+<div class="privacy">[PRIVACY] All EXIF parsing & map rendering is 100% client-side. No photos are uploaded. Nothing leaves this browser.</div>
+
+<main>
+  <div class="panel drop-panel">
+    <h2>[1] Load Photos</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="ico">[+]</div>
+      <div>DROP PHOTOS HERE</div>
+      <div class="hint">or tap to select (JPG/PNG, multi-select supported)</div>
+    </div>
+    <input type="file" id="fileInput" multiple accept="image/jpeg,image/jpg,image/png">
+    <div class="loading" id="loading">...parsing EXIF...</div>
+    <div class="actions">
+      <button class="btn" id="btnClear">CLEAR ALL</button>
+      <button class="btn" id="btnFit">FIT BOUNDS</button>
+      <button class="btn" id="btnKml">EXPORT KML</button>
+      <button class="btn" id="btnGeojson">EXPORT GEOJSON</button>
+      <button class="btn primary" id="btnPdf">EXPORT PDF MAP</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>[2] Site Map</h2>
+    <div id="map"></div>
+  </div>
+
+  <div class="panel">
+    <h2>[3] Photo Log</h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="stTotal">0</div><div class="l">TOTAL</div></div>
+      <div class="stat"><div class="v" id="stGps">0</div><div class="l">GEOTAGGED</div></div>
+      <div class="stat"><div class="v" id="stNoGps">0</div><div class="l">NO GPS</div></div>
+    </div>
+    <div class="photo-list" id="photoList">
+      <div class="empty">No photos loaded. Drop images above to begin.</div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+<footer>KORB ENGINEERING // CIVIL TOOLING // photo-geotagger v1</footer>
+
+<script src="../../vendor/leaflet-1.9.4.js"></script>
+<script src="../../vendor/jspdf-2.5.1.umd.min.js"></script>
+<script>
+(function(){
+'use strict';
+const LS_PREFIX='korb_geotag_';
+const DB_NAME='korb_geotagger';
+const DB_STORE='photos';
+const DB_VERSION=1;
+
+// ========= IndexedDB =========
+let _db=null;
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(_db){resolve(_db);return;}
+    const rq=indexedDB.open(DB_NAME,DB_VERSION);
+    rq.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains(DB_STORE)){
+        db.createObjectStore(DB_STORE,{keyPath:'id'});
+      }
+    };
+    rq.onsuccess=e=>{_db=e.target.result;resolve(_db);};
+    rq.onerror=e=>reject(e.target.error);
+  });
+}
+async function dbPut(rec){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).put(rec);
+    tx.oncomplete=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+async function dbGetAll(){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readonly');
+    const rq=tx.objectStore(DB_STORE).getAll();
+    rq.onsuccess=()=>res(rq.result||[]);
+    rq.onerror=e=>rej(e.target.error);
+  });
+}
+async function dbDelete(id){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+async function dbClear(){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    tx.oncomplete=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+
+// ========= EXIF Parser (inline, minimal) =========
+// Reads GPS lat/lon/alt, DateTimeOriginal, Orientation from JPEG APP1 segment.
+// Returns {lat,lon,alt,dateTime,orientation} or null.
+const TAG_ORIENTATION=0x0112;
+const TAG_EXIF_IFD=0x8769;
+const TAG_GPS_IFD=0x8825;
+const TAG_DATE_TIME_ORIG=0x9003;
+const GPS_LAT_REF=0x0001;
+const GPS_LAT=0x0002;
+const GPS_LON_REF=0x0003;
+const GPS_LON=0x0004;
+const GPS_ALT_REF=0x0005;
+const GPS_ALT=0x0006;
+
+function parseExifFromBuffer(buf){
+  try{
+    const dv=new DataView(buf);
+    if(dv.byteLength<4) return null;
+    // Must be JPEG: FF D8
+    if(dv.getUint16(0)!==0xFFD8) return null;
+    let off=2;
+    // Walk segments to find APP1 (FFE1) with "Exif\0\0"
+    while(off<dv.byteLength-4){
+      const marker=dv.getUint16(off);
+      if((marker&0xFF00)!==0xFF00) break;
+      const segLen=dv.getUint16(off+2);
+      if(marker===0xFFE1){
+        // Check "Exif\0\0"
+        if(off+10<dv.byteLength &&
+           dv.getUint8(off+4)===0x45 && dv.getUint8(off+5)===0x78 &&
+           dv.getUint8(off+6)===0x69 && dv.getUint8(off+7)===0x66 &&
+           dv.getUint8(off+8)===0x00 && dv.getUint8(off+9)===0x00){
+          return parseTIFF(dv,off+10);
+        }
+      }
+      if(marker===0xFFDA) break; // SOS: image data begins
+      off+=2+segLen;
+    }
+  }catch(e){/*ignore*/}
+  return null;
+}
+function parseTIFF(dv,tiffStart){
+  const bom=dv.getUint16(tiffStart);
+  let little;
+  if(bom===0x4949) little=true;
+  else if(bom===0x4D4D) little=false;
+  else return null;
+  const magic=readU16(dv,tiffStart+2,little);
+  if(magic!==0x002A) return null;
+  const ifd0Off=readU32(dv,tiffStart+4,little);
+  const ifd0=readIFD(dv,tiffStart+ifd0Off,tiffStart,little);
+  const out={lat:null,lon:null,alt:null,dateTime:null,orientation:null};
+  if(ifd0[TAG_ORIENTATION]!==undefined) out.orientation=ifd0[TAG_ORIENTATION].value;
+  // EXIF sub-IFD for DateTimeOriginal
+  if(ifd0[TAG_EXIF_IFD]!==undefined){
+    const exifOff=ifd0[TAG_EXIF_IFD].value;
+    const exifIFD=readIFD(dv,tiffStart+exifOff,tiffStart,little);
+    if(exifIFD[TAG_DATE_TIME_ORIG]) out.dateTime=exifIFD[TAG_DATE_TIME_ORIG].value;
+  }
+  // GPS IFD
+  if(ifd0[TAG_GPS_IFD]!==undefined){
+    const gpsOff=ifd0[TAG_GPS_IFD].value;
+    const gpsIFD=readIFD(dv,tiffStart+gpsOff,tiffStart,little);
+    const latRef=gpsIFD[GPS_LAT_REF]?gpsIFD[GPS_LAT_REF].value:null;
+    const lat=gpsIFD[GPS_LAT]?gpsIFD[GPS_LAT].value:null;
+    const lonRef=gpsIFD[GPS_LON_REF]?gpsIFD[GPS_LON_REF].value:null;
+    const lon=gpsIFD[GPS_LON]?gpsIFD[GPS_LON].value:null;
+    const altRef=gpsIFD[GPS_ALT_REF]?gpsIFD[GPS_ALT_REF].value:0;
+    const alt=gpsIFD[GPS_ALT]?gpsIFD[GPS_ALT].value:null;
+    if(Array.isArray(lat)&&latRef){
+      const dd=dmsToDD(lat);
+      out.lat=(latRef==='S'||latRef==='s')?-dd:dd;
+    }
+    if(Array.isArray(lon)&&lonRef){
+      const dd=dmsToDD(lon);
+      out.lon=(lonRef==='W'||lonRef==='w')?-dd:dd;
+    }
+    if(typeof alt==='number'){
+      out.alt=(altRef===1)?-alt:alt;
+    }
+  }
+  return out;
+}
+function readIFD(dv,off,tiffStart,little){
+  const result={};
+  if(off<0||off+2>dv.byteLength) return result;
+  const count=readU16(dv,off,little);
+  off+=2;
+  for(let i=0;i<count;i++){
+    if(off+12>dv.byteLength) break;
+    const tag=readU16(dv,off,little);
+    const type=readU16(dv,off+2,little);
+    const num=readU32(dv,off+4,little);
+    const valOff=off+8;
+    let value=readTagValue(dv,tiffStart,valOff,type,num,little);
+    result[tag]={type,value};
+    off+=12;
+  }
+  return result;
+}
+function readTagValue(dv,tiffStart,valOff,type,num,little){
+  const typeSize={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8}[type]||1;
+  const totalBytes=typeSize*num;
+  let dataOff;
+  if(totalBytes<=4) dataOff=valOff;
+  else dataOff=tiffStart+readU32(dv,valOff,little);
+  if(dataOff<0||dataOff+totalBytes>dv.byteLength) return null;
+  // type 2 = ASCII
+  if(type===2){
+    let s='';
+    for(let i=0;i<num;i++){
+      const c=dv.getUint8(dataOff+i);
+      if(c===0) break;
+      s+=String.fromCharCode(c);
+    }
+    return s;
+  }
+  // type 5 = unsigned rational (num/den)
+  if(type===5){
+    if(num===1){
+      const a=readU32(dv,dataOff,little),b=readU32(dv,dataOff+4,little);
+      return b===0?0:a/b;
+    }
+    const arr=[];
+    for(let i=0;i<num;i++){
+      const a=readU32(dv,dataOff+i*8,little),b=readU32(dv,dataOff+i*8+4,little);
+      arr.push(b===0?0:a/b);
+    }
+    return arr;
+  }
+  // type 10 = signed rational
+  if(type===10){
+    if(num===1){
+      const a=readS32(dv,dataOff,little),b=readS32(dv,dataOff+4,little);
+      return b===0?0:a/b;
+    }
+    const arr=[];
+    for(let i=0;i<num;i++){
+      const a=readS32(dv,dataOff+i*8,little),b=readS32(dv,dataOff+i*8+4,little);
+      arr.push(b===0?0:a/b);
+    }
+    return arr;
+  }
+  // type 3 = unsigned short
+  if(type===3){
+    if(num===1) return readU16(dv,dataOff,little);
+    const arr=[];for(let i=0;i<num;i++) arr.push(readU16(dv,dataOff+i*2,little));
+    return arr;
+  }
+  // type 4 = unsigned long
+  if(type===4){
+    if(num===1) return readU32(dv,dataOff,little);
+    const arr=[];for(let i=0;i<num;i++) arr.push(readU32(dv,dataOff+i*4,little));
+    return arr;
+  }
+  // type 1 or 7 = byte
+  if(type===1||type===7){
+    if(num===1) return dv.getUint8(dataOff);
+    const arr=[];for(let i=0;i<num;i++) arr.push(dv.getUint8(dataOff+i));
+    return arr;
+  }
+  return null;
+}
+function readU16(dv,o,little){return little?dv.getUint16(o,true):dv.getUint16(o,false);}
+function readU32(dv,o,little){return little?dv.getUint32(o,true):dv.getUint32(o,false);}
+function readS32(dv,o,little){return little?dv.getInt32(o,true):dv.getInt32(o,false);}
+function dmsToDD(dms){
+  const d=dms[0]||0,m=dms[1]||0,s=dms[2]||0;
+  return d+m/60+s/3600;
+}
+function parseExifDate(s){
+  // "YYYY:MM:DD HH:MM:SS"
+  if(!s) return null;
+  const m=s.match(/^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  if(!m) return null;
+  return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]);
+}
+
+// ========= State =========
+const photos=[]; // {id,name,size,type,dataUrl,thumbUrl,lat,lon,alt,dateTime,orientation}
+let map=null;
+const markers={};
+let markerLayer=null;
+
+// ========= Map Init =========
+function initMap(){
+  map=L.map('map',{zoomControl:true,attributionControl:true}).setView([39.0,-98.0],4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+  markerLayer=L.layerGroup().addTo(map);
+}
+
+function createNumberedIcon(n){
+  return L.divIcon({
+    className:'pin-div',
+    html:`<div class="pin-num">${n}</div>`,
+    iconSize:[26,26],
+    iconAnchor:[13,13],
+    popupAnchor:[0,-13]
+  });
+}
+
+function rebuildMarkers(){
+  markerLayer.clearLayers();
+  Object.keys(markers).forEach(k=>delete markers[k]);
+  const sorted=sortedPhotos();
+  sorted.forEach((p,idx)=>{
+    if(p.lat==null||p.lon==null) return;
+    const num=idx+1;
+    const popup=`<div><img src="${p.thumbUrl}" alt=""><div><strong>#${num}</strong> ${escapeHTML(p.name)}</div>
+      <div class="meta">LAT ${p.lat.toFixed(6)} / LON ${p.lon.toFixed(6)}${p.alt!=null?` / ALT ${p.alt.toFixed(1)}m`:''}</div>
+      ${p.dateTime?`<div class="meta">${escapeHTML(p.dateTime)}</div>`:''}</div>`;
+    const mk=L.marker([p.lat,p.lon],{icon:createNumberedIcon(num)}).bindPopup(popup);
+    markerLayer.addLayer(mk);
+    markers[p.id]=mk;
+  });
+}
+
+function fitBounds(){
+  const pts=photos.filter(p=>p.lat!=null&&p.lon!=null).map(p=>[p.lat,p.lon]);
+  if(pts.length===0){toast('No geotagged photos to fit.');return;}
+  if(pts.length===1){map.setView(pts[0],16);return;}
+  map.fitBounds(L.latLngBounds(pts),{padding:[30,30]});
+}
+
+// ========= Photo Processing =========
+async function loadFiles(files){
+  if(!files||files.length===0) return;
+  const loadEl=document.getElementById('loading');
+  loadEl.classList.add('active');
+  loadEl.textContent=`...parsing EXIF from ${files.length} photo${files.length>1?'s':''}...`;
+  let ok=0,nogps=0,skipped=0;
+  for(const file of files){
+    try{
+      if(!/^image\/(jpeg|jpg|png)$/i.test(file.type)){skipped++;continue;}
+      const buf=await file.arrayBuffer();
+      const exif=parseExifFromBuffer(buf)||{};
+      const dataUrl=await fileToDataURL(file);
+      const thumbUrl=await makeThumb(dataUrl,320);
+      const id='p_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+      const rec={
+        id, name:file.name, size:file.size, type:file.type,
+        dataUrl, thumbUrl,
+        lat:exif.lat, lon:exif.lon, alt:exif.alt,
+        dateTime:exif.dateTime||null,
+        orientation:exif.orientation||1,
+        added:Date.now()
+      };
+      photos.push(rec);
+      try{await dbPut(rec);}catch(e){/*quota*/}
+      if(rec.lat!=null&&rec.lon!=null) ok++;else nogps++;
+    }catch(e){
+      console.error('Failed:',file.name,e);
+      skipped++;
+    }
+  }
+  loadEl.classList.remove('active');
+  render();
+  if(photos.filter(p=>p.lat!=null).length>0) fitBounds();
+  toast(`Loaded ${ok+nogps} photo${(ok+nogps)!==1?'s':''} (${ok} with GPS, ${nogps} without${skipped?`, ${skipped} skipped`:''})`);
+}
+function fileToDataURL(f){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(f);
+  });
+}
+function makeThumb(dataUrl,maxSide){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{
+      const w=img.naturalWidth,h=img.naturalHeight;
+      const s=Math.min(maxSide/Math.max(w,h),1);
+      const cw=Math.max(1,Math.round(w*s)),ch=Math.max(1,Math.round(h*s));
+      const c=document.createElement('canvas');
+      c.width=cw;c.height=ch;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(img,0,0,cw,ch);
+      res(c.toDataURL('image/jpeg',0.82));
+    };
+    img.onerror=()=>res(dataUrl);
+    img.src=dataUrl;
+  });
+}
+
+function sortedPhotos(){
+  // Sort by datetime asc; no date at the end; geotagged first among equals? keep date order.
+  return photos.slice().sort((a,b)=>{
+    const da=parseExifDate(a.dateTime),dbd=parseExifDate(b.dateTime);
+    if(da&&dbd) return da-dbd;
+    if(da&&!dbd) return -1;
+    if(!da&&dbd) return 1;
+    return a.added-b.added;
+  });
+}
+
+function render(){
+  const sorted=sortedPhotos();
+  const gps=sorted.filter(p=>p.lat!=null&&p.lon!=null);
+  const noGps=sorted.filter(p=>p.lat==null||p.lon==null);
+  document.getElementById('stTotal').textContent=photos.length;
+  document.getElementById('stGps').textContent=gps.length;
+  document.getElementById('stNoGps').textContent=noGps.length;
+  rebuildMarkers();
+  const list=document.getElementById('photoList');
+  if(photos.length===0){
+    list.innerHTML='<div class="empty">No photos loaded. Drop images above to begin.</div>';
+    return;
+  }
+  let html='';
+  gps.forEach((p,i)=>{
+    const num=i+1;
+    html+=photoRow(p,num,false);
+  });
+  if(noGps.length){
+    html+=`<div class="no-gps-section"><h3>[ ] No GPS Data (${noGps.length})</h3></div>`;
+    noGps.forEach(p=>{html+=photoRow(p,'-',true);});
+  }
+  list.innerHTML=html;
+  list.querySelectorAll('[data-id]').forEach(el=>{
+    el.addEventListener('click',ev=>{
+      if(ev.target.classList.contains('del')) return;
+      const id=el.getAttribute('data-id');
+      const p=photos.find(x=>x.id===id);
+      if(p&&p.lat!=null&&p.lon!=null&&markers[id]){
+        map.flyTo([p.lat,p.lon],17,{duration:0.8});
+        setTimeout(()=>markers[id].openPopup(),850);
+      }
+    });
+  });
+  list.querySelectorAll('.del').forEach(b=>{
+    b.addEventListener('click',async ev=>{
+      ev.stopPropagation();
+      const id=b.getAttribute('data-del');
+      const idx=photos.findIndex(x=>x.id===id);
+      if(idx>=0){photos.splice(idx,1);try{await dbDelete(id);}catch(e){}render();}
+    });
+  });
+}
+function photoRow(p,num,noGps){
+  const date=parseExifDate(p.dateTime);
+  const dstr=date?date.toLocaleString():(p.dateTime||'no timestamp');
+  const locstr=(p.lat!=null&&p.lon!=null)?`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`:'no gps';
+  return `<div class="photo-item${noGps?' no-gps':''}" data-id="${p.id}">
+    <div class="num">${num}</div>
+    <img src="${p.thumbUrl}" alt="">
+    <div class="info">
+      <div class="name">${escapeHTML(p.name)}</div>
+      <div class="meta">${escapeHTML(dstr)}</div>
+      <div class="meta">${locstr}</div>
+    </div>
+    <button class="del" data-del="${p.id}" title="Remove">&times;</button>
+  </div>`;
+}
+
+function escapeHTML(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escapeXML(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));}
+
+// ========= Exports =========
+function download(name,content,mime){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function exportKML(){
+  const sorted=sortedPhotos().filter(p=>p.lat!=null&&p.lon!=null);
+  if(sorted.length===0){toast('No geotagged photos to export.');return;}
+  const now=new Date().toISOString();
+  let kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Korb Engineering - Site Map</name>
+    <description>As-built site map exported ${now}</description>
+    <Style id="pinStyle">
+      <IconStyle><color>ff88ff00</color><scale>1.0</scale>
+        <Icon><href>http://maps.google.com/mapfiles/kml/paddle/grn-circle.png</href></Icon>
+      </IconStyle>
+    </Style>
+`;
+  sorted.forEach((p,i)=>{
+    const num=i+1;
+    const date=parseExifDate(p.dateTime);
+    kml+=`    <Placemark>
+      <name>#${num} ${escapeXML(p.name)}</name>
+      <description><![CDATA[<b>${escapeHTML(p.name)}</b><br>
+        ${date?date.toLocaleString():p.dateTime||''}<br>
+        LAT ${p.lat.toFixed(6)} / LON ${p.lon.toFixed(6)}${p.alt!=null?` / ALT ${p.alt.toFixed(1)}m`:''}
+      ]]></description>
+      <styleUrl>#pinStyle</styleUrl>
+      ${date?`<TimeStamp><when>${date.toISOString()}</when></TimeStamp>`:''}
+      <Point><coordinates>${p.lon},${p.lat},${p.alt||0}</coordinates></Point>
+    </Placemark>
+`;
+  });
+  kml+='  </Document>\n</kml>\n';
+  download('site-map.kml',kml,'application/vnd.google-earth.kml+xml');
+  toast('KML exported.');
+}
+function exportGeoJSON(){
+  const sorted=sortedPhotos().filter(p=>p.lat!=null&&p.lon!=null);
+  if(sorted.length===0){toast('No geotagged photos to export.');return;}
+  const fc={type:'FeatureCollection',features:sorted.map((p,i)=>{
+    const date=parseExifDate(p.dateTime);
+    return {
+      type:'Feature',
+      geometry:{type:'Point',coordinates:[p.lon,p.lat,p.alt||0]},
+      properties:{
+        number:i+1,
+        name:p.name,
+        dateTime:p.dateTime||null,
+        dateISO:date?date.toISOString():null,
+        alt_m:p.alt,
+        size_bytes:p.size
+      }
+    };
+  })};
+  download('site-map.geojson',JSON.stringify(fc,null,2),'application/geo+json');
+  toast('GeoJSON exported.');
+}
+
+async function exportPDF(){
+  try{
+    const sorted=sortedPhotos().filter(p=>p.lat!=null&&p.lon!=null);
+    if(sorted.length===0){toast('No geotagged photos to export.');return;}
+    toast('Generating PDF...');
+    // Capture map: render a static OSM-free overview using a plain canvas with markers
+    // (we can't easily rasterize leaflet tiles without CORS; we'll draw a neutral sketch)
+    const mapImg=await renderStaticMapImage(sorted,1200,800);
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+    const pw=doc.internal.pageSize.getWidth();
+    const ph=doc.internal.pageSize.getHeight();
+    const margin=36;
+    // Header
+    doc.setFont('courier','bold');doc.setFontSize(14);
+    doc.text('KORB ENGINEERING - AS-BUILT SITE MAP',margin,margin+8);
+    doc.setFont('courier','normal');doc.setFontSize(9);
+    doc.text('Generated '+new Date().toLocaleString()+' / '+sorted.length+' geotagged photos',margin,margin+22);
+    // Map image
+    const mapW=pw-margin*2;
+    const mapH=mapW*(800/1200);
+    doc.addImage(mapImg,'PNG',margin,margin+30,mapW,mapH);
+    doc.setDrawColor(120);doc.rect(margin,margin+30,mapW,mapH);
+    // Gallery below
+    let y=margin+30+mapH+18;
+    doc.setFont('courier','bold');doc.setFontSize(10);
+    doc.text('PHOTO GALLERY',margin,y);
+    y+=12;
+    doc.setFont('courier','normal');doc.setFontSize(8);
+    const thumbW=80,thumbH=60,gap=8,rowH=thumbH+8;
+    const cols=Math.floor((pw-margin*2)/(thumbW+gap));
+    let col=0;
+    for(let i=0;i<sorted.length;i++){
+      const p=sorted[i];
+      if(y+rowH+28>ph-margin){
+        doc.addPage();y=margin;
+        doc.setFont('courier','bold');doc.setFontSize(10);
+        doc.text('PHOTO GALLERY (cont.)',margin,y);y+=12;
+        doc.setFont('courier','normal');doc.setFontSize(8);
+        col=0;
+      }
+      const x=margin+col*(thumbW+gap);
+      try{doc.addImage(p.thumbUrl,'JPEG',x,y,thumbW,thumbH);}catch(e){}
+      doc.setDrawColor(120);doc.rect(x,y,thumbW,thumbH);
+      doc.setFillColor(0,255,136);doc.circle(x+8,y+8,6,'F');
+      doc.setTextColor(0,0,0);doc.setFont('courier','bold');doc.setFontSize(8);
+      doc.text(String(i+1),x+8,y+11,{align:'center'});
+      doc.setTextColor(0,0,0);doc.setFont('courier','normal');doc.setFontSize(6);
+      const label=`#${i+1} ${(p.name||'').slice(0,18)}`;
+      const coord=`${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`;
+      doc.text(label,x,y+thumbH+8);
+      doc.text(coord,x,y+thumbH+16);
+      col++;
+      if(col>=cols){col=0;y+=rowH+22;}
+    }
+    // Footer
+    const pageCount=doc.internal.getNumberOfPages();
+    for(let i=1;i<=pageCount;i++){
+      doc.setPage(i);
+      doc.setFont('courier','normal');doc.setFontSize(7);
+      doc.setTextColor(110);
+      doc.text(`korb.engineering / photo-geotagger / page ${i}/${pageCount}`,pw/2,ph-14,{align:'center'});
+    }
+    doc.save('site-map.pdf');
+    toast('PDF exported.');
+  }catch(e){
+    console.error(e);toast('PDF export failed: '+e.message);
+  }
+}
+function renderStaticMapImage(pts,w,h){
+  return new Promise(resolve=>{
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    const ctx=c.getContext('2d');
+    // Background
+    ctx.fillStyle='#f5f5f0';ctx.fillRect(0,0,w,h);
+    // Grid
+    ctx.strokeStyle='#cfd8cf';ctx.lineWidth=1;
+    for(let x=0;x<w;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    // Compute bounds
+    let minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
+    pts.forEach(p=>{minLat=Math.min(minLat,p.lat);maxLat=Math.max(maxLat,p.lat);minLon=Math.min(minLon,p.lon);maxLon=Math.max(maxLon,p.lon);});
+    const padLat=Math.max((maxLat-minLat)*0.2,0.0005);
+    const padLon=Math.max((maxLon-minLon)*0.2,0.0005);
+    minLat-=padLat;maxLat+=padLat;minLon-=padLon;maxLon+=padLon;
+    const pad=40;
+    const project=(lat,lon)=>{
+      const x=pad+(lon-minLon)/(maxLon-minLon)*(w-pad*2);
+      const y=pad+(1-(lat-minLat)/(maxLat-minLat))*(h-pad*2);
+      return [x,y];
+    };
+    // Path connecting pins in order
+    ctx.strokeStyle='#2a7a2a';ctx.lineWidth=2;ctx.setLineDash([6,4]);
+    ctx.beginPath();
+    pts.forEach((p,i)=>{
+      const [x,y]=project(p.lat,p.lon);
+      if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    });
+    ctx.stroke();ctx.setLineDash([]);
+    // Pins
+    pts.forEach((p,i)=>{
+      const [x,y]=project(p.lat,p.lon);
+      ctx.fillStyle='#00aa55';ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#000';ctx.font='bold 14px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(i+1),x,y+1);
+    });
+    // Title
+    ctx.fillStyle='#111';ctx.font='bold 16px monospace';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('KORB ENGINEERING - SITE MAP ('+pts.length+' pts)',12,10);
+    ctx.font='10px monospace';ctx.fillStyle='#555';
+    ctx.fillText('Bounds: '+minLat.toFixed(5)+', '+minLon.toFixed(5)+' to '+maxLat.toFixed(5)+', '+maxLon.toFixed(5),12,28);
+    resolve(c.toDataURL('image/png'));
+  });
+}
+
+// ========= UI =========
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.remove('show');
+  void t.offsetWidth;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function wire(){
+  const dz=document.getElementById('dropzone');
+  const fi=document.getElementById('fileInput');
+  dz.addEventListener('click',()=>fi.click());
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+  dz.addEventListener('dragleave',e=>{dz.classList.remove('drag');});
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('drag');
+    const files=[...(e.dataTransfer.files||[])];
+    loadFiles(files);
+  });
+  fi.addEventListener('change',e=>{
+    loadFiles([...fi.files]);
+    fi.value='';
+  });
+  document.getElementById('btnClear').addEventListener('click',async()=>{
+    if(!photos.length) return;
+    if(!confirm('Clear all '+photos.length+' photos? This cannot be undone.')) return;
+    photos.length=0;try{await dbClear();}catch(e){}
+    render();toast('All photos cleared.');
+  });
+  document.getElementById('btnFit').addEventListener('click',fitBounds);
+  document.getElementById('btnKml').addEventListener('click',exportKML);
+  document.getElementById('btnGeojson').addEventListener('click',exportGeoJSON);
+  document.getElementById('btnPdf').addEventListener('click',exportPDF);
+}
+
+async function restoreSession(){
+  try{
+    const recs=await dbGetAll();
+    if(!recs||!recs.length) return;
+    recs.forEach(r=>photos.push(r));
+    render();
+    if(photos.filter(p=>p.lat!=null).length>0) fitBounds();
+    try{localStorage.setItem(LS_PREFIX+'lastLoad',String(Date.now()));}catch(e){}
+    toast('Restored '+recs.length+' photo'+(recs.length!==1?'s':'')+' from last session.');
+  }catch(e){console.warn('Restore failed',e);}
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  initMap();
+  wire();
+  restoreSession();
+});
+})();
+</script>
+</body>
+</html>

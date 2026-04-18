@@ -56,6 +56,7 @@ const SECTIONS = {
       { name: "Airport Manager's Friend", file: './tools/aviation/airport-managers-friend.html' },
       { name: 'ALP Guidance', file: './tools/aviation/alp-tracker.html' },
       { name: 'Altitude Calculator', file: './tools/aviation/altitude-calculator.html' },
+      { name: 'Aviation Brain', file: './tools/aviation/aviation-brain.html' },
       { name: 'Aviation Fuel Pricing', file: './tools/aviation/aviation-fuel-pricing.html' },
       { name: 'Aviation Project Planner', file: './tools/aviation/aviation-project-planner.html' },
       { name: 'BRL-CAD', file: './tools/civil/brl-cad.html' },
@@ -142,9 +143,11 @@ const SECTIONS = {
     title: '',
     icon: K_LOGO_SVG,
     tools: [
+      { name: "Brigette's Funding Sheet", file: './tools/civil/brigettes-funding-sheet.html' },
       { name: 'Build Orchestrator', file: './tools/civil/korb-engineering.html' },
       { name: 'Claim/Dispute Drafter', file: './tools/civil/claim-dispute-drafter.html' },
       { name: 'Clause Comparison', file: './tools/civil/clause-comparison.html' },
+      { name: 'Coordinate Transformer', file: './tools/civil/coordinate-transformer.html' },
       { name: 'Digital Twin Repository', file: './tools/civil/digital-twin-repository.html' },
       { name: 'DWG Viewer', file: './tools/civil/dwg-viewer.html' },
       { name: 'Dynamic CIP', file: './tools/civil/dynamic-cip.html' },
@@ -162,6 +165,8 @@ const SECTIONS = {
       { name: 'Monte Carlo Simulation', file: './tools/civil/monte-carlo-simulation.html' },
       { name: 'OpenFOAM CFD', file: './tools/civil/openfoam-cfd.html' },
       { name: 'PCI Inspector', file: './tools/civil/pci-inspector.html' },
+      { name: 'PDF Markup Lite', file: './tools/civil/pdf-markup-lite.html' },
+      { name: 'Photo Geotagger', file: './tools/civil/photo-geotagger.html' },
       { name: 'Policy Writer', file: './tools/civil/policy-writer.html' },
       { name: 'Risk Register', file: './tools/civil/risk-register.html' },
       { name: 'RoomRecon 3D', file: './tools/civil/roomrecon-3d.html' },
@@ -219,10 +224,12 @@ const SECTIONS = {
       { name: "Alan's Virtual Caddy", file: './tools/misc/alans-virtual-caddy.html' },
       { name: 'Angry Skeeball', file: './tools/misc/angry-skeeball.html' },
       { name: "Anita's Texas Garden", file: './tools/misc/anitas-texas-garden.html' },
+      { name: 'API Request Builder', file: './tools/misc/api-request-builder.html' },
       { name: 'App Idea Generator', file: './tools/misc/app-idea-generator.html' },
       { name: 'Aprende Spanish', file: './tools/misc/aprende-spanish.html' },
       { name: 'Astronomy Essentials', file: './tools/misc/astronomy-essentials.html' },
       { name: 'Audiobook Player', file: './tools/misc/audiobook-player.html' },
+      { name: 'Automation Flow Designer', file: './tools/misc/automation-flow.html' },
       { name: 'Awesome-O 4000', file: './tools/misc/awesome-o-4000.html' },
       { name: 'Backyard Baseball', file: './tools/misc/backyard-baseball.html' },
       { name: 'Battleship', file: './tools/misc/battleship.html' },
@@ -237,6 +244,8 @@ const SECTIONS = {
       { name: 'Complaints Department', file: './tools/misc/complaints-department.html' },
       { name: 'Connect Four', file: './tools/misc/connect-four.html' },
       { name: 'Copycat Kitchen', file: './tools/misc/copycat-kitchen.html' },
+      { name: 'Craps', file: './tools/misc/craps.html' },
+      { name: 'Cron Expression Builder', file: './tools/misc/cron-builder.html' },
       { name: 'Crossword', file: './tools/misc/crossword.html' },
       { name: 'Deal Hunter', file: './tools/misc/game-deal-hunter.html' },
       { name: 'Dev Toolkit', file: './tools/misc/dev-toolkit.html' },
@@ -271,6 +280,7 @@ const SECTIONS = {
       { name: 'Jung-Ho Bridge', file: './tools/misc/jung-ho-bridge.html' },
       { name: "Kelsey's Teacher Tools", file: './tools/misc/kelseys-teacher-tools.html' },
       { name: 'Korb Cookbook', file: './tools/misc/korb-cookbook.html' },
+      { name: 'Korb-Coin', file: './tools/misc/korb-coin.html' },
       { name: 'Korb Data Vault', file: './tools/misc/korb-data-vault.html' },
       { name: 'Korb Digital Lending Library', file: './tools/misc/digital-library.html' },
       { name: 'Korb Farm Collective', file: './tools/misc/korb-farm-collective.html' },
@@ -283,6 +293,7 @@ const SECTIONS = {
       { name: "Kyle's Train Set", file: './tools/misc/kyles-train-set.html' },
       { name: 'Leadership Forge', file: './tools/misc/leadership-principles.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
+      { name: 'Makeup Mirror', file: './tools/misc/makeup-mirror.html' },
       { name: 'Mandala Maker', file: './tools/misc/mandala-maker.html' },
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
       { name: "Mary Kay's Recipes", file: './tools/misc/mary-kays-recipes.html' },
@@ -308,9 +319,12 @@ const SECTIONS = {
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
       { name: 'Pong', file: './tools/misc/pong.html' },
       { name: 'Quick Reference Guide', file: './tools/misc/quick-reference-guide.html' },
+      { name: 'Regex Tester', file: './tools/misc/regex-tester.html' },
       { name: 'Retro Arcade', file: './tools/misc/retro-arcade.html' },
       { name: 'Rigged Roulette', file: './tools/misc/rigged-roulette.html' },
       { name: 'Scandinavian Interior Design', file: './tools/misc/scandinavian-interior-design.html' },
+      { name: 'Scattergories', file: './tools/misc/scattergories.html' },
+      { name: 'Scrabble', file: './tools/misc/scrabble.html' },
       { name: 'Screen Recorder', file: './tools/misc/screen-recorder.html' },
       { name: 'Simon', file: './tools/misc/simon.html' },
       { name: 'Situation Monitor', file: './tools/misc/situation-monitor.html' },
@@ -335,6 +349,7 @@ const SECTIONS = {
       { name: 'Ultimate Survival Guide', file: './tools/misc/ultimate-survival-guide.html' },
       { name: 'Vector Drawing', file: './tools/misc/vector-drawing.html' },
       { name: 'Vintage Web Game Vault', file: './tools/misc/vintage-web-game-vault.html' },
+      { name: 'Webhook Playground', file: './tools/misc/webhook-playground.html' },
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },
       { name: 'World Cup 2026', file: './tools/misc/world-cup-2026.html' },
       { name: 'World Explorer', file: './tools/misc/world-explorer.html' },
@@ -554,7 +569,16 @@ function renderHome() {
         </a>
       </div>
       <nav class="category-grid" id="categoryGrid" aria-label="Tool categories">${cards}</nav>
-      <div style="text-align:center;padding:32px 0 8px">
+      <div class="home-tool-request" style="text-align:center;padding:36px 8px 8px;">
+        <a href="#misc/tool-request" class="tool-request-cta" aria-label="Request a new tool">
+          <span class="tool-request-icon" aria-hidden="true">&#43;</span>
+          <span class="tool-request-text">
+            <span class="tool-request-title">Request a Tool</span>
+            <span class="tool-request-sub">Got an idea? Send it. I might build it.</span>
+          </span>
+        </a>
+      </div>
+      <div style="text-align:center;padding:16px 0 8px">
         <a href="mailto:harrison@korb.engineering" class="site-email-link">harrison@korb.engineering</a>
       </div>
     </section>
@@ -813,10 +837,13 @@ const TOOL_DESCRIPTIONS = {
   "AJ's Synthesizer": 'Hands-on analog-style software synth with oscillators, filters, and envelopes.',
   "Alan's Virtual Caddy": 'Golf caddy that suggests club selection from yardage, wind, and lie conditions.',
   'Angry Skeeball': 'Physics-based slingshot skeeball arcade game with special balls, power-ups, and 10 levels.',
+  'API Request Builder': 'Postman-lite — craft GET/POST/PUT requests, headers, body, auth. Saves collections and history locally.',
   'App Idea Generator': 'Spin a few wheels to get a random app concept prompt with target user and feature.',
   'Aprende Spanish': 'Flashcard-driven Spanish vocabulary and phrase drills with audio playback.',
   'Astronomy Essentials': 'Interactive intro astronomy course with 14 chapters, flashcards, quizzes, and glossary covering the solar system, stars, galaxies, cosmology, and astrobiology.',
   'Audiobook Player': 'Listen to audiobooks with bookmarks, speed control, and sleep timer.',
+  'Automation Flow Designer': 'Design-only Zapier/IFTTT-style workflow cards and node graphs. Export as JSON or image.',
+  'Aviation Brain': 'Computational aviation knowledge engine. Ask in plain English: density altitude, TAS, wind triangle, great-circle distance, fuel burn, and more.',
   'Awesome-O 4000': 'Random movie premise generator. Spin a fresh title, logline, sidekick, and twist on every click with hundreds of zany combinations.',
   'Backyard Baseball': 'Arcade baseball game with kid rosters, home runs, and sandlot fields.',
   'Battleship': 'Classic ship-placement grid game played against a friend or the computer.',
@@ -830,6 +857,9 @@ const TOOL_DESCRIPTIONS = {
   'Complaints Department': 'Official grievance intake form for korb.engineering critics — with one small catch: the send button is a mirage that dodges every click.',
   'Connect Four': 'Drop checkers into columns and connect four in a row before your opponent does.',
   'Copycat Kitchen': 'Copycat recipes for popular restaurant dishes with step-by-step instructions.',
+  'Coordinate Transformer': 'Convert between Lat/Long, UTM, US State Plane, and Web Mercator with live map preview. Uses proj4 for survey-grade accuracy.',
+  'Craps': 'Casino craps teaching game with dice animation, full bet types, probability tips, and strategy guide.',
+  'Cron Expression Builder': 'Visual builder and decoder for cron expressions with human-readable description and next 10 fire times.',
   'Crossword': 'Daily-style crossword puzzles with clue hints, timer, and auto-check.',
   'Deal Hunter': 'Track wishlist items across retailers with target-price alerts, history charts, and a deal kanban.',
   'Dev Toolkit': 'Developer utilities for base64, JWT, regex, JSON, hashing, and diffing.',
@@ -861,6 +891,7 @@ const TOOL_DESCRIPTIONS = {
   'Jung-Ho Bridge': 'Bridge card game with bidding, play, and scoring against AI partners.',
   "Kelsey's Teacher Tools": 'Warm, practical toolkit for primary school teachers: lesson planner, random student picker, classroom timer, group maker, seating chart, behavior points tracker, noise meter, printable worksheets, rubric builder, reward coupons, sub plan template, tips library, and curated free resources.',
   'Korb Cookbook': 'Family cookbook with searchable recipes, photos, and shopping list export.',
+  'Korb-Coin': 'Mine fake Korb-Coin, watch an imaginary blockchain grow, trade a fantasy crypto portfolio. Entirely made up — not financial advice.',
   'Korb Data Vault': 'Backup, restore, and inspect every Korb tool\'s saved data from one place.',
   'Korb Digital Lending Library': 'Lend and borrow ebooks within a private circle with due dates and waitlists.',
   'Korb Farm Collective': 'Manage a small farm co-op with crops, livestock, harvests, and member shares.',
@@ -873,6 +904,7 @@ const TOOL_DESCRIPTIONS = {
   "Kyle's Train Set": 'Kid-friendly drivable train simulator with stations, cargo, and a sandbox track.',
   'Leadership Forge': 'Interactive leadership principles coursework with scenarios and reflection prompts.',
   'Lunar Lander': 'Land a module on the moon by managing thrust, fuel, and descent angle.',
+  'Makeup Mirror': 'Turns your phone into a ring-light + mirror. Shrunken selfie camera in the center, bright-white illumination border lights your face.',
   'Mandala Maker': 'Draw symmetric mandalas with radial mirroring, color palettes, and SVG export.',
   'Markdown Editor': 'Split-pane markdown editor with live preview, outline, and HTML export.',
   "Mary Kay's Recipes": 'Curated family recipe collection with handwritten-style cards and prep notes.',
@@ -890,7 +922,9 @@ const TOOL_DESCRIPTIONS = {
   'OrcaSlicer Studio': 'Browser front-end for OrcaSlicer 3D-print slicing, profiles, and G-code preview.',
   'Painting Studio': 'Digital painting canvas with brushes, layers, blend modes, and pressure sensitivity.',
   'Password Forge': 'Generate strong passwords and passphrases with entropy meter and history.',
+  'PDF Markup Lite': 'Quick field-friendly PDF redline tool: pen, cloud, stamps, arrows, callouts. Flattens to a downloadable PDF.',
   'PDF Markup Studio': 'Bluebeam-style PDF annotation with highlights, arrows, comments, clouds, and multi-user markup.',
+  'Photo Geotagger': 'Drop photos, read EXIF GPS, pin on a map with thumbnails. Export as KML / GeoJSON / site-map PDF. All client-side.',
   'Photo Forge': 'Edit photos with crops, filters, curves, and batch export.',
   'Piano': 'Playable on-screen piano with MIDI support, octaves, and instrument voices.',
   'Pipe Sizing Tool': 'Size water and fuel pipes from flow, material, and allowable head loss.',
@@ -898,9 +932,12 @@ const TOOL_DESCRIPTIONS = {
   'Podcast Player': 'Subscribe to podcast RSS feeds with episode queue, speed, and sleep timer.',
   'Pong': 'Two-player paddle game with adjustable ball speed and AI opponent option.',
   'Quick Reference Guide': 'Searchable cheat-sheet library for engineering formulas, codes, and standards.',
+  'Regex Tester': 'Regex pattern testing with live match highlighting, capture groups, replacement preview, and a common-pattern library.',
   'Retro Arcade': 'Collection of retro arcade classics playable from one launcher menu.',
   'Rigged Roulette': 'Satirical European roulette with flashing marquee lights, WebAudio fanfares, and absurd mini-jobs to re-earn credits when you go broke. Entertainment only.',
   'Scandinavian Interior Design': 'Mood boards and product picks for Scandinavian-style rooms with layout tips.',
+  'Scattergories': 'Pass-and-play word category game. 20+ category cards, random letter roller, timer, and honor-system scoring.',
+  'Scrabble': 'Scrabble clone. Play local pass-and-play or cross-phone via PeerJS. Full 15\u00d715 board, premium squares, blanks, and exchanges.',
   'Screen Recorder': 'Record the screen, webcam, and microphone to a downloadable video file.',
   'Simon': 'Repeat the growing color-and-sound sequence in the classic Simon memory game.',
   'Situation Monitor': 'Personal situation-awareness dashboard with news, weather, and alert feeds.',
@@ -925,6 +962,7 @@ const TOOL_DESCRIPTIONS = {
   'Ultimate Survival Guide': 'Book-styled wilderness survival guide with 13 illustrated chapters, checklists, and search across priorities, shelter, fire, water, food, first aid, navigation, and more.',
   'Vector Drawing': 'Create and edit vector shapes with pen, paths, and SVG export.',
   'Vintage Web Game Vault': 'Launcher for classic Flash-era web games preserved in the browser.',
+  'Webhook Playground': 'Fire test POST/GET/PUT requests against webhook endpoints. Inspect headers, body, response. Copy-as-curl.',
   'Whiteboard': 'Infinite collaborative whiteboard with sticky notes, pens, and shapes.',
   'World Cup 2026': 'All-in-one daily companion for the 2026 FIFA World Cup (USA/Canada/Mexico): full 104-match schedule, 12-group stage with live standings, knockout bracket, 48 team profiles with outlook, FIFA rankings, outright odds, personal predictions and accuracy tracker, venue guide, and watch log.',
   'World Explorer': 'Interactive globe for exploring countries with facts, flags, and photos.',

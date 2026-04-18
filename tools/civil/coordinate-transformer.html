@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Coordinate System Transformer | Korb Engineering — convert between WGS84 Lat/Lon, UTM, US State Plane (NAD83), and Web Mercator. Free, browser-based civil/aviation engineering tool.">
+<title>Coordinate Transformer | Korb Engineering</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../vendor/leaflet-1.9.4.css">
+<script src="../../vendor/proj4-2.12.1.js"></script>
+<script src="../../vendor/leaflet-1.9.4.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050a0f;--surface:#0a1018;--surface2:#0e1520;--border:#1a2535;
+  --cyan:#00d4ff;--orange:#ff9900;--green:#10b981;--red:#ef4444;--amber:#fbbf24;
+  --text:#e2e8f0;--dim:#8892a4;--bright:#f8fafc;
+}
+html{font-size:16px}
+body{font-family:'IBM Plex Mono','JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;padding-bottom:env(safe-area-inset-bottom)}
+input,select,button,textarea{font-family:inherit;font-size:16px}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:500;padding-top:max(12px,env(safe-area-inset-top))}
+#back-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;min-height:36px;font-size:12px;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;gap:6px}
+#back-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.brand-icon{width:34px;height:34px;background:var(--cyan);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--bg);font-size:13px;letter-spacing:.05em}
+.brand-block{display:flex;flex-direction:column}
+.brand-title{font-size:15px;font-weight:700;color:var(--cyan);letter-spacing:.04em}
+.brand-sub{font-size:11px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+main{max-width:1400px;margin:0 auto;padding:16px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar button{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;min-height:40px;border-radius:6px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.toolbar button:hover{border-color:var(--cyan);color:var(--cyan)}
+.toolbar button.primary{background:rgba(0,212,255,.14);border-color:var(--cyan);color:var(--cyan)}
+.toolbar button.warn{background:rgba(251,191,36,.12);border-color:var(--amber);color:var(--amber)}
+.grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
+@media(min-width:960px){.grid{grid-template-columns:1fr auto 1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative}
+.card h2{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:10px;text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pill{display:inline-block;font-size:10px;padding:2px 8px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.pill.from{border-color:var(--orange);color:var(--orange)}
+.pill.to{border-color:var(--green);color:var(--green)}
+label{display:block;font-size:10px;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em}
+input[type=text],input[type=number],select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;width:100%;min-height:44px;font-size:16px;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--cyan) 50%),linear-gradient(135deg,var(--cyan) 50%,transparent 50%);background-position:calc(100% - 18px) 18px,calc(100% - 12px) 18px;background-size:6px 6px,6px 6px;background-repeat:no-repeat;padding-right:32px}
+.field{margin-bottom:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.output-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:14px;word-break:break-all;position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
+.output-box .v{flex:1;color:var(--cyan);font-weight:500}
+.output-box .k{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.output-box button.copy{background:transparent;border:1px solid var(--border);color:var(--dim);padding:4px 8px;min-height:30px;font-size:10px;border-radius:4px;cursor:pointer;flex-shrink:0}
+.output-box button.copy:hover{border-color:var(--cyan);color:var(--cyan)}
+.out-wrap{display:flex;flex-direction:column;gap:1px}
+.status{font-size:11px;color:var(--dim);margin-top:6px;min-height:18px}
+.status.ok{color:var(--green)}
+.status.err{color:var(--red)}
+.swap-wrap{display:flex;align-items:center;justify-content:center;min-height:44px}
+#swap-btn{background:var(--surface);border:1px solid var(--cyan);color:var(--cyan);width:48px;height:48px;border-radius:50%;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;transition:transform .3s}
+#swap-btn:hover{transform:rotate(180deg);background:rgba(0,212,255,.12)}
+@media(max-width:959px){#swap-btn{transform:rotate(90deg)}#swap-btn:hover{transform:rotate(270deg)}}
+#map{width:100%;height:340px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);margin-top:14px}
+.leaflet-container{background:#0a1018;font-family:'IBM Plex Mono',monospace}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface2);color:var(--text);border:1px solid var(--cyan)}
+.leaflet-popup-content{font-size:11px;margin:8px 12px}
+.leaflet-control-attribution{background:rgba(10,16,24,.85)!important;color:var(--dim)!important;font-size:9px!important}
+.leaflet-control-attribution a{color:var(--cyan)!important}
+.leaflet-control-zoom a{background:var(--surface2)!important;color:var(--cyan)!important;border:1px solid var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--surface)!important;border-color:var(--cyan)!important}
+.map-section{margin-top:14px}
+.map-section h2{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:8px;text-transform:uppercase;letter-spacing:.1em}
+.hist-section{margin-top:14px}
+.hist-section h2{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:8px;text-transform:uppercase;letter-spacing:.1em;display:flex;justify-content:space-between;align-items:center}
+.hist-section h2 button{background:transparent;border:1px solid var(--border);color:var(--dim);padding:4px 10px;min-height:30px;font-size:10px;border-radius:4px;cursor:pointer}
+.hist-section h2 button:hover{border-color:var(--red);color:var(--red)}
+.hist-list{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:260px;overflow-y:auto}
+.hist-item{padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;cursor:pointer;display:flex;flex-direction:column;gap:2px;transition:background .15s}
+.hist-item:last-child{border-bottom:none}
+.hist-item:hover{background:var(--surface2)}
+.hist-item .from-line{color:var(--orange)}
+.hist-item .to-line{color:var(--green)}
+.hist-item .ts{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.hist-item .hist-coord{color:var(--text);font-size:11px}
+.hist-empty{padding:20px;color:var(--dim);text-align:center;font-size:11px}
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(10,16,24,.96);border:1px solid var(--cyan);color:var(--cyan);padding:10px 16px;border-radius:6px;font-size:13px;z-index:10000;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--dim);margin-top:12px;line-height:1.6}
+.info-box strong{color:var(--cyan)}
+.modal-bg{position:fixed;inset:0;background:rgba(5,10,15,.85);display:none;align-items:center;justify-content:center;z-index:9000;padding:16px}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--cyan);border-radius:10px;padding:16px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto}
+.modal h3{color:var(--cyan);font-size:13px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.modal textarea{min-height:120px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap}
+.modal-actions button{padding:8px 14px;min-height:40px;font-size:12px;border-radius:6px;cursor:pointer}
+.modal button.primary{background:rgba(0,212,255,.14);border:1px solid var(--cyan);color:var(--cyan)}
+.modal button.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+#footer-watermark{position:fixed;bottom:4px;right:8px;font-size:9px;color:rgba(0,212,255,.28);letter-spacing:.08em;pointer-events:none;z-index:100}
+@media(max-width:640px){#footer-watermark{display:none}main{padding:10px}.row,.row3{grid-template-columns:1fr}}
+details.help{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:14px}
+details.help summary{cursor:pointer;color:var(--cyan);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+details.help[open] summary{margin-bottom:8px}
+details.help p,details.help li{font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:6px}
+details.help ul{margin-left:16px}
+details.help strong{color:var(--text)}
+</style>
+</head>
+<body>
+<header>
+<a id="back-btn" href="../../index.html#civil" aria-label="Back to Civil tools">&larr; BACK</a>
+<div class="brand-icon">KE</div>
+<div class="brand-block">
+<div class="brand-title">Coordinate Transformer</div>
+<div class="brand-sub">Korb Engineering</div>
+</div>
+</header>
+<main>
+
+<div class="toolbar">
+<button id="paste-btn" class="primary">PASTE COORDS</button>
+<button id="locate-btn">USE MY LOCATION</button>
+<button id="clear-btn" class="warn">CLEAR</button>
+</div>
+
+<div class="grid">
+
+  <!-- FROM COLUMN -->
+  <div class="card">
+    <h2><span>Source</span><span class="pill from">FROM</span></h2>
+    <div class="field">
+      <label for="src-sys">Coordinate System</label>
+      <select id="src-sys"></select>
+    </div>
+    <div id="src-fields"></div>
+    <div class="status" id="src-status">Enter coordinates to convert.</div>
+  </div>
+
+  <!-- SWAP -->
+  <div class="swap-wrap">
+    <button id="swap-btn" title="Swap From and To systems" aria-label="Swap">&#8646;</button>
+  </div>
+
+  <!-- TO COLUMN -->
+  <div class="card">
+    <h2><span>Target</span><span class="pill to">TO</span></h2>
+    <div class="field">
+      <label for="dst-sys">Coordinate System</label>
+      <select id="dst-sys"></select>
+    </div>
+    <div id="dst-fields"></div>
+    <div class="out-wrap" id="dst-outputs"></div>
+    <div class="status" id="dst-status">Result will appear here.</div>
+  </div>
+
+</div>
+
+<!-- MAP -->
+<div class="map-section">
+  <h2>Map Preview (Web Mercator)</h2>
+  <div id="map"></div>
+</div>
+
+<!-- HISTORY -->
+<div class="hist-section">
+  <h2><span>Recent Conversions (last 10)</span><button id="hist-clear">CLEAR HISTORY</button></h2>
+  <div class="hist-list" id="hist-list"></div>
+</div>
+
+<details class="help">
+  <summary>About This Tool</summary>
+  <p>Converts between the most common geospatial coordinate systems used in civil and aviation engineering. All math is performed client-side using <strong>proj4.js 2.12.1</strong>.</p>
+  <ul>
+    <li><strong>WGS84 Lat/Long (EPSG:4326)</strong> &mdash; the datum used by GPS, Google Earth, and most GIS. Accepts decimal degrees or DMS.</li>
+    <li><strong>UTM</strong> &mdash; Universal Transverse Mercator, 60 zones worldwide, meters. Specify zone 1-60 and N/S hemisphere.</li>
+    <li><strong>US State Plane (NAD83)</strong> &mdash; 120+ zones, both US Survey Feet and meters where standard. Optimized for small-area projects with sub-meter accuracy.</li>
+    <li><strong>Web Mercator (EPSG:3857)</strong> &mdash; the projection used by Google/Bing/OSM web maps. Meters, global extent.</li>
+  </ul>
+  <p><strong>Paste formats auto-detected:</strong> <code>32.9, -97.0</code>, <code>33&deg;54'N 97&deg;02'W</code>, <code>N32.9 W97.0</code>, <code>32 54 12, -97 02 45</code>.</p>
+  <p>State Plane Texas zones are highlighted: <strong>4201 North</strong>, <strong>4202 North Central</strong>, <strong>4203 Central</strong>, <strong>4204 South Central</strong>, <strong>4205 South</strong>.</p>
+</details>
+
+</main>
+
+<!-- Paste modal -->
+<div class="modal-bg" id="paste-modal">
+  <div class="modal">
+    <h3>Paste Coordinates</h3>
+    <label for="paste-text">Accepts: "32.9, -97.0" / "33&deg;54'N 97&deg;02'W" / "N32.9 W97.0" / "32 54 12 -97 02 45"</label>
+    <textarea id="paste-text" placeholder="Paste coordinates here..."></textarea>
+    <div class="status" id="paste-status"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="paste-cancel">Cancel</button>
+      <button class="primary" id="paste-apply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="footer-watermark">KORB ENGINEERING</div>
+
+<script>
+/* ============================================================
+   STATE PLANE EPSG DEFINITIONS (NAD83, 2011 realization where commonly used)
+   Includes feet (US Survey Foot) and meter variants.
+   Sourced from proj.org / EPSG database.
+   ============================================================ */
+var STATE_PLANE_ZONES = [
+  // TEXAS (highlighted)
+  {epsg:'EPSG:2275', name:'TX - North (US ft)',           def:'+proj=lcc +lat_0=34 +lon_0=-101.5 +lat_1=34.65 +lat_2=36.1833333333333 +x_0=200000 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2276', name:'TX - North Central (US ft)',   def:'+proj=lcc +lat_0=31.6666666666667 +lon_0=-98.5 +lat_1=32.1333333333333 +lat_2=33.9666666666667 +x_0=600000 +y_0=2000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2277', name:'TX - Central (US ft)',         def:'+proj=lcc +lat_0=29.6666666666667 +lon_0=-100.333333333333 +lat_1=30.1166666666667 +lat_2=31.8833333333333 +x_0=700000 +y_0=3000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2278', name:'TX - South Central (US ft)',   def:'+proj=lcc +lat_0=27.8333333333333 +lon_0=-99 +lat_1=28.3833333333333 +lat_2=30.2833333333333 +x_0=600000 +y_0=4000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2279', name:'TX - South (US ft)',           def:'+proj=lcc +lat_0=25.6666666666667 +lon_0=-98.5 +lat_1=26.1666666666667 +lat_2=27.8333333333333 +x_0=300000 +y_0=5000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32138', name:'TX - North (m)',              def:'+proj=lcc +lat_0=34 +lon_0=-101.5 +lat_1=34.65 +lat_2=36.1833333333333 +x_0=200000 +y_0=1000000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:32139', name:'TX - North Central (m)',      def:'+proj=lcc +lat_0=31.6666666666667 +lon_0=-98.5 +lat_1=32.1333333333333 +lat_2=33.9666666666667 +x_0=600000 +y_0=2000000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:32140', name:'TX - Central (m)',            def:'+proj=lcc +lat_0=29.6666666666667 +lon_0=-100.333333333333 +lat_1=30.1166666666667 +lat_2=31.8833333333333 +x_0=700000 +y_0=3000000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:32141', name:'TX - South Central (m)',      def:'+proj=lcc +lat_0=27.8333333333333 +lon_0=-99 +lat_1=28.3833333333333 +lat_2=30.2833333333333 +x_0=600000 +y_0=4000000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:32142', name:'TX - South (m)',              def:'+proj=lcc +lat_0=25.6666666666667 +lon_0=-98.5 +lat_1=26.1666666666667 +lat_2=27.8333333333333 +x_0=300000 +y_0=5000000 +datum=NAD83 +units=m +no_defs'},
+
+  // ALABAMA
+  {epsg:'EPSG:2759', name:'AL - East (US ft)',            def:'+proj=tmerc +lat_0=30.5 +lon_0=-85.8333333333333 +k=0.99996 +x_0=200000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2760', name:'AL - West (US ft)',            def:'+proj=tmerc +lat_0=30 +lon_0=-87.5 +k=0.999933333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26929', name:'AL - East (m)',               def:'+proj=tmerc +lat_0=30.5 +lon_0=-85.8333333333333 +k=0.99996 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26930', name:'AL - West (m)',               def:'+proj=tmerc +lat_0=30 +lon_0=-87.5 +k=0.999933333 +x_0=600000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // ALASKA (zones 1-10; zone 1 is oblique mercator, others TM)
+  {epsg:'EPSG:26932', name:'AK - Zone 2 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-142 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26933', name:'AK - Zone 3 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-146 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26934', name:'AK - Zone 4 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-150 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26935', name:'AK - Zone 5 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-154 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26936', name:'AK - Zone 6 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-158 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26937', name:'AK - Zone 7 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-162 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26938', name:'AK - Zone 8 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-166 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26939', name:'AK - Zone 9 (m)',             def:'+proj=tmerc +lat_0=54 +lon_0=-170 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26940', name:'AK - Zone 10 (m)',            def:'+proj=lcc +lat_0=51 +lon_0=-176 +lat_1=51.8333333333333 +lat_2=53.8333333333333 +x_0=1000000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // ARIZONA
+  {epsg:'EPSG:2222', name:'AZ - East (US ft)',            def:'+proj=tmerc +lat_0=31 +lon_0=-110.166666666667 +k=0.9999 +x_0=213360 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2223', name:'AZ - Central (US ft)',         def:'+proj=tmerc +lat_0=31 +lon_0=-111.916666666667 +k=0.9999 +x_0=213360 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2224', name:'AZ - West (US ft)',            def:'+proj=tmerc +lat_0=31 +lon_0=-113.75 +k=0.999933333 +x_0=213360 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26948', name:'AZ - East (m)',               def:'+proj=tmerc +lat_0=31 +lon_0=-110.166666666667 +k=0.9999 +x_0=213360 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26949', name:'AZ - Central (m)',            def:'+proj=tmerc +lat_0=31 +lon_0=-111.916666666667 +k=0.9999 +x_0=213360 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26950', name:'AZ - West (m)',               def:'+proj=tmerc +lat_0=31 +lon_0=-113.75 +k=0.999933333 +x_0=213360 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // ARKANSAS
+  {epsg:'EPSG:3433', name:'AR - North (US ft)',           def:'+proj=lcc +lat_0=34.3333333333333 +lon_0=-92 +lat_1=34.9333333333333 +lat_2=36.2333333333333 +x_0=400000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3434', name:'AR - South (US ft)',           def:'+proj=lcc +lat_0=32.6666666666667 +lon_0=-92 +lat_1=33.3 +lat_2=34.7666666666667 +x_0=400000 +y_0=400000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26951', name:'AR - North (m)',              def:'+proj=lcc +lat_0=34.3333333333333 +lon_0=-92 +lat_1=34.9333333333333 +lat_2=36.2333333333333 +x_0=400000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26952', name:'AR - South (m)',              def:'+proj=lcc +lat_0=32.6666666666667 +lon_0=-92 +lat_1=33.3 +lat_2=34.7666666666667 +x_0=400000 +y_0=400000 +datum=NAD83 +units=m +no_defs'},
+
+  // CALIFORNIA
+  {epsg:'EPSG:2225', name:'CA - Zone I (US ft)',          def:'+proj=lcc +lat_0=39.3333333333333 +lon_0=-122 +lat_1=40 +lat_2=41.6666666666667 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2226', name:'CA - Zone II (US ft)',         def:'+proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=38.3333333333333 +lat_2=39.8333333333333 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2227', name:'CA - Zone III (US ft)',        def:'+proj=lcc +lat_0=36.5 +lon_0=-120.5 +lat_1=37.0666666666667 +lat_2=38.4333333333333 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2228', name:'CA - Zone IV (US ft)',         def:'+proj=lcc +lat_0=35.3333333333333 +lon_0=-119 +lat_1=36 +lat_2=37.25 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2229', name:'CA - Zone V (US ft)',          def:'+proj=lcc +lat_0=33.5 +lon_0=-118 +lat_1=34.0333333333333 +lat_2=35.4666666666667 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2230', name:'CA - Zone VI (US ft)',         def:'+proj=lcc +lat_0=32.1666666666667 +lon_0=-116.25 +lat_1=32.7833333333333 +lat_2=33.8833333333333 +x_0=2000000.0001016 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26941', name:'CA - Zone I (m)',             def:'+proj=lcc +lat_0=39.3333333333333 +lon_0=-122 +lat_1=40 +lat_2=41.6666666666667 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26942', name:'CA - Zone II (m)',            def:'+proj=lcc +lat_0=37.6666666666667 +lon_0=-122 +lat_1=38.3333333333333 +lat_2=39.8333333333333 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26943', name:'CA - Zone III (m)',           def:'+proj=lcc +lat_0=36.5 +lon_0=-120.5 +lat_1=37.0666666666667 +lat_2=38.4333333333333 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26944', name:'CA - Zone IV (m)',            def:'+proj=lcc +lat_0=35.3333333333333 +lon_0=-119 +lat_1=36 +lat_2=37.25 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26945', name:'CA - Zone V (m)',             def:'+proj=lcc +lat_0=33.5 +lon_0=-118 +lat_1=34.0333333333333 +lat_2=35.4666666666667 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26946', name:'CA - Zone VI (m)',            def:'+proj=lcc +lat_0=32.1666666666667 +lon_0=-116.25 +lat_1=32.7833333333333 +lat_2=33.8833333333333 +x_0=2000000 +y_0=500000 +datum=NAD83 +units=m +no_defs'},
+
+  // COLORADO
+  {epsg:'EPSG:2231', name:'CO - North (US ft)',           def:'+proj=lcc +lat_0=39.3333333333333 +lon_0=-105.5 +lat_1=39.7166666666667 +lat_2=40.7833333333333 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2232', name:'CO - Central (US ft)',         def:'+proj=lcc +lat_0=37.8333333333333 +lon_0=-105.5 +lat_1=38.45 +lat_2=39.75 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2233', name:'CO - South (US ft)',           def:'+proj=lcc +lat_0=36.6666666666667 +lon_0=-105.5 +lat_1=37.2333333333333 +lat_2=38.4333333333333 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26953', name:'CO - North (m)',              def:'+proj=lcc +lat_0=39.3333333333333 +lon_0=-105.5 +lat_1=39.7166666666667 +lat_2=40.7833333333333 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26954', name:'CO - Central (m)',            def:'+proj=lcc +lat_0=37.8333333333333 +lon_0=-105.5 +lat_1=38.45 +lat_2=39.75 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26955', name:'CO - South (m)',              def:'+proj=lcc +lat_0=36.6666666666667 +lon_0=-105.5 +lat_1=37.2333333333333 +lat_2=38.4333333333333 +x_0=914401.8289 +y_0=304800.6096 +datum=NAD83 +units=m +no_defs'},
+
+  // CONNECTICUT
+  {epsg:'EPSG:2234', name:'CT (US ft)',                   def:'+proj=lcc +lat_0=40.8333333333333 +lon_0=-72.75 +lat_1=41.2 +lat_2=41.8666666666667 +x_0=304800.6096 +y_0=152400.3048 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26956', name:'CT (m)',                      def:'+proj=lcc +lat_0=40.8333333333333 +lon_0=-72.75 +lat_1=41.2 +lat_2=41.8666666666667 +x_0=304800.6096 +y_0=152400.3048 +datum=NAD83 +units=m +no_defs'},
+
+  // DELAWARE
+  {epsg:'EPSG:2235', name:'DE (US ft)',                   def:'+proj=tmerc +lat_0=38 +lon_0=-75.4166666666667 +k=0.999995 +x_0=200000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26957', name:'DE (m)',                      def:'+proj=tmerc +lat_0=38 +lon_0=-75.4166666666667 +k=0.999995 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // FLORIDA
+  {epsg:'EPSG:2236', name:'FL - East (US ft)',            def:'+proj=tmerc +lat_0=24.3333333333333 +lon_0=-81 +k=0.999941177 +x_0=200000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2237', name:'FL - West (US ft)',            def:'+proj=tmerc +lat_0=24.3333333333333 +lon_0=-82 +k=0.999941177 +x_0=200000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2238', name:'FL - North (US ft)',           def:'+proj=lcc +lat_0=29 +lon_0=-84.5 +lat_1=29.5833333333333 +lat_2=30.75 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26958', name:'FL - East (m)',               def:'+proj=tmerc +lat_0=24.3333333333333 +lon_0=-81 +k=0.999941177 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26959', name:'FL - West (m)',               def:'+proj=tmerc +lat_0=24.3333333333333 +lon_0=-82 +k=0.999941177 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26960', name:'FL - North (m)',              def:'+proj=lcc +lat_0=29 +lon_0=-84.5 +lat_1=29.5833333333333 +lat_2=30.75 +x_0=600000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // GEORGIA
+  {epsg:'EPSG:2239', name:'GA - East (US ft)',            def:'+proj=tmerc +lat_0=30 +lon_0=-82.1666666666667 +k=0.9999 +x_0=200000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2240', name:'GA - West (US ft)',            def:'+proj=tmerc +lat_0=30 +lon_0=-84.1666666666667 +k=0.9999 +x_0=700000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26966', name:'GA - East (m)',               def:'+proj=tmerc +lat_0=30 +lon_0=-82.1666666666667 +k=0.9999 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26967', name:'GA - West (m)',               def:'+proj=tmerc +lat_0=30 +lon_0=-84.1666666666667 +k=0.9999 +x_0=700000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // HAWAII
+  {epsg:'EPSG:2782', name:'HI - Zone 1 (US ft)',          def:'+proj=tmerc +lat_0=18.8333333333333 +lon_0=-155.5 +k=0.999966667 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2783', name:'HI - Zone 2 (US ft)',          def:'+proj=tmerc +lat_0=20.3333333333333 +lon_0=-156.666666666667 +k=0.999966667 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2784', name:'HI - Zone 3 (US ft)',          def:'+proj=tmerc +lat_0=21.1666666666667 +lon_0=-158 +k=0.99999 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2785', name:'HI - Zone 4 (US ft)',          def:'+proj=tmerc +lat_0=21.8333333333333 +lon_0=-159.5 +k=0.99999 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2786', name:'HI - Zone 5 (US ft)',          def:'+proj=tmerc +lat_0=21.6666666666667 +lon_0=-160.166666666667 +k=1 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26961', name:'HI - Zone 1 (m)',             def:'+proj=tmerc +lat_0=18.8333333333333 +lon_0=-155.5 +k=0.999966667 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26962', name:'HI - Zone 2 (m)',             def:'+proj=tmerc +lat_0=20.3333333333333 +lon_0=-156.666666666667 +k=0.999966667 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26963', name:'HI - Zone 3 (m)',             def:'+proj=tmerc +lat_0=21.1666666666667 +lon_0=-158 +k=0.99999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26964', name:'HI - Zone 4 (m)',             def:'+proj=tmerc +lat_0=21.8333333333333 +lon_0=-159.5 +k=0.99999 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26965', name:'HI - Zone 5 (m)',             def:'+proj=tmerc +lat_0=21.6666666666667 +lon_0=-160.166666666667 +k=1 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // IDAHO
+  {epsg:'EPSG:2241', name:'ID - East (US ft)',            def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-112.166666666667 +k=0.9999473 +x_0=200000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2242', name:'ID - Central (US ft)',         def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-114 +k=0.9999473 +x_0=500000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2243', name:'ID - West (US ft)',            def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-115.75 +k=0.9999333333 +x_0=800000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26968', name:'ID - East (m)',               def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-112.166666666667 +k=0.9999473 +x_0=200000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26969', name:'ID - Central (m)',            def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-114 +k=0.9999473 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26970', name:'ID - West (m)',               def:'+proj=tmerc +lat_0=41.6666666666667 +lon_0=-115.75 +k=0.9999333333 +x_0=800000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // ILLINOIS
+  {epsg:'EPSG:3435', name:'IL - East (US ft)',            def:'+proj=tmerc +lat_0=36.6666666666667 +lon_0=-88.3333333333333 +k=0.999975 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3436', name:'IL - West (US ft)',            def:'+proj=tmerc +lat_0=36.6666666666667 +lon_0=-90.1666666666667 +k=0.999941177 +x_0=700000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26971', name:'IL - East (m)',               def:'+proj=tmerc +lat_0=36.6666666666667 +lon_0=-88.3333333333333 +k=0.999975 +x_0=300000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26972', name:'IL - West (m)',               def:'+proj=tmerc +lat_0=36.6666666666667 +lon_0=-90.1666666666667 +k=0.999941177 +x_0=700000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // INDIANA
+  {epsg:'EPSG:2244', name:'IN - East (US ft)',            def:'+proj=tmerc +lat_0=37.5 +lon_0=-85.6666666666667 +k=0.999966667 +x_0=100000 +y_0=250000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2245', name:'IN - West (US ft)',            def:'+proj=tmerc +lat_0=37.5 +lon_0=-87.0833333333333 +k=0.999966667 +x_0=900000 +y_0=250000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26973', name:'IN - East (m)',               def:'+proj=tmerc +lat_0=37.5 +lon_0=-85.6666666666667 +k=0.999966667 +x_0=100000 +y_0=250000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26974', name:'IN - West (m)',               def:'+proj=tmerc +lat_0=37.5 +lon_0=-87.0833333333333 +k=0.999966667 +x_0=900000 +y_0=250000 +datum=NAD83 +units=m +no_defs'},
+
+  // IOWA
+  {epsg:'EPSG:3417', name:'IA - North (US ft)',           def:'+proj=lcc +lat_0=41.5 +lon_0=-93.5 +lat_1=42.0666666666667 +lat_2=43.2666666666667 +x_0=1500000 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3418', name:'IA - South (US ft)',           def:'+proj=lcc +lat_0=40 +lon_0=-93.5 +lat_1=40.6166666666667 +lat_2=41.7833333333333 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26975', name:'IA - North (m)',              def:'+proj=lcc +lat_0=41.5 +lon_0=-93.5 +lat_1=42.0666666666667 +lat_2=43.2666666666667 +x_0=1500000 +y_0=1000000 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26976', name:'IA - South (m)',              def:'+proj=lcc +lat_0=40 +lon_0=-93.5 +lat_1=40.6166666666667 +lat_2=41.7833333333333 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // KANSAS
+  {epsg:'EPSG:3419', name:'KS - North (US ft)',           def:'+proj=lcc +lat_0=38.3333333333333 +lon_0=-98 +lat_1=38.7166666666667 +lat_2=39.7833333333333 +x_0=400000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3420', name:'KS - South (US ft)',           def:'+proj=lcc +lat_0=36.6666666666667 +lon_0=-98.5 +lat_1=37.2666666666667 +lat_2=38.5666666666667 +x_0=400000 +y_0=400000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26977', name:'KS - North (m)',              def:'+proj=lcc +lat_0=38.3333333333333 +lon_0=-98 +lat_1=38.7166666666667 +lat_2=39.7833333333333 +x_0=400000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26978', name:'KS - South (m)',              def:'+proj=lcc +lat_0=36.6666666666667 +lon_0=-98.5 +lat_1=37.2666666666667 +lat_2=38.5666666666667 +x_0=400000 +y_0=400000 +datum=NAD83 +units=m +no_defs'},
+
+  // KENTUCKY (includes single-zone 1600 variant)
+  {epsg:'EPSG:2246', name:'KY - North (US ft)',           def:'+proj=lcc +lat_0=37.5 +lon_0=-84.25 +lat_1=37.9666666666667 +lat_2=38.9666666666667 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2247', name:'KY - South (US ft)',           def:'+proj=lcc +lat_0=36.3333333333333 +lon_0=-85.75 +lat_1=36.7333333333333 +lat_2=37.9333333333333 +x_0=500000 +y_0=500000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2205', name:'KY - Single Zone (US ft)',     def:'+proj=lcc +lat_0=36.3333333333333 +lon_0=-85.75 +lat_1=37.0833333333333 +lat_2=38.6666666666667 +x_0=1500000 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // LOUISIANA
+  {epsg:'EPSG:3451', name:'LA - North (US ft)',           def:'+proj=lcc +lat_0=30.5 +lon_0=-92.5 +lat_1=31.1666666666667 +lat_2=32.6666666666667 +x_0=1000000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3452', name:'LA - South (US ft)',           def:'+proj=lcc +lat_0=28.5 +lon_0=-91.3333333333333 +lat_1=29.3 +lat_2=30.7 +x_0=1000000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MAINE
+  {epsg:'EPSG:2803', name:'ME - East (US ft)',            def:'+proj=tmerc +lat_0=43.6666666666667 +lon_0=-68.5 +k=0.9999 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2804', name:'ME - West (US ft)',            def:'+proj=tmerc +lat_0=42.8333333333333 +lon_0=-70.1666666666667 +k=0.999966667 +x_0=900000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MARYLAND
+  {epsg:'EPSG:2248', name:'MD (US ft)',                   def:'+proj=lcc +lat_0=37.6666666666667 +lon_0=-77 +lat_1=38.3 +lat_2=39.45 +x_0=400000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:26985', name:'MD (m)',                      def:'+proj=lcc +lat_0=37.6666666666667 +lon_0=-77 +lat_1=38.3 +lat_2=39.45 +x_0=400000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // MASSACHUSETTS
+  {epsg:'EPSG:2249', name:'MA - Mainland (US ft)',        def:'+proj=lcc +lat_0=41 +lon_0=-71.5 +lat_1=41.7166666666667 +lat_2=42.6833333333333 +x_0=200000 +y_0=750000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2250', name:'MA - Island (US ft)',          def:'+proj=lcc +lat_0=41 +lon_0=-70.5 +lat_1=41.2833333333333 +lat_2=41.4833333333333 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MICHIGAN
+  {epsg:'EPSG:2251', name:'MI - North (US ft)',           def:'+proj=lcc +lat_0=44.7833333333333 +lon_0=-87 +lat_1=45.4833333333333 +lat_2=47.0833333333333 +x_0=8000000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2252', name:'MI - Central (US ft)',         def:'+proj=lcc +lat_0=43.3166666666667 +lon_0=-84.3666666666667 +lat_1=44.1833333333333 +lat_2=45.7 +x_0=6000000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2253', name:'MI - South (US ft)',           def:'+proj=lcc +lat_0=41.5 +lon_0=-84.3666666666667 +lat_1=42.1 +lat_2=43.6666666666667 +x_0=4000000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MINNESOTA
+  {epsg:'EPSG:2811', name:'MN - North (US ft)',           def:'+proj=lcc +lat_0=46.5 +lon_0=-93.1 +lat_1=47.0333333333333 +lat_2=48.6333333333333 +x_0=800000 +y_0=100000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2812', name:'MN - Central (US ft)',         def:'+proj=lcc +lat_0=45 +lon_0=-94.25 +lat_1=45.6166666666667 +lat_2=47.05 +x_0=800000 +y_0=100000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2813', name:'MN - South (US ft)',           def:'+proj=lcc +lat_0=43 +lon_0=-94 +lat_1=43.7833333333333 +lat_2=45.2166666666667 +x_0=800000 +y_0=100000 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MISSISSIPPI
+  {epsg:'EPSG:2254', name:'MS - East (US ft)',            def:'+proj=tmerc +lat_0=29.5 +lon_0=-88.8333333333333 +k=0.99995 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2255', name:'MS - West (US ft)',            def:'+proj=tmerc +lat_0=29.5 +lon_0=-90.3333333333333 +k=0.99995 +x_0=700000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // MISSOURI
+  {epsg:'EPSG:26996', name:'MO - East (m)',               def:'+proj=tmerc +lat_0=35.8333333333333 +lon_0=-90.5 +k=0.999933333 +x_0=250000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26997', name:'MO - Central (m)',            def:'+proj=tmerc +lat_0=35.8333333333333 +lon_0=-92.5 +k=0.999933333 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26998', name:'MO - West (m)',               def:'+proj=tmerc +lat_0=36.1666666666667 +lon_0=-94.5 +k=0.999941177 +x_0=850000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // MONTANA (single zone)
+  {epsg:'EPSG:2256', name:'MT (US ft)',                   def:'+proj=lcc +lat_0=44.25 +lon_0=-109.5 +lat_1=45 +lat_2=49 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32100', name:'MT (m)',                      def:'+proj=lcc +lat_0=44.25 +lon_0=-109.5 +lat_1=45 +lat_2=49 +x_0=600000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // NEBRASKA (single zone)
+  {epsg:'EPSG:2819', name:'NE (US ft)',                   def:'+proj=lcc +lat_0=39.8333333333333 +lon_0=-100 +lat_1=40 +lat_2=43 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32104', name:'NE (m)',                      def:'+proj=lcc +lat_0=39.8333333333333 +lon_0=-100 +lat_1=40 +lat_2=43 +x_0=500000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // NEVADA
+  {epsg:'EPSG:3421', name:'NV - East (US ft)',            def:'+proj=tmerc +lat_0=34.75 +lon_0=-115.5833333333 +k=0.9999 +x_0=200000 +y_0=8000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3422', name:'NV - Central (US ft)',         def:'+proj=tmerc +lat_0=34.75 +lon_0=-116.6666666667 +k=0.9999 +x_0=500000 +y_0=6000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3423', name:'NV - West (US ft)',            def:'+proj=tmerc +lat_0=34.75 +lon_0=-118.5833333333 +k=0.9999 +x_0=800000 +y_0=4000000 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // NEW HAMPSHIRE
+  {epsg:'EPSG:3437', name:'NH (US ft)',                   def:'+proj=tmerc +lat_0=42.5 +lon_0=-71.6666666667 +k=0.999966667 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // NEW JERSEY
+  {epsg:'EPSG:3424', name:'NJ (US ft)',                   def:'+proj=tmerc +lat_0=38.8333333333333 +lon_0=-74.5 +k=0.9999 +x_0=150000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32111', name:'NJ (m)',                      def:'+proj=tmerc +lat_0=38.8333333333333 +lon_0=-74.5 +k=0.9999 +x_0=150000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // NEW MEXICO
+  {epsg:'EPSG:2257', name:'NM - East (US ft)',            def:'+proj=tmerc +lat_0=31 +lon_0=-104.333333333333 +k=0.999909091 +x_0=165000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2258', name:'NM - Central (US ft)',         def:'+proj=tmerc +lat_0=31 +lon_0=-106.25 +k=0.9999 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2259', name:'NM - West (US ft)',            def:'+proj=tmerc +lat_0=31 +lon_0=-107.833333333333 +k=0.999916667 +x_0=830000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // NEW YORK
+  {epsg:'EPSG:2260', name:'NY - East (US ft)',            def:'+proj=tmerc +lat_0=38.8333333333333 +lon_0=-74.5 +k=0.9999 +x_0=150000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2261', name:'NY - Central (US ft)',         def:'+proj=tmerc +lat_0=40 +lon_0=-76.5833333333333 +k=0.9999375 +x_0=250000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2262', name:'NY - West (US ft)',            def:'+proj=tmerc +lat_0=40 +lon_0=-78.5833333333333 +k=0.9999375 +x_0=350000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2263', name:'NY - Long Island (US ft)',     def:'+proj=lcc +lat_0=40.1666666666667 +lon_0=-74 +lat_1=40.6666666666667 +lat_2=41.0333333333333 +x_0=300000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32115', name:'NY - Long Island (m)',        def:'+proj=lcc +lat_0=40.1666666666667 +lon_0=-74 +lat_1=40.6666666666667 +lat_2=41.0333333333333 +x_0=300000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // NORTH CAROLINA
+  {epsg:'EPSG:2264', name:'NC (US ft)',                   def:'+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=34.3333333333333 +lat_2=36.1666666666667 +x_0=609601.22 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:32119', name:'NC (m)',                      def:'+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=34.3333333333333 +lat_2=36.1666666666667 +x_0=609601.22 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // NORTH DAKOTA
+  {epsg:'EPSG:2265', name:'ND - North (US ft)',           def:'+proj=lcc +lat_0=47 +lon_0=-100.5 +lat_1=47.4333333333333 +lat_2=48.7333333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2266', name:'ND - South (US ft)',           def:'+proj=lcc +lat_0=45.6666666666667 +lon_0=-100.5 +lat_1=46.1833333333333 +lat_2=47.4833333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // OHIO
+  {epsg:'EPSG:3734', name:'OH - North (US ft)',           def:'+proj=lcc +lat_0=39.6666666666667 +lon_0=-82.5 +lat_1=40.4333333333333 +lat_2=41.7 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:3735', name:'OH - South (US ft)',           def:'+proj=lcc +lat_0=38 +lon_0=-82.5 +lat_1=38.7333333333333 +lat_2=40.0333333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // OKLAHOMA
+  {epsg:'EPSG:2267', name:'OK - North (US ft)',           def:'+proj=lcc +lat_0=35 +lon_0=-98 +lat_1=35.5666666666667 +lat_2=36.7666666666667 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2268', name:'OK - South (US ft)',           def:'+proj=lcc +lat_0=33.3333333333333 +lon_0=-98 +lat_1=33.9333333333333 +lat_2=35.2333333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // OREGON
+  {epsg:'EPSG:2269', name:'OR - North (US ft)',           def:'+proj=lcc +lat_0=43.6666666666667 +lon_0=-120.5 +lat_1=44.3333333333333 +lat_2=46 +x_0=2500000.0001424 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2270', name:'OR - South (US ft)',           def:'+proj=lcc +lat_0=41.6666666666667 +lon_0=-120.5 +lat_1=42.3333333333333 +lat_2=44 +x_0=1500000.0001464 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // PENNSYLVANIA
+  {epsg:'EPSG:2271', name:'PA - North (US ft)',           def:'+proj=lcc +lat_0=40.1666666666667 +lon_0=-77.75 +lat_1=40.8833333333333 +lat_2=41.95 +x_0=600000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2272', name:'PA - South (US ft)',           def:'+proj=lcc +lat_0=39.3333333333333 +lon_0=-77.75 +lat_1=39.9333333333333 +lat_2=40.9666666666667 +x_0=600000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // RHODE ISLAND
+  {epsg:'EPSG:3438', name:'RI (US ft)',                   def:'+proj=tmerc +lat_0=41.0833333333333 +lon_0=-71.5 +k=0.99999375 +x_0=100000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // SOUTH CAROLINA
+  {epsg:'EPSG:2273', name:'SC (US ft)',                   def:'+proj=lcc +lat_0=31.8333333333333 +lon_0=-81 +lat_1=32.5 +lat_2=34.8333333333333 +x_0=609600 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // SOUTH DAKOTA
+  {epsg:'EPSG:2841', name:'SD - North (US ft)',           def:'+proj=lcc +lat_0=43.8333333333333 +lon_0=-100 +lat_1=44.4166666666667 +lat_2=45.6833333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2842', name:'SD - South (US ft)',           def:'+proj=lcc +lat_0=42.3333333333333 +lon_0=-100.333333333333 +lat_1=42.8333333333333 +lat_2=44.4 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // TENNESSEE
+  {epsg:'EPSG:2274', name:'TN (US ft)',                   def:'+proj=lcc +lat_0=34.3333333333333 +lon_0=-86 +lat_1=35.25 +lat_2=36.4166666666667 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // UTAH
+  {epsg:'EPSG:2849', name:'UT - North (US ft)',           def:'+proj=lcc +lat_0=40.3333333333333 +lon_0=-111.5 +lat_1=40.7166666666667 +lat_2=41.7833333333333 +x_0=500000 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2850', name:'UT - Central (US ft)',         def:'+proj=lcc +lat_0=38.3333333333333 +lon_0=-111.5 +lat_1=39.0166666666667 +lat_2=40.65 +x_0=500000 +y_0=2000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2851', name:'UT - South (US ft)',           def:'+proj=lcc +lat_0=36.6666666666667 +lon_0=-111.5 +lat_1=37.2166666666667 +lat_2=38.35 +x_0=500000 +y_0=3000000 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // VERMONT
+  {epsg:'EPSG:3439', name:'VT (US ft)',                   def:'+proj=tmerc +lat_0=42.5 +lon_0=-72.5 +k=0.999964286 +x_0=500000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // VIRGINIA
+  {epsg:'EPSG:2283', name:'VA - North (US ft)',           def:'+proj=lcc +lat_0=37.6666666666667 +lon_0=-78.5 +lat_1=38.0333333333333 +lat_2=39.2 +x_0=3500000.0001016 +y_0=2000000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2284', name:'VA - South (US ft)',           def:'+proj=lcc +lat_0=36.3333333333333 +lon_0=-78.5 +lat_1=36.7666666666667 +lat_2=37.9666666666667 +x_0=3500000.0001016 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // WASHINGTON
+  {epsg:'EPSG:2285', name:'WA - North (US ft)',           def:'+proj=lcc +lat_0=47 +lon_0=-120.833333333333 +lat_1=47.5 +lat_2=48.7333333333333 +x_0=500000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2286', name:'WA - South (US ft)',           def:'+proj=lcc +lat_0=45.3333333333333 +lon_0=-120.5 +lat_1=45.8333333333333 +lat_2=47.3333333333333 +x_0=500000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // WEST VIRGINIA
+  {epsg:'EPSG:26871', name:'WV - North (m)',              def:'+proj=lcc +lat_0=38.5 +lon_0=-79.5 +lat_1=39 +lat_2=40.25 +x_0=600000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+  {epsg:'EPSG:26872', name:'WV - South (m)',              def:'+proj=lcc +lat_0=37 +lon_0=-81 +lat_1=37.4833333333333 +lat_2=38.8833333333333 +x_0=600000 +y_0=0 +datum=NAD83 +units=m +no_defs'},
+
+  // WISCONSIN
+  {epsg:'EPSG:2287', name:'WI - North (US ft)',           def:'+proj=lcc +lat_0=45.1666666666667 +lon_0=-90 +lat_1=45.5666666666667 +lat_2=46.7666666666667 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2288', name:'WI - Central (US ft)',         def:'+proj=lcc +lat_0=43.8333333333333 +lon_0=-90 +lat_1=44.25 +lat_2=45.5 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2289', name:'WI - South (US ft)',           def:'+proj=lcc +lat_0=42 +lon_0=-90 +lat_1=42.7333333333333 +lat_2=44.0666666666667 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+
+  // WYOMING
+  {epsg:'EPSG:2290', name:'WY - East (US ft)',            def:'+proj=tmerc +lat_0=40.5 +lon_0=-105.166666666667 +k=0.9999375 +x_0=200000.0001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2291', name:'WY - East Central (US ft)',    def:'+proj=tmerc +lat_0=40.5 +lon_0=-107.333333333333 +k=0.9999375 +x_0=400000 +y_0=100000 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2292', name:'WY - West Central (US ft)',    def:'+proj=tmerc +lat_0=40.5 +lon_0=-108.75 +k=0.9999375 +x_0=600000 +y_0=0 +datum=NAD83 +units=us-ft +no_defs'},
+  {epsg:'EPSG:2293', name:'WY - West (US ft)',            def:'+proj=tmerc +lat_0=40.5 +lon_0=-110.083333333333 +k=0.9999375 +x_0=800000.0001016 +y_0=100000 +datum=NAD83 +units=us-ft +no_defs'}
+];
+
+/* ============================================================
+   Register all state plane defs with proj4
+   ============================================================ */
+STATE_PLANE_ZONES.forEach(function(z){
+  try { proj4.defs(z.epsg, z.def); } catch(e) { console.warn('Failed to register', z.epsg, e); }
+});
+
+// Also register WGS84 and Web Mercator explicitly (usually built in, but be safe)
+proj4.defs('EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs');
+proj4.defs('EPSG:3857', '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs');
+
+/* ============================================================
+   Coordinate system registry
+   ============================================================ */
+var SYSTEMS = [
+  { id:'wgs84_dd',  label:'WGS84 Lat/Lon (Decimal Degrees)',  kind:'latlon_dd' },
+  { id:'wgs84_dms', label:'WGS84 Lat/Lon (DMS)',              kind:'latlon_dms' },
+  { id:'utm',       label:'UTM (WGS84, all zones)',           kind:'utm' },
+  { id:'stateplane',label:'US State Plane (NAD83)',            kind:'stateplane' },
+  { id:'webmerc',   label:'Web Mercator (EPSG:3857)',          kind:'webmerc' }
+];
+
+/* ============================================================
+   State & DOM
+   ============================================================ */
+var STATE = {
+  src: { sysId:'wgs84_dd', values:{} },
+  dst: { sysId:'utm',      values:{} },
+  lastLatLon: null
+};
+var STORE_KEY_STATE = 'korb_coord_state';
+var STORE_KEY_HIST  = 'korb_coord_history';
+var map, marker, tileLayer;
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+function $(id){ return document.getElementById(id); }
+function toast(msg, kind){
+  var t=$('toast'); t.textContent=msg;
+  t.style.borderColor = kind==='err' ? 'var(--red)' : kind==='warn' ? 'var(--amber)' : 'var(--cyan)';
+  t.style.color       = kind==='err' ? 'var(--red)' : kind==='warn' ? 'var(--amber)' : 'var(--cyan)';
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+function clamp(n,lo,hi){ return Math.min(hi, Math.max(lo, n)); }
+function fmt(n, prec){
+  if (n===null || n===undefined || isNaN(n)) return '--';
+  if (prec===undefined) prec=6;
+  return Number(n).toFixed(prec);
+}
+
+// DMS <-> DD
+function ddToDms(dd, isLat){
+  if (isNaN(dd)) return '--';
+  var hemi = isLat ? (dd>=0?'N':'S') : (dd>=0?'E':'W');
+  var a = Math.abs(dd);
+  var d = Math.floor(a);
+  var mFull = (a-d)*60;
+  var m = Math.floor(mFull);
+  var s = (mFull-m)*60;
+  return d+'\u00B0 '+String(m).padStart(2,'0')+"' "+s.toFixed(3)+'" '+hemi;
+}
+function dmsToDd(str){
+  if (!str) return NaN;
+  var s = String(str).trim();
+  var sign = 1;
+  var hemiFound = false;
+  var m = s.match(/([NSEW])/i);
+  if (m) {
+    var h = m[1].toUpperCase();
+    if (h==='S' || h==='W') sign = -1;
+    hemiFound = true;
+    s = s.replace(/[NSEW]/gi,'');
+  }
+  // Strip degree/minute/second symbols, keep digits, decimal, minus
+  s = s.replace(/[\u00B0'"`\u2032\u2033]/g,' ').replace(/\s+/g,' ').trim();
+  var parts = s.split(/[ ,]+/).filter(Boolean).map(parseFloat);
+  if (!parts.length) return NaN;
+  // If user provided a negative first component AND no hemisphere, respect the minus sign.
+  // If user provided hemisphere, trust the hemisphere and ignore any stray minus.
+  if (!hemiFound && parts[0] < 0) sign = -1;
+  var dd;
+  if (parts.length===1) dd = Math.abs(parts[0]);
+  else if (parts.length===2) dd = Math.abs(parts[0]) + parts[1]/60;
+  else dd = Math.abs(parts[0]) + parts[1]/60 + parts[2]/3600;
+  return sign * dd;
+}
+
+// UTM <-> lon/lat using proj4 dynamic defs
+function utmEpsg(zone, hemi){
+  zone = parseInt(zone,10);
+  if (!(zone>=1 && zone<=60)) return null;
+  if (hemi==='N') return 'EPSG:326'+String(zone).padStart(2,'0');
+  if (hemi==='S') return 'EPSG:327'+String(zone).padStart(2,'0');
+  return null;
+}
+function ensureUtmDef(zone, hemi){
+  var code = utmEpsg(zone, hemi);
+  if (!code) return null;
+  try { proj4(code); return code; }
+  catch(e){
+    var south = hemi==='S' ? ' +south' : '';
+    var def = '+proj=utm +zone='+zone+south+' +datum=WGS84 +units=m +no_defs';
+    proj4.defs(code, def);
+    return code;
+  }
+}
+function lonLatToUtmZone(lon, lat){
+  // Special cases for Norway/Svalbard approximated by the general formula
+  var z = Math.floor((lon + 180)/6) + 1;
+  if (z < 1) z = 1; if (z > 60) z = 60;
+  return z;
+}
+
+/* ============================================================
+   Field builders
+   ============================================================ */
+function fieldsHtml(which, sysId, values){
+  values = values || {};
+  var prefix = which;
+  var sys = SYSTEMS.find(function(s){ return s.id===sysId; });
+  if (!sys) return '';
+  if (sys.kind==='latlon_dd'){
+    return (
+      '<div class="row">'+
+        '<div class="field"><label>Latitude (deg)</label><input id="'+prefix+'-lat" type="number" step="any" placeholder="32.9047" value="'+(values.lat!==undefined?values.lat:'')+'"></div>'+
+        '<div class="field"><label>Longitude (deg)</label><input id="'+prefix+'-lon" type="number" step="any" placeholder="-97.0279" value="'+(values.lon!==undefined?values.lon:'')+'"></div>'+
+      '</div>'
+    );
+  }
+  if (sys.kind==='latlon_dms'){
+    return (
+      '<div class="field"><label>Latitude (DMS, e.g. 32&deg; 54\' 16.92" N)</label><input id="'+prefix+'-lat" type="text" placeholder="32 54 16.92 N" value="'+(values.lat!==undefined?values.lat:'')+'"></div>'+
+      '<div class="field"><label>Longitude (DMS, e.g. 97&deg; 01\' 40.44" W)</label><input id="'+prefix+'-lon" type="text" placeholder="97 01 40.44 W" value="'+(values.lon!==undefined?values.lon:'')+'"></div>'
+    );
+  }
+  if (sys.kind==='utm'){
+    var z = values.zone || 14;
+    var h = values.hemi || 'N';
+    var zoneOpts = '';
+    for (var i=1;i<=60;i++) zoneOpts += '<option value="'+i+'"'+(i==z?' selected':'')+'>'+i+'</option>';
+    return (
+      '<div class="row">'+
+        '<div class="field"><label>Zone (1-60)</label><select id="'+prefix+'-utmzone">'+zoneOpts+'</select></div>'+
+        '<div class="field"><label>Hemisphere</label><select id="'+prefix+'-utmhemi"><option value="N"'+(h==='N'?' selected':'')+'>North</option><option value="S"'+(h==='S'?' selected':'')+'>South</option></select></div>'+
+      '</div>'+
+      '<div class="row">'+
+        '<div class="field"><label>Easting (m)</label><input id="'+prefix+'-east" type="number" step="any" placeholder="680000" value="'+(values.east!==undefined?values.east:'')+'"></div>'+
+        '<div class="field"><label>Northing (m)</label><input id="'+prefix+'-north" type="number" step="any" placeholder="3642000" value="'+(values.north!==undefined?values.north:'')+'"></div>'+
+      '</div>'
+    );
+  }
+  if (sys.kind==='stateplane'){
+    var selEpsg = values.epsg || 'EPSG:2276'; // default: TX North Central ft
+    var zoneOpts = STATE_PLANE_ZONES.map(function(z){
+      return '<option value="'+z.epsg+'"'+(z.epsg===selEpsg?' selected':'')+'>'+z.name+' ['+z.epsg+']</option>';
+    }).join('');
+    return (
+      '<div class="field"><label>State Plane Zone (NAD83)</label><select id="'+prefix+'-spzone">'+zoneOpts+'</select></div>'+
+      '<div class="row">'+
+        '<div class="field"><label>Easting (X)</label><input id="'+prefix+'-east" type="number" step="any" placeholder="Easting" value="'+(values.east!==undefined?values.east:'')+'"></div>'+
+        '<div class="field"><label>Northing (Y)</label><input id="'+prefix+'-north" type="number" step="any" placeholder="Northing" value="'+(values.north!==undefined?values.north:'')+'"></div>'+
+      '</div>'
+    );
+  }
+  if (sys.kind==='webmerc'){
+    return (
+      '<div class="row">'+
+        '<div class="field"><label>X (m, easting)</label><input id="'+prefix+'-east" type="number" step="any" placeholder="-10799456" value="'+(values.east!==undefined?values.east:'')+'"></div>'+
+        '<div class="field"><label>Y (m, northing)</label><input id="'+prefix+'-north" type="number" step="any" placeholder="3876589" value="'+(values.north!==undefined?values.north:'')+'"></div>'+
+      '</div>'
+    );
+  }
+  return '';
+}
+
+/* ============================================================
+   Read input values for a side (src/dst)
+   ============================================================ */
+function readSide(which){
+  var sysId = $(which+'-sys').value;
+  var sys = SYSTEMS.find(function(s){ return s.id===sysId; });
+  var out = { sysId: sysId, kind: sys.kind };
+  if (sys.kind==='latlon_dd'){
+    out.lat = parseFloat($(which+'-lat').value);
+    out.lon = parseFloat($(which+'-lon').value);
+  } else if (sys.kind==='latlon_dms'){
+    out.lat = dmsToDd($(which+'-lat').value);
+    out.lon = dmsToDd($(which+'-lon').value);
+  } else if (sys.kind==='utm'){
+    out.zone = parseInt($(which+'-utmzone').value,10);
+    out.hemi = $(which+'-utmhemi').value;
+    out.east = parseFloat($(which+'-east').value);
+    out.north = parseFloat($(which+'-north').value);
+  } else if (sys.kind==='stateplane'){
+    out.epsg = $(which+'-spzone').value;
+    out.east = parseFloat($(which+'-east').value);
+    out.north = parseFloat($(which+'-north').value);
+  } else if (sys.kind==='webmerc'){
+    out.east = parseFloat($(which+'-east').value);
+    out.north = parseFloat($(which+'-north').value);
+  }
+  return out;
+}
+
+/* ============================================================
+   Convert any source to WGS84 lon/lat ("canonical")
+   Returns {lon, lat} or null if not enough input
+   ============================================================ */
+function toLonLat(side){
+  if (side.kind==='latlon_dd' || side.kind==='latlon_dms'){
+    if (!isFinite(side.lat) || !isFinite(side.lon)) return null;
+    return { lon: side.lon, lat: side.lat };
+  }
+  if (side.kind==='utm'){
+    if (!isFinite(side.east) || !isFinite(side.north) || !side.zone) return null;
+    var epsg = ensureUtmDef(side.zone, side.hemi);
+    if (!epsg) return null;
+    var r = proj4(epsg, 'EPSG:4326', [side.east, side.north]);
+    return { lon: r[0], lat: r[1] };
+  }
+  if (side.kind==='stateplane'){
+    if (!isFinite(side.east) || !isFinite(side.north) || !side.epsg) return null;
+    try {
+      var r2 = proj4(side.epsg, 'EPSG:4326', [side.east, side.north]);
+      return { lon: r2[0], lat: r2[1] };
+    } catch(e){ return null; }
+  }
+  if (side.kind==='webmerc'){
+    if (!isFinite(side.east) || !isFinite(side.north)) return null;
+    var r3 = proj4('EPSG:3857', 'EPSG:4326', [side.east, side.north]);
+    return { lon: r3[0], lat: r3[1] };
+  }
+  return null;
+}
+
+/* ============================================================
+   Compute target outputs from lon/lat for currently selected dst system
+   Returns array of {key, value} strings.
+   ============================================================ */
+function fromLonLatForDst(lonlat, dstSide){
+  var out = [];
+  var lon = lonlat.lon, lat = lonlat.lat;
+  var dstSys = SYSTEMS.find(function(s){ return s.id===dstSide.sysId; });
+  if (dstSys.kind==='latlon_dd'){
+    out.push({ k:'Latitude',  v:fmt(lat, 8)+' \u00B0' });
+    out.push({ k:'Longitude', v:fmt(lon, 8)+' \u00B0' });
+    out.push({ k:'Combined',  v:fmt(lat,7)+', '+fmt(lon,7) });
+  } else if (dstSys.kind==='latlon_dms'){
+    out.push({ k:'Latitude',  v:ddToDms(lat, true) });
+    out.push({ k:'Longitude', v:ddToDms(lon, false) });
+  } else if (dstSys.kind==='utm'){
+    // Auto-pick zone from current lon if user has not selected one specifically.
+    var zone = dstSide.zone || lonLatToUtmZone(lon, lat);
+    var hemi = dstSide.hemi || (lat >= 0 ? 'N' : 'S');
+    var ep = ensureUtmDef(zone, hemi);
+    var r = proj4('EPSG:4326', ep, [lon, lat]);
+    out.push({ k:'Zone',      v:String(zone)+' '+hemi });
+    out.push({ k:'Easting',   v:fmt(r[0],3)+' m' });
+    out.push({ k:'Northing',  v:fmt(r[1],3)+' m' });
+  } else if (dstSys.kind==='stateplane'){
+    if (!dstSide.epsg) return out;
+    try {
+      var r2 = proj4('EPSG:4326', dstSide.epsg, [lon, lat]);
+      var zdef = STATE_PLANE_ZONES.find(function(z){ return z.epsg===dstSide.epsg; });
+      var units = zdef && zdef.def.indexOf('us-ft')>=0 ? 'US ft' : 'm';
+      out.push({ k:'Zone',      v:(zdef?zdef.name:dstSide.epsg) });
+      out.push({ k:'EPSG',      v:dstSide.epsg });
+      out.push({ k:'Easting',   v:fmt(r2[0],3)+' '+units });
+      out.push({ k:'Northing',  v:fmt(r2[1],3)+' '+units });
+    } catch(e){
+      out.push({ k:'Error', v:'Conversion failed: '+e.message });
+    }
+  } else if (dstSys.kind==='webmerc'){
+    var r3 = proj4('EPSG:4326', 'EPSG:3857', [lon, lat]);
+    out.push({ k:'X (Easting)',  v:fmt(r3[0],3)+' m' });
+    out.push({ k:'Y (Northing)', v:fmt(r3[1],3)+' m' });
+  }
+  return out;
+}
+
+/* ============================================================
+   Render output list with copy buttons
+   ============================================================ */
+function renderOutputs(list){
+  var wrap = $('dst-outputs');
+  if (!list || !list.length){
+    wrap.innerHTML = '<div class="output-box"><div><div class="k">No output</div><div class="v">Enter source coordinates.</div></div></div>';
+    return;
+  }
+  wrap.innerHTML = list.map(function(item){
+    var val = String(item.v).replace(/"/g,'&quot;');
+    return (
+      '<div class="output-box">'+
+        '<div><div class="k">'+item.k+'</div><div class="v">'+item.v+'</div></div>'+
+        '<button class="copy" data-copy="'+val+'">COPY</button>'+
+      '</div>'
+    );
+  }).join('');
+  wrap.querySelectorAll('button.copy').forEach(function(b){
+    b.addEventListener('click', function(){
+      var txt = b.getAttribute('data-copy');
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(function(){ toast('Copied: '+txt.slice(0,40)); });
+      } else {
+        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);
+        ta.select(); try{ document.execCommand('copy'); toast('Copied.'); } catch(e){ toast('Copy failed','err'); }
+        document.body.removeChild(ta);
+      }
+    });
+  });
+}
+
+/* ============================================================
+   Map
+   ============================================================ */
+function initMap(){
+  map = L.map('map', { zoomControl:true, attributionControl:true, worldCopyJump:true }).setView([32.9047, -97.0279], 5);
+  tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: 'OSM'
+  }).addTo(map);
+  setTimeout(function(){ map.invalidateSize(); }, 120);
+}
+function updateMap(lonlat){
+  if (!map) return;
+  if (!lonlat || !isFinite(lonlat.lon) || !isFinite(lonlat.lat) || Math.abs(lonlat.lat)>90) {
+    if (marker){ map.removeLayer(marker); marker=null; }
+    return;
+  }
+  var ll = [lonlat.lat, lonlat.lon];
+  if (!marker){
+    marker = L.circleMarker(ll, { radius:8, color:'#00d4ff', weight:2, fillColor:'#ff9900', fillOpacity:.9 }).addTo(map);
+  } else {
+    marker.setLatLng(ll);
+  }
+  marker.bindPopup('<strong>'+lonlat.lat.toFixed(6)+', '+lonlat.lon.toFixed(6)+'</strong>');
+  if (map.getZoom() < 8) map.setView(ll, 12); else map.panTo(ll);
+}
+
+/* ============================================================
+   History
+   ============================================================ */
+function loadHistory(){
+  try { return JSON.parse(localStorage.getItem(STORE_KEY_HIST) || '[]'); }
+  catch(e){ return []; }
+}
+function saveHistory(list){
+  try { localStorage.setItem(STORE_KEY_HIST, JSON.stringify(list.slice(0,10))); } catch(e){}
+}
+function addToHistory(srcSide, outList, lonlat){
+  if (!outList || !outList.length) return;
+  var hist = loadHistory();
+  var srcLabel = SYSTEMS.find(function(s){ return s.id===srcSide.sysId; }).label;
+  var dstSysId = $('dst-sys').value;
+  var dstLabel = SYSTEMS.find(function(s){ return s.id===dstSysId; }).label;
+  var srcSummary = '';
+  if (srcSide.kind==='latlon_dd' || srcSide.kind==='latlon_dms'){
+    srcSummary = fmt(srcSide.lat,6)+', '+fmt(srcSide.lon,6);
+  } else if (srcSide.kind==='utm'){
+    srcSummary = 'Zone '+srcSide.zone+srcSide.hemi+' E'+fmt(srcSide.east,2)+' N'+fmt(srcSide.north,2);
+  } else if (srcSide.kind==='stateplane'){
+    srcSummary = srcSide.epsg+' E'+fmt(srcSide.east,2)+' N'+fmt(srcSide.north,2);
+  } else if (srcSide.kind==='webmerc'){
+    srcSummary = 'X'+fmt(srcSide.east,2)+' Y'+fmt(srcSide.north,2);
+  }
+  var dstSummary = outList.map(function(x){ return x.k+': '+x.v; }).slice(0,3).join(' | ');
+  var entry = {
+    t: Date.now(),
+    srcLabel: srcLabel, dstLabel: dstLabel,
+    srcSummary: srcSummary, dstSummary: dstSummary,
+    lon: lonlat ? lonlat.lon : null, lat: lonlat ? lonlat.lat : null
+  };
+  // dedupe against last entry
+  if (hist.length && hist[0].srcSummary===srcSummary && hist[0].dstSummary===dstSummary){
+    return;
+  }
+  hist.unshift(entry);
+  saveHistory(hist);
+  renderHistory();
+}
+function renderHistory(){
+  var hist = loadHistory();
+  var el = $('hist-list');
+  if (!hist.length){
+    el.innerHTML = '<div class="hist-empty">No recent conversions yet. Enter a coordinate to begin.</div>';
+    return;
+  }
+  el.innerHTML = hist.map(function(h,i){
+    var d = new Date(h.t);
+    var ts = d.toLocaleString();
+    return (
+      '<div class="hist-item" data-idx="'+i+'">'+
+        '<div class="ts">'+ts+'</div>'+
+        '<div class="from-line">FROM ['+h.srcLabel+']: <span class="hist-coord">'+h.srcSummary+'</span></div>'+
+        '<div class="to-line">TO ['+h.dstLabel+']: <span class="hist-coord">'+h.dstSummary+'</span></div>'+
+      '</div>'
+    );
+  }).join('');
+  el.querySelectorAll('.hist-item').forEach(function(n){
+    n.addEventListener('click', function(){
+      var idx = parseInt(n.getAttribute('data-idx'),10);
+      var h = loadHistory()[idx];
+      if (h && h.lat!=null && h.lon!=null){
+        updateMap({lon:h.lon, lat:h.lat});
+        toast('Plotted on map: '+h.lat.toFixed(5)+', '+h.lon.toFixed(5));
+      }
+    });
+  });
+}
+
+/* ============================================================
+   Paste auto-detect
+   Returns { lat, lon } or null
+   ============================================================ */
+function parsePastedCoord(raw){
+  if (!raw) return null;
+  var s = raw.trim();
+
+  // 1) "32.9, -97.0" or "32.9 -97.0" (decimal)
+  var mDec = s.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (mDec){
+    var a = parseFloat(mDec[1]), b = parseFloat(mDec[2]);
+    // Heuristic: lat within [-90,90], lon within [-180,180]
+    if (Math.abs(a)<=90 && Math.abs(b)<=180) return { lat:a, lon:b };
+    if (Math.abs(b)<=90 && Math.abs(a)<=180) return { lat:b, lon:a };
+  }
+
+  // 2) "N32.9 W97.0" or "N 32.9, W 97.0"
+  var mNw = s.match(/([NS])\s*(-?\d+(?:\.\d+)?)\s*[,;\s]+\s*([EW])\s*(-?\d+(?:\.\d+)?)/i);
+  if (mNw){
+    var lat = parseFloat(mNw[2]) * (mNw[1].toUpperCase()==='S' ? -1 : 1);
+    var lon = parseFloat(mNw[4]) * (mNw[3].toUpperCase()==='W' ? -1 : 1);
+    return { lat:lat, lon:lon };
+  }
+  // reversed "E W then N S"
+  var mEn = s.match(/([EW])\s*(-?\d+(?:\.\d+)?)\s*[,;\s]+\s*([NS])\s*(-?\d+(?:\.\d+)?)/i);
+  if (mEn){
+    var lon2 = parseFloat(mEn[2]) * (mEn[1].toUpperCase()==='W' ? -1 : 1);
+    var lat2 = parseFloat(mEn[4]) * (mEn[3].toUpperCase()==='S' ? -1 : 1);
+    return { lat:lat2, lon:lon2 };
+  }
+
+  // 3) DMS: "33°54'N 97°02'W" / "33 54 12.5 N, 97 02 45 W"
+  var dmsHemi = s.match(/([0-9\u00B0'"\u2032\u2033\s.\-]+?)([NS])[,;\s]+([0-9\u00B0'"\u2032\u2033\s.\-]+?)([EW])/i);
+  if (dmsHemi){
+    var lat3 = dmsToDd(dmsHemi[1].trim() + ' ' + dmsHemi[2]);
+    var lon3 = dmsToDd(dmsHemi[3].trim() + ' ' + dmsHemi[4]);
+    if (isFinite(lat3) && isFinite(lon3)) return { lat:lat3, lon:lon3 };
+  }
+
+  // 4) Bare "32 54 12, -97 02 45" (DMS-like with no hemisphere)
+  var bareDms = s.match(/^\s*(-?\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s*[,;\s]+\s*(-?\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s*$/);
+  if (bareDms){
+    var latDd = (bareDms[1]<0?-1:1) * (Math.abs(parseFloat(bareDms[1])) + parseFloat(bareDms[2])/60 + parseFloat(bareDms[3])/3600);
+    var lonDd = (bareDms[4]<0?-1:1) * (Math.abs(parseFloat(bareDms[4])) + parseFloat(bareDms[5])/60 + parseFloat(bareDms[6])/3600);
+    return { lat:latDd, lon:lonDd };
+  }
+
+  return null;
+}
+
+/* ============================================================
+   Master recompute
+   ============================================================ */
+function recompute(){
+  var src = readSide('src');
+  var dst = readSide('dst');
+
+  // Compute canonical lat/lon from source
+  var ll = toLonLat(src);
+  var srcStatus = $('src-status');
+  var dstStatus = $('dst-status');
+  if (!ll){
+    srcStatus.textContent = 'Waiting for complete input...';
+    srcStatus.className = 'status';
+    dstStatus.textContent = 'Waiting for source input.';
+    dstStatus.className = 'status';
+    renderOutputs(null);
+    updateMap(null);
+    return;
+  }
+
+  // Validate lon/lat range
+  if (!isFinite(ll.lon) || !isFinite(ll.lat) || Math.abs(ll.lat)>90){
+    srcStatus.textContent = 'Computed lat/lon out of range (|lat|>90).';
+    srcStatus.className = 'status err';
+    renderOutputs(null);
+    updateMap(null);
+    return;
+  }
+
+  srcStatus.textContent = 'Parsed OK: '+ll.lat.toFixed(6)+', '+ll.lon.toFixed(6);
+  srcStatus.className = 'status ok';
+
+  STATE.lastLatLon = ll;
+
+  // Convert to destination
+  var outList = fromLonLatForDst(ll, dst);
+  renderOutputs(outList);
+  dstStatus.textContent = 'Converted.';
+  dstStatus.className = 'status ok';
+
+  updateMap(ll);
+  addToHistory(src, outList, ll);
+  persistState();
+}
+
+/* ============================================================
+   Build the UI
+   ============================================================ */
+function buildSystemPicker(id){
+  var sel = $(id);
+  sel.innerHTML = SYSTEMS.map(function(s){ return '<option value="'+s.id+'">'+s.label+'</option>'; }).join('');
+}
+
+function rebuildFields(which){
+  var sel = $(which+'-sys').value;
+  var host = $(which+'-fields');
+  host.innerHTML = fieldsHtml(which, sel, STATE[which].values);
+  // Attach live listeners
+  host.querySelectorAll('input,select').forEach(function(el){
+    el.addEventListener('input', recompute);
+    el.addEventListener('change', recompute);
+  });
+  STATE[which].sysId = sel;
+}
+
+function persistState(){
+  try {
+    var s = {
+      src: { sysId: $('src-sys').value, values: readSide('src') },
+      dst: { sysId: $('dst-sys').value, values: readSide('dst') }
+    };
+    localStorage.setItem(STORE_KEY_STATE, JSON.stringify(s));
+  } catch(e){}
+}
+function restoreState(){
+  try {
+    var raw = localStorage.getItem(STORE_KEY_STATE);
+    if (!raw) return false;
+    var s = JSON.parse(raw);
+    if (s.src && s.src.sysId){
+      STATE.src.sysId = s.src.sysId;
+      STATE.src.values = s.src.values || {};
+    }
+    if (s.dst && s.dst.sysId){
+      STATE.dst.sysId = s.dst.sysId;
+      STATE.dst.values = s.dst.values || {};
+    }
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ============================================================
+   Actions
+   ============================================================ */
+function swap(){
+  var sSys = $('src-sys').value;
+  var dSys = $('dst-sys').value;
+  // If source has inputs, compute its lat/lon and use as destination seed;
+  // and take destination's computed output (if any) as new source values.
+  var src = readSide('src');
+  var dst = readSide('dst');
+  var ll = toLonLat(src);
+
+  $('src-sys').value = dSys;
+  $('dst-sys').value = sSys;
+  STATE.src.values = {};
+  STATE.dst.values = {};
+
+  // Seed new source values from destination's previous values if same kind of data exists; else from ll.
+  if (ll){
+    // Fill new-source fields from ll via fromLonLatForDst logic applied to src system
+    var newSrcKind = SYSTEMS.find(function(s){ return s.id===dSys; }).kind;
+    if (newSrcKind==='latlon_dd'){
+      STATE.src.values = { lat: ll.lat.toFixed(8), lon: ll.lon.toFixed(8) };
+    } else if (newSrcKind==='latlon_dms'){
+      STATE.src.values = { lat: ddToDms(ll.lat,true), lon: ddToDms(ll.lon,false) };
+    } else if (newSrcKind==='utm'){
+      var z = lonLatToUtmZone(ll.lon, ll.lat);
+      var h = ll.lat>=0?'N':'S';
+      var ep = ensureUtmDef(z,h);
+      var r = proj4('EPSG:4326', ep, [ll.lon, ll.lat]);
+      STATE.src.values = { zone:z, hemi:h, east:r[0].toFixed(3), north:r[1].toFixed(3) };
+    } else if (newSrcKind==='stateplane'){
+      // Preserve whatever zone was on dst side, if available
+      var epsg = dst.epsg || 'EPSG:2276';
+      try {
+        var r2 = proj4('EPSG:4326', epsg, [ll.lon, ll.lat]);
+        STATE.src.values = { epsg: epsg, east: r2[0].toFixed(3), north: r2[1].toFixed(3) };
+      } catch(e){
+        STATE.src.values = { epsg: epsg };
+      }
+    } else if (newSrcKind==='webmerc'){
+      var r3 = proj4('EPSG:4326', 'EPSG:3857', [ll.lon, ll.lat]);
+      STATE.src.values = { east: r3[0].toFixed(3), north: r3[1].toFixed(3) };
+    }
+  }
+
+  rebuildFields('src');
+  rebuildFields('dst');
+  recompute();
+  toast('Swapped');
+}
+
+function applyLatLon(ll){
+  // Force source to WGS84 DD and populate
+  $('src-sys').value = 'wgs84_dd';
+  STATE.src.values = { lat: ll.lat.toFixed(8), lon: ll.lon.toFixed(8) };
+  rebuildFields('src');
+  recompute();
+}
+
+function handlePaste(){
+  $('paste-modal').classList.add('show');
+  $('paste-text').value = '';
+  $('paste-status').textContent = '';
+  $('paste-status').className = 'status';
+  $('paste-text').focus();
+  // Auto-fill from clipboard if possible
+  if (navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(txt){
+      if (txt && txt.length < 200){
+        $('paste-text').value = txt;
+        tryParsePaste(false);
+      }
+    }).catch(function(){});
+  }
+}
+function tryParsePaste(apply){
+  var raw = $('paste-text').value;
+  var r = parsePastedCoord(raw);
+  var stat = $('paste-status');
+  if (r && isFinite(r.lat) && isFinite(r.lon) && Math.abs(r.lat)<=90 && Math.abs(r.lon)<=180){
+    stat.textContent = 'Parsed: '+r.lat.toFixed(6)+', '+r.lon.toFixed(6);
+    stat.className = 'status ok';
+    if (apply){
+      applyLatLon(r);
+      $('paste-modal').classList.remove('show');
+      toast('Pasted coordinates loaded');
+    }
+    return true;
+  }
+  stat.textContent = apply ? 'Could not parse: try "32.9, -97.0" or "N32.9 W97.0"' : 'Waiting for valid coordinate...';
+  stat.className = 'status err';
+  return false;
+}
+
+function locateMe(){
+  if (!navigator.geolocation){ toast('Geolocation not available','err'); return; }
+  toast('Requesting location...');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    applyLatLon({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+    toast('Your location loaded');
+  }, function(err){ toast('Location denied: '+err.message,'err'); }, { enableHighAccuracy:true, timeout:8000 });
+}
+
+function clearAll(){
+  STATE.src.values = {};
+  STATE.dst.values = {};
+  rebuildFields('src');
+  rebuildFields('dst');
+  $('src-status').textContent = 'Enter coordinates to convert.';
+  $('src-status').className = 'status';
+  $('dst-status').textContent = 'Result will appear here.';
+  $('dst-status').className = 'status';
+  renderOutputs(null);
+  updateMap(null);
+  try { localStorage.removeItem(STORE_KEY_STATE); } catch(e){}
+  toast('Cleared');
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+function boot(){
+  buildSystemPicker('src-sys');
+  buildSystemPicker('dst-sys');
+
+  restoreState();
+  $('src-sys').value = STATE.src.sysId || 'wgs84_dd';
+  $('dst-sys').value = STATE.dst.sysId || 'utm';
+
+  rebuildFields('src');
+  rebuildFields('dst');
+
+  $('src-sys').addEventListener('change', function(){ STATE.src.values = {}; rebuildFields('src'); recompute(); });
+  $('dst-sys').addEventListener('change', function(){ STATE.dst.values = {}; rebuildFields('dst'); recompute(); });
+
+  $('swap-btn').addEventListener('click', swap);
+  $('paste-btn').addEventListener('click', handlePaste);
+  $('paste-cancel').addEventListener('click', function(){ $('paste-modal').classList.remove('show'); });
+  $('paste-apply').addEventListener('click', function(){ tryParsePaste(true); });
+  $('paste-text').addEventListener('input', function(){ tryParsePaste(false); });
+  $('paste-text').addEventListener('keydown', function(e){ if (e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); tryParsePaste(true); } });
+  $('paste-modal').addEventListener('click', function(e){ if (e.target===$('paste-modal')) $('paste-modal').classList.remove('show'); });
+  $('locate-btn').addEventListener('click', locateMe);
+  $('clear-btn').addEventListener('click', clearAll);
+  $('hist-clear').addEventListener('click', function(){
+    if (confirm('Clear conversion history?')){ saveHistory([]); renderHistory(); toast('History cleared'); }
+  });
+
+  initMap();
+  renderHistory();
+
+  // If nothing restored, seed with a Dallas/Fort Worth sample so first paint is meaningful
+  var srcIsEmpty = !STATE.src.values || !Object.keys(STATE.src.values).length;
+  if (srcIsEmpty && $('src-sys').value==='wgs84_dd'){
+    $('src-lat').value = '32.9047';
+    $('src-lon').value = '-97.0279';
+  }
+
+  recompute();
+}
+
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
