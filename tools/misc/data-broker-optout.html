@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Broker Opt-Out Walkthrough | Korb Engineering</title>
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg-panel: #101510;
+    --bg-deep: #060806;
+    --fg: #9fe09f;
+    --fg-dim: #5a8a5a;
+    --fg-bright: #c8f7c8;
+    --accent: #ffb000;
+    --accent-dim: #8a5e00;
+    --red: #ff4a4a;
+    --blue: #4aaaff;
+    --purple: #b56aff;
+    --border: #1e3a1e;
+    --border-bright: #2e6a2e;
+    --scan: rgba(159, 224, 159, 0.03);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at top, rgba(159, 224, 159, 0.04) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent 0px, transparent 2px, var(--scan) 2px, var(--scan) 4px),
+      var(--bg);
+    padding: 12px;
+    padding-bottom: 60px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+  header {
+    border: 1px solid var(--border-bright);
+    background: var(--bg-panel);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  header::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--fg), var(--accent));
+  }
+  .back-link {
+    color: var(--fg-dim);
+    text-decoration: none;
+    font-size: 11px;
+    display: inline-block;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  .back-link:hover { color: var(--fg-bright); }
+  h1 {
+    color: var(--fg-bright);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  h1::before { content: "▓ "; color: var(--accent); }
+  .subtitle {
+    color: var(--fg-dim);
+    font-size: 11px;
+    margin-top: 2px;
+    letter-spacing: 0.5px;
+  }
+  .panel {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .panel-title {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .preamble {
+    font-size: 12px;
+    color: var(--fg);
+  }
+  .preamble p { margin-bottom: 8px; }
+  .preamble strong { color: var(--fg-bright); }
+  .preamble .warn { color: var(--accent); }
+  .preamble ul { margin-left: 18px; margin-bottom: 8px; }
+  .preamble li { margin-bottom: 3px; }
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    background: var(--bg-deep);
+    padding: 8px 10px;
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 9px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .stat-value {
+    font-size: 20px;
+    color: var(--fg-bright);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.blue { color: var(--blue); }
+  .progress-bar {
+    width: 100%;
+    height: 14px;
+    border: 1px solid var(--border-bright);
+    background: var(--bg-deep);
+    position: relative;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--fg-dim), var(--fg), var(--fg-bright));
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  .progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px;
+    color: var(--bg);
+    font-weight: 700;
+    mix-blend-mode: difference;
+    letter-spacing: 1px;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .btn {
+    background: var(--bg-deep);
+    color: var(--fg);
+    border: 1px solid var(--border-bright);
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  .btn:hover {
+    background: var(--border);
+    color: var(--fg-bright);
+    border-color: var(--fg);
+  }
+  .btn.active {
+    background: var(--fg-dim);
+    color: var(--bg);
+    border-color: var(--fg-bright);
+  }
+  .btn.accent {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+  .btn.accent:hover {
+    background: var(--accent-dim);
+    color: var(--bg);
+  }
+  .btn.red {
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .btn.red:hover {
+    background: var(--red);
+    color: var(--bg);
+  }
+  .search-box {
+    width: 100%;
+    background: var(--bg-deep);
+    color: var(--fg);
+    border: 1px solid var(--border-bright);
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .search-box:focus {
+    outline: none;
+    border-color: var(--fg);
+  }
+  .filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .filter-label {
+    font-size: 10px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+    align-self: center;
+  }
+  .broker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .broker {
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    padding: 10px 12px;
+    transition: border-color 0.15s;
+  }
+  .broker.done { border-color: var(--fg-dim); opacity: 0.75; }
+  .broker.in-progress { border-color: var(--accent-dim); }
+  .broker.rejected { border-color: var(--red); }
+  .broker-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex-wrap: wrap;
+  }
+  .broker-logo {
+    font-size: 20px;
+    width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .broker-name {
+    color: var(--fg-bright);
+    font-weight: 600;
+    font-size: 14px;
+    flex: 1;
+    min-width: 100px;
+  }
+  .broker-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 10px;
+  }
+  .tag {
+    border: 1px solid var(--border-bright);
+    padding: 2px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--fg-dim);
+  }
+  .tag.category-free { color: var(--blue); border-color: var(--blue); }
+  .tag.category-paid { color: var(--accent); border-color: var(--accent-dim); }
+  .tag.category-aggregator { color: var(--purple); border-color: var(--purple); }
+  .tag.difficulty-easy { color: var(--fg); }
+  .tag.difficulty-medium { color: var(--accent); }
+  .tag.difficulty-hard { color: var(--red); border-color: var(--red); }
+  .status-badge {
+    padding: 2px 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid currentColor;
+    font-weight: 600;
+  }
+  .status-not-started { color: var(--fg-dim); }
+  .status-in-progress { color: var(--accent); }
+  .status-submitted { color: var(--blue); }
+  .status-confirmed { color: var(--fg-bright); background: rgba(159, 224, 159, 0.1); }
+  .status-rejected { color: var(--red); }
+  .status-will-retry { color: var(--purple); }
+  .broker-body {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    display: none;
+  }
+  .broker.expanded .broker-body { display: block; }
+  .broker-body .section {
+    margin-bottom: 10px;
+  }
+  .section-label {
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .opt-link {
+    color: var(--blue);
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 11px;
+    border-bottom: 1px dashed var(--blue);
+  }
+  .opt-link:hover { color: var(--fg-bright); }
+  .steps {
+    list-style: none;
+    counter-reset: step;
+  }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 26px;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--fg-dim);
+    background: var(--bg-deep);
+    text-align: center;
+    line-height: 18px;
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .info-cell {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    background: var(--bg-deep);
+  }
+  .info-cell .k {
+    font-size: 9px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .info-cell .v {
+    font-size: 12px;
+    color: var(--fg-bright);
+    margin-top: 2px;
+  }
+  .status-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .status-opt {
+    padding: 4px 8px;
+    font-size: 10px;
+    border: 1px solid var(--border-bright);
+    background: var(--bg-deep);
+    color: var(--fg-dim);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.1s;
+  }
+  .status-opt:hover { border-color: var(--fg); color: var(--fg); }
+  .status-opt.active-not-started { background: var(--fg-dim); color: var(--bg); }
+  .status-opt.active-in-progress { background: var(--accent); color: var(--bg); }
+  .status-opt.active-submitted { background: var(--blue); color: var(--bg); }
+  .status-opt.active-confirmed { background: var(--fg-bright); color: var(--bg); }
+  .status-opt.active-rejected { background: var(--red); color: var(--bg); }
+  .status-opt.active-will-retry { background: var(--purple); color: var(--bg); }
+  .notes-area {
+    width: 100%;
+    background: var(--bg-deep);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    min-height: 50px;
+    resize: vertical;
+    margin-top: 4px;
+  }
+  .notes-area:focus {
+    outline: none;
+    border-color: var(--fg);
+  }
+  .date-stamp {
+    font-size: 10px;
+    color: var(--fg-dim);
+    font-style: italic;
+    margin-top: 4px;
+  }
+  .expand-arrow {
+    color: var(--fg-dim);
+    font-size: 14px;
+    transition: transform 0.15s;
+  }
+  .broker.expanded .expand-arrow { transform: rotate(90deg); color: var(--accent); }
+  .reminder-panel {
+    border: 1px dashed var(--accent-dim);
+    background: rgba(255, 176, 0, 0.04);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    font-size: 11px;
+  }
+  .reminder-active {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  footer {
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 10px;
+    padding: 20px 10px;
+    letter-spacing: 1px;
+    border-top: 1px dashed var(--border);
+    margin-top: 20px;
+  }
+  .blink { animation: blink 1.2s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .section-divider {
+    text-align: center;
+    color: var(--fg-dim);
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin: 16px 0 8px;
+    padding: 4px 0;
+    border-top: 1px dashed var(--border);
+    border-bottom: 1px dashed var(--border);
+  }
+  .hidden { display: none !important; }
+  @media (max-width: 600px) {
+    body { padding: 8px; font-size: 12px; }
+    h1 { font-size: 15px; }
+    .broker-header { gap: 6px; }
+    .broker-logo { font-size: 18px; width: 24px; }
+    .broker-name { font-size: 13px; }
+    .stat-value { font-size: 16px; }
+    .panel { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="../../index.html#misc" class="back-link">← BACK TO TOOLS</a>
+  <h1>Data Broker Opt-Out Walkthrough</h1>
+  <div class="subtitle">Iterative checklist to scrub your data from 50+ people-search sites. Tracks status locally; no data leaves this browser.</div>
+</header>
+
+<div class="panel preamble">
+  <div class="panel-title">// Read Me First</div>
+  <p><strong>What is a data broker?</strong> Companies that scrape public records, social media, purchase histories, and leaked breaches into searchable dossiers about you — your home address, relatives, phone numbers, political affiliations, estimated income. They sell this to advertisers, debt collectors, background-check services, and anyone with a credit card.</p>
+  <p><strong>Why opt out?</strong> Lower stalking/doxxing risk. Fewer robocalls and phishing lures. Reduce identity-theft attack surface. Make yourself harder to target with political microads. It is also simply your data — you did not consent to it being sold.</p>
+  <p class="warn"><strong>The hard truth:</strong> Most brokers will <em>re-add your record</em> within 6-12 months, pulled fresh from new public records. Opt-out is <strong>recurring maintenance</strong>, not a one-time fix. Budget an afternoon every 6 months, or pay a service like DeleteMe / Kanary / Optery to automate it.</p>
+  <p><strong>Before you start:</strong></p>
+  <ul>
+    <li>Create a <em>dedicated opt-out email</em> (e.g. <code>optout.yourname@gmail.com</code>) — many brokers require confirmation and will spam it.</li>
+    <li>Use a <em>VoIP number</em> (Google Voice) if they require a phone. Never give your SSN. Never pay a broker to remove you — legitimate opt-outs are free.</li>
+    <li>Some brokers require a photo ID. You can <em>redact</em> everything except name + photo before uploading.</li>
+    <li>Start with the aggregators (LexisNexis, Acxiom) — they feed data to downstream sites.</li>
+    <li>This tool stores status <em>only in your browser's localStorage</em>. Clearing cookies/site-data wipes it. Use Export JSON to back up.</li>
+  </ul>
+  <p class="warn"><strong>Legal note:</strong> California (CCPA/CPRA), Colorado, Virginia, Connecticut, Utah, Texas, Oregon, Montana, Delaware, Iowa, Tennessee, Indiana, Florida residents have statutory opt-out rights. EU/UK residents have GDPR/UK-GDPR rights. Even if you are not in those jurisdictions, most brokers process all requests uniformly — cite CCPA anyway.</p>
+</div>
+
+<div class="panel">
+  <div class="panel-title">// Progress Dashboard</div>
+  <div class="dashboard">
+    <div class="stat"><div class="stat-label">Total</div><div class="stat-value" id="stat-total">0</div></div>
+    <div class="stat"><div class="stat-label">Not Started</div><div class="stat-value" id="stat-not-started">0</div></div>
+    <div class="stat"><div class="stat-label">In Progress</div><div class="stat-value accent" id="stat-in-progress">0</div></div>
+    <div class="stat"><div class="stat-label">Submitted</div><div class="stat-value blue" id="stat-submitted">0</div></div>
+    <div class="stat"><div class="stat-label">Confirmed</div><div class="stat-value" id="stat-confirmed">0</div></div>
+    <div class="stat"><div class="stat-label">Rejected</div><div class="stat-value red" id="stat-rejected">0</div></div>
+    <div class="stat"><div class="stat-label">Will Retry</div><div class="stat-value" id="stat-will-retry">0</div></div>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+    <div class="progress-text" id="progress-text">0%</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">// Filters &amp; Tools</div>
+  <input type="text" class="search-box" id="search" placeholder="Search broker name or note text...">
+  <div class="filter-group">
+    <span class="filter-label">Status:</span>
+    <button class="btn active" data-filter-status="all">All</button>
+    <button class="btn" data-filter-status="not-started">Not Done</button>
+    <button class="btn" data-filter-status="in-progress">In Progress</button>
+    <button class="btn" data-filter-status="submitted">Submitted</button>
+    <button class="btn" data-filter-status="confirmed">Confirmed</button>
+    <button class="btn" data-filter-status="will-retry">Needs Retry</button>
+    <button class="btn" data-filter-status="rejected">Rejected</button>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Category:</span>
+    <button class="btn active" data-filter-cat="all">All</button>
+    <button class="btn" data-filter-cat="free">Free Sites</button>
+    <button class="btn" data-filter-cat="paid">Paid Sites</button>
+    <button class="btn" data-filter-cat="aggregator">Aggregators</button>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Actions:</span>
+    <button class="btn accent" id="btn-expand-all">Expand All</button>
+    <button class="btn accent" id="btn-collapse-all">Collapse All</button>
+    <button class="btn accent" id="btn-export-csv">Export CSV</button>
+    <button class="btn accent" id="btn-export-json">Export JSON</button>
+    <button class="btn accent" id="btn-import-json">Import JSON</button>
+    <button class="btn red" id="btn-reset">Reset All</button>
+  </div>
+  <input type="file" id="import-file" accept=".json" style="display:none">
+</div>
+
+<div class="reminder-panel" id="reminder-panel">
+  <strong>30-Day Re-Check Reminder:</strong>
+  <span id="reminder-status">Not set.</span>
+  <div style="margin-top: 6px;">
+    <button class="btn" id="btn-set-reminder">Set Reminder (30 days)</button>
+    <button class="btn" id="btn-clear-reminder">Clear Reminder</button>
+  </div>
+  <div style="margin-top: 4px; color: var(--fg-dim); font-size: 10px;">Reminder stored in localStorage. Check back here — you will see a banner when due.</div>
+</div>
+
+<div class="section-divider">▼ BROKER LIST ▼</div>
+
+<div class="broker-list" id="broker-list"></div>
+
+<footer>
+  KORB ENGINEERING &middot; DATA-BROKER-OPTOUT v1.0 &middot; Privacy is a practice <span class="blink">_</span>
+</footer>
+
+<script>
+"use strict";
+
+// ============================================================
+// BROKER DATABASE
+// Links verified against public opt-out directories as of 2025.
+// Brokers change URLs frequently; if a link 404s, search
+// "<broker name> opt out" and update notes here.
+// ============================================================
+const BROKERS = [
+  {
+    id: "spokeo", name: "Spokeo", logo: "🔎",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.spokeo.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Go to spokeo.com and search your full name + city.",
+      "Copy the URL of your profile listing.",
+      "Paste the URL into the opt-out form at spokeo.com/optout.",
+      "Enter your email, complete captcha, submit.",
+      "Click the confirmation link in the email within 48h."
+    ],
+    notes: "Typically removed within 48 hours. Spokeo refreshes monthly — expect to re-do this every 6 months."
+  },
+  {
+    id: "whitepages", name: "Whitepages", logo: "📘",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://www.whitepages.com/suppression-requests",
+    requires: ["Phone verification (call)"],
+    steps: [
+      "Find your profile at whitepages.com.",
+      "Copy the URL.",
+      "Visit whitepages.com/suppression-requests.",
+      "Paste URL, enter reason, enter phone number.",
+      "Receive automated call with 4-digit PIN; enter to confirm."
+    ],
+    notes: "Phone call is automated and harmless — from a 206 (Seattle) area code. Allow 24h for removal. Premium data (behind paywall) may require separate request."
+  },
+  {
+    id: "beenverified", name: "BeenVerified", logo: "✅",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.beenverified.com/app/optout/search",
+    requires: ["Email"],
+    steps: [
+      "Search your name at beenverified.com/app/optout/search.",
+      "Click 'Remove' on the correct profile.",
+      "Enter email, solve captcha, submit.",
+      "Click confirm link in email (check spam).",
+      "Wait up to 24h for removal."
+    ],
+    notes: "Owned by The Lifetime Value Co. — which also owns PeopleLooker, NeighborWho, and others. Opting out here does NOT cascade; you must opt out at each sibling site."
+  },
+  {
+    id: "truepeoplesearch", name: "TruePeopleSearch", logo: "🌐",
+    category: "free", difficulty: "easy", time: "3 min",
+    url: "https://www.truepeoplesearch.com/removal",
+    requires: ["Email"],
+    steps: [
+      "Search your name + state at truepeoplesearch.com.",
+      "Copy the profile URL.",
+      "Visit truepeoplesearch.com/removal.",
+      "Paste URL, enter email, solve captcha, submit.",
+      "Click confirmation link in email within 24h."
+    ],
+    notes: "One of the most aggressive re-aggregators. Often re-appears in 30-60 days. Worth setting a calendar reminder."
+  },
+  {
+    id: "peoplefinder", name: "PeopleFinder", logo: "👥",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.peoplefinder.com/optout.php",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search yourself at peoplefinder.com.",
+      "Copy the record/profile URL.",
+      "Visit peoplefinder.com/optout.php.",
+      "Paste URL, provide email, submit.",
+      "Confirm via email link."
+    ],
+    notes: "Part of Confi-Chek network, which also runs PeopleSmart and others. Separate opt-out needed for each sibling."
+  },
+  {
+    id: "intelius", name: "Intelius", logo: "🛡️",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.intelius.com/opt-out/submit/",
+    requires: ["Email", "Photo ID (sometimes)"],
+    steps: [
+      "Go to intelius.com/opt-out/submit.",
+      "Enter first name, last name, email.",
+      "Solve captcha, submit.",
+      "Confirm via email.",
+      "If asked for ID, upload a redacted copy (cover everything except name + photo)."
+    ],
+    notes: "Owned by PeopleConnect — same parent as Instant Checkmate, TruthFinder, US Search, Classmates. Each sibling needs its own opt-out."
+  },
+  {
+    id: "peoplelooker", name: "PeopleLooker", logo: "🔭",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.peoplelooker.com/f/optout/search",
+    requires: ["Email"],
+    steps: [
+      "Search your name at peoplelooker.com/f/optout/search.",
+      "Click Remove next to your correct record.",
+      "Enter email, solve captcha.",
+      "Confirm via email link.",
+      "Allow up to 24h."
+    ],
+    notes: "Sibling of BeenVerified. Same parent company (Lifetime Value Co)."
+  },
+  {
+    id: "fastpeoplesearch", name: "FastPeopleSearch", logo: "⚡",
+    category: "free", difficulty: "easy", time: "3 min",
+    url: "https://www.fastpeoplesearch.com/removal",
+    requires: ["Email"],
+    steps: [
+      "Find your record at fastpeoplesearch.com.",
+      "Copy the URL.",
+      "Go to fastpeoplesearch.com/removal.",
+      "Paste URL, enter email, captcha, submit.",
+      "Confirm via email."
+    ],
+    notes: "Shares data source with TruePeopleSearch. Both owned by same shell operator — opt-outs do NOT cascade."
+  },
+  {
+    id: "zabasearch", name: "ZabaSearch", logo: "🔍",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://www.zabasearch.com/block_records/",
+    requires: ["Photo ID"],
+    steps: [
+      "Visit zabasearch.com/block_records/.",
+      "Fill out the form with your details.",
+      "Attach a redacted photo ID (name + photo only).",
+      "Submit the form.",
+      "Allow 4-6 weeks."
+    ],
+    notes: "Owned by Intelius/PeopleConnect. Slow turnaround compared to siblings. Photo ID is required for this one."
+  },
+  {
+    id: "mylife", name: "MyLife", logo: "📇",
+    category: "paid", difficulty: "hard", time: "20 min + call",
+    url: "https://www.mylife.com/ccpa/index.pubview",
+    requires: ["Email", "Phone call"],
+    steps: [
+      "Search for yourself at mylife.com and note your 'Reputation Score' profile URL.",
+      "Email privacy@mylife.com with subject 'CCPA / Opt-Out Request' and include the URL plus full name + DOB.",
+      "Alternately, call 1-888-704-1900 and demand removal citing CCPA.",
+      "Follow up in 7 days if no response.",
+      "File FTC complaint at reportfraud.ftc.gov if ignored after 30 days."
+    ],
+    notes: "Notoriously difficult — known for non-compliance and automated removal that re-adds. MyLife has been sued multiple times. Keep records of all correspondence."
+  },
+  {
+    id: "radaris", name: "Radaris", logo: "📡",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://radaris.com/control/privacy",
+    requires: ["Phone verification"],
+    steps: [
+      "Find your profile page at radaris.com.",
+      "Scroll to bottom and click 'Control Information' or go to radaris.com/control/privacy.",
+      "Verify ownership of the profile via phone (SMS).",
+      "Once verified, click 'Make my profile private' or 'Delete'.",
+      "Allow 48h; re-verify it is gone."
+    ],
+    notes: "Counterintuitively requires you to CLAIM the profile to delete it. Phone verification is required. Russia-based operator; slow support."
+  },
+  {
+    id: "familytreenow", name: "FamilyTreeNow", logo: "🌳",
+    category: "free", difficulty: "easy", time: "3 min",
+    url: "https://www.familytreenow.com/optout",
+    requires: ["Nothing"],
+    steps: [
+      "Search your name at familytreenow.com.",
+      "Copy the record URL.",
+      "Go to familytreenow.com/optout.",
+      "Paste URL, solve captcha, submit.",
+      "No email confirmation required — check in 24h."
+    ],
+    notes: "Free and fast. No email or phone needed. However the site is known for leaking relatives/addresses — so it is worth doing."
+  },
+  {
+    id: "peekyou", name: "PeekYou", logo: "👁️",
+    category: "aggregator", difficulty: "medium", time: "10 min",
+    url: "https://www.peekyou.com/about/contact/optout/",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search peekyou.com; find your profile.",
+      "Copy the unique ID from the URL (the part after /people/).",
+      "Go to peekyou.com/about/contact/optout.",
+      "Enter the ID, email, reason, solve captcha.",
+      "Confirm via email; allow ~7 days."
+    ],
+    notes: "Aggregates from social networks + other brokers. Slower processing; 5-7 business days typical."
+  },
+  {
+    id: "pipl", name: "Pipl", logo: "🧩",
+    category: "aggregator", difficulty: "hard", time: "15 min",
+    url: "https://pipl.com/personal-information-removal-request",
+    requires: ["Photo ID", "Business justification"],
+    steps: [
+      "Visit pipl.com/personal-information-removal-request.",
+      "Note: Pipl is B2B (investigator-focused) and limits consumer removals.",
+      "Fill the form with full details including profile URL.",
+      "Upload redacted ID.",
+      "Expect pushback; may require multiple emails to support@pipl.com."
+    ],
+    notes: "Pipl pivoted to B2B-only in 2019 — consumer search is gone but data still feeds their investigator product. Removal is possible but slow (4-8 weeks) and sometimes refused."
+  },
+  {
+    id: "instantcheckmate", name: "Instant Checkmate", logo: "♟️",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.instantcheckmate.com/opt-out/",
+    requires: ["Email"],
+    steps: [
+      "Search your name at instantcheckmate.com/opt-out.",
+      "Click Remove on your record.",
+      "Enter email, captcha, submit.",
+      "Click confirmation in email.",
+      "Allow 48h."
+    ],
+    notes: "Owned by PeopleConnect (same as Intelius, TruthFinder, USSearch). Cascading opt-out possible through parent — but safer to do each sibling."
+  },
+  {
+    id: "truthfinder", name: "TruthFinder", logo: "🔮",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.truthfinder.com/opt-out/",
+    requires: ["Email"],
+    steps: [
+      "Go to truthfinder.com/opt-out.",
+      "Search your name, pick correct record.",
+      "Click Remove, enter email, captcha.",
+      "Confirm via email within 24h.",
+      "Allow 48h for removal."
+    ],
+    notes: "PeopleConnect sibling. Will rebuild from public records ~6-12 months later."
+  },
+  {
+    id: "neighborwho", name: "NeighborWho", logo: "🏠",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.neighborwho.com/app/optout/search",
+    requires: ["Email"],
+    steps: [
+      "Go to neighborwho.com/app/optout/search.",
+      "Enter your name; select your record.",
+      "Enter email, solve captcha.",
+      "Click email confirmation link.",
+      "Allow 24-48h."
+    ],
+    notes: "Lifetime Value Co sibling of BeenVerified, PeopleLooker. Same flow."
+  },
+  {
+    id: "checkpeople", name: "CheckPeople", logo: "📋",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://checkpeople.com/opt-out",
+    requires: ["Email", "Full name"],
+    steps: [
+      "Visit checkpeople.com/opt-out.",
+      "Enter first + last name.",
+      "Find and select your record.",
+      "Provide email, submit.",
+      "Confirm via email link."
+    ],
+    notes: "May redirect to a third-party processor. Retain confirmation email."
+  },
+  {
+    id: "nuwber", name: "Nuwber", logo: "🔢",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://nuwber.com/removal/link",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at nuwber.com.",
+      "Copy the profile URL.",
+      "Go to nuwber.com/removal/link.",
+      "Paste URL, enter email, captcha.",
+      "Confirm via email; allow 72h."
+    ],
+    notes: "Cyprus-based operator. Known for slow compliance but generally follows through after confirmation."
+  },
+  {
+    id: "smartbackgroundchecks", name: "SmartBackgroundChecks", logo: "🪪",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.smartbackgroundchecks.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at smartbackgroundchecks.com.",
+      "Copy profile URL.",
+      "Go to smartbackgroundchecks.com/optout.",
+      "Paste URL, enter email.",
+      "Confirm via email link."
+    ],
+    notes: "Pulls from Clustrmaps-type aggregators. Often returns in 90 days."
+  },
+  {
+    id: "publicdatausa", name: "PublicDataUSA", logo: "🗂️",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://publicdatausa.com/remove.php",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search your name at publicdatausa.com.",
+      "Copy URL.",
+      "Go to publicdatausa.com/remove.php.",
+      "Paste URL, email, reason, submit.",
+      "Confirm via email; 5-10 days."
+    ],
+    notes: "Low-quality data but widely indexed by Google. Worth removing."
+  },
+  {
+    id: "ussearch", name: "US Search", logo: "🇺🇸",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.ussearch.com/optout/submit/",
+    requires: ["Email"],
+    steps: [
+      "Go to ussearch.com/optout/submit.",
+      "Enter your name, find profile.",
+      "Click Remove, enter email.",
+      "Confirm via link in email.",
+      "Allow 48h."
+    ],
+    notes: "PeopleConnect sibling (Intelius/TruthFinder/InstantCheckmate). Same backend."
+  },
+  {
+    id: "infotracer", name: "Infotracer", logo: "🛰️",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://infotracer.com/optout/",
+    requires: ["Email"],
+    steps: [
+      "Go to infotracer.com/optout.",
+      "Search for your name, select record.",
+      "Enter email, solve captcha.",
+      "Click email link to confirm.",
+      "Allow 72h."
+    ],
+    notes: "Data includes court records, arrests, social media — particularly invasive. High priority to remove."
+  },
+  {
+    id: "peoplesmart", name: "PeopleSmart", logo: "🧠",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.peoplesmart.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Go to peoplesmart.com/optout.",
+      "Search your name + state.",
+      "Click Remove on correct record.",
+      "Enter email, captcha, submit.",
+      "Confirm via email."
+    ],
+    notes: "Part of Confi-Chek / PeopleFinder network."
+  },
+  {
+    id: "backgroundcheckcom", name: "BackgroundCheck.com", logo: "🔐",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.backgroundcheck.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Visit backgroundcheck.com/optout.",
+      "Enter full name, state.",
+      "Select your record, submit.",
+      "Provide email, confirm via link.",
+      "Allow up to 7 days."
+    ],
+    notes: "Pulls heavily from court records; some data may be re-sourced from public dockets (unremovable)."
+  },
+  {
+    id: "socialcatfish", name: "SocialCatfish", logo: "🐟",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://socialcatfish.com/opt-out/",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search yourself at socialcatfish.com.",
+      "Copy profile URL.",
+      "Go to socialcatfish.com/opt-out.",
+      "Paste URL, provide email, submit.",
+      "Confirm via email link."
+    ],
+    notes: "Aggregates social + dating profiles. Slow (2-3 weeks) but generally compliant."
+  },
+  {
+    id: "lexisnexis", name: "LexisNexis", logo: "📚",
+    category: "aggregator", difficulty: "hard", time: "30 min",
+    url: "https://optout.lexisnexis.com/",
+    requires: ["Full name", "DOB", "SSN last 4 (optional)", "Address history"],
+    steps: [
+      "Go to optout.lexisnexis.com.",
+      "Select 'I am a consumer' and choose the opt-out type (stalker/threat/law-enforcement/general).",
+      "Fill the detailed form — includes name, DOB, aliases, addresses.",
+      "Submit and retain the confirmation number.",
+      "LexisNexis will mail a physical confirmation within 30 days."
+    ],
+    notes: "TIER-1 AGGREGATOR. Removes you from the core data-feed that supplies many downstream brokers. Highest-priority opt-out. Protects some categories (CLUE insurance, Accurint) only via separate forms — see consumer.risk.lexisnexis.com."
+  },
+  {
+    id: "acxiom", name: "Acxiom / LiveRamp", logo: "🏢",
+    category: "aggregator", difficulty: "hard", time: "20 min",
+    url: "https://isapps.acxiom.com/optout/optout.aspx",
+    requires: ["Email", "Address"],
+    steps: [
+      "Go to isapps.acxiom.com/optout/optout.aspx.",
+      "Fill out form with name, address history, email.",
+      "Choose 'Marketing' and 'Product/Research' opt-outs.",
+      "Submit and save confirmation.",
+      "Email privacy@acxiom.com citing CCPA/GDPR if applicable."
+    ],
+    notes: "TIER-1 AGGREGATOR — one of the largest data brokers in the world (~2.5B people indexed). Feeds ad-tech ecosystem, not people-search sites. Opt-out here reduces targeted advertising."
+  },
+  {
+    id: "epsilon", name: "Epsilon (Publicis)", logo: "🏛️",
+    category: "aggregator", difficulty: "medium", time: "15 min",
+    url: "https://www.epsilon.com/us/privacy-policy/consumer-information",
+    requires: ["Email", "Postal address"],
+    steps: [
+      "Visit epsilon.com/us/privacy-policy/consumer-information.",
+      "Scroll to the 'Opt-Out' section.",
+      "Email optout@epsilon.com with name, postal address, email, phone.",
+      "State you want full suppression across all Epsilon/Abacus databases.",
+      "Expect 6-8 weeks for processing."
+    ],
+    notes: "Runs the Abacus Alliance — a catalog/retail purchase co-op. Opting out reduces junk mail and offer-based targeting."
+  },
+  {
+    id: "infousa", name: "InfoUSA (Data Axle)", logo: "📬",
+    category: "aggregator", difficulty: "medium", time: "15 min",
+    url: "https://www.data-axle.com/privacy-at-data-axle/",
+    requires: ["Email", "Name", "Address"],
+    steps: [
+      "Go to data-axle.com/privacy-at-data-axle.",
+      "Use the 'Submit a Privacy Request' form.",
+      "Choose 'Delete my data'.",
+      "Provide name, address, email, phone.",
+      "Allow 30-45 days."
+    ],
+    notes: "Consumer-data broker for marketers. Formerly InfoUSA / Infogroup. Big feed-source for junk mailers."
+  },
+  {
+    id: "rocketreach", name: "RocketReach", logo: "🚀",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://rocketreach.co/optout",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at rocketreach.co.",
+      "Copy the profile URL.",
+      "Go to rocketreach.co/optout.",
+      "Paste URL, enter email.",
+      "Click confirmation link."
+    ],
+    notes: "Focused on business contacts (emails, job titles). Useful if you want to reduce B2B sales spam."
+  },
+  {
+    id: "clearview", name: "Clearview AI", logo: "🤖",
+    category: "aggregator", difficulty: "hard", time: "20 min",
+    url: "https://www.clearview.ai/privacy/requests",
+    requires: ["Photo of yourself", "Photo ID"],
+    steps: [
+      "Go to clearview.ai/privacy/requests.",
+      "Select 'California / Illinois / EU resident access/delete request'.",
+      "Upload a clear selfie + redacted photo ID.",
+      "Submit; they will search their face index.",
+      "Await confirmation — can take 45+ days."
+    ],
+    notes: "ONLY accepts requests from CA/IL/EU/UK residents (per BIPA/CCPA/GDPR rulings). Others may be refused. Clearview has scraped ~30B faces from the public web; removal is worth trying even if legally ambiguous."
+  },
+  {
+    id: "veripages", name: "Veripages", logo: "📄",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://veripages.com/page/contacts",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at veripages.com.",
+      "Copy your profile URL.",
+      "Email support@veripages.com with subject 'Opt-out Request' and include the URL.",
+      "State you want your record removed permanently.",
+      "Allow 7-14 days."
+    ],
+    notes: "No web form — must email. Generally compliant within 2 weeks."
+  },
+  {
+    id: "priorresearch", name: "Prior Research", logo: "📜",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://priorresearch.com/optout",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search priorresearch.com for your name.",
+      "Copy record URL.",
+      "Go to priorresearch.com/optout.",
+      "Paste URL, enter email, submit.",
+      "Confirm via email."
+    ],
+    notes: "Smaller broker, lesser-known but indexed by search engines."
+  },
+  {
+    id: "peepdb", name: "Peepdb", logo: "🦜",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://peepdb.com/opt-out",
+    requires: ["Email"],
+    steps: [
+      "Search peepdb.com.",
+      "Copy profile URL.",
+      "Go to peepdb.com/opt-out.",
+      "Paste, enter email, submit.",
+      "Confirm via email link."
+    ],
+    notes: "Small-volume broker. Quick turnaround (~48h)."
+  },
+  {
+    id: "thatsthem", name: "ThatsThem", logo: "👆",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://thatsthem.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at thatsthem.com.",
+      "Copy profile URL.",
+      "Go to thatsthem.com/optout.",
+      "Paste URL, enter email, captcha.",
+      "Confirm via email."
+    ],
+    notes: "Includes IP addresses and email addresses in records — unusually invasive."
+  },
+  {
+    id: "cubib", name: "Cubib", logo: "📦",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://www.cubib.com/contact.php",
+    requires: ["Email"],
+    steps: [
+      "Find your record at cubib.com.",
+      "Copy URL.",
+      "Email privacy@cubib.com (or use contact form at cubib.com/contact.php).",
+      "Include URL and say 'please remove my record per CCPA'.",
+      "Allow 14 days."
+    ],
+    notes: "No automated form; email-based only. Usually compliant."
+  },
+  {
+    id: "yellowpages", name: "Yellowpages / YP", logo: "📒",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://www.yellowpages.com/sitemap",
+    requires: ["Email"],
+    steps: [
+      "For personal listings, email privacy@thryv.com or use support@yellowpages.com.",
+      "Include full name + city + phone.",
+      "Subject: 'CCPA Opt-Out — Remove Personal Listing'.",
+      "Reference the specific listing URL.",
+      "Allow 30 days."
+    ],
+    notes: "YP pivoted to business listings; personal records exist in legacy data. Also opt out of WhitePages Premium (separate)."
+  },
+  {
+    id: "advancedbackgroundchecks", name: "Advanced Background Checks", logo: "🔬",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.advancedbackgroundchecks.com/removal",
+    requires: ["Email", "Profile URL"],
+    steps: [
+      "Search yourself at advancedbackgroundchecks.com.",
+      "Copy profile URL.",
+      "Go to advancedbackgroundchecks.com/removal.",
+      "Paste URL, enter email.",
+      "Confirm via email link."
+    ],
+    notes: "Sibling of SmartBackgroundChecks. Same data pool."
+  },
+  {
+    id: "usa-people-search", name: "USA-People-Search", logo: "🦅",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://www.usa-people-search.com/manage/",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at usa-people-search.com.",
+      "Copy profile URL.",
+      "Go to usa-people-search.com/manage.",
+      "Paste URL, enter email, captcha.",
+      "Confirm via email."
+    ],
+    notes: "Another PeopleFinders / Confi-Chek sibling."
+  },
+  {
+    id: "wink", name: "Wink", logo: "😉",
+    category: "aggregator", difficulty: "medium", time: "10 min",
+    url: "https://wink.com/removal",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at wink.com.",
+      "Copy your profile URL.",
+      "Go to wink.com/removal.",
+      "Paste URL, provide email, submit.",
+      "Confirm via email."
+    ],
+    notes: "Social-media aggregator (Twitter, Facebook, Flickr). Some content may re-sync if source profiles are public."
+  },
+  {
+    id: "xlek", name: "xLek", logo: "🔣",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://xlek.com/opt_out.php",
+    requires: ["Email"],
+    steps: [
+      "Search xlek.com for your name.",
+      "Copy URL.",
+      "Go to xlek.com/opt_out.php.",
+      "Paste URL, enter email, submit.",
+      "Confirm via email."
+    ],
+    notes: "Small broker, 5-7 day turnaround."
+  },
+  {
+    id: "clustrmaps", name: "ClustrMaps", logo: "🗺️",
+    category: "aggregator", difficulty: "easy", time: "5 min",
+    url: "https://clustrmaps.com/bl/opt-out",
+    requires: ["Email"],
+    steps: [
+      "Find your address/profile at clustrmaps.com.",
+      "Copy URL.",
+      "Go to clustrmaps.com/bl/opt-out.",
+      "Paste URL, enter email, captcha.",
+      "Confirm via email."
+    ],
+    notes: "Displays address-level resident history. Big source for downstream brokers; high priority."
+  },
+  {
+    id: "addresses", name: "Addresses.com", logo: "📫",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://www.addresses.com/optout.php",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at addresses.com.",
+      "Copy record URL.",
+      "Go to addresses.com/optout.php.",
+      "Paste URL, email, captcha.",
+      "Confirm via email."
+    ],
+    notes: "Owned by Whitepages parent. Separate opt-out still required."
+  },
+  {
+    id: "anywho", name: "AnyWho", logo: "📞",
+    category: "free", difficulty: "medium", time: "10 min",
+    url: "https://corporate.thryv.com/privacy/",
+    requires: ["Email"],
+    steps: [
+      "Email privacy@thryv.com with subject 'AnyWho Opt-Out Request'.",
+      "Include full name, phone, address.",
+      "Request removal from AnyWho and all Thryv directories.",
+      "Save response confirmation.",
+      "Allow 30 days."
+    ],
+    notes: "Owned by Thryv (formerly Dex Media / YP). Email-only process."
+  },
+  {
+    id: "searchbug", name: "Searchbug", logo: "🐞",
+    category: "paid", difficulty: "medium", time: "10 min",
+    url: "https://www.searchbug.com/tools/remove.aspx",
+    requires: ["Email", "Phone"],
+    steps: [
+      "Go to searchbug.com/tools/remove.aspx.",
+      "Fill form with name, phone, email.",
+      "Submit; they may call to verify.",
+      "Reply to their confirmation email.",
+      "Allow 14 days."
+    ],
+    notes: "Also sells reverse-lookup services. Confirm all associated phone numbers are removed."
+  },
+  {
+    id: "idtrue", name: "IDTrue", logo: "🆔",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://www.idtrue.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at idtrue.com.",
+      "Copy profile URL.",
+      "Go to idtrue.com/optout.",
+      "Paste, enter email, captcha.",
+      "Confirm via email."
+    ],
+    notes: "Shares backend with several smaller brokers."
+  },
+  {
+    id: "persopo", name: "Persopo", logo: "🗣️",
+    category: "paid", difficulty: "easy", time: "5 min",
+    url: "https://persopo.com/optout",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at persopo.com.",
+      "Copy URL.",
+      "Go to persopo.com/optout.",
+      "Paste URL, enter email.",
+      "Confirm via email."
+    ],
+    notes: "Quick process. Owned by a group of smaller data operators."
+  },
+  {
+    id: "arrests", name: "Arrests.org", logo: "⛓️",
+    category: "free", difficulty: "hard", time: "20 min",
+    url: "https://www.arrests.org/contact.php",
+    requires: ["Photo ID", "Court documents"],
+    steps: [
+      "Visit arrests.org/contact.php.",
+      "Submit removal request with full name, state, booking date.",
+      "Attach court records showing dismissal, expungement, or sealing (if applicable).",
+      "Follow up every 10 days.",
+      "Cite state-specific criminal-history privacy laws."
+    ],
+    notes: "Mugshot/arrest-data brokers are adversarial. Many require proof of expungement. If refused, file complaints with state AG + FTC."
+  },
+  {
+    id: "mugshots", name: "Mugshots.com", logo: "📸",
+    category: "paid", difficulty: "hard", time: "30 min",
+    url: "https://mugshots.com/terms-of-service.html",
+    requires: ["Court documents", "Sometimes payment (illegal but common)"],
+    steps: [
+      "Email takedown@mugshots.com with your full name, DOB, booking info.",
+      "Include expungement/dismissal paperwork if available.",
+      "Do NOT pay the 'unpublishing fee' — it is the subject of active lawsuits (e.g., CA AG).",
+      "File complaints with state AG and FTC if stonewalled.",
+      "Consider serving DMCA for any image copyrighted by you."
+    ],
+    notes: "Known for pay-to-remove extortion scheme, banned in CA/IL/NY. Slow/adversarial. Work with your state's AG for leverage."
+  },
+  {
+    id: "spydialer", name: "SpyDialer", logo: "📱",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://www.spydialer.com/optout.aspx",
+    requires: ["Phone number"],
+    steps: [
+      "Go to spydialer.com/optout.aspx.",
+      "Enter phone number or email.",
+      "Solve captcha, submit.",
+      "Allow 24h.",
+      "Verify removal by re-searching."
+    ],
+    notes: "Phone-focused broker. Also check reverse-lookup sites linked to it."
+  },
+  {
+    id: "freepeoplesearch", name: "FreePeopleSearch", logo: "🆓",
+    category: "free", difficulty: "easy", time: "5 min",
+    url: "https://www.freepeoplesearch.com/removal",
+    requires: ["Email"],
+    steps: [
+      "Search yourself at freepeoplesearch.com.",
+      "Copy URL.",
+      "Go to freepeoplesearch.com/removal.",
+      "Paste URL, enter email.",
+      "Confirm via email."
+    ],
+    notes: "Generic broker with shared backend. Quick process."
+  }
+];
+
+// ============================================================
+// STATE + STORAGE
+// ============================================================
+const LS_PREFIX = "korb_optout_";
+const LS_STATUS = LS_PREFIX + "status";
+const LS_NOTES = LS_PREFIX + "notes";
+const LS_DATES = LS_PREFIX + "dates";
+const LS_REMINDER = LS_PREFIX + "reminder";
+const LS_EXPANDED = LS_PREFIX + "expanded";
+
+const STATUS_OPTIONS = [
+  { id: "not-started", label: "Not Started" },
+  { id: "in-progress", label: "In Progress" },
+  { id: "submitted", label: "Submitted" },
+  { id: "confirmed", label: "Confirmed" },
+  { id: "rejected", label: "Rejected" },
+  { id: "will-retry", label: "Will Retry" }
+];
+
+function loadObj(key) {
+  try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+  catch (e) { return {}; }
+}
+function saveObj(key, obj) {
+  try { localStorage.setItem(key, JSON.stringify(obj)); }
+  catch (e) { console.warn("localStorage save failed", e); }
+}
+
+let statuses = loadObj(LS_STATUS);
+let notes = loadObj(LS_NOTES);
+let dates = loadObj(LS_DATES);
+
+let filterStatus = "all";
+let filterCat = "all";
+let searchTerm = "";
+
+// ============================================================
+// RENDER
+// ============================================================
+function getStatus(id) { return statuses[id] || "not-started"; }
+function setStatus(id, s) {
+  statuses[id] = s;
+  dates[id] = new Date().toISOString();
+  saveObj(LS_STATUS, statuses);
+  saveObj(LS_DATES, dates);
+  updateDashboard();
+  applyFilters();
+  renderBrokerStatus(id);
+}
+function setNote(id, n) {
+  notes[id] = n;
+  saveObj(LS_NOTES, notes);
+}
+
+function statusLabel(s) {
+  const o = STATUS_OPTIONS.find(x => x.id === s);
+  return o ? o.label : s;
+}
+
+function renderBroker(b) {
+  const s = getStatus(b.id);
+  const n = notes[b.id] || "";
+  const d = dates[b.id] ? new Date(dates[b.id]).toLocaleString() : "";
+  const el = document.createElement("div");
+  el.className = "broker";
+  el.dataset.id = b.id;
+  el.dataset.status = s;
+  el.dataset.category = b.category;
+  if (s === "confirmed") el.classList.add("done");
+  if (s === "in-progress") el.classList.add("in-progress");
+  if (s === "rejected") el.classList.add("rejected");
+
+  const stepsHtml = b.steps.map(step => `<li>${escapeHtml(step)}</li>`).join("");
+  const reqHtml = b.requires.map(r => `<span class="tag">${escapeHtml(r)}</span>`).join("");
+  const statusOpts = STATUS_OPTIONS.map(so =>
+    `<button class="status-opt ${s === so.id ? "active-" + so.id : ""}" data-set-status="${so.id}">${so.label}</button>`
+  ).join("");
+
+  el.innerHTML = `
+    <div class="broker-header">
+      <span class="broker-logo">${b.logo}</span>
+      <span class="broker-name">${escapeHtml(b.name)}</span>
+      <div class="broker-meta">
+        <span class="tag category-${b.category}">${b.category}</span>
+        <span class="tag difficulty-${b.difficulty}">${b.difficulty}</span>
+        <span class="tag">${escapeHtml(b.time)}</span>
+        <span class="status-badge status-${s}">${statusLabel(s)}</span>
+      </div>
+      <span class="expand-arrow">▶</span>
+    </div>
+    <div class="broker-body">
+      <div class="section">
+        <div class="section-label">Opt-Out Page</div>
+        <a href="${b.url}" target="_blank" rel="noopener noreferrer" class="opt-link">${b.url}</a>
+      </div>
+      <div class="section">
+        <div class="section-label">Requirements</div>
+        <div class="broker-meta">${reqHtml}</div>
+      </div>
+      <div class="section">
+        <div class="section-label">Steps</div>
+        <ol class="steps">${stepsHtml}</ol>
+      </div>
+      <div class="section">
+        <div class="section-label">Reference Notes</div>
+        <div style="font-size:11px; color: var(--fg-dim);">${escapeHtml(b.notes)}</div>
+      </div>
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">Category</div><div class="v">${b.category}</div></div>
+        <div class="info-cell"><div class="k">Difficulty</div><div class="v">${b.difficulty}</div></div>
+        <div class="info-cell"><div class="k">Est. Time</div><div class="v">${escapeHtml(b.time)}</div></div>
+      </div>
+      <div class="section" style="margin-top:10px;">
+        <div class="section-label">Your Status</div>
+        <div class="status-selector">${statusOpts}</div>
+        ${d ? `<div class="date-stamp">Last updated: ${d}</div>` : ""}
+      </div>
+      <div class="section">
+        <div class="section-label">Your Notes</div>
+        <textarea class="notes-area" data-notes-for="${b.id}" placeholder="E.g. confirmation email received, ticket #XYZ, retry date, etc.">${escapeHtml(n)}</textarea>
+      </div>
+    </div>
+  `;
+  return el;
+}
+
+function renderBrokerStatus(id) {
+  const el = document.querySelector(`.broker[data-id="${id}"]`);
+  if (!el) return;
+  const b = BROKERS.find(x => x.id === id);
+  const wasExpanded = el.classList.contains("expanded");
+  const newEl = renderBroker(b);
+  if (wasExpanded) newEl.classList.add("expanded");
+  el.replaceWith(newEl);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+
+function renderAll() {
+  const list = document.getElementById("broker-list");
+  list.innerHTML = "";
+  BROKERS.forEach(b => list.appendChild(renderBroker(b)));
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function updateDashboard() {
+  const counts = { "not-started": 0, "in-progress": 0, "submitted": 0, "confirmed": 0, "rejected": 0, "will-retry": 0 };
+  BROKERS.forEach(b => {
+    const s = getStatus(b.id);
+    counts[s] = (counts[s] || 0) + 1;
+  });
+  const total = BROKERS.length;
+  const done = counts["confirmed"];
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-not-started").textContent = counts["not-started"];
+  document.getElementById("stat-in-progress").textContent = counts["in-progress"];
+  document.getElementById("stat-submitted").textContent = counts["submitted"];
+  document.getElementById("stat-confirmed").textContent = counts["confirmed"];
+  document.getElementById("stat-rejected").textContent = counts["rejected"];
+  document.getElementById("stat-will-retry").textContent = counts["will-retry"];
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById("progress-fill").style.width = pct + "%";
+  document.getElementById("progress-text").textContent = done + " / " + total + " confirmed (" + pct + "%)";
+}
+
+// ============================================================
+// FILTERS
+// ============================================================
+function applyFilters() {
+  const list = document.getElementById("broker-list");
+  const items = list.querySelectorAll(".broker");
+  let visible = 0;
+  items.forEach(el => {
+    const id = el.dataset.id;
+    const b = BROKERS.find(x => x.id === id);
+    const s = el.dataset.status;
+    const cat = el.dataset.category;
+    let show = true;
+    if (filterStatus !== "all" && s !== filterStatus) show = false;
+    if (filterCat !== "all" && cat !== filterCat) show = false;
+    if (searchTerm) {
+      const hay = (b.name + " " + (notes[id] || "") + " " + b.notes).toLowerCase();
+      if (!hay.includes(searchTerm.toLowerCase())) show = false;
+    }
+    el.classList.toggle("hidden", !show);
+    if (show) visible++;
+  });
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function bindEvents() {
+  // Filter buttons (status)
+  document.querySelectorAll("[data-filter-status]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-filter-status]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      filterStatus = btn.dataset.filterStatus;
+      applyFilters();
+    });
+  });
+  // Filter buttons (category)
+  document.querySelectorAll("[data-filter-cat]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-filter-cat]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      filterCat = btn.dataset.filterCat;
+      applyFilters();
+    });
+  });
+  // Search
+  document.getElementById("search").addEventListener("input", (e) => {
+    searchTerm = e.target.value;
+    applyFilters();
+  });
+  // Expand / collapse all
+  document.getElementById("btn-expand-all").addEventListener("click", () => {
+    document.querySelectorAll(".broker").forEach(b => b.classList.add("expanded"));
+  });
+  document.getElementById("btn-collapse-all").addEventListener("click", () => {
+    document.querySelectorAll(".broker").forEach(b => b.classList.remove("expanded"));
+  });
+  // Export CSV
+  document.getElementById("btn-export-csv").addEventListener("click", exportCSV);
+  // Export JSON
+  document.getElementById("btn-export-json").addEventListener("click", exportJSON);
+  // Import JSON
+  document.getElementById("btn-import-json").addEventListener("click", () => {
+    document.getElementById("import-file").click();
+  });
+  document.getElementById("import-file").addEventListener("change", importJSON);
+  // Reset
+  document.getElementById("btn-reset").addEventListener("click", () => {
+    if (confirm("Reset ALL status, notes, and dates? This cannot be undone. Export first if you care.")) {
+      statuses = {}; notes = {}; dates = {};
+      localStorage.removeItem(LS_STATUS);
+      localStorage.removeItem(LS_NOTES);
+      localStorage.removeItem(LS_DATES);
+      renderAll();
+      updateDashboard();
+      applyFilters();
+      bindBrokerEvents();
+    }
+  });
+  // Reminders
+  document.getElementById("btn-set-reminder").addEventListener("click", () => {
+    const due = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    localStorage.setItem(LS_REMINDER, String(due));
+    renderReminder();
+  });
+  document.getElementById("btn-clear-reminder").addEventListener("click", () => {
+    localStorage.removeItem(LS_REMINDER);
+    renderReminder();
+  });
+}
+
+function bindBrokerEvents() {
+  const list = document.getElementById("broker-list");
+  list.addEventListener("click", (e) => {
+    // Header click -> expand
+    const header = e.target.closest(".broker-header");
+    if (header && !e.target.closest("a")) {
+      header.parentElement.classList.toggle("expanded");
+      return;
+    }
+    // Status selector
+    const statusBtn = e.target.closest("[data-set-status]");
+    if (statusBtn) {
+      const broker = statusBtn.closest(".broker");
+      setStatus(broker.dataset.id, statusBtn.dataset.setStatus);
+    }
+  });
+  list.addEventListener("input", (e) => {
+    if (e.target.matches("[data-notes-for]")) {
+      setNote(e.target.dataset.notesFor, e.target.value);
+    }
+  });
+}
+
+// ============================================================
+// EXPORT / IMPORT
+// ============================================================
+function exportCSV() {
+  const header = ["ID", "Name", "Category", "Difficulty", "Est.Time", "Status", "URL", "LastUpdated", "UserNotes"];
+  const rows = BROKERS.map(b => [
+    b.id, b.name, b.category, b.difficulty, b.time, getStatus(b.id),
+    b.url, dates[b.id] || "", notes[b.id] || ""
+  ]);
+  const csv = [header, ...rows].map(r =>
+    r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
+  downloadFile(csv, "data-broker-optout-" + datestamp() + ".csv", "text/csv");
+}
+function exportJSON() {
+  const obj = {
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    brokers: BROKERS.map(b => ({
+      id: b.id, name: b.name, category: b.category,
+      status: getStatus(b.id),
+      lastUpdated: dates[b.id] || null,
+      userNotes: notes[b.id] || ""
+    }))
+  };
+  downloadFile(JSON.stringify(obj, null, 2), "data-broker-optout-" + datestamp() + ".json", "application/json");
+}
+function importJSON(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.brokers || !Array.isArray(data.brokers)) throw new Error("Invalid format");
+      data.brokers.forEach(b => {
+        if (b.id && BROKERS.find(x => x.id === b.id)) {
+          if (b.status) statuses[b.id] = b.status;
+          if (b.userNotes) notes[b.id] = b.userNotes;
+          if (b.lastUpdated) dates[b.id] = b.lastUpdated;
+        }
+      });
+      saveObj(LS_STATUS, statuses);
+      saveObj(LS_NOTES, notes);
+      saveObj(LS_DATES, dates);
+      renderAll();
+      updateDashboard();
+      applyFilters();
+      alert("Import successful.");
+    } catch (err) {
+      alert("Import failed: " + err.message);
+    }
+  };
+  reader.readAsText(f);
+  e.target.value = "";
+}
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+function datestamp() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// ============================================================
+// REMINDERS
+// ============================================================
+function renderReminder() {
+  const raw = localStorage.getItem(LS_REMINDER);
+  const el = document.getElementById("reminder-status");
+  if (!raw) {
+    el.textContent = "Not set.";
+    el.className = "";
+    return;
+  }
+  const due = Number(raw);
+  const now = Date.now();
+  if (now >= due) {
+    el.innerHTML = '<span class="reminder-active">⚠ RE-CHECK DUE NOW.</span> Go through all "confirmed" brokers and verify your data is still gone.';
+    el.className = "reminder-active";
+  } else {
+    const days = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+    el.textContent = "Reminder set — re-check in " + days + " day(s) (" + new Date(due).toLocaleDateString() + ").";
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderAll();
+updateDashboard();
+applyFilters();
+bindEvents();
+bindBrokerEvents();
+renderReminder();
+</script>
+</body>
+</html>
