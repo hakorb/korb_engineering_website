@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GIS Layer Streamer // Korb Engineering</title>
+<meta name="description" content="Browse and overlay public WMS/WMTS/XYZ tile layers on an interactive map. Quickly check a project site against official asset data (TxDOT, FAA sectionals, parcels, soils, floodplains) without opening ArcGIS or QGIS.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../vendor/leaflet-1.9.4.css">
+<style>
+:root {
+  --bg: #050a0f;
+  --panel: #0a1018;
+  --panel-2: #0e1520;
+  --border: #1a2535;
+  --cyan: #00d4ff;
+  --orange: #ff9900;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #ffd83d;
+  --text: #e2e8f0;
+  --dim: #7a8a9a;
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+  line-height: 1.5;
+}
+body { padding: 10px 10px 40px; max-width: 1600px; margin: 0 auto; }
+a { color: var(--cyan); }
+
+.back {
+  display: inline-block; color: var(--cyan); text-decoration: none;
+  font-size: 12px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 3px;
+  margin-bottom: 10px;
+}
+.back:hover { background: rgba(0,212,255,0.06); }
+
+header { text-align: center; padding: 10px 0 14px; }
+h1 {
+  font-size: clamp(20px, 4vw, 28px); font-weight: 700;
+  color: var(--cyan); letter-spacing: 2px;
+  text-shadow: 0 0 14px rgba(0,212,255,0.3);
+}
+.subtitle { color: var(--dim); font-size: 12px; margin-top: 4px; letter-spacing: 1px; }
+
+.notice {
+  background: rgba(255,153,0,0.06);
+  border: 1px solid var(--orange);
+  color: var(--orange);
+  padding: 10px 14px; border-radius: 4px;
+  font-size: 12px; line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.layout { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 1024px) {
+  .layout { grid-template-columns: 320px 1fr 300px; }
+}
+
+.panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 4px; padding: 12px;
+  max-height: 600px; overflow-y: auto;
+}
+@media (min-width: 1024px) {
+  .panel { max-height: 75dvh; }
+}
+.panel h2 {
+  font-size: 12px; font-weight: 700; color: var(--cyan);
+  letter-spacing: 2px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border); margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.panel h3 {
+  font-size: 11px; font-weight: 600; color: var(--orange);
+  letter-spacing: 1.5px; margin-top: 12px; margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.panel h3:first-child { margin-top: 0; }
+
+label {
+  display: block; color: var(--dim); font-size: 11px;
+  letter-spacing: 1px; margin-bottom: 3px; text-transform: uppercase;
+}
+input, select, button, textarea {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 8px 10px; width: 100%; min-height: 38px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--cyan); }
+button {
+  cursor: pointer; background: var(--panel-2); color: var(--cyan);
+  font-weight: 600; letter-spacing: 1px;
+  transition: background .15s, color .15s;
+}
+button:hover { background: var(--cyan); color: var(--bg); }
+button.primary { background: var(--cyan); color: var(--bg); }
+button.primary:hover { background: #66e5ff; }
+button.small { min-height: 28px; font-size: 11px; padding: 4px 8px; width: auto; }
+button.danger { color: var(--red); }
+button.danger:hover { background: var(--red); color: #fff; }
+
+.row { display: flex; gap: 6px; margin-bottom: 8px; }
+.row input, .row select { flex: 1; }
+
+.field { margin-bottom: 10px; }
+
+.tag {
+  display: inline-block; background: var(--panel-2);
+  color: var(--cyan); font-size: 10px; padding: 2px 6px;
+  border-radius: 2px; border: 1px solid var(--border);
+  margin-right: 4px; letter-spacing: 1px;
+}
+
+/* Map */
+#map {
+  width: 100%; height: 600px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--panel-2);
+}
+@media (min-width: 1024px) {
+  #map { height: 75dvh; }
+}
+.leaflet-container { background: #0a0f15; font-family: 'IBM Plex Mono', monospace; }
+.leaflet-control-attribution {
+  background: rgba(5,10,15,0.85) !important;
+  color: var(--dim) !important;
+  font-size: 10px !important;
+  border: 1px solid var(--border) !important;
+}
+.leaflet-control-attribution a { color: var(--cyan) !important; }
+.leaflet-control-zoom a {
+  background: var(--panel) !important;
+  color: var(--cyan) !important;
+  border: 1px solid var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--cyan) !important; color: var(--bg) !important; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--panel) !important; color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Layer catalog items */
+.cat-group { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+.cat-head {
+  background: var(--panel-2); padding: 6px 10px;
+  font-size: 11px; color: var(--orange); letter-spacing: 1.5px;
+  cursor: pointer; text-transform: uppercase;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.cat-head .caret { color: var(--dim); font-size: 10px; }
+.cat-body { display: none; }
+.cat-group.open .cat-body { display: block; }
+.cat-group.open .caret { transform: rotate(90deg); }
+.cat-item {
+  padding: 6px 10px; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 6px; font-size: 12px;
+}
+.cat-item-name { flex: 1; line-height: 1.3; color: var(--text); }
+.cat-item-desc { display: block; font-size: 10px; color: var(--dim); letter-spacing: 0.5px; }
+.cat-add {
+  background: var(--panel); color: var(--cyan); border: 1px solid var(--border);
+  font-size: 10px; padding: 3px 8px; border-radius: 2px; cursor: pointer;
+  min-height: 26px; min-width: 44px; white-space: nowrap;
+}
+.cat-add:hover { background: var(--cyan); color: var(--bg); }
+.cat-add.added { background: var(--green); color: var(--bg); border-color: var(--green); }
+
+/* Active layer chips */
+.active-layer {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 3px; padding: 8px; margin-bottom: 6px;
+  cursor: grab; position: relative;
+}
+.active-layer.dragging { opacity: 0.4; }
+.active-layer.drag-over { border-color: var(--cyan); border-style: dashed; }
+.active-layer-head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+.active-layer-head .drag-grip {
+  color: var(--dim); cursor: grab; font-size: 14px; line-height: 1;
+  padding: 0 2px; user-select: none;
+}
+.active-layer-head input[type=checkbox] {
+  width: auto; min-height: auto; margin: 0; accent-color: var(--cyan);
+}
+.active-layer-head .name {
+  flex: 1; font-size: 12px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.active-layer-head .close {
+  color: var(--red); background: transparent; border: none;
+  cursor: pointer; font-size: 14px; padding: 2px 4px; min-height: auto;
+  width: auto;
+}
+.active-layer-head .close:hover { background: var(--red); color: #fff; }
+.active-layer .opacity-row {
+  display: flex; align-items: center; gap: 6px; font-size: 10px;
+}
+.active-layer .opacity-row input[type=range] {
+  flex: 1; accent-color: var(--cyan); min-height: auto; padding: 0;
+}
+.active-layer .opacity-val { color: var(--cyan); min-width: 30px; text-align: right; }
+.active-layer .attr {
+  font-size: 9px; color: var(--dim); margin-top: 4px; line-height: 1.3;
+  word-break: break-all;
+}
+
+/* Basemap picker */
+.basemap-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.basemap-btn {
+  padding: 6px 4px; font-size: 10px; letter-spacing: 0.5px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 2px; cursor: pointer; min-height: 32px; width: 100%;
+}
+.basemap-btn.active { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+.basemap-btn:hover { border-color: var(--cyan); }
+
+/* Coordinate readout */
+.coord-readout {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 3px; padding: 8px; font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.coord-row {
+  display: flex; justify-content: space-between;
+  padding: 2px 0; border-bottom: 1px dashed var(--border);
+}
+.coord-row:last-child { border-bottom: none; }
+.coord-label { color: var(--dim); letter-spacing: 1px; }
+.coord-val { color: var(--green); font-weight: 600; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--panel); color: var(--cyan);
+  border: 1px solid var(--cyan); border-radius: 3px;
+  padding: 10px 16px; font-size: 12px; z-index: 10000;
+  box-shadow: 0 0 20px rgba(0,212,255,0.3);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  letter-spacing: 1px;
+}
+.toast.show { opacity: 1; }
+.toast.err { color: var(--red); border-color: var(--red); box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+.toast.ok { color: var(--green); border-color: var(--green); box-shadow: 0 0 20px rgba(16,185,129,0.3); }
+
+/* Autocomplete dropdown */
+.ac-list {
+  position: absolute; background: var(--panel); border: 1px solid var(--cyan);
+  border-radius: 3px; max-height: 200px; overflow-y: auto;
+  z-index: 1000; width: calc(100% - 24px);
+  font-size: 12px; margin-top: 2px;
+}
+.ac-item { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.ac-item:hover, .ac-item.sel { background: var(--panel-2); color: var(--cyan); }
+.ac-item .ac-code { color: var(--cyan); font-weight: 600; }
+.ac-item .ac-name { color: var(--dim); font-size: 10px; }
+
+footer {
+  text-align: center; color: var(--dim); font-size: 10px;
+  margin-top: 20px; letter-spacing: 1px;
+}
+</style>
+</head>
+<body>
+
+<a href="../../index.html#aviation" class="back">&larr; BACK</a>
+
+<header>
+<h1>GIS LAYER STREAMER</h1>
+<div class="subtitle">public wms // wmts // xyz overlay engine</div>
+</header>
+
+<div class="notice">
+<strong>Public tile services only.</strong> If a layer shows CORS errors or stops loading, the public endpoint may have changed &mdash; use the <strong>Add Custom Layer</strong> feature to add a replacement URL. Layers load from their respective government / open-data servers; Korb Engineering is not responsible for the accuracy, completeness, or availability of third-party tile services.
+</div>
+
+<div class="layout">
+
+<!-- LEFT PANEL: Layer catalog -->
+<div class="panel">
+<h2>Layer Catalog</h2>
+
+<div id="catalog"></div>
+
+<h3 style="margin-top:14px">Add Custom Layer</h3>
+<div class="field">
+<label>Layer Type</label>
+<select id="customType">
+<option value="xyz">XYZ tile template</option>
+<option value="wms">WMS GetMap</option>
+</select>
+</div>
+<div class="field">
+<label>Name</label>
+<input id="customName" placeholder="My custom layer" autocomplete="off">
+</div>
+<div class="field">
+<label>URL Template / Endpoint</label>
+<textarea id="customUrl" rows="2" placeholder="https://example.com/{z}/{x}/{y}.png&#10;or&#10;https://example.com/wms?"></textarea>
+</div>
+<div class="field" id="customWmsLayersField" style="display:none">
+<label>WMS Layers (comma-separated)</label>
+<input id="customWmsLayers" placeholder="layer1,layer2" autocomplete="off">
+</div>
+<div class="field">
+<label>Attribution (optional)</label>
+<input id="customAttr" placeholder="Source: ..." autocomplete="off">
+</div>
+<button class="primary" onclick="addCustomLayer()">+ Add to map</button>
+
+</div>
+
+<!-- CENTER: Map -->
+<div>
+<div id="map"></div>
+
+<div class="coord-readout" style="margin-top:8px">
+<div class="coord-row"><span class="coord-label">LAT / LON</span><span class="coord-val" id="crLL">&mdash;</span></div>
+<div class="coord-row"><span class="coord-label">UTM</span><span class="coord-val" id="crUTM">&mdash;</span></div>
+<div class="coord-row"><span class="coord-label">MGRS (approx)</span><span class="coord-val" id="crMGRS">&mdash;</span></div>
+<div class="coord-row"><span class="coord-label">ZOOM</span><span class="coord-val" id="crZoom">&mdash;</span></div>
+</div>
+</div>
+
+<!-- RIGHT PANEL: Active layers / controls -->
+<div class="panel">
+<h2>Map Controls</h2>
+
+<h3>Basemap</h3>
+<div class="basemap-picker" id="basemapPicker"></div>
+
+<h3>Jump To</h3>
+<div class="field">
+<label>Lat, Lon</label>
+<div class="row">
+<input id="jumpLatLon" placeholder="32.90, -97.04" autocomplete="off">
+<button class="small" onclick="jumpLatLon()">GO</button>
+</div>
+</div>
+<div class="field" style="position:relative">
+<label>Airport Code</label>
+<div class="row">
+<input id="jumpAirport" placeholder="KDFW, DAL, LAX..." autocomplete="off"
+       oninput="acAirport(this.value)" onfocus="acAirport(this.value)" onblur="setTimeout(acHide,200)">
+<button class="small" onclick="jumpAirport()">GO</button>
+</div>
+<div id="acAirportList"></div>
+</div>
+<div class="field">
+<label>Address / Place</label>
+<div class="row">
+<input id="jumpAddr" placeholder="100 Main St, Dallas, TX" autocomplete="off">
+<button class="small" onclick="jumpAddr()">GO</button>
+</div>
+</div>
+<div class="field">
+<button class="small" style="width:100%" onclick="useMyLocation()">Use My Location</button>
+</div>
+
+<h3>Active Overlays</h3>
+<div id="activeLayers">
+<div style="color:var(--dim);font-size:11px;padding:8px 0">No overlays active. Pick some from the catalog.</div>
+</div>
+
+<h3>Export</h3>
+<div class="field">
+<button class="small" style="width:100%" onclick="exportBBox()">Copy bbox as GeoJSON</button>
+</div>
+<div class="field">
+<button class="small" style="width:100%" onclick="exportShareLink()">Copy shareable link</button>
+</div>
+<div class="field">
+<button class="small" style="width:100%" onclick="screenshotTip()">How to screenshot</button>
+</div>
+
+<h3>Session</h3>
+<div class="field">
+<button class="small danger" style="width:100%" onclick="resetSession()">Reset all</button>
+</div>
+</div>
+</div>
+
+<footer>
+Korb Engineering &middot; GIS Layer Streamer &middot; public WMS / WMTS / XYZ browser &middot; no keys, no signups
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="../../vendor/leaflet-1.9.4.js"></script>
+<script>
+'use strict';
+
+// ============================================================
+// STORAGE
+// ============================================================
+var LS_PREFIX = 'korb_gis_';
+function lsGet(k, d){ try { var v = localStorage.getItem(LS_PREFIX+k); return v==null?d:JSON.parse(v); } catch(e){ return d; } }
+function lsSet(k, v){ try { localStorage.setItem(LS_PREFIX+k, JSON.stringify(v)); } catch(e){} }
+
+// ============================================================
+// TOAST
+// ============================================================
+var toastTimer = null;
+function toast(msg, kind){
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (kind ? ' '+kind : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.className = 'toast'; }, 3500);
+}
+
+// ============================================================
+// BASEMAPS
+// ============================================================
+var BASEMAPS = [
+  { id:'cartoDark', name:'Carto Dark',
+    url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attr:'&copy; OpenStreetMap, &copy; CARTO',
+    opts:{subdomains:'abcd', maxZoom:19} },
+  { id:'osm', name:'OpenStreetMap',
+    url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr:'&copy; OpenStreetMap contributors',
+    opts:{subdomains:'abc', maxZoom:19} },
+  { id:'topo', name:'OpenTopoMap',
+    url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attr:'&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap (CC-BY-SA)',
+    opts:{subdomains:'abc', maxZoom:17} },
+  { id:'usgsImg', name:'USGS Imagery',
+    url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+    attr:'Tiles courtesy of the U.S. Geological Survey',
+    opts:{maxZoom:16} },
+  { id:'esriImg', name:'Esri Imagery',
+    url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr:'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    opts:{maxZoom:19} },
+];
+
+// ============================================================
+// LAYER CATALOG
+// Curated set of public tile endpoints. All either XYZ or WMS.
+// Each id must be stable — used as storage key.
+// ============================================================
+var CATALOG = [
+  {
+    group:'Federal — Imagery & Topo',
+    layers: [
+      { id:'fed_usgs_topo', name:'USGS Topographic',
+        desc:'National Map US Topo raster',
+        type:'xyz',
+        url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+        attr:'USGS National Map', maxZoom:16 },
+      { id:'fed_usgs_img', name:'USGS Imagery (high-res)',
+        desc:'Orthoimagery, CONUS',
+        type:'xyz',
+        url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+        attr:'USGS National Map', maxZoom:16 },
+      { id:'fed_usgs_hydro', name:'USGS Hydrography',
+        desc:'NHD rivers, lakes, coastline',
+        type:'xyz',
+        url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSHydroCached/MapServer/tile/{z}/{y}/{x}',
+        attr:'USGS National Hydrography', maxZoom:16 },
+      { id:'fed_usgs_shaded', name:'USGS Shaded Relief',
+        desc:'3DEP elevation shaded relief',
+        type:'xyz',
+        url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',
+        attr:'USGS 3DEP', maxZoom:16 },
+    ]
+  },
+  {
+    group:'Aviation',
+    layers: [
+      { id:'av_vfr_sect', name:'FAA VFR Sectional',
+        desc:'IFR/VFR sectional raster — FAA chart tiles',
+        type:'xyz',
+        url:'https://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw',
+        attr:'Chart data &copy; FAA, tiles courtesy ChartBundle',
+        maxZoom:11 },
+      { id:'av_tac', name:'FAA VFR Terminal (TAC)',
+        desc:'Terminal Area Charts at major metros',
+        type:'xyz',
+        url:'https://wms.chartbundle.com/tms/1.0.0/tac/{z}/{x}/{y}.png?origin=nw',
+        attr:'Chart data &copy; FAA, tiles courtesy ChartBundle',
+        maxZoom:12 },
+      { id:'av_ifr_low', name:'FAA IFR Low Enroute',
+        desc:'Instrument Flight Rules, low altitude',
+        type:'xyz',
+        url:'https://wms.chartbundle.com/tms/1.0.0/enrl/{z}/{x}/{y}.png?origin=nw',
+        attr:'Chart data &copy; FAA, tiles courtesy ChartBundle',
+        maxZoom:11 },
+      { id:'av_ifr_high', name:'FAA IFR High Enroute',
+        desc:'Instrument Flight Rules, high altitude',
+        type:'xyz',
+        url:'https://wms.chartbundle.com/tms/1.0.0/enrh/{z}/{x}/{y}.png?origin=nw',
+        attr:'Chart data &copy; FAA, tiles courtesy ChartBundle',
+        maxZoom:11 },
+      { id:'av_wac', name:'FAA World Aeronautical',
+        desc:'WAC charts (coarser scale)',
+        type:'xyz',
+        url:'https://wms.chartbundle.com/tms/1.0.0/wac/{z}/{x}/{y}.png?origin=nw',
+        attr:'Chart data &copy; FAA, tiles courtesy ChartBundle',
+        maxZoom:10 },
+    ]
+  },
+  {
+    group:'FEMA — Floodplains & Hazards',
+    layers: [
+      { id:'fema_nfhl', name:'FEMA NFHL (flood zones)',
+        desc:'National Flood Hazard Layer, all jurisdictions',
+        type:'wms',
+        url:'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/WMSServer',
+        layers:'28,27,22,20,16,14,12,11,6,2,1,0',
+        attr:'FEMA NFHL', maxZoom:19 },
+      { id:'fema_nfhl_lbl', name:'FEMA NFHL labels',
+        desc:'Flood zone text labels',
+        type:'wms',
+        url:'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/WMSServer',
+        layers:'16,14,12,10,8,4',
+        attr:'FEMA NFHL', maxZoom:19 },
+    ]
+  },
+  {
+    group:'Environmental',
+    layers: [
+      { id:'env_wetlands', name:'USFWS Wetlands',
+        desc:'National Wetlands Inventory',
+        type:'wms',
+        url:'https://www.fws.gov/wetlandsmapservice/services/Wetlands/MapServer/WMSServer',
+        layers:'1', attr:'U.S. Fish & Wildlife Service NWI', maxZoom:18 },
+      { id:'env_ech_superfund', name:'EPA Superfund (NPL)',
+        desc:'National Priorities List sites',
+        type:'wms',
+        url:'https://geopub.epa.gov/arcgis/services/EMEF/Superfund/MapServer/WMSServer',
+        layers:'1', attr:'US EPA', maxZoom:18 },
+    ]
+  },
+  {
+    group:'USDA — Soils, Agriculture, NAIP',
+    layers: [
+      { id:'usda_naip_plus', name:'USDA NAIP Imagery',
+        desc:'1-meter natural color agricultural imagery',
+        type:'xyz',
+        url:'https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}',
+        attr:'USDA FPAC NAIP', maxZoom:17 },
+      { id:'usda_ssurgo', name:'USDA SSURGO Soils',
+        desc:'Soil Survey Geographic Database mapunits',
+        type:'wms',
+        url:'https://SDMDataAccess.nrcs.usda.gov/Spatial/SDMWMS.wms',
+        layers:'MapunitPoly', attr:'USDA NRCS SSURGO', maxZoom:18 },
+    ]
+  },
+  {
+    group:'NOAA / NWS',
+    layers: [
+      { id:'noaa_radar', name:'NWS Radar Mosaic',
+        desc:'Live base reflectivity, updates ~5 min',
+        type:'wms',
+        url:'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows',
+        layers:'conus_bref_qcd', attr:'NWS/NOAA NCEP', maxZoom:14 },
+      { id:'noaa_charts', name:'NOAA Nautical Charts',
+        desc:'RNC raster nautical charts',
+        type:'xyz',
+        url:'https://tileservice.charts.noaa.gov/tiles/50000_1/{z}/{x}/{y}.png',
+        attr:'NOAA Office of Coast Survey', maxZoom:13 },
+      { id:'noaa_hurricane', name:'NHC Active Storms',
+        desc:'Atlantic/Pacific hurricane tracks (if active)',
+        type:'wms',
+        url:'https://mapservices.weather.noaa.gov/eventdriven/services/tropical/NHC_tropical_weather_summary/MapServer/WMSServer',
+        layers:'0', attr:'NOAA NHC', maxZoom:12 },
+    ]
+  },
+  {
+    group:'Texas',
+    layers: [
+      { id:'tx_txdot_basemap', name:'TxDOT Roadway Basemap',
+        desc:'Texas DOT roadway network',
+        type:'xyz',
+        url:'https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Reference/FeatureServer/0/tile/{z}/{y}/{x}',
+        attr:'Texas DOT', maxZoom:18 },
+      { id:'tx_nrcs_quad', name:'Texas USGS Quads',
+        desc:'USGS topographic quads, TX',
+        type:'xyz',
+        url:'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+        attr:'USGS (filtered for TX use)', maxZoom:16 },
+    ]
+  },
+  {
+    group:'Parcels & Cadastral',
+    layers: [
+      { id:'parcel_national', name:'National Parcel Layer',
+        desc:'Limited public parcel coverage — zoom to city to see',
+        type:'wms',
+        url:'https://reportallusa.com/api/rest_services/client=korb_demo/Parcels/MapServer/WMSServer',
+        layers:'0', attr:'ReportAll USA (public sample)', maxZoom:19 },
+    ]
+  },
+  {
+    group:'Transportation / Rail',
+    layers: [
+      { id:'rail_railroads', name:'USDOT Railroad Network',
+        desc:'North American Rail Network lines',
+        type:'xyz',
+        url:'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_North_American_Rail_Network_Lines/FeatureServer/0/tile/{z}/{y}/{x}',
+        attr:'USDOT BTS NTAD', maxZoom:16 },
+    ]
+  }
+];
+
+// ============================================================
+// AIRPORTS (same set as Aviation Brain)
+// ============================================================
+var AIRPORTS = {
+  KATL:{lat:33.6407,lon:-84.4277,name:'Atlanta Hartsfield-Jackson'},
+  KDFW:{lat:32.8998,lon:-97.0403,name:'Dallas/Fort Worth'},
+  KDAL:{lat:32.8471,lon:-96.8518,name:'Dallas Love Field'},
+  KDEN:{lat:39.8561,lon:-104.6737,name:'Denver International'},
+  KORD:{lat:41.9786,lon:-87.9048,name:'Chicago O\'Hare'},
+  KLAX:{lat:33.9416,lon:-118.4085,name:'Los Angeles International'},
+  KJFK:{lat:40.6413,lon:-73.7781,name:'John F. Kennedy'},
+  KLGA:{lat:40.7769,lon:-73.8740,name:'LaGuardia'},
+  KEWR:{lat:40.6895,lon:-74.1745,name:'Newark Liberty'},
+  KSFO:{lat:37.6213,lon:-122.3790,name:'San Francisco International'},
+  KSEA:{lat:47.4502,lon:-122.3088,name:'Seattle-Tacoma'},
+  KBOS:{lat:42.3656,lon:-71.0096,name:'Boston Logan'},
+  KMIA:{lat:25.7959,lon:-80.2871,name:'Miami International'},
+  KPHX:{lat:33.4342,lon:-112.0116,name:'Phoenix Sky Harbor'},
+  KIAH:{lat:29.9902,lon:-95.3368,name:'Houston Bush'},
+  KHOU:{lat:29.6454,lon:-95.2789,name:'Houston Hobby'},
+  KAUS:{lat:30.1945,lon:-97.6699,name:'Austin-Bergstrom'},
+  KSAN:{lat:32.7336,lon:-117.1897,name:'San Diego International'},
+  KLAS:{lat:36.0840,lon:-115.1537,name:'Harry Reid Las Vegas'},
+  KMSP:{lat:44.8820,lon:-93.2218,name:'Minneapolis-St. Paul'},
+  KDTW:{lat:42.2124,lon:-83.3534,name:'Detroit Metro'},
+  KCLT:{lat:35.2140,lon:-80.9431,name:'Charlotte Douglas'},
+  KPHL:{lat:39.8744,lon:-75.2424,name:'Philadelphia International'},
+  KBWI:{lat:39.1774,lon:-76.6684,name:'Baltimore/Washington'},
+  KDCA:{lat:38.8521,lon:-77.0377,name:'Reagan Washington National'},
+  KIAD:{lat:38.9531,lon:-77.4565,name:'Washington Dulles'},
+  KSLC:{lat:40.7899,lon:-111.9791,name:'Salt Lake City'},
+  KPDX:{lat:45.5898,lon:-122.5951,name:'Portland International'},
+  KHNL:{lat:21.3245,lon:-157.9251,name:'Honolulu'},
+  KANC:{lat:61.1744,lon:-149.9962,name:'Anchorage'},
+  KFTW:{lat:32.8197,lon:-97.3622,name:'Fort Worth Meacham'},
+  KADS:{lat:32.9686,lon:-96.8361,name:'Addison'},
+  KSAT:{lat:29.5337,lon:-98.4698,name:'San Antonio International'},
+  KELP:{lat:31.8072,lon:-106.3781,name:'El Paso International'},
+  KMAF:{lat:31.9425,lon:-102.2019,name:'Midland International'},
+  KLBB:{lat:33.6636,lon:-101.8228,name:'Lubbock Preston Smith'},
+  KMCO:{lat:28.4294,lon:-81.3089,name:'Orlando International'},
+  KTPA:{lat:27.9755,lon:-82.5332,name:'Tampa International'},
+  KJAX:{lat:30.4941,lon:-81.6879,name:'Jacksonville International'},
+  KMSY:{lat:29.9934,lon:-90.2580,name:'New Orleans Louis Armstrong'},
+  KSTL:{lat:38.7487,lon:-90.3700,name:'St. Louis Lambert'},
+  KCVG:{lat:39.0488,lon:-84.6678,name:'Cincinnati Northern KY'},
+  KBNA:{lat:36.1245,lon:-86.6782,name:'Nashville International'},
+  KMEM:{lat:35.0424,lon:-89.9767,name:'Memphis International'},
+  KRDU:{lat:35.8776,lon:-78.7875,name:'Raleigh-Durham'},
+  KMCI:{lat:39.2976,lon:-94.7139,name:'Kansas City International'},
+  KOKC:{lat:35.3931,lon:-97.6007,name:'Will Rogers OKC'}
+};
+var IATA = {
+  ATL:'KATL',DFW:'KDFW',DAL:'KDAL',DEN:'KDEN',ORD:'KORD',LAX:'KLAX',JFK:'KJFK',LGA:'KLGA',
+  EWR:'KEWR',SFO:'KSFO',SEA:'KSEA',BOS:'KBOS',MIA:'KMIA',PHX:'KPHX',IAH:'KIAH',HOU:'KHOU',
+  AUS:'KAUS',SAN:'KSAN',LAS:'KLAS',MSP:'KMSP',DTW:'KDTW',CLT:'KCLT',PHL:'KPHL',BWI:'KBWI',
+  DCA:'KDCA',IAD:'KIAD',SLC:'KSLC',PDX:'KPDX',HNL:'KHNL',ANC:'KANC',FTW:'KFTW',ADS:'KADS',
+  SAT:'KSAT',ELP:'KELP',MAF:'KMAF',LBB:'KLBB',MCO:'KMCO',TPA:'KTPA',JAX:'KJAX',MSY:'KMSY',
+  STL:'KSTL',CVG:'KCVG',BNA:'KBNA',MEM:'KMEM',RDU:'KRDU',MCI:'KMCI',OKC:'KOKC'
+};
+function lookupAirport(code){
+  if(!code) return null;
+  code = String(code).trim().toUpperCase();
+  if(AIRPORTS[code]) return Object.assign({icao:code}, AIRPORTS[code]);
+  if(IATA[code] && AIRPORTS[IATA[code]]) return Object.assign({icao:IATA[code]}, AIRPORTS[IATA[code]]);
+  return null;
+}
+
+// ============================================================
+// COORDINATE HELPERS
+// ============================================================
+function formatLatLon(lat, lon){
+  var ns = lat >= 0 ? 'N' : 'S';
+  var ew = lon >= 0 ? 'E' : 'W';
+  return Math.abs(lat).toFixed(5)+'\u00b0'+ns+' '+Math.abs(lon).toFixed(5)+'\u00b0'+ew;
+}
+// Basic UTM from lat/lon (WGS84) — gives zone + easting + northing
+function latLonToUTM(lat, lon){
+  var a = 6378137.0;
+  var f = 1/298.257223563;
+  var k0 = 0.9996;
+  var e2 = f*(2-f);
+  var ep2 = e2/(1-e2);
+  var zone = Math.floor((lon + 180)/6) + 1;
+  // Norway/Svalbard exceptions
+  if(lat >= 56 && lat < 64 && lon >= 3 && lon < 12) zone = 32;
+  if(lat >= 72 && lat < 84){
+    if(lon >= 0 && lon < 9) zone = 31;
+    else if(lon >= 9 && lon < 21) zone = 33;
+    else if(lon >= 21 && lon < 33) zone = 35;
+    else if(lon >= 33 && lon < 42) zone = 37;
+  }
+  var lon0 = (zone - 1)*6 - 180 + 3;
+  var rlat = lat*Math.PI/180;
+  var rlon = lon*Math.PI/180;
+  var rlon0 = lon0*Math.PI/180;
+  var N = a / Math.sqrt(1 - e2*Math.sin(rlat)*Math.sin(rlat));
+  var T = Math.tan(rlat)*Math.tan(rlat);
+  var C = ep2*Math.cos(rlat)*Math.cos(rlat);
+  var A = Math.cos(rlat)*(rlon - rlon0);
+  var M = a*(
+    (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256)*rlat
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024)*Math.sin(2*rlat)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024)*Math.sin(4*rlat)
+    - (35*e2*e2*e2/3072)*Math.sin(6*rlat)
+  );
+  var east = k0*N*(A + (1 - T + C)*A*A*A/6 + (5 - 18*T + T*T + 72*C - 58*ep2)*A*A*A*A*A/120) + 500000.0;
+  var north = k0*(M + N*Math.tan(rlat)*(A*A/2 + (5 - T + 9*C + 4*C*C)*A*A*A*A/24 + (61 - 58*T + T*T + 600*C - 330*ep2)*A*A*A*A*A*A/720));
+  if(lat < 0) north += 10000000.0;
+  var letter = 'CDEFGHJKLMNPQRSTUVWX'[Math.min(19, Math.max(0, Math.floor((lat+80)/8)))];
+  return { zone:zone, band:letter, east:Math.round(east), north:Math.round(north) };
+}
+// MGRS approximation — 100km grid letter + numeric at best 1m
+function utmToMGRS(u){
+  // 100km col letter
+  var cols = ['ABCDEFGH','JKLMNPQR','STUVWXYZ'];
+  var colSet = cols[(u.zone - 1) % 3];
+  var col100 = Math.floor(u.east/100000) - 1;
+  if(col100 < 0 || col100 >= 8) return '';
+  var colL = colSet[col100];
+  // 100km row letter (F-series alternating)
+  var rowLetters = 'ABCDEFGHJKLMNPQRSTUV';
+  var rowOffset = (u.zone % 2) === 0 ? 5 : 0;
+  var row100 = Math.floor(u.north/100000) % 20;
+  row100 = (row100 + rowOffset) % 20;
+  var rowL = rowLetters[row100];
+  var e = String(u.east % 100000).padStart(5,'0');
+  var n = String(u.north % 100000).padStart(5,'0');
+  return u.zone+u.band+' '+colL+rowL+' '+e+' '+n;
+}
+
+// ============================================================
+// MAP INIT
+// ============================================================
+var savedView = lsGet('view', { lat:32.8998, lon:-97.0403, zoom:10 });
+var savedBasemap = lsGet('basemap', 'cartoDark');
+var savedOverlays = lsGet('overlays', []);
+
+var map = L.map('map', {
+  center: [savedView.lat, savedView.lon],
+  zoom: savedView.zoom,
+  zoomControl: true,
+  worldCopyJump: true
+});
+
+var basemapLayer = null;
+function setBasemap(id){
+  var def = BASEMAPS.find(function(b){ return b.id === id; }) || BASEMAPS[0];
+  if(basemapLayer) map.removeLayer(basemapLayer);
+  basemapLayer = L.tileLayer(def.url, Object.assign({ attribution: def.attr }, def.opts||{}));
+  basemapLayer.addTo(map);
+  basemapLayer.bringToBack();
+  // update picker
+  var btns = document.querySelectorAll('.basemap-btn');
+  btns.forEach(function(b){ b.classList.toggle('active', b.dataset.id === def.id); });
+  lsSet('basemap', def.id);
+}
+
+function renderBasemapPicker(){
+  var p = document.getElementById('basemapPicker');
+  p.innerHTML = '';
+  BASEMAPS.forEach(function(b){
+    var btn = document.createElement('button');
+    btn.className = 'basemap-btn';
+    btn.dataset.id = b.id;
+    btn.textContent = b.name;
+    btn.onclick = function(){ setBasemap(b.id); };
+    p.appendChild(btn);
+  });
+}
+
+// ============================================================
+// OVERLAY MANAGER
+// Each overlay: {id, name, type:'xyz'|'wms', url, layers?, attr, opacity, visible, leafletLayer?}
+// ============================================================
+var overlays = []; // array of active overlay objects
+
+function overlayById(id){ return overlays.find(function(o){ return o.id === id; }); }
+
+function buildLeafletLayer(o){
+  if(o.type === 'wms'){
+    return L.tileLayer.wms(o.url, {
+      layers: o.layers || '',
+      format: 'image/png',
+      transparent: true,
+      attribution: o.attr || '',
+      opacity: (o.opacity==null?1:o.opacity)
+    });
+  }
+  // xyz default
+  return L.tileLayer(o.url, {
+    attribution: o.attr || '',
+    opacity: (o.opacity==null?1:o.opacity),
+    maxZoom: o.maxZoom || 20,
+    subdomains: o.subdomains || 'abc'
+  });
+}
+
+function addOverlay(def){
+  if(overlayById(def.id)){ toast('Already added', 'err'); return; }
+  var o = Object.assign({ opacity:1, visible:true }, def);
+  o.leafletLayer = buildLeafletLayer(o);
+  o.leafletLayer.on('tileerror', function(){
+    // only warn once
+    if(!o._warnedErr){ o._warnedErr = true; toast(o.name+' — some tiles failed (may be CORS or endpoint moved)', 'err'); }
+  });
+  if(o.visible) o.leafletLayer.addTo(map);
+  overlays.push(o);
+  renderActiveLayers();
+  persistOverlays();
+  updateCatalogButtons();
+}
+
+function removeOverlay(id){
+  var idx = overlays.findIndex(function(o){ return o.id === id; });
+  if(idx < 0) return;
+  var o = overlays[idx];
+  if(o.leafletLayer) map.removeLayer(o.leafletLayer);
+  overlays.splice(idx, 1);
+  renderActiveLayers();
+  persistOverlays();
+  updateCatalogButtons();
+}
+
+function toggleOverlay(id){
+  var o = overlayById(id); if(!o) return;
+  o.visible = !o.visible;
+  if(o.visible){ o.leafletLayer.addTo(map); reorderLeafletLayers(); }
+  else map.removeLayer(o.leafletLayer);
+  persistOverlays();
+}
+
+function setOverlayOpacity(id, v){
+  var o = overlayById(id); if(!o) return;
+  o.opacity = v;
+  if(o.leafletLayer && o.leafletLayer.setOpacity) o.leafletLayer.setOpacity(v);
+  persistOverlays();
+}
+
+function moveOverlay(fromIdx, toIdx){
+  if(fromIdx === toIdx) return;
+  var moved = overlays.splice(fromIdx, 1)[0];
+  overlays.splice(toIdx, 0, moved);
+  reorderLeafletLayers();
+  renderActiveLayers();
+  persistOverlays();
+}
+
+function reorderLeafletLayers(){
+  // top of overlays array = rendered on top of map; so bringToFront in order
+  // Leaflet draws later-added overlays on top; iterate reversed and bringToFront each
+  for(var i = overlays.length - 1; i >= 0; i--){
+    var o = overlays[i];
+    if(o.visible && o.leafletLayer && o.leafletLayer.bringToFront) o.leafletLayer.bringToFront();
+  }
+  // keep basemap at back
+  if(basemapLayer && basemapLayer.bringToBack) basemapLayer.bringToBack();
+}
+
+function persistOverlays(){
+  // persist only the defs, not the leaflet layer
+  var save = overlays.map(function(o){
+    var c = {};
+    ['id','name','type','url','layers','attr','opacity','visible','maxZoom','subdomains','custom'].forEach(function(k){
+      if(o[k]!==undefined) c[k] = o[k];
+    });
+    return c;
+  });
+  lsSet('overlays', save);
+}
+
+// ============================================================
+// RENDER: CATALOG
+// ============================================================
+function renderCatalog(){
+  var root = document.getElementById('catalog');
+  root.innerHTML = '';
+  var openState = lsGet('catOpen', {});
+  CATALOG.forEach(function(grp, gi){
+    var el = document.createElement('div');
+    el.className = 'cat-group' + (openState[grp.group]===false ? '' : (gi===0 || openState[grp.group]===true ? ' open' : ''));
+    el.innerHTML = '<div class="cat-head"><span>'+esc(grp.group)+'</span><span class="caret">\u25b6</span></div>';
+    var body = document.createElement('div');
+    body.className = 'cat-body';
+    grp.layers.forEach(function(lyr){
+      var item = document.createElement('div');
+      item.className = 'cat-item';
+      item.innerHTML = '<div class="cat-item-name">'+esc(lyr.name)+'<span class="cat-item-desc">'+esc(lyr.desc||'')+' &middot; '+esc(lyr.type.toUpperCase())+'</span></div>';
+      var btn = document.createElement('button');
+      btn.className = 'cat-add';
+      btn.dataset.id = lyr.id;
+      btn.textContent = overlayById(lyr.id) ? 'Added' : '+ Add';
+      if(overlayById(lyr.id)) btn.classList.add('added');
+      btn.onclick = function(){
+        if(overlayById(lyr.id)){ removeOverlay(lyr.id); }
+        else { addOverlay(Object.assign({}, lyr)); }
+      };
+      item.appendChild(btn);
+      body.appendChild(item);
+    });
+    el.appendChild(body);
+    el.querySelector('.cat-head').onclick = function(){
+      el.classList.toggle('open');
+      openState[grp.group] = el.classList.contains('open');
+      lsSet('catOpen', openState);
+    };
+    root.appendChild(el);
+  });
+  updateCatalogButtons();
+}
+
+function updateCatalogButtons(){
+  document.querySelectorAll('.cat-add').forEach(function(btn){
+    if(overlayById(btn.dataset.id)){
+      btn.textContent = 'Added';
+      btn.classList.add('added');
+    } else {
+      btn.textContent = '+ Add';
+      btn.classList.remove('added');
+    }
+  });
+}
+
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ============================================================
+// RENDER: ACTIVE OVERLAYS PANEL (with drag reorder)
+// ============================================================
+var dragFromIdx = -1;
+function renderActiveLayers(){
+  var root = document.getElementById('activeLayers');
+  root.innerHTML = '';
+  if(overlays.length === 0){
+    root.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:8px 0">No overlays active. Pick some from the catalog.</div>';
+    return;
+  }
+  overlays.forEach(function(o, idx){
+    var el = document.createElement('div');
+    el.className = 'active-layer';
+    el.draggable = true;
+    el.dataset.idx = idx;
+    el.innerHTML =
+      '<div class="active-layer-head">'
+      +'<span class="drag-grip" title="Drag to reorder">\u2630</span>'
+      +'<input type="checkbox"'+(o.visible?' checked':'')+' data-tgl="'+esc(o.id)+'">'
+      +'<span class="name" title="'+esc(o.name)+'">'+esc(o.name)+'</span>'
+      +'<button class="close" data-rm="'+esc(o.id)+'" title="Remove">\u2715</button>'
+      +'</div>'
+      +'<div class="opacity-row">'
+      +'<span>Opacity</span>'
+      +'<input type="range" min="0" max="1" step="0.05" value="'+(o.opacity==null?1:o.opacity)+'" data-op="'+esc(o.id)+'">'
+      +'<span class="opacity-val">'+Math.round((o.opacity==null?1:o.opacity)*100)+'%</span>'
+      +'</div>'
+      +'<div class="attr">'+esc(o.attr||'(no attribution)')+'</div>';
+
+    // events
+    el.querySelector('[data-tgl]').onchange = function(e){ toggleOverlay(e.target.dataset.tgl); };
+    el.querySelector('[data-rm]').onclick = function(e){ removeOverlay(e.currentTarget.dataset.rm); };
+    var op = el.querySelector('[data-op]');
+    op.oninput = function(e){
+      var v = parseFloat(e.target.value);
+      setOverlayOpacity(e.target.dataset.op, v);
+      e.target.parentNode.querySelector('.opacity-val').textContent = Math.round(v*100)+'%';
+    };
+
+    // drag events
+    el.addEventListener('dragstart', function(e){
+      dragFromIdx = parseInt(el.dataset.idx, 10);
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(dragFromIdx)); } catch(err){}
+    });
+    el.addEventListener('dragend', function(){ el.classList.remove('dragging'); clearDragOver(); });
+    el.addEventListener('dragover', function(e){ e.preventDefault(); el.classList.add('drag-over'); e.dataTransfer.dropEffect='move'; });
+    el.addEventListener('dragleave', function(){ el.classList.remove('drag-over'); });
+    el.addEventListener('drop', function(e){
+      e.preventDefault(); el.classList.remove('drag-over');
+      var toIdx = parseInt(el.dataset.idx, 10);
+      if(dragFromIdx >= 0 && toIdx >= 0) moveOverlay(dragFromIdx, toIdx);
+      dragFromIdx = -1;
+    });
+
+    root.appendChild(el);
+  });
+}
+function clearDragOver(){ document.querySelectorAll('.active-layer.drag-over').forEach(function(n){ n.classList.remove('drag-over'); }); }
+
+// ============================================================
+// CUSTOM LAYER
+// ============================================================
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('customType').addEventListener('change', function(){
+    document.getElementById('customWmsLayersField').style.display = this.value === 'wms' ? 'block' : 'none';
+  });
+});
+function addCustomLayer(){
+  var type = document.getElementById('customType').value;
+  var name = (document.getElementById('customName').value || '').trim();
+  var url = (document.getElementById('customUrl').value || '').trim();
+  var wmsLayers = (document.getElementById('customWmsLayers').value || '').trim();
+  var attr = (document.getElementById('customAttr').value || '').trim();
+  if(!url){ toast('Paste a URL first', 'err'); return; }
+  if(type === 'xyz' && !/\{z\}/.test(url)){ toast('XYZ URL must contain {z}/{x}/{y}', 'err'); return; }
+  if(type === 'wms' && !wmsLayers){ toast('WMS needs layer names', 'err'); return; }
+  if(!name) name = type.toUpperCase()+' — '+(url.split('/')[2]||'custom');
+  var id = 'custom_'+Date.now();
+  addOverlay({ id:id, name:name, type:type, url:url, layers:wmsLayers, attr:attr||'(custom)', custom:true });
+  document.getElementById('customName').value = '';
+  document.getElementById('customUrl').value = '';
+  document.getElementById('customWmsLayers').value = '';
+  document.getElementById('customAttr').value = '';
+  toast('Custom layer added', 'ok');
+}
+
+// ============================================================
+// JUMP TO
+// ============================================================
+function jumpLatLon(){
+  var v = (document.getElementById('jumpLatLon').value || '').trim();
+  var m = v.match(/(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/);
+  if(!m){ toast('Format: lat, lon', 'err'); return; }
+  var lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+  if(!isFinite(lat) || !isFinite(lon) || Math.abs(lat)>90 || Math.abs(lon)>180){ toast('Bad lat/lon', 'err'); return; }
+  map.setView([lat, lon], Math.max(map.getZoom(), 13));
+  dropPin(lat, lon, formatLatLon(lat, lon));
+}
+
+function jumpAirport(){
+  var v = (document.getElementById('jumpAirport').value || '').trim();
+  var a = lookupAirport(v);
+  if(!a){ toast('Unknown airport code', 'err'); return; }
+  map.setView([a.lat, a.lon], 13);
+  dropPin(a.lat, a.lon, a.icao+' — '+a.name);
+}
+
+var lastAddrReq = 0;
+function jumpAddr(){
+  var v = (document.getElementById('jumpAddr').value || '').trim();
+  if(!v){ toast('Type an address', 'err'); return; }
+  var reqId = ++lastAddrReq;
+  toast('Geocoding via Nominatim...');
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(v), {
+    headers: { 'Accept': 'application/json' }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(reqId !== lastAddrReq) return;
+    if(!d || !d.length){ toast('No match — try different wording', 'err'); return; }
+    var hit = d[0];
+    var lat = parseFloat(hit.lat), lon = parseFloat(hit.lon);
+    map.setView([lat, lon], 15);
+    dropPin(lat, lon, hit.display_name || v);
+    toast('Found: '+(hit.display_name||'').slice(0, 60), 'ok');
+  })
+  .catch(function(){ if(reqId===lastAddrReq) toast('Geocoder unreachable', 'err'); });
+}
+
+function useMyLocation(){
+  if(!navigator.geolocation){ toast('Browser geolocation unavailable', 'err'); return; }
+  toast('Asking for location...');
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      map.setView([lat, lon], 15);
+      dropPin(lat, lon, 'You are here (accuracy \u00b1'+Math.round(pos.coords.accuracy)+' m)');
+      toast('Location found', 'ok');
+    },
+    function(err){ toast('Location denied or failed', 'err'); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+var pinMarker = null;
+function dropPin(lat, lon, text){
+  if(pinMarker) map.removeLayer(pinMarker);
+  pinMarker = L.marker([lat, lon]).addTo(map);
+  if(text) pinMarker.bindPopup(esc(text)).openPopup();
+}
+
+// Airport autocomplete
+function acAirport(q){
+  q = (q||'').trim().toUpperCase();
+  var list = document.getElementById('acAirportList');
+  list.innerHTML = '';
+  if(q.length < 1){ return; }
+  var matches = [];
+  Object.keys(AIRPORTS).forEach(function(icao){
+    var a = AIRPORTS[icao];
+    if(icao.indexOf(q) !== -1 || a.name.toUpperCase().indexOf(q) !== -1) matches.push({code:icao, name:a.name});
+  });
+  Object.keys(IATA).forEach(function(iata){
+    if(iata.indexOf(q) !== -1){
+      var icao = IATA[iata];
+      if(!matches.find(function(m){ return m.code === icao; })){
+        matches.push({code:icao, iata:iata, name:AIRPORTS[icao].name});
+      }
+    }
+  });
+  if(!matches.length) return;
+  var ac = document.createElement('div');
+  ac.className = 'ac-list';
+  matches.slice(0, 8).forEach(function(m){
+    var it = document.createElement('div');
+    it.className = 'ac-item';
+    it.innerHTML = '<span class="ac-code">'+esc(m.code)+(m.iata?' / '+esc(m.iata):'')+'</span> <span class="ac-name">'+esc(m.name)+'</span>';
+    it.onmousedown = function(e){
+      e.preventDefault();
+      document.getElementById('jumpAirport').value = m.code;
+      acHide();
+      jumpAirport();
+    };
+    ac.appendChild(it);
+  });
+  list.appendChild(ac);
+}
+function acHide(){ var l = document.getElementById('acAirportList'); if(l) l.innerHTML = ''; }
+
+// ============================================================
+// MAP EVENTS — coordinate readout + view persistence
+// ============================================================
+function updateReadout(latlng){
+  if(!latlng){
+    document.getElementById('crLL').textContent = '\u2014';
+    document.getElementById('crUTM').textContent = '\u2014';
+    document.getElementById('crMGRS').textContent = '\u2014';
+    return;
+  }
+  var lat = latlng.lat, lon = ((latlng.lng + 540) % 360) - 180;
+  document.getElementById('crLL').textContent = formatLatLon(lat, lon);
+  try {
+    var u = latLonToUTM(lat, lon);
+    document.getElementById('crUTM').textContent = u.zone+u.band+' E'+u.east+' N'+u.north;
+    document.getElementById('crMGRS').textContent = utmToMGRS(u) || '\u2014';
+  } catch(e){
+    document.getElementById('crUTM').textContent = '\u2014';
+    document.getElementById('crMGRS').textContent = '\u2014';
+  }
+}
+
+map.on('mousemove', function(e){ updateReadout(e.latlng); });
+map.on('mouseout', function(){ /* keep last */ });
+map.on('zoomend moveend', function(){
+  var c = map.getCenter();
+  document.getElementById('crZoom').textContent = map.getZoom();
+  lsSet('view', { lat:c.lat, lon:c.lng, zoom:map.getZoom() });
+});
+map.on('click', function(e){
+  dropPin(e.latlng.lat, e.latlng.lng, formatLatLon(e.latlng.lat, e.latlng.lng));
+  updateReadout(e.latlng);
+});
+
+// ============================================================
+// EXPORT / SHARE
+// ============================================================
+function exportBBox(){
+  var b = map.getBounds();
+  var sw = b.getSouthWest(), ne = b.getNorthEast();
+  var geo = {
+    type: 'Feature',
+    properties: { name: 'Current map view', zoom: map.getZoom(), createdBy: 'Korb GIS Layer Streamer' },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [sw.lng, sw.lat],
+        [ne.lng, sw.lat],
+        [ne.lng, ne.lat],
+        [sw.lng, ne.lat],
+        [sw.lng, sw.lat]
+      ]]
+    }
+  };
+  var txt = JSON.stringify(geo, null, 2);
+  copyToClipboard(txt, 'GeoJSON bbox copied to clipboard');
+}
+
+function exportShareLink(){
+  var c = map.getCenter();
+  var params = new URLSearchParams();
+  params.set('lat', c.lat.toFixed(5));
+  params.set('lon', c.lng.toFixed(5));
+  params.set('z', String(map.getZoom()));
+  params.set('bm', basemapLayer && basemapLayer._url ? (BASEMAPS.find(function(b){return b.url===basemapLayer._url;})||{id:'cartoDark'}).id : 'cartoDark');
+  var ovids = overlays.filter(function(o){ return o.visible && !o.custom; }).map(function(o){ return o.id; });
+  if(ovids.length) params.set('ov', ovids.join(','));
+  var url = location.origin + location.pathname + '?' + params.toString();
+  copyToClipboard(url, 'Shareable link copied');
+}
+
+function screenshotTip(){
+  toast('Press Cmd+Shift+4 (Mac) or Win+Shift+S (Windows) to screenshot the map area', 'ok');
+}
+
+function copyToClipboard(txt, msg){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){ toast(msg, 'ok'); }, function(){ fallbackCopy(txt, msg); });
+  } else {
+    fallbackCopy(txt, msg);
+  }
+}
+function fallbackCopy(txt, msg){
+  var ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); toast(msg, 'ok'); } catch(e){ toast('Copy failed', 'err'); }
+  document.body.removeChild(ta);
+}
+
+function resetSession(){
+  if(!confirm('Reset all overlays, basemap, and saved view?')) return;
+  overlays.slice().forEach(function(o){ removeOverlay(o.id); });
+  localStorage.removeItem(LS_PREFIX+'view');
+  localStorage.removeItem(LS_PREFIX+'basemap');
+  localStorage.removeItem(LS_PREFIX+'overlays');
+  localStorage.removeItem(LS_PREFIX+'catOpen');
+  toast('Session cleared', 'ok');
+  setTimeout(function(){ location.reload(); }, 600);
+}
+
+// ============================================================
+// URL PARAMS (from shareable link)
+// ============================================================
+function applyUrlParams(){
+  var q = new URLSearchParams(location.search);
+  var lat = parseFloat(q.get('lat')), lon = parseFloat(q.get('lon')), z = parseInt(q.get('z'),10);
+  var bm = q.get('bm'); var ov = q.get('ov');
+  if(isFinite(lat) && isFinite(lon) && isFinite(z)) map.setView([lat, lon], z);
+  if(bm) setBasemap(bm);
+  if(ov){
+    ov.split(',').forEach(function(oid){
+      if(overlayById(oid)) return;
+      // find in catalog
+      for(var gi=0; gi<CATALOG.length; gi++){
+        var found = CATALOG[gi].layers.find(function(l){ return l.id === oid; });
+        if(found){ addOverlay(Object.assign({}, found)); break; }
+      }
+    });
+  }
+}
+
+// ============================================================
+// KEYBOARD: Enter triggers jump-by-focused-input
+// ============================================================
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Enter') return;
+  var t = e.target;
+  if(!t || !t.id) return;
+  if(t.id === 'jumpLatLon'){ e.preventDefault(); jumpLatLon(); }
+  else if(t.id === 'jumpAirport'){ e.preventDefault(); jumpAirport(); }
+  else if(t.id === 'jumpAddr'){ e.preventDefault(); jumpAddr(); }
+});
+
+// ============================================================
+// BOOT
+// ============================================================
+function boot(){
+  renderBasemapPicker();
+  setBasemap(savedBasemap);
+  renderCatalog();
+
+  // Restore saved overlays
+  (savedOverlays || []).forEach(function(s){
+    // If it's a catalog one, use the latest catalog definition (url may have been updated)
+    var catLyr = null;
+    CATALOG.forEach(function(g){ g.layers.forEach(function(l){ if(l.id === s.id) catLyr = l; }); });
+    var def = catLyr ? Object.assign({}, catLyr, { opacity:s.opacity, visible:s.visible }) : s;
+    try { addOverlay(def); } catch(err){ /* ignore broken saved */ }
+  });
+
+  // Seed view if nothing set
+  updateReadout({ lat: map.getCenter().lat, lng: map.getCenter().lng });
+  document.getElementById('crZoom').textContent = map.getZoom();
+
+  applyUrlParams();
+}
+boot();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Flight Replay HUD — upload GPX/KML/DJI CSV flight logs and watch them play back in a retro-future HUD with 3D path over a dark map. Browser-only, free.">
+<title>FLIGHT REPLAY HUD // KORB ENGINEERING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../vendor/leaflet-1.9.4.css">
+<script src="../../vendor/leaflet-1.9.4.js"></script>
+<script src="../../vendor/jspdf-2.5.1.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050a0f; --surface:#0a1018; --surface2:#0e1520; --border:#1a2535;
+  --text:#e2e8f0; --text-dim:#8892a2; --cyan:#00d4ff; --orange:#ff9900;
+  --green:#10b981; --red:#ef4444; --font:'JetBrains Mono',monospace;
+  --hud-bg:#000; --hud-green:#00ff41; --hud-amber:#ffaa00; --hud-red:#ff4136;
+  --hud-dim:#006c1c; --hud-panel:#051008; --hud-border:#0a3012;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;line-height:1.5;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font-family:inherit;color:var(--text);cursor:pointer;transition:all .15s;border:none;background:none}
+button:disabled{opacity:.35;cursor:not-allowed}
+
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:sticky;top:0;z-index:1000}
+.brand h1{font-size:1rem;font-weight:700;color:var(--cyan);letter-spacing:.5px}
+.brand .sub{font-size:.7rem;color:var(--text-dim);font-weight:300;margin-top:2px}
+.back{font-size:.75rem;color:var(--text-dim)}
+.back:hover{color:var(--cyan)}
+
+.container{max-width:1600px;margin:0 auto;padding:14px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:14px}
+.panel h2{font-size:.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px dashed var(--border)}
+.panel h2 .accent{color:var(--cyan)}
+
+.dropzone{border:2px dashed var(--border);border-radius:6px;padding:24px 12px;text-align:center;background:var(--surface2);cursor:pointer;transition:all .15s}
+.dropzone:hover,.dropzone.drag{border-color:var(--cyan);background:#0a1520;color:var(--cyan)}
+.dropzone .ico{font-size:32px;color:var(--cyan);margin-bottom:6px;font-weight:700;letter-spacing:4px}
+.dropzone .hint{font-size:.7rem;color:var(--text-dim);margin-top:6px}
+input[type=file]{display:none}
+
+.btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 14px;font-size:.75rem;text-transform:uppercase;letter-spacing:.8px;border-radius:4px;min-height:36px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+.btn.primary{border-color:var(--cyan);color:var(--cyan);background:#071620}
+.btn.primary:hover:not(:disabled){background:#0d2230}
+.btn.warn{border-color:var(--orange);color:var(--orange);background:#1f1407}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.active{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.stat{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 10px}
+.stat .l{font-size:.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px}
+.stat .v{font-size:1.05rem;color:var(--cyan);font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .u{font-size:.7rem;color:var(--text-dim);margin-left:3px}
+@media(min-width:720px){.stats{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1200px){.stats{grid-template-columns:repeat(5,1fr)}}
+
+.flight-deck{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px}
+@media(min-width:800px){
+  .flight-deck{grid-template-columns:3fr 2fr;min-height:560px}
+}
+
+#map{width:100%;height:440px;border:1px solid var(--border);border-radius:6px;background:#01060a}
+@media(min-width:800px){#map{height:100%;min-height:560px}}
+.leaflet-container{background:#01060a;font-family:var(--font)}
+.leaflet-control-attribution{background:rgba(10,16,24,.85) !important;color:var(--text-dim) !important;font-size:9px !important;border:1px solid var(--border);}
+.leaflet-control-attribution a{color:var(--cyan) !important}
+.leaflet-control-zoom a{background:var(--surface)!important;border:1px solid var(--border)!important;color:var(--cyan)!important}
+.leaflet-control-zoom a:hover{background:var(--surface2)!important}
+.leaflet-tooltip{background:var(--surface)!important;border:1px solid var(--cyan)!important;color:var(--text)!important;font-family:var(--font)!important;font-size:10px!important;}
+
+/* HUD PANE */
+.hud{background:var(--hud-bg);border:1px solid var(--hud-border);border-radius:6px;padding:14px;color:var(--hud-green);font-family:'Share Tech Mono','VT323','JetBrains Mono',monospace;position:relative;overflow:hidden;min-height:440px}
+.hud::before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,255,65,.02) 0,rgba(0,255,65,.02) 1px,transparent 1px,transparent 3px);z-index:1}
+.hud::after{content:'';position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 80px rgba(0,255,65,.08);z-index:1}
+.hud > *{position:relative;z-index:2}
+.hud-title{font-size:.68rem;color:var(--hud-dim);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--hud-border);padding-bottom:6px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.hud-title .status{color:var(--hud-green);font-size:.65rem;display:flex;align-items:center;gap:5px}
+.hud-title .dot{width:8px;height:8px;border-radius:50%;background:var(--hud-green);box-shadow:0 0 6px var(--hud-green);animation:blink 1.4s infinite}
+.hud-title .dot.paused{background:var(--hud-amber);box-shadow:0 0 6px var(--hud-amber);animation:none}
+.hud-title .dot.stopped{background:var(--hud-dim);box-shadow:none;animation:none}
+@keyframes blink{0%,60%{opacity:1}70%,100%{opacity:.25}}
+
+.hud-clock{text-align:center;font-family:'VT323','Share Tech Mono',monospace;font-size:2.3rem;color:var(--hud-green);letter-spacing:4px;margin-bottom:6px;text-shadow:0 0 8px rgba(0,255,65,.7)}
+.hud-clock .sub{font-size:.6rem;color:var(--hud-dim);letter-spacing:1.5px;display:block;margin-top:-6px}
+
+.hud-grid{display:grid;grid-template-columns:70px 1fr 70px;gap:8px;margin-bottom:10px}
+.alt-tape,.spd-tape{background:rgba(0,60,20,.15);border:1px solid var(--hud-border);border-radius:3px;position:relative;height:140px;overflow:hidden}
+.tape-scale{position:absolute;inset:0;font-size:.62rem;color:var(--hud-dim);letter-spacing:.5px;line-height:1}
+.tape-mark{position:absolute;right:5px;text-align:right;width:calc(100% - 10px)}
+.tape-mark.maj{color:var(--hud-green)}
+.tape-indicator{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);height:22px;background:rgba(0,255,65,.15);border-top:1px solid var(--hud-green);border-bottom:1px solid var(--hud-green);pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--hud-green);font-weight:700;text-shadow:0 0 6px rgba(0,255,65,.8);z-index:3}
+.tape-indicator::before{content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);border:4px solid transparent;border-left-color:var(--hud-green)}
+.tape-indicator::after{content:'';position:absolute;right:-1px;top:50%;transform:translateY(-50%);border:4px solid transparent;border-right-color:var(--hud-green)}
+.tape-label{font-size:.55rem;color:var(--hud-dim);text-align:center;padding:3px 0;letter-spacing:1.5px;background:rgba(0,30,10,.25);border-bottom:1px solid var(--hud-border)}
+
+.horizon{background:linear-gradient(to bottom,#2a1606 0%,#4a2808 50%,#2a1606 50%,#072530 100%);border:1px solid var(--hud-border);border-radius:3px;height:140px;position:relative;overflow:hidden}
+.horizon-sky{position:absolute;left:0;right:0;top:0;bottom:50%;background:linear-gradient(to bottom,#5a3810,#b87020)}
+.horizon-ground{position:absolute;left:0;right:0;top:50%;bottom:0;background:linear-gradient(to bottom,#7a4a10,#2a1400)}
+.horizon-plate{position:absolute;inset:0;transform-origin:center;transition:transform .08s linear}
+.horizon-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60%;height:2px;background:var(--hud-green);box-shadow:0 0 6px var(--hud-green);z-index:3}
+.horizon-center::before{content:'';position:absolute;left:0;top:-3px;width:2px;height:8px;background:var(--hud-green);box-shadow:0 0 4px var(--hud-green)}
+.horizon-center::after{content:'';position:absolute;right:0;top:-3px;width:2px;height:8px;background:var(--hud-green);box-shadow:0 0 4px var(--hud-green)}
+.horizon-line{position:absolute;left:25%;right:25%;top:50%;height:1px;background:#fff;opacity:.6;z-index:2}
+.horizon-pitch-marks{position:absolute;left:30%;right:30%;top:0;bottom:0;z-index:2}
+.horizon-pitch-mark{position:absolute;left:0;right:0;height:1px;background:#fff;opacity:.4}
+
+.compass{background:rgba(0,60,20,.15);border:1px solid var(--hud-border);border-radius:3px;padding:4px 0;margin-bottom:10px;position:relative;overflow:hidden;height:42px}
+.compass-ribbon{position:absolute;top:0;left:50%;height:100%;transform:translateX(-50%);display:flex;align-items:center;white-space:nowrap;transition:transform .12s linear}
+.compass-tick{display:inline-block;width:18px;font-size:.62rem;color:var(--hud-dim);text-align:center;border-right:1px solid transparent;line-height:34px;height:34px}
+.compass-tick.maj{color:var(--hud-green);font-weight:700}
+.compass-tick.card{color:var(--hud-amber);font-weight:700;font-size:.72rem}
+.compass-pointer{position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border:6px solid transparent;border-top-color:var(--hud-green);filter:drop-shadow(0 0 4px rgba(0,255,65,.7));z-index:3}
+.compass-heading{position:absolute;top:3px;left:50%;transform:translateX(-50%);background:#000;padding:0 6px;font-size:.68rem;color:var(--hud-green);z-index:4;font-weight:700;border:1px solid var(--hud-green)}
+
+.hud-row{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px}
+.hud-row.three{grid-template-columns:repeat(3,1fr)}
+.hud-readout{background:rgba(0,60,20,.15);border:1px solid var(--hud-border);border-radius:3px;padding:6px 8px;font-size:.9rem;position:relative;overflow:hidden}
+.hud-readout .l{font-size:.55rem;color:var(--hud-dim);text-transform:uppercase;letter-spacing:1.5px;display:block}
+.hud-readout .v{font-family:'VT323','Share Tech Mono',monospace;font-size:1.15rem;color:var(--hud-green);letter-spacing:1px;text-shadow:0 0 5px rgba(0,255,65,.5);line-height:1.1;font-variant-numeric:tabular-nums}
+.hud-readout .u{font-size:.58rem;color:var(--hud-dim);margin-left:3px}
+.hud-readout.amber .v{color:var(--hud-amber);text-shadow:0 0 5px rgba(255,170,0,.5)}
+.hud-readout.red .v{color:var(--hud-red);text-shadow:0 0 5px rgba(255,65,54,.5)}
+.hud-readout.wide{grid-column:1/-1}
+
+.hud-alert{position:absolute;left:10px;right:10px;top:50%;transform:translateY(-50%);text-align:center;font-size:1.2rem;color:var(--hud-red);font-weight:700;letter-spacing:3px;z-index:5;background:rgba(0,0,0,.75);padding:12px;border:2px solid var(--hud-red);display:none;animation:flash 0.6s infinite alternate}
+.hud-alert.on{display:block}
+@keyframes flash{0%{opacity:.6}100%{opacity:1}}
+
+.hud-nodata{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--hud-dim);font-size:.75rem;letter-spacing:2px;text-transform:uppercase;z-index:3}
+.hud-nodata .big{font-size:1.1rem;color:var(--hud-amber);margin-bottom:10px;letter-spacing:4px}
+.hud-nodata .blink{animation:blink 1.5s infinite}
+
+/* PLAYBACK */
+.playback{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px}
+.play-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.play-btn{width:44px;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--cyan);font-size:1rem;font-weight:700}
+.play-btn:hover:not(:disabled){background:#0d1a28;border-color:var(--cyan)}
+.play-btn.primary{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+.speed-pills{display:flex;gap:4px}
+.speed-pill{padding:6px 10px;font-size:.7rem;border:1px solid var(--border);border-radius:3px;background:var(--surface2);color:var(--text-dim);cursor:pointer;min-height:32px;min-width:36px}
+.speed-pill.active{border-color:var(--cyan);color:var(--cyan);background:#071620}
+.play-info{flex:1;min-width:200px;text-align:right;font-size:.75rem;color:var(--text-dim)}
+.play-info .cur{color:var(--cyan);font-weight:600}
+
+.scrubber{position:relative;height:28px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;cursor:pointer;overflow:hidden}
+.scrubber-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(to right,#003347,#00d4ff);pointer-events:none}
+.scrubber-handle{position:absolute;top:0;bottom:0;width:3px;background:var(--cyan);box-shadow:0 0 8px var(--cyan);pointer-events:none;transform:translateX(-50%)}
+.scrubber-ticks{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(255,255,255,.1) 10%,rgba(255,255,255,.1) 10%)}
+
+/* CHARTS */
+.charts{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:14px}
+@media(min-width:720px){.charts{grid-template-columns:1fr 1fr}}
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px}
+.chart-box h3{font-size:.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;display:flex;justify-content:space-between}
+.chart-box h3 .val{color:var(--cyan)}
+.chart-canvas{width:100%;height:110px;display:block;background:#020810;border-radius:4px;border:1px solid var(--border)}
+
+.empty{text-align:center;padding:40px 14px;color:var(--text-dim);font-size:.8rem}
+.empty .big{font-size:1.2rem;color:var(--cyan);margin-bottom:10px;letter-spacing:3px}
+
+.log{background:#020810;border:1px solid var(--border);border-radius:4px;padding:8px;font-size:.68rem;color:var(--text-dim);max-height:120px;overflow-y:auto;margin-top:10px;font-family:'Share Tech Mono',monospace}
+.log .err{color:var(--red)}
+.log .ok{color:var(--green)}
+.log .warn{color:var(--orange)}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--cyan);color:var(--cyan);padding:10px 16px;font-size:.8rem;border-radius:4px;z-index:2000;display:none;max-width:90vw}
+.toast.show{display:block;animation:toastfade 3s}
+@keyframes toastfade{0%,100%{opacity:0}15%,85%{opacity:1}}
+
+footer{text-align:center;font-size:.7rem;color:var(--text-dim);padding:20px 14px;border-top:1px solid var(--border);margin-top:30px}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+
+.drone-marker{background:none !important;border:none !important}
+.drone-marker svg{display:block;filter:drop-shadow(0 0 4px #00d4ff)}
+.wp-marker{background:none !important;border:none !important}
+.wp-marker .wp{width:8px;height:8px;border-radius:50%;border:1px solid #000;box-shadow:0 0 4px rgba(0,0,0,.5)}
+
+.kbd-hint{margin-top:8px;font-size:.65rem;color:var(--text-dim)}
+.kbd-hint kbd{background:var(--surface2);border:1px solid var(--border);border-radius:2px;padding:1px 5px;font-family:inherit;color:var(--cyan);font-size:.68rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>&gt; FLIGHT REPLAY HUD</h1>
+    <div class="sub">GPX / KML / DJI CSV flight log playback // Client-side only</div>
+  </div>
+  <a class="back" href="../../index.html#aviation">&larr; BACK</a>
+</header>
+
+<div class="container">
+
+  <div class="panel" id="loaderPanel">
+    <h2>[1] <span class="accent">LOAD FLIGHT LOG</span></h2>
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop flight log here or click to select">
+      <div class="ico">[+]</div>
+      <div>DROP FLIGHT LOG HERE</div>
+      <div class="hint">GPX / KML / KMZ / CSV / DJI Airdata CSV &mdash; click or tap to select file</div>
+    </div>
+    <input type="file" id="fileInput" accept=".gpx,.kml,.kmz,.csv,.txt">
+    <div class="actions">
+      <button class="btn" id="loadDemoBtn">LOAD DEMO FLIGHT</button>
+      <button class="btn" id="clearBtn" disabled>CLEAR</button>
+      <button class="btn" id="exportGpxBtn" disabled>EXPORT GPX</button>
+      <button class="btn warn" id="exportPdfBtn" disabled>EXPORT PDF REPORT</button>
+    </div>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
+
+  <div class="panel" id="statsPanel" style="display:none">
+    <h2>[2] <span class="accent">FLIGHT SUMMARY</span> &mdash; <span id="flightName" style="color:var(--orange)"></span></h2>
+    <div class="stats">
+      <div class="stat"><div class="l">Duration</div><div class="v" id="statDuration">&mdash;</div></div>
+      <div class="stat"><div class="l">Distance</div><div class="v" id="statDistance">&mdash;</div></div>
+      <div class="stat"><div class="l">Max Altitude (AGL)</div><div class="v" id="statMaxAlt">&mdash;</div></div>
+      <div class="stat"><div class="l">Max Speed</div><div class="v" id="statMaxSpd">&mdash;</div></div>
+      <div class="stat"><div class="l">Waypoints</div><div class="v" id="statPts">&mdash;</div></div>
+    </div>
+  </div>
+
+  <div class="flight-deck" id="flightDeck" style="display:none">
+    <div id="map"></div>
+    <div class="hud" id="hud">
+      <div class="hud-title">
+        <span>KORB-HUD v1.42</span>
+        <span class="status"><span class="dot stopped" id="statusDot"></span> <span id="statusText">IDLE</span></span>
+      </div>
+
+      <div class="hud-clock" id="hudClock">00:00.0
+        <span class="sub">T+FLIGHT TIME</span>
+      </div>
+
+      <div class="hud-grid">
+        <div class="alt-tape">
+          <div class="tape-label">ALT FT</div>
+          <div class="tape-scale" id="altTapeScale"></div>
+          <div class="tape-indicator" id="altTapeInd">0000</div>
+        </div>
+        <div class="horizon">
+          <div class="horizon-plate" id="horizonPlate">
+            <div class="horizon-sky"></div>
+            <div class="horizon-ground"></div>
+            <div class="horizon-line"></div>
+            <div class="horizon-pitch-marks" id="horizonMarks"></div>
+          </div>
+          <div class="horizon-center"></div>
+        </div>
+        <div class="spd-tape">
+          <div class="tape-label">KT GS</div>
+          <div class="tape-scale" id="spdTapeScale"></div>
+          <div class="tape-indicator" id="spdTapeInd">000</div>
+        </div>
+      </div>
+
+      <div class="compass">
+        <div class="compass-ribbon" id="compassRibbon"></div>
+        <div class="compass-pointer"></div>
+        <div class="compass-heading" id="compassHdg">360</div>
+      </div>
+
+      <div class="hud-row three">
+        <div class="hud-readout"><span class="l">VSI FPM</span><span class="v" id="hudVSI">+000</span></div>
+        <div class="hud-readout"><span class="l">DIST NM</span><span class="v" id="hudDist">0.00</span></div>
+        <div class="hud-readout" id="hudBattBox"><span class="l">BATT %</span><span class="v" id="hudBatt">&mdash;&mdash;</span></div>
+      </div>
+      <div class="hud-row">
+        <div class="hud-readout"><span class="l">LAT</span><span class="v" id="hudLat">+00.000000</span></div>
+        <div class="hud-readout"><span class="l">LON</span><span class="v" id="hudLon">-000.000000</span></div>
+      </div>
+      <div class="hud-row">
+        <div class="hud-readout"><span class="l">ROLL &deg;</span><span class="v" id="hudRoll">00</span></div>
+        <div class="hud-readout"><span class="l">PITCH &deg;</span><span class="v" id="hudPitch">00</span></div>
+      </div>
+
+      <div class="hud-alert" id="hudAlert">! SIGNAL LOSS</div>
+      <div class="hud-nodata" id="hudNodata"><div class="big blink">NO SIGNAL</div><div>AWAITING FLIGHT LOG</div></div>
+    </div>
+  </div>
+
+  <div class="playback" id="playbackPanel" style="display:none">
+    <div class="play-row">
+      <button class="play-btn primary" id="btnPlay" title="Play/pause (Space)">&#9654;</button>
+      <button class="play-btn" id="btnRewind" title="Jump to start (Home)">&#9664;&#9664;</button>
+      <button class="play-btn" id="btnStepBack" title="Step back (&larr;)">&#9664;</button>
+      <button class="play-btn" id="btnStepFwd" title="Step forward (&rarr;)">&#9654;</button>
+      <div class="speed-pills" id="speedPills">
+        <button class="speed-pill" data-speed="0.5">0.5x</button>
+        <button class="speed-pill active" data-speed="1">1x</button>
+        <button class="speed-pill" data-speed="2">2x</button>
+        <button class="speed-pill" data-speed="5">5x</button>
+        <button class="speed-pill" data-speed="10">10x</button>
+      </div>
+      <div class="play-info"><span class="cur" id="playTime">00:00.0</span> / <span id="playTotal">00:00.0</span></div>
+    </div>
+    <div class="scrubber" id="scrubber" aria-label="Timeline scrubber">
+      <div class="scrubber-ticks"></div>
+      <div class="scrubber-fill" id="scrubFill"></div>
+      <div class="scrubber-handle" id="scrubHandle"></div>
+    </div>
+    <div class="kbd-hint">
+      <kbd>Space</kbd> play/pause &middot; <kbd>&larr;</kbd>/<kbd>&rarr;</kbd> step &middot; <kbd>Home</kbd>/<kbd>End</kbd> jump &middot; <kbd>1-5</kbd> speed &middot; <kbd>S</kbd> screenshot-hint
+    </div>
+  </div>
+
+  <div class="charts" id="chartsPanel" style="display:none">
+    <div class="chart-box">
+      <h3><span>ALTITUDE (FT) vs TIME</span><span class="val" id="chartAltVal">&mdash;</span></h3>
+      <canvas class="chart-canvas" id="chartAlt" width="700" height="110"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3><span>SPEED (KT) vs TIME</span><span class="val" id="chartSpdVal">&mdash;</span></h3>
+      <canvas class="chart-canvas" id="chartSpd" width="700" height="110"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" id="helpPanel">
+    <h2>[?] <span class="accent">HOW IT WORKS</span></h2>
+    <p style="font-size:.75rem;color:var(--text-dim);line-height:1.7">
+      Drop in any supported flight log &mdash; GPX, KML/KMZ, DJI Airdata CSV, or a generic CSV with <code>latitude</code>, <code>longitude</code>, <code>altitude</code>, and <code>timestamp</code> columns.
+      Column headers are fuzzy-matched, so <code>lat</code>, <code>Latitude</code>, <code>OSD.latitude</code>, etc. all work.
+      The HUD animates in real-time, interpolates between log samples, and optionally reads <code>heading</code>, <code>speed</code>, <code>roll</code>, <code>pitch</code>, <code>yaw</code>, and <code>battery</code>.
+      If no heading is present, it's derived from bearing between samples. If no speed is present, it's computed from distance/time.
+      Everything happens in your browser &mdash; no uploads, no tracking. Big aerospace energy, zero server dependency.
+    </p>
+  </div>
+
+  <footer>
+    KORB ENGINEERING &middot; FLIGHT REPLAY HUD &middot; v1.0 &middot; All processing is local &middot; <a href="../../index.html">korb.engineering</a>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ===============================================================
+   FLIGHT REPLAY HUD
+   Korb Engineering // Aviation tools
+   Single-file vanilla JS + vendored Leaflet + vendored jsPDF
+================================================================== */
+
+const LS_PREFIX = 'korb_flightreplay_';
+const log = (msg, cls='') => {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  const t = new Date().toTimeString().slice(0,8);
+  line.textContent = `[${t}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+};
+const toast = (msg, ms=2800) => {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), ms);
+};
+
+/* ---------- State ---------- */
+const S = {
+  track: null,          // {points:[{t,lat,lon,alt,hdg,spd,roll,pitch,yaw,batt}], name, startTime, source}
+  stats: null,
+  playing: false,
+  speed: 1,
+  tNow: 0,              // current time offset (seconds from start)
+  lastRAF: 0,
+  rafHandle: 0,
+  map: null,
+  baseLayer: null,
+  pathLine: null,
+  progressLine: null,
+  droneMarker: null,
+  waypointLayer: null,
+};
+
+/* ---------- Helpers: math & geo ---------- */
+const R_EARTH_M = 6371000;
+function haversine(lat1, lon1, lat2, lon2){
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R_EARTH_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function bearingDeg(lat1, lon1, lat2, lon2){
+  const toRad = x => x * Math.PI / 180;
+  const toDeg = x => x * 180 / Math.PI;
+  const y = Math.sin(toRad(lon2-lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2-lon1));
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+const M_TO_FT = 3.28084;
+const MS_TO_KT = 1.94384;
+const FPM_FROM_MS = m => m * 196.85;  // m/s -> ft/min
+
+function fmtTime(sec){
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec/60);
+  const s = (sec - m*60);
+  const mm = String(m).padStart(2,'0');
+  const ss = s.toFixed(1).padStart(4,'0');
+  return `${mm}:${ss}`;
+}
+function fmtDuration(sec){
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = Math.floor(sec%60);
+  if (h) return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  return `${m}m ${String(s).padStart(2,'0')}s`;
+}
+
+/* ---------- File loading ---------- */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag');
+}));
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0])
+    handleFile(e.dataTransfer.files[0]);
+});
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+async function handleFile(file){
+  log(`Loading ${file.name} (${(file.size/1024).toFixed(1)} KB)...`);
+  try {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    let text = '';
+    if (ext === 'kmz') {
+      toast('KMZ is a ZIP — please extract the KML inside and upload that.');
+      log(`KMZ not supported directly — extract the .kml file from it.`, 'warn');
+      return;
+    } else {
+      text = await file.text();
+    }
+    let track = null;
+    if (ext === 'gpx' || text.trim().startsWith('<?xml') && text.includes('<gpx')) {
+      track = parseGPX(text);
+      track.source = 'GPX';
+    } else if (ext === 'kml' || text.includes('<kml')) {
+      track = parseKML(text);
+      track.source = 'KML';
+    } else {
+      track = parseCSV(text);
+      track.source = 'CSV';
+    }
+    track.name = track.name || file.name.replace(/\.[^.]+$/, '');
+    if (!track.points || track.points.length < 2) throw new Error('No usable track points');
+    finalizeTrack(track);
+  } catch(err) {
+    console.error(err);
+    log(`ERROR: ${err.message}`, 'err');
+    toast(`Load failed: ${err.message}`);
+  }
+}
+
+/* ---------- Parse GPX ---------- */
+function parseGPX(xmlText){
+  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('GPX XML parse error');
+  const points = [];
+  const trkpts = doc.querySelectorAll('trkpt, rtept, wpt');
+  if (!trkpts.length) throw new Error('GPX: no <trkpt> found');
+  let firstTime = null;
+  trkpts.forEach(pt => {
+    const lat = parseFloat(pt.getAttribute('lat'));
+    const lon = parseFloat(pt.getAttribute('lon'));
+    if (!isFinite(lat) || !isFinite(lon)) return;
+    const ele = pt.querySelector('ele');
+    const time = pt.querySelector('time');
+    const alt = ele ? parseFloat(ele.textContent) * M_TO_FT : null;
+    const tIso = time ? time.textContent.trim() : null;
+    const t = tIso ? new Date(tIso).getTime()/1000 : null;
+    if (firstTime === null && t !== null) firstTime = t;
+    points.push({
+      t: t !== null ? (t - (firstTime||t)) : null,
+      lat, lon, alt, hdg:null, spd:null, roll:null, pitch:null, yaw:null, batt:null
+    });
+  });
+  const nameNode = doc.querySelector('trk > name, gpx > metadata > name');
+  return { points, name: nameNode ? nameNode.textContent.trim() : null };
+}
+
+/* ---------- Parse KML ---------- */
+function parseKML(xmlText){
+  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('KML XML parse error');
+  const points = [];
+  let firstTime = null;
+
+  // gx:Track — preferred, has per-point times
+  const tracks = doc.getElementsByTagNameNS('*','Track');
+  if (tracks.length) {
+    const trk = tracks[0];
+    const whens = [...trk.getElementsByTagNameNS('*','when')];
+    const coords = [...trk.getElementsByTagNameNS('*','coord')];
+    for (let i = 0; i < coords.length; i++){
+      const parts = coords[i].textContent.trim().split(/\s+/).map(parseFloat);
+      if (parts.length < 2) continue;
+      const lon = parts[0], lat = parts[1], altm = parts[2] || null;
+      const tIso = whens[i] ? whens[i].textContent.trim() : null;
+      const t = tIso ? new Date(tIso).getTime()/1000 : null;
+      if (firstTime === null && t !== null) firstTime = t;
+      points.push({
+        t: t !== null ? (t - (firstTime||t)) : null,
+        lat, lon, alt: altm !== null ? altm * M_TO_FT : null,
+        hdg:null, spd:null, roll:null, pitch:null, yaw:null, batt:null
+      });
+    }
+  }
+
+  // LineString fallback
+  if (!points.length){
+    const lineStrings = doc.getElementsByTagName('LineString');
+    if (lineStrings.length){
+      const coordNode = lineStrings[0].getElementsByTagName('coordinates')[0];
+      if (coordNode){
+        const coords = coordNode.textContent.trim().split(/\s+/);
+        coords.forEach(c => {
+          const parts = c.split(',').map(parseFloat);
+          if (parts.length >= 2 && isFinite(parts[0]) && isFinite(parts[1])){
+            points.push({
+              t:null, lat:parts[1], lon:parts[0], alt: (parts[2]||0) * M_TO_FT,
+              hdg:null, spd:null, roll:null, pitch:null, yaw:null, batt:null
+            });
+          }
+        });
+      }
+    }
+  }
+
+  const nameNode = doc.querySelector('Placemark > name, Document > name');
+  return { points, name: nameNode ? nameNode.textContent.trim() : null };
+}
+
+/* ---------- Parse CSV ---------- */
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if (lines.length < 2) throw new Error('CSV: not enough rows');
+  // autodetect delimiter
+  const header = lines[0];
+  let delim = ',';
+  const counts = { ',': (header.match(/,/g)||[]).length,
+                   '\t': (header.match(/\t/g)||[]).length,
+                   ';': (header.match(/;/g)||[]).length };
+  if (counts['\t'] > counts[',']) delim = '\t';
+  else if (counts[';'] > counts[',']) delim = ';';
+
+  const headers = splitCSVLine(header, delim).map(h => h.trim());
+  const cols = fuzzyMatchColumns(headers);
+  log(`CSV columns matched: lat=${cols.lat}, lon=${cols.lon}, alt=${cols.alt}, time=${cols.time}${cols.hdg>=0?`, hdg=${cols.hdg}`:''}${cols.spd>=0?`, spd=${cols.spd}`:''}${cols.batt>=0?`, batt=${cols.batt}`:''}`);
+
+  if (cols.lat < 0 || cols.lon < 0)
+    throw new Error('CSV: no latitude/longitude columns detected');
+
+  const points = [];
+  let firstTime = null;
+  let baseMs = 0;  // for DJI flycTime offsets
+  const isDji = headers.some(h => /^OSD\./i.test(h));
+  for (let i = 1; i < lines.length; i++){
+    const fields = splitCSVLine(lines[i], delim);
+    const lat = parseFloat(fields[cols.lat]);
+    const lon = parseFloat(fields[cols.lon]);
+    if (!isFinite(lat) || !isFinite(lon)) continue;
+    if (lat === 0 && lon === 0) continue; // DJI null-fix rows
+    let alt = null;
+    if (cols.alt >= 0) alt = parseFloat(fields[cols.alt]);
+    if (!isFinite(alt)) alt = null;
+    // Normalize alt to ft: detect unit from header
+    const altHdr = (cols.altHdr || '').toLowerCase();
+    if (alt !== null && !/\bft|feet\b/.test(altHdr)) alt = alt * M_TO_FT;
+
+    let t = null;
+    if (cols.time >= 0){
+      const tStr = fields[cols.time];
+      if (isDji || /^\d+(\.\d+)?$/.test(tStr)) {
+        // numeric ms offset
+        const ms = parseFloat(tStr);
+        if (isFinite(ms)){
+          if (firstTime === null) firstTime = ms/1000;
+          t = ms/1000 - firstTime;
+        }
+      } else {
+        const d = new Date(tStr);
+        if (!isNaN(d.getTime())){
+          const ts = d.getTime()/1000;
+          if (firstTime === null) firstTime = ts;
+          t = ts - firstTime;
+        }
+      }
+    }
+
+    const hdg = cols.hdg >= 0 ? parseFloat(fields[cols.hdg]) : null;
+    let spd = cols.spd >= 0 ? parseFloat(fields[cols.spd]) : null;
+    if (spd !== null && isFinite(spd)){
+      const spdHdr = (cols.spdHdr || '').toLowerCase();
+      if (/mph/.test(spdHdr)) spd = spd * 0.868976;
+      else if (/kph|km\/h/.test(spdHdr)) spd = spd * 0.539957;
+      else if (/m\/s|ms/.test(spdHdr)) spd = spd * MS_TO_KT;
+      // else assume already knots
+    }
+    const roll = cols.roll >= 0 ? parseFloat(fields[cols.roll]) : null;
+    const pitch = cols.pitch >= 0 ? parseFloat(fields[cols.pitch]) : null;
+    const yaw = cols.yaw >= 0 ? parseFloat(fields[cols.yaw]) : null;
+    const batt = cols.batt >= 0 ? parseFloat(fields[cols.batt]) : null;
+
+    points.push({
+      t, lat, lon, alt,
+      hdg: isFinite(hdg) ? hdg : null,
+      spd: isFinite(spd) ? spd : null,
+      roll: isFinite(roll) ? roll : null,
+      pitch: isFinite(pitch) ? pitch : null,
+      yaw: isFinite(yaw) ? yaw : null,
+      batt: isFinite(batt) ? batt : null
+    });
+  }
+  return { points, name: null };
+}
+
+function splitCSVLine(line, delim){
+  // simple CSV with quoted-field support
+  const out = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if (ch === '"'){
+      if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === delim && !inQ){
+      out.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function fuzzyMatchColumns(headers){
+  const low = headers.map(h => h.toLowerCase().trim());
+  const find = (...patterns) => {
+    for (const p of patterns){
+      const idx = low.findIndex(h => h === p || h.includes(p));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+  const out = {};
+  out.lat = find('osd.latitude','latitude','lat','gps_lat','gpslat','y');
+  out.lon = find('osd.longitude','longitude','lon','lng','long','gps_lon','gpslon','x');
+  out.alt = find('osd.height [ft]','height [ft]','osd.altitude [ft]','altitude [ft]','altitude_ft','osd.height','osd.altitude','altitude','elevation','elev','height','alt');
+  out.altHdr = out.alt >= 0 ? headers[out.alt] : null;
+  out.time = find('osd.flyctime [ms]','osd.flyctime','flyctime','time','timestamp','datetime','date','utc','gpstime','time [ms]');
+  out.hdg = find('osd.yaw [360]','osd.yaw','heading','course','bearing','direction','track','yaw');
+  out.spd = find('osd.speed [mph]','osd.speed','speed','gs','gspeed','ground_speed','velocity','speed_kt','speed_kts');
+  out.spdHdr = out.spd >= 0 ? headers[out.spd] : null;
+  out.roll = find('osd.roll','roll','bank');
+  out.pitch = find('osd.pitch','pitch');
+  out.yaw = find('osd.yaw','yaw');
+  out.batt = find('battery.batterypercent','batterypercent','battery [%]','battery','batt','battery_level','batt_pct');
+  return out;
+}
+
+/* ---------- Finalize track: compute missing fields, stats ---------- */
+function finalizeTrack(track){
+  // Ensure all points have a time value — if not, fabricate 1Hz
+  let needTime = track.points.some(p => p.t === null);
+  if (needTime){
+    log('Track has no timestamps — synthesizing 1 Hz time axis', 'warn');
+    track.points.forEach((p,i) => { p.t = i; });
+  }
+  // Sort by time just in case
+  track.points.sort((a,b) => a.t - b.t);
+  // Rebase time to start at 0
+  const t0 = track.points[0].t;
+  track.points.forEach(p => p.t -= t0);
+
+  // If alt missing, use 0
+  track.points.forEach(p => { if (p.alt === null || !isFinite(p.alt)) p.alt = 0; });
+
+  // Derive heading, speed if missing
+  for (let i = 0; i < track.points.length; i++){
+    const p = track.points[i];
+    const prev = track.points[i-1];
+    const next = track.points[i+1];
+    if (p.hdg === null || !isFinite(p.hdg)){
+      if (next) p.hdg = bearingDeg(p.lat, p.lon, next.lat, next.lon);
+      else if (prev) p.hdg = bearingDeg(prev.lat, prev.lon, p.lat, p.lon);
+      else p.hdg = 0;
+    }
+    if (p.spd === null || !isFinite(p.spd)){
+      if (prev){
+        const d_m = haversine(prev.lat, prev.lon, p.lat, p.lon);
+        const dt = p.t - prev.t;
+        p.spd = dt > 0 ? (d_m / dt) * MS_TO_KT : 0;
+      } else {
+        p.spd = 0;
+      }
+    }
+    // Derive bank angle from heading change rate if no roll
+    if (p.roll === null || !isFinite(p.roll)){
+      if (prev && next){
+        let dHdg = next.hdg - prev.hdg;
+        while (dHdg > 180) dHdg -= 360;
+        while (dHdg < -180) dHdg += 360;
+        const dt = next.t - prev.t;
+        const rate = dt > 0 ? dHdg / dt : 0;  // deg/s
+        // rough: bank ≈ atan(V * turn_rate / g) — use simple mapping
+        p.roll = Math.max(-45, Math.min(45, rate * 2));
+      } else {
+        p.roll = 0;
+      }
+    }
+    // Derive pitch from altitude delta vs distance if missing
+    if (p.pitch === null || !isFinite(p.pitch)){
+      if (prev){
+        const d_m = haversine(prev.lat, prev.lon, p.lat, p.lon);
+        const dAlt_m = (p.alt - prev.alt) / M_TO_FT;
+        if (d_m > 0.5) p.pitch = Math.atan2(dAlt_m, d_m) * 180/Math.PI;
+        else p.pitch = 0;
+      } else {
+        p.pitch = 0;
+      }
+    }
+  }
+
+  // Compute cumulative distance & full stats
+  let distM = 0;
+  let maxAlt = -Infinity, minAlt = Infinity, maxSpd = 0;
+  const distAtT = []; // parallel to points
+  for (let i = 0; i < track.points.length; i++){
+    const p = track.points[i];
+    if (i > 0){
+      const prev = track.points[i-1];
+      distM += haversine(prev.lat, prev.lon, p.lat, p.lon);
+    }
+    distAtT.push(distM);
+    if (p.alt > maxAlt) maxAlt = p.alt;
+    if (p.alt < minAlt) minAlt = p.alt;
+    if (p.spd > maxSpd) maxSpd = p.spd;
+  }
+  const duration = track.points[track.points.length-1].t;
+  track.distAtT = distAtT;
+  track.stats = {
+    duration, distM, maxAlt, minAlt, maxSpd,
+    distNm: distM / 1852,
+    distMi: distM / 1609.344,
+    points: track.points.length
+  };
+
+  S.track = track;
+  log(`Loaded ${track.points.length} points (${track.source}) — ${fmtDuration(duration)}, ${(distM/1000).toFixed(2)} km`, 'ok');
+  toast(`Loaded ${track.name}`);
+  renderAll();
+}
+
+/* ---------- Map ---------- */
+function ensureMap(){
+  if (S.map) return S.map;
+  S.map = L.map('map', { zoomControl: true, attributionControl: true });
+  S.baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }).addTo(S.map);
+  S.waypointLayer = L.layerGroup().addTo(S.map);
+  return S.map;
+}
+
+function makeDroneIcon(hdg){
+  const rot = hdg || 0;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="36" height="36" style="transform: rotate(${rot}deg)">
+    <g fill="none" stroke="#00d4ff" stroke-width="1.8">
+      <circle cx="8" cy="8" r="3" fill="rgba(0,212,255,.3)"/>
+      <circle cx="24" cy="8" r="3" fill="rgba(0,212,255,.3)"/>
+      <circle cx="8" cy="24" r="3" fill="rgba(0,212,255,.3)"/>
+      <circle cx="24" cy="24" r="3" fill="rgba(0,212,255,.3)"/>
+      <line x1="8" y1="8" x2="24" y2="24"/>
+      <line x1="8" y1="24" x2="24" y2="8"/>
+    </g>
+    <polygon points="16,2 20,8 16,6 12,8" fill="#ff9900" stroke="#ff9900" stroke-width="1"/>
+    <circle cx="16" cy="16" r="3" fill="#00ff41" stroke="#000"/>
+  </svg>`;
+  return L.divIcon({ className: 'drone-marker', html: svg, iconSize: [36,36], iconAnchor: [18,18] });
+}
+
+function altColor(alt, minAlt, maxAlt){
+  if (maxAlt === minAlt) return '#00d4ff';
+  const t = Math.max(0, Math.min(1, (alt - minAlt) / (maxAlt - minAlt)));
+  // green -> cyan -> magenta
+  const r = Math.round(255 * t);
+  const g = Math.round(255 * (1 - t*0.6));
+  const b = Math.round(200 - 100*t*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderMap(){
+  ensureMap();
+  if (S.pathLine) { S.pathLine.remove(); S.pathLine = null; }
+  if (S.progressLine) { S.progressLine.remove(); S.progressLine = null; }
+  if (S.droneMarker) { S.droneMarker.remove(); S.droneMarker = null; }
+  S.waypointLayer.clearLayers();
+
+  const pts = S.track.points;
+  const latlngs = pts.map(p => [p.lat, p.lon]);
+  S.pathLine = L.polyline(latlngs, { color: '#005a78', weight: 2.5, opacity: 0.65 }).addTo(S.map);
+  S.progressLine = L.polyline([], { color: '#00d4ff', weight: 4, opacity: 0.95 }).addTo(S.map);
+
+  // Waypoint markers at altitude-colored dots, every ~N points
+  const step = Math.max(1, Math.floor(pts.length / 80));
+  const { minAlt, maxAlt } = S.track.stats;
+  for (let i = 0; i < pts.length; i += step){
+    const p = pts[i];
+    const col = altColor(p.alt, minAlt, maxAlt);
+    const m = L.marker([p.lat, p.lon], {
+      icon: L.divIcon({
+        className: 'wp-marker',
+        html: `<div class="wp" style="background:${col}"></div>`,
+        iconSize: [8,8], iconAnchor: [4,4]
+      }),
+      interactive: false
+    });
+    S.waypointLayer.addLayer(m);
+  }
+
+  S.droneMarker = L.marker([pts[0].lat, pts[0].lon], {
+    icon: makeDroneIcon(pts[0].hdg),
+    zIndexOffset: 1000
+  }).addTo(S.map);
+
+  S.map.fitBounds(S.pathLine.getBounds(), { padding: [28, 28] });
+}
+
+/* ---------- Interpolate position at time ---------- */
+function sampleAt(t){
+  const pts = S.track.points;
+  if (t <= 0) return { ...pts[0], idx: 0, frac: 0 };
+  if (t >= pts[pts.length-1].t) return { ...pts[pts.length-1], idx: pts.length-1, frac: 0 };
+  // Binary search
+  let lo = 0, hi = pts.length - 1;
+  while (lo + 1 < hi){
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].t <= t) lo = mid; else hi = mid;
+  }
+  const a = pts[lo], b = pts[hi];
+  const frac = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+  // lerp — but for heading we need shortest arc
+  const dHdg = ((b.hdg - a.hdg + 540) % 360) - 180;
+  return {
+    t,
+    lat: a.lat + (b.lat - a.lat) * frac,
+    lon: a.lon + (b.lon - a.lon) * frac,
+    alt: a.alt + (b.alt - a.alt) * frac,
+    hdg: (a.hdg + dHdg * frac + 360) % 360,
+    spd: a.spd + (b.spd - a.spd) * frac,
+    roll: a.roll + (b.roll - a.roll) * frac,
+    pitch: a.pitch + (b.pitch - a.pitch) * frac,
+    batt: (a.batt !== null && b.batt !== null) ? a.batt + (b.batt - a.batt) * frac : (a.batt !== null ? a.batt : (b.batt !== null ? b.batt : null)),
+    idx: lo, frac
+  };
+}
+
+/* ---------- HUD rendering ---------- */
+function buildCompass(){
+  const ribbon = document.getElementById('compassRibbon');
+  let html = '';
+  // build -180 to +540 (extra width) so ribbon can always show 90 on each side
+  for (let d = -180; d <= 540; d += 10){
+    const norm = ((d % 360) + 360) % 360;
+    const isCard = norm === 0 || norm === 90 || norm === 180 || norm === 270;
+    const lbl = isCard ? ['N','E','S','W'][Math.round(norm/90)%4] : (norm === 0 ? '360' : String(norm).padStart(3,'0'));
+    const cls = isCard ? 'card' : (norm % 30 === 0 ? 'maj' : '');
+    html += `<span class="compass-tick ${cls}" data-deg="${d}">${norm % 10 === 0 ? lbl : '|'}</span>`;
+  }
+  ribbon.innerHTML = html;
+}
+
+function buildHorizonMarks(){
+  const marks = document.getElementById('horizonMarks');
+  let html = '';
+  for (let p = -30; p <= 30; p += 10){
+    if (p === 0) continue;
+    const top = 50 - p * 1.2;
+    html += `<div class="horizon-pitch-mark" style="top:${top}%"></div>`;
+  }
+  marks.innerHTML = html;
+}
+
+function updateHUD(s){
+  if (!s) return;
+  // Clock
+  document.getElementById('hudClock').innerHTML = `${fmtTime(S.tNow)}<span class="sub">T+FLIGHT TIME</span>`;
+  // Altimeter tape
+  const altFt = Math.round(s.alt);
+  document.getElementById('altTapeInd').textContent = String(Math.max(-999, Math.min(99999, altFt))).padStart(4,'0');
+  drawTapeScale('altTapeScale', altFt, 50, 500); // step 50ft
+  // Speed tape
+  const spdKt = Math.max(0, Math.round(s.spd));
+  document.getElementById('spdTapeInd').textContent = String(spdKt).padStart(3,'0');
+  drawTapeScale('spdTapeScale', spdKt, 5, 50);
+  // Compass
+  const hdg = Math.round(s.hdg);
+  const pct = 100 - (hdg / 360) * 100;  // -- we'll use translateX scaled
+  // actual: we built ticks every 10deg spanning 720deg (-180 to 540), tick width 18px
+  // center position = -180 offset, so hdg at center means shift left by (hdg+180)/10 * 18 from 0
+  const shift = ((hdg + 180) / 10) * 18;
+  document.getElementById('compassRibbon').style.transform = `translateX(calc(-${shift}px))`;
+  document.getElementById('compassHdg').textContent = String(hdg).padStart(3,'0');
+  // Horizon
+  const plate = document.getElementById('horizonPlate');
+  const pitchPx = Math.max(-50, Math.min(50, s.pitch * 1.2));
+  plate.style.transform = `translateY(${pitchPx}%) rotate(${-s.roll}deg)`;
+  // VSI
+  const pts = S.track.points;
+  let vsi = 0;
+  if (s.idx > 0 && s.idx < pts.length - 1){
+    const prev = pts[s.idx];
+    const next = pts[s.idx + 1];
+    const dAlt = next.alt - prev.alt;
+    const dt = next.t - prev.t;
+    vsi = dt > 0 ? (dAlt / dt) * 60 : 0;
+  }
+  const vsiEl = document.getElementById('hudVSI');
+  vsiEl.textContent = (vsi >= 0 ? '+' : '') + Math.round(vsi);
+  vsiEl.style.color = vsi > 500 ? 'var(--hud-amber)' : vsi < -500 ? 'var(--hud-red)' : 'var(--hud-green)';
+  // Dist (nm from start)
+  const distM = interpolateDist(s.idx, s.frac);
+  document.getElementById('hudDist').textContent = (distM / 1852).toFixed(2);
+  // Battery
+  if (s.batt !== null && isFinite(s.batt)){
+    const b = Math.round(s.batt);
+    const bEl = document.getElementById('hudBatt');
+    bEl.textContent = String(b).padStart(3,'0');
+    const box = document.getElementById('hudBattBox');
+    box.classList.remove('amber','red');
+    if (b < 20) box.classList.add('red');
+    else if (b < 40) box.classList.add('amber');
+  } else {
+    document.getElementById('hudBatt').textContent = '---';
+    document.getElementById('hudBattBox').classList.remove('amber','red');
+  }
+  // Lat/lon
+  document.getElementById('hudLat').textContent = (s.lat >= 0 ? '+' : '') + s.lat.toFixed(6);
+  document.getElementById('hudLon').textContent = (s.lon >= 0 ? '+' : '') + s.lon.toFixed(6);
+  document.getElementById('hudRoll').textContent = (s.roll >= 0 ? '+' : '') + Math.round(s.roll).toString().padStart(2,'0');
+  document.getElementById('hudPitch').textContent = (s.pitch >= 0 ? '+' : '') + Math.round(s.pitch).toString().padStart(2,'0');
+
+  // Move drone marker & progress line
+  if (S.droneMarker){
+    S.droneMarker.setLatLng([s.lat, s.lon]);
+    S.droneMarker.setIcon(makeDroneIcon(s.hdg));
+  }
+  if (S.progressLine){
+    const coords = [];
+    for (let i = 0; i <= s.idx; i++) coords.push([pts[i].lat, pts[i].lon]);
+    coords.push([s.lat, s.lon]);
+    S.progressLine.setLatLngs(coords);
+  }
+}
+
+function interpolateDist(idx, frac){
+  const d = S.track.distAtT;
+  if (idx >= d.length - 1) return d[d.length - 1];
+  return d[idx] + (d[idx+1] - d[idx]) * frac;
+}
+
+function drawTapeScale(elId, center, step, range){
+  const el = document.getElementById(elId);
+  // Snap center to nearest step
+  const low = Math.ceil((center - range) / step) * step;
+  const high = Math.floor((center + range) / step) * step;
+  // 140px tape height, center = 50%, pixels per step = (140/2) / (range/step)
+  const pxPerStep = 70 / (range / step);
+  let html = '';
+  for (let v = low; v <= high; v += step){
+    const offset = (center - v) * (pxPerStep / step);
+    const topPct = 50 + (offset / 140) * 100;
+    if (topPct < 0 || topPct > 100) continue;
+    const maj = (v % (step*5) === 0);
+    html += `<div class="tape-mark ${maj?'maj':''}" style="top:${topPct.toFixed(1)}%">${maj ? v : '|'}</div>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- Playback loop ---------- */
+function tick(now){
+  if (!S.playing) return;
+  const dt = (now - S.lastRAF) / 1000;
+  S.lastRAF = now;
+  S.tNow += dt * S.speed;
+  const total = S.track.stats.duration;
+  if (S.tNow >= total){
+    S.tNow = total;
+    stopPlayback();
+    return;
+  }
+  updateTick();
+  S.rafHandle = requestAnimationFrame(tick);
+}
+
+function updateTick(){
+  const s = sampleAt(S.tNow);
+  updateHUD(s);
+  updatePlayUI();
+  drawChartCursors();
+}
+
+function updatePlayUI(){
+  const total = S.track.stats.duration;
+  document.getElementById('playTime').textContent = fmtTime(S.tNow);
+  document.getElementById('playTotal').textContent = fmtTime(total);
+  const pct = total > 0 ? (S.tNow / total) * 100 : 0;
+  document.getElementById('scrubFill').style.width = pct + '%';
+  document.getElementById('scrubHandle').style.left = pct + '%';
+}
+
+function startPlayback(){
+  if (!S.track) return;
+  if (S.tNow >= S.track.stats.duration - 0.01) S.tNow = 0;
+  S.playing = true;
+  S.lastRAF = performance.now();
+  document.getElementById('btnPlay').innerHTML = '&#10074;&#10074;';
+  document.getElementById('btnPlay').title = 'Pause (Space)';
+  document.getElementById('statusDot').className = 'dot';
+  document.getElementById('statusText').textContent = 'LIVE';
+  S.rafHandle = requestAnimationFrame(tick);
+}
+function stopPlayback(){
+  S.playing = false;
+  cancelAnimationFrame(S.rafHandle);
+  document.getElementById('btnPlay').innerHTML = '&#9654;';
+  document.getElementById('btnPlay').title = 'Play (Space)';
+  document.getElementById('statusDot').className = 'dot paused';
+  document.getElementById('statusText').textContent = 'PAUSED';
+}
+
+/* ---------- Controls ---------- */
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (!S.track) return;
+  if (S.playing) stopPlayback(); else startPlayback();
+});
+document.getElementById('btnRewind').addEventListener('click', () => {
+  if (!S.track) return;
+  S.tNow = 0;
+  updateTick();
+});
+document.getElementById('btnStepFwd').addEventListener('click', () => {
+  if (!S.track) return;
+  S.tNow = Math.min(S.track.stats.duration, S.tNow + 1);
+  updateTick();
+});
+document.getElementById('btnStepBack').addEventListener('click', () => {
+  if (!S.track) return;
+  S.tNow = Math.max(0, S.tNow - 1);
+  updateTick();
+});
+document.querySelectorAll('.speed-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    S.speed = parseFloat(btn.dataset.speed);
+    try { localStorage.setItem(LS_PREFIX + 'speed', String(S.speed)); } catch(e){}
+  });
+});
+
+/* Scrubber */
+const scrub = document.getElementById('scrubber');
+let scrubDragging = false;
+function scrubFromEvent(e){
+  if (!S.track) return;
+  const rect = scrub.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+  const frac = x / rect.width;
+  S.tNow = frac * S.track.stats.duration;
+  updateTick();
+}
+scrub.addEventListener('mousedown', e => {
+  scrubDragging = true;
+  if (S.playing) stopPlayback();
+  scrubFromEvent(e);
+});
+scrub.addEventListener('touchstart', e => { scrubDragging = true; if (S.playing) stopPlayback(); scrubFromEvent(e); }, {passive:true});
+document.addEventListener('mousemove', e => { if (scrubDragging) scrubFromEvent(e); });
+document.addEventListener('touchmove', e => { if (scrubDragging) scrubFromEvent(e); }, {passive:true});
+document.addEventListener('mouseup', () => { scrubDragging = false; });
+document.addEventListener('touchend', () => { scrubDragging = false; });
+
+/* Keyboard */
+window.addEventListener('keydown', e => {
+  if (!S.track) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const total = S.track.stats.duration;
+  if (e.code === 'Space'){ e.preventDefault(); if (S.playing) stopPlayback(); else startPlayback(); }
+  else if (e.code === 'ArrowRight'){ e.preventDefault(); S.tNow = Math.min(total, S.tNow + (e.shiftKey ? 10 : 1)); updateTick(); }
+  else if (e.code === 'ArrowLeft'){ e.preventDefault(); S.tNow = Math.max(0, S.tNow - (e.shiftKey ? 10 : 1)); updateTick(); }
+  else if (e.code === 'Home'){ e.preventDefault(); S.tNow = 0; updateTick(); }
+  else if (e.code === 'End'){ e.preventDefault(); S.tNow = total; updateTick(); }
+  else if (e.key >= '1' && e.key <= '5'){
+    const map = {'1':0.5,'2':1,'3':2,'4':5,'5':10};
+    const sp = map[e.key];
+    S.speed = sp;
+    document.querySelectorAll('.speed-pill').forEach(b => {
+      b.classList.toggle('active', parseFloat(b.dataset.speed) === sp);
+    });
+  }
+  else if (e.key === 's' || e.key === 'S'){
+    toast('For an animated screenshot, use your OS screen recorder (e.g. macOS Cmd+Shift+5, Windows Win+G).', 5000);
+  }
+});
+
+/* ---------- Clear / Reset ---------- */
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!confirm('Clear the current flight?')) return;
+  stopPlayback();
+  S.track = null;
+  S.tNow = 0;
+  if (S.pathLine) S.pathLine.remove();
+  if (S.progressLine) S.progressLine.remove();
+  if (S.droneMarker) S.droneMarker.remove();
+  if (S.waypointLayer) S.waypointLayer.clearLayers();
+  document.getElementById('flightDeck').style.display = 'none';
+  document.getElementById('statsPanel').style.display = 'none';
+  document.getElementById('playbackPanel').style.display = 'none';
+  document.getElementById('chartsPanel').style.display = 'none';
+  document.getElementById('clearBtn').disabled = true;
+  document.getElementById('exportGpxBtn').disabled = true;
+  document.getElementById('exportPdfBtn').disabled = true;
+  log('Cleared.', 'ok');
+});
+
+/* ---------- Render all ---------- */
+function renderAll(){
+  document.getElementById('flightDeck').style.display = '';
+  document.getElementById('statsPanel').style.display = '';
+  document.getElementById('playbackPanel').style.display = '';
+  document.getElementById('chartsPanel').style.display = '';
+  document.getElementById('clearBtn').disabled = false;
+  document.getElementById('exportGpxBtn').disabled = false;
+  document.getElementById('exportPdfBtn').disabled = false;
+  document.getElementById('hudNodata').style.display = 'none';
+
+  const st = S.track.stats;
+  document.getElementById('flightName').textContent = S.track.name || 'Untitled';
+  document.getElementById('statDuration').textContent = fmtDuration(st.duration);
+  document.getElementById('statDistance').innerHTML = `${(st.distM/1000).toFixed(2)}<span class="u">km</span> / ${st.distNm.toFixed(2)}<span class="u">nm</span>`;
+  document.getElementById('statMaxAlt').innerHTML = `${Math.round(st.maxAlt)}<span class="u">ft</span>`;
+  document.getElementById('statMaxSpd').innerHTML = `${Math.round(st.maxSpd)}<span class="u">kt</span>`;
+  document.getElementById('statPts').textContent = st.points;
+
+  renderMap();
+  // build static UI pieces
+  buildCompass();
+  buildHorizonMarks();
+  S.tNow = 0;
+  updateTick();
+  drawCharts();
+  window.addEventListener('resize', drawCharts, { once: true });
+}
+
+/* ---------- Charts ---------- */
+function drawCharts(){
+  const altC = document.getElementById('chartAlt');
+  const spdC = document.getElementById('chartSpd');
+  [altC, spdC].forEach(c => { const r = c.getBoundingClientRect(); c.width = Math.max(300, r.width); c.height = 110; });
+  drawChart(altC, S.track.points.map(p => ({x:p.t, y:p.alt})), '#00d4ff', 'ft');
+  drawChart(spdC, S.track.points.map(p => ({x:p.t, y:p.spd})), '#ff9900', 'kt');
+  drawChartCursors();
+}
+
+function drawChart(canvas, data, color, unit){
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#020810';
+  ctx.fillRect(0,0,W,H);
+  if (!data.length) return;
+  const xs = data.map(d => d.x);
+  const ys = data.map(d => d.y);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const yRange = yMax - yMin || 1;
+  const padL = 36, padR = 4, padT = 6, padB = 14;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  // gridlines
+  ctx.strokeStyle = 'rgba(26,37,53,0.8)';
+  ctx.lineWidth = 1;
+  ctx.font = '9px "Share Tech Mono", monospace';
+  ctx.fillStyle = '#8892a2';
+  for (let i = 0; i <= 4; i++){
+    const y = padT + plotH * (i/4);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    const val = yMax - (yRange * i / 4);
+    ctx.fillText(Math.round(val), 2, y + 3);
+  }
+  // line
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++){
+    const d = data[i];
+    const x = padL + plotW * ((d.x - xMin) / (xMax - xMin || 1));
+    const y = padT + plotH - plotH * ((d.y - yMin) / yRange);
+    if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // fill under
+  ctx.lineTo(padL + plotW, H - padB);
+  ctx.lineTo(padL, H - padB);
+  ctx.closePath();
+  ctx.fillStyle = color + '22';
+  ctx.fill();
+  // save bounds on canvas for cursor
+  canvas._bounds = { xMin, xMax, yMin, yMax, padL, padR, padT, padB, plotW, plotH, W, H };
+}
+
+function drawChartCursors(){
+  const s = S.track ? sampleAt(S.tNow) : null;
+  ['chartAlt','chartSpd'].forEach((id, i) => {
+    const c = document.getElementById(id);
+    if (!c._bounds) return;
+    const b = c._bounds;
+    const ctx = c.getContext('2d');
+    // redraw just the base chart is expensive; instead, we overlay. Keep a cache:
+    // simple: redraw full chart then overlay
+    if (!s) return;
+    const data = i === 0
+      ? S.track.points.map(p => ({x:p.t, y:p.alt}))
+      : S.track.points.map(p => ({x:p.t, y:p.spd}));
+    const color = i === 0 ? '#00d4ff' : '#ff9900';
+    const unit = i === 0 ? 'ft' : 'kt';
+    drawChart(c, data, color, unit);
+    const x = b.padL + b.plotW * ((S.tNow - b.xMin) / (b.xMax - b.xMin || 1));
+    ctx.strokeStyle = '#ff9900';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x, b.padT); ctx.lineTo(x, b.H - b.padB); ctx.stroke();
+    ctx.setLineDash([]);
+    // value marker
+    const val = i === 0 ? s.alt : s.spd;
+    const y = b.padT + b.plotH - b.plotH * ((val - b.yMin) / (b.yMax - b.yMin || 1));
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+  if (S.track){
+    document.getElementById('chartAltVal').textContent = `${Math.round(sampleAt(S.tNow).alt)} ft`;
+    document.getElementById('chartSpdVal').textContent = `${Math.round(sampleAt(S.tNow).spd)} kt`;
+  }
+}
+
+window.addEventListener('resize', () => { if (S.track) drawCharts(); });
+
+/* ---------- Export GPX ---------- */
+document.getElementById('exportGpxBtn').addEventListener('click', () => {
+  if (!S.track) return;
+  const pts = S.track.points;
+  const start = new Date();
+  const lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<gpx version="1.1" creator="Korb Engineering - Flight Replay HUD" xmlns="http://www.topografix.com/GPX/1/1">');
+  lines.push(`  <metadata><name>${xmlEscape(S.track.name || 'Flight')}</name><time>${start.toISOString()}</time></metadata>`);
+  lines.push(`  <trk><name>${xmlEscape(S.track.name || 'Flight')}</name><trkseg>`);
+  for (const p of pts){
+    const time = new Date(start.getTime() + p.t * 1000).toISOString();
+    const ele = (p.alt / M_TO_FT).toFixed(2);
+    lines.push(`    <trkpt lat="${p.lat.toFixed(7)}" lon="${p.lon.toFixed(7)}"><ele>${ele}</ele><time>${time}</time></trkpt>`);
+  }
+  lines.push('  </trkseg></trk>');
+  lines.push('</gpx>');
+  const blob = new Blob([lines.join('\n')], { type: 'application/gpx+xml' });
+  downloadBlob(blob, (S.track.name || 'flight') + '.gpx');
+  log('Exported GPX', 'ok');
+  toast('GPX exported');
+});
+
+function xmlEscape(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+}
+function downloadBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+
+/* ---------- Export PDF ---------- */
+document.getElementById('exportPdfBtn').addEventListener('click', async () => {
+  if (!S.track) return;
+  try {
+    log('Rendering PDF report...');
+    toast('Building PDF...');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const st = S.track.stats;
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+
+    // Cover
+    doc.setFillColor(10, 16, 24);
+    doc.rect(0, 0, W, H, 'F');
+    doc.setTextColor(0, 212, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.text('FLIGHT REPLAY REPORT', 40, 50);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 153, 0);
+    doc.text(S.track.name || 'Flight Log', 40, 72);
+    doc.setTextColor(226, 232, 240);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Generated ${new Date().toLocaleString()} by Korb Engineering`, 40, 88);
+    doc.text(`Source: ${S.track.source}   Points: ${st.points}`, 40, 102);
+
+    // Stats box
+    doc.setFillColor(14, 21, 32);
+    doc.rect(40, 120, W - 80, 120, 'F');
+    doc.setDrawColor(0, 212, 255);
+    doc.setLineWidth(0.5);
+    doc.rect(40, 120, W - 80, 120, 'S');
+    doc.setTextColor(136, 146, 162);
+    doc.setFontSize(9);
+    const labels = [
+      ['DURATION', fmtDuration(st.duration)],
+      ['DISTANCE', `${(st.distM/1000).toFixed(2)} km / ${st.distNm.toFixed(2)} nm`],
+      ['MAX ALT', `${Math.round(st.maxAlt)} ft`],
+      ['MIN ALT', `${Math.round(st.minAlt)} ft`],
+      ['MAX SPD', `${Math.round(st.maxSpd)} kt`],
+      ['WAYPOINTS', `${st.points}`]
+    ];
+    labels.forEach((row,i) => {
+      const col = i % 2, r = Math.floor(i/2);
+      const x = 60 + col * ((W - 120) / 2);
+      const y = 148 + r * 28;
+      doc.setTextColor(136, 146, 162);
+      doc.text(row[0], x, y);
+      doc.setTextColor(0, 212, 255);
+      doc.setFontSize(13);
+      doc.text(row[1], x, y + 14);
+      doc.setFontSize(9);
+    });
+
+    // Map screenshot: rasterize polyline manually to a canvas (Leaflet map is tiled, hard to export)
+    // Approach: draw our own mini-map from the latlngs.
+    const mapImg = makeMiniMapImage(520, 340);
+    doc.addImage(mapImg, 'PNG', 40, 260, W - 80, 340);
+
+    doc.setTextColor(136, 146, 162);
+    doc.setFontSize(7);
+    doc.text('Flight path rendered from GPS track. Basemap not included in PDF.', 40, 620);
+    doc.text('korb.engineering / aviation', W - 150, H - 20);
+
+    // Page 2: altitude & speed charts
+    doc.addPage();
+    doc.setFillColor(10, 16, 24);
+    doc.rect(0, 0, W, H, 'F');
+    doc.setTextColor(0, 212, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica','bold');
+    doc.text('TELEMETRY CHARTS', 40, 50);
+    doc.setFontSize(11);
+    doc.setTextColor(226, 232, 240);
+    doc.setFont('helvetica','normal');
+    doc.text('Altitude (ft)', 40, 100);
+    const altImg = document.getElementById('chartAlt').toDataURL('image/png');
+    doc.addImage(altImg, 'PNG', 40, 110, W - 80, 180);
+    doc.text('Ground Speed (kt)', 40, 320);
+    const spdImg = document.getElementById('chartSpd').toDataURL('image/png');
+    doc.addImage(spdImg, 'PNG', 40, 330, W - 80, 180);
+    doc.setTextColor(136, 146, 162);
+    doc.setFontSize(7);
+    doc.text('korb.engineering / aviation', W - 150, H - 20);
+
+    doc.save((S.track.name || 'flight') + '-report.pdf');
+    log('PDF exported', 'ok');
+    toast('PDF saved');
+  } catch(err){
+    console.error(err);
+    log(`PDF export error: ${err.message}`, 'err');
+    toast('PDF export failed');
+  }
+});
+
+function makeMiniMapImage(W, H){
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#020810';
+  ctx.fillRect(0,0,W,H);
+  const pts = S.track.points;
+  const lats = pts.map(p => p.lat);
+  const lons = pts.map(p => p.lon);
+  const latMin = Math.min(...lats), latMax = Math.max(...lats);
+  const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
+  const dLat = latMax - latMin || 1e-6;
+  const dLon = lonMax - lonMin || 1e-6;
+  const latCtr = (latMin + latMax) / 2;
+  // approximate web-mercator by scaling lon by cos(lat)
+  const lonScale = Math.cos(latCtr * Math.PI / 180);
+  const aspect = (dLon * lonScale) / dLat;
+  const pad = 30;
+  let plotW = W - 2*pad, plotH = H - 2*pad;
+  if (plotW / plotH > aspect) plotW = plotH * aspect;
+  else plotH = plotW / aspect;
+  const offX = (W - plotW)/2, offY = (H - plotH)/2;
+  const toXY = (lat, lon) => {
+    const fx = (lon - lonMin) / dLon;
+    const fy = 1 - (lat - latMin) / dLat;
+    return [offX + fx * plotW, offY + fy * plotH];
+  };
+
+  // Grid
+  ctx.strokeStyle = '#1a2535';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([3,3]);
+  for (let i = 1; i < 4; i++){
+    ctx.beginPath();
+    ctx.moveTo(offX, offY + plotH * i/4); ctx.lineTo(offX + plotW, offY + plotH * i/4);
+    ctx.moveTo(offX + plotW * i/4, offY); ctx.lineTo(offX + plotW * i/4, offY + plotH);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Altitude-colored polyline
+  const { minAlt, maxAlt } = S.track.stats;
+  for (let i = 1; i < pts.length; i++){
+    const [x1,y1] = toXY(pts[i-1].lat, pts[i-1].lon);
+    const [x2,y2] = toXY(pts[i].lat, pts[i].lon);
+    ctx.strokeStyle = altColor(pts[i].alt, minAlt, maxAlt);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+
+  // Start & end markers
+  const [sx, sy] = toXY(pts[0].lat, pts[0].lon);
+  const [ex, ey] = toXY(pts[pts.length-1].lat, pts[pts.length-1].lon);
+  ctx.fillStyle = '#00ff41';
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = '#ff4136';
+  ctx.beginPath(); ctx.arc(ex, ey, 6, 0, Math.PI*2); ctx.fill();
+  ctx.stroke();
+  // Legend
+  ctx.fillStyle = '#00ff41';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText('START', sx + 10, sy + 4);
+  ctx.fillStyle = '#ff4136';
+  ctx.fillText('END', ex + 10, ey + 4);
+  // Border
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 0.8;
+  ctx.strokeRect(offX, offY, plotW, plotH);
+  // Caption
+  ctx.fillStyle = '#8892a2';
+  ctx.font = '9px monospace';
+  ctx.fillText(`Lat ${latMin.toFixed(4)} — ${latMax.toFixed(4)}   Lon ${lonMin.toFixed(4)} — ${lonMax.toFixed(4)}`, offX, H - 10);
+  return c.toDataURL('image/png');
+}
+
+/* ---------- Demo flight ---------- */
+document.getElementById('loadDemoBtn').addEventListener('click', () => {
+  // Synthesize a plausible DFW-area flight: takeoff, climb, racetrack pattern, descent, land.
+  const pts = [];
+  const baseLat = 32.8998, baseLon = -97.0403;  // KDFW-ish
+  const totalSec = 480;  // 8 min
+  const dt = 1;
+  for (let t = 0; t <= totalSec; t += dt){
+    const phase = t / totalSec;
+    let alt;
+    if (phase < 0.12) alt = phase/0.12 * 1200;            // climb
+    else if (phase < 0.85) alt = 1200 + Math.sin(phase * 6) * 200;  // cruise
+    else alt = 1200 * (1 - (phase - 0.85)/0.15);          // descent
+    // racetrack: two half-circles joined by straights
+    const loopT = (t / 120) % 1;    // 2-min loops
+    const theta = loopT * Math.PI * 2;
+    const radius = 0.012;
+    const lat = baseLat + Math.sin(theta) * radius + phase * 0.003;
+    const lon = baseLon + Math.cos(theta) * radius * 1.4 - phase * 0.005;
+    const hdg = (theta * 180/Math.PI + 90) % 360;
+    const spd = 60 + Math.sin(phase * 8) * 10;
+    const batt = 100 - phase * 75;
+    pts.push({ t, lat, lon, alt, hdg, spd, roll:null, pitch:null, yaw:null, batt });
+  }
+  const track = { points: pts, name: 'DEMO-FLIGHT-KDFW', source: 'DEMO' };
+  log('Loading demo flight (synthesized KDFW pattern)...', 'ok');
+  finalizeTrack(track);
+});
+
+/* ---------- Restore preferences ---------- */
+try {
+  const sp = localStorage.getItem(LS_PREFIX + 'speed');
+  if (sp){
+    S.speed = parseFloat(sp);
+    document.querySelectorAll('.speed-pill').forEach(b => {
+      b.classList.toggle('active', parseFloat(b.dataset.speed) === S.speed);
+    });
+  }
+} catch(e){}
+
+log('Flight Replay HUD online. Drop a GPX / KML / DJI CSV to begin, or click LOAD DEMO FLIGHT.', 'ok');
+</script>
+</body>
+</html>

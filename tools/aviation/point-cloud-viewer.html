@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#050a0f" />
+<title>Point Cloud Viewer - Korb Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #050a0f;
+    --bg-2: #0a1420;
+    --bg-3: #0f1e2e;
+    --panel: #0b1522;
+    --panel-2: #101d2e;
+    --border: #1a2b42;
+    --border-2: #223a58;
+    --cyan: #00d4ff;
+    --orange: #ff9900;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #facc15;
+    --text: #e2e8f0;
+    --text-dim: #8aa2bd;
+    --text-faint: #4a5d77;
+    --glow: 0 0 8px rgba(0, 212, 255, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  header {
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    z-index: 10;
+  }
+  .logo {
+    color: var(--cyan);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-shadow: var(--glow);
+    white-space: nowrap;
+  }
+  .logo .dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    margin-right: 6px;
+    box-shadow: var(--glow);
+    vertical-align: middle;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .back-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 5px 10px;
+    border: 1px solid var(--border-2);
+    border-radius: 3px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .back-link:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow); }
+  .title {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .title b { color: var(--orange); text-shadow: 0 0 6px rgba(255, 153, 0, 0.4); }
+
+  main {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+  }
+  .viewport {
+    position: relative;
+    flex: 1;
+    background: radial-gradient(ellipse at center, #071018 0%, #030608 100%);
+    overflow: hidden;
+  }
+  canvas#gl {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    touch-action: none;
+    display: block;
+  }
+  canvas#overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* Right-hand sidebar */
+  aside {
+    width: 300px;
+    max-width: 40vw;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) var(--panel);
+  }
+  aside::-webkit-scrollbar { width: 6px; }
+  aside::-webkit-scrollbar-track { background: var(--panel); }
+  aside::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+
+  .panel {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel h3 {
+    font-size: 10px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .panel h3::before {
+    content: '';
+    display: inline-block;
+    width: 4px; height: 4px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: var(--glow);
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 11px;
+    gap: 8px;
+  }
+  .row .label { color: var(--text-dim); letter-spacing: 0.5px; }
+  .row .val { color: var(--text); font-weight: 500; font-family: 'JetBrains Mono', monospace; text-align: right; word-break: break-all; }
+  .row .val.mono { font-size: 10px; }
+  .row .val.cyan { color: var(--cyan); }
+  .row .val.orange { color: var(--orange); }
+  .row .val.green { color: var(--green); }
+  .row .val.red { color: var(--red); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border-2);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); box-shadow: var(--glow); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { border-color: var(--cyan); color: var(--cyan); }
+  .btn.primary:hover { background: rgba(0, 212, 255, 0.08); }
+  .btn.orange { border-color: var(--orange); color: var(--orange); }
+  .btn.orange:hover { background: rgba(255, 153, 0, 0.08); box-shadow: 0 0 8px rgba(255, 153, 0, 0.35); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: rgba(239, 68, 68, 0.08); box-shadow: 0 0 8px rgba(239, 68, 68, 0.35); }
+  .btn.active { background: rgba(0, 212, 255, 0.12); border-color: var(--cyan); color: var(--cyan); }
+  .btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .btn-full { width: 100%; }
+
+  select, input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border-2);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 11px;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: var(--cyan); box-shadow: var(--glow); }
+
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+  }
+  .slider-wrap input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider-wrap input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px; height: 14px;
+    background: var(--cyan);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--glow);
+  }
+  .slider-wrap input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--cyan);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .slider-wrap .slabel {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    min-width: 40px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .drop-zone {
+    margin: 6px 0 4px 0;
+    padding: 20px 10px;
+    border: 1px dashed var(--border-2);
+    border-radius: 4px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover { border-color: var(--cyan); background: rgba(0, 212, 255, 0.04); }
+  .drop-zone.dragover {
+    border-color: var(--orange);
+    background: rgba(255, 153, 0, 0.08);
+    box-shadow: 0 0 20px rgba(255, 153, 0, 0.3);
+  }
+  .drop-zone .big {
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .drop-zone .small {
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 1px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 9px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .badge.cyan { background: rgba(0, 212, 255, 0.15); color: var(--cyan); border: 1px solid rgba(0, 212, 255, 0.3); }
+  .badge.orange { background: rgba(255, 153, 0, 0.15); color: var(--orange); border: 1px solid rgba(255, 153, 0, 0.3); }
+  .badge.green { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .badge.red { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  /* HUD floating elements over canvas */
+  .hud {
+    position: absolute;
+    color: var(--text);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    z-index: 5;
+    background: rgba(5, 10, 15, 0.7);
+    border: 1px solid var(--border);
+    padding: 5px 8px;
+    border-radius: 3px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .hud.top-left { top: 10px; left: 10px; }
+  .hud.top-right { top: 10px; right: 10px; }
+  .hud.bottom-left { bottom: 10px; left: 10px; max-width: 70%; }
+  .hud.bottom-right { bottom: 10px; right: 10px; }
+  .hud .v { color: var(--cyan); font-weight: 600; }
+  .hud .o { color: var(--orange); font-weight: 600; }
+  .hud .g { color: var(--green); font-weight: 600; }
+
+  /* Axis indicator */
+  #axisCanvas {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    width: 80px; height: 80px;
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  .toggle-panel-btn {
+    display: none;
+  }
+
+  /* Toast notifications */
+  #toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    padding: 10px 18px;
+    border-radius: 3px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.2), var(--glow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 100;
+    max-width: 90vw;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+  #toast.error { border-color: var(--red); color: var(--red); box-shadow: 0 0 14px rgba(239, 68, 68, 0.4); }
+  #toast.success { border-color: var(--green); color: var(--green); box-shadow: 0 0 14px rgba(16, 185, 129, 0.4); }
+
+  /* Loading overlay */
+  #loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 10, 15, 0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 20;
+    backdrop-filter: blur(3px);
+  }
+  #loading.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    box-shadow: var(--glow);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading .ltxt {
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+  #loading .lprog {
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  /* Welcome / empty state */
+  #welcome {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 2;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 20px;
+    text-align: center;
+  }
+  #welcome .wbig {
+    color: var(--cyan);
+    font-size: 22px;
+    letter-spacing: 4px;
+    text-shadow: var(--glow);
+  }
+  #welcome .wsub {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  #welcome .wbtns {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #welcome .wicon {
+    font-size: 40px;
+    opacity: 0.4;
+    letter-spacing: -4px;
+    color: var(--cyan);
+  }
+  #welcome.hide { display: none; }
+
+  /* Measurement callouts */
+  .mcallout {
+    position: absolute;
+    background: rgba(5, 10, 15, 0.92);
+    border: 1px solid var(--orange);
+    color: var(--orange);
+    padding: 5px 9px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    border-radius: 2px;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 0 0 8px rgba(255, 153, 0, 0.4);
+    white-space: nowrap;
+  }
+
+  /* Mobile layout */
+  @media (max-width: 780px) {
+    header { padding: 8px 10px; gap: 8px; }
+    .logo { font-size: 11px; letter-spacing: 1px; }
+    .title { font-size: 10px; }
+    .back-link { padding: 4px 8px; font-size: 10px; }
+
+    main { flex-direction: column; }
+    aside {
+      width: 100%;
+      max-width: none;
+      max-height: 50vh;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      transform: translateY(calc(100% - 40px));
+      transition: transform 0.3s ease;
+      position: relative;
+    }
+    aside.open { transform: translateY(0); }
+    .toggle-panel-btn {
+      display: block;
+      position: sticky;
+      top: 0;
+      background: var(--panel-2);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      padding: 9px 14px;
+      color: var(--cyan);
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-align: left;
+      cursor: pointer;
+      z-index: 11;
+      width: 100%;
+      font-weight: 600;
+    }
+    .toggle-panel-btn::before {
+      content: '▼ ';
+      display: inline-block;
+      margin-right: 6px;
+      transform: rotate(0);
+      transition: transform 0.2s;
+    }
+    aside.open .toggle-panel-btn::before { transform: rotate(180deg); }
+
+    #axisCanvas { width: 60px; height: 60px; }
+  }
+
+  @media (max-width: 480px) {
+    .logo { letter-spacing: 0.5px; }
+    .title { display: none; }
+  }
+
+  /* Accessibility / focus */
+  button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="../../index.html#aviation" class="back-link">&larr; BACK</a>
+  <div class="logo"><span class="dot"></span>KORB ENGINEERING</div>
+  <div class="title">POINT CLOUD <b>VIEWER</b></div>
+</header>
+
+<main>
+  <div class="viewport" id="viewport">
+    <canvas id="gl"></canvas>
+    <canvas id="overlay"></canvas>
+    <canvas id="axisCanvas" width="160" height="160"></canvas>
+
+    <div class="hud top-left" id="hudStats">
+      <div>POINTS <span class="v" id="hudPts">0</span></div>
+      <div>FPS <span class="g" id="hudFps">0</span></div>
+      <div>CAM <span class="o" id="hudCam">---</span></div>
+    </div>
+
+    <div class="hud top-right hidden" id="hudSub">
+      RENDERING <span class="v" id="subA">0</span> OF <span class="o" id="subB">0</span>
+    </div>
+
+    <div class="hud bottom-right hidden" id="hudMsg">
+      <span id="hudMsgTxt">READY</span>
+    </div>
+
+    <div id="welcome">
+      <div class="wicon">&#8226;&#8226;&#8226;</div>
+      <div class="wbig">POINT CLOUD VIEWER</div>
+      <div class="wsub">WEBGL2 &middot; LAS / PLY / XYZ &middot; CLIENT-SIDE</div>
+      <div style="margin-top:12px; color: var(--text-dim); font-size: 11px; letter-spacing: 1px;">
+        DRAG &amp; DROP A FILE OR USE FILE PICKER
+      </div>
+      <div class="wbtns">
+        <button class="btn primary" id="welcomePickBtn">CHOOSE FILE</button>
+        <button class="btn orange" id="welcomeDemoBtn">LOAD DEMO</button>
+      </div>
+      <div style="margin-top: 16px; font-size: 9px; color: var(--text-faint); letter-spacing: 0.5px;">
+        SUPPORTED: .las .ply .xyz .txt &middot; .laz requires decompression
+      </div>
+    </div>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <div class="ltxt" id="lTxt">LOADING...</div>
+      <div class="lprog" id="lProg">0%</div>
+    </div>
+  </div>
+
+  <aside id="sidebar">
+    <button class="toggle-panel-btn" id="togglePanel">Controls &amp; Stats</button>
+
+    <div class="panel">
+      <h3>File</h3>
+      <div class="drop-zone" id="dropZone">
+        <div class="big">DROP FILE</div>
+        <div class="small">or click to browse</div>
+        <input type="file" id="fileInput" accept=".las,.laz,.ply,.xyz,.txt" style="display:none;" />
+      </div>
+      <div class="btn-group" style="margin-top: 6px;">
+        <button class="btn" id="demoBtn">DEMO CLOUD</button>
+        <button class="btn danger" id="clearBtn">CLEAR</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Rendering</h3>
+      <div class="row" style="padding-bottom: 8px;">
+        <span class="label">Color Mode</span>
+      </div>
+      <select id="colorMode">
+        <option value="rgb">RGB (if available)</option>
+        <option value="elevation" selected>Elevation Ramp</option>
+        <option value="intensity">Intensity Ramp</option>
+        <option value="single">Single Color</option>
+      </select>
+
+      <div class="row" style="padding-top: 12px;">
+        <span class="label">Point Size</span>
+        <span class="val cyan" id="psizeVal">2.5</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="psize" min="1" max="10" step="0.1" value="2.5" />
+      </div>
+
+      <div class="row" style="padding-top: 8px;">
+        <span class="label">Subsample</span>
+        <span class="val orange" id="subVal">100%</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="subsample" min="1" max="100" step="1" value="100" />
+      </div>
+
+      <div class="row" style="padding-top: 8px;">
+        <span class="label">Bg Fog</span>
+        <span class="val cyan" id="fogVal">0.55</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" id="fog" min="0" max="1" step="0.01" value="0.55" />
+      </div>
+
+      <div class="btn-group" style="margin-top: 12px;">
+        <button class="btn" id="fitBtn">FIT VIEW</button>
+        <button class="btn" id="resetViewBtn">RESET CAM</button>
+      </div>
+      <div class="btn-row" style="margin-top: 6px;">
+        <button class="btn btn-full" id="topBtn">TOP</button>
+        <button class="btn btn-full" id="sideBtn">SIDE</button>
+        <button class="btn btn-full" id="isoBtn">ISO</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Measure</h3>
+      <div class="row">
+        <span class="label">Mode</span>
+        <span class="badge" id="measBadge">OFF</span>
+      </div>
+      <button class="btn btn-full" id="measBtn" style="margin-top: 6px;">TOGGLE MEASURE</button>
+      <div id="measResults" style="margin-top: 10px; display: none;">
+        <div class="row"><span class="label">P1</span><span class="val mono" id="measP1">-</span></div>
+        <div class="row"><span class="label">P2</span><span class="val mono" id="measP2">-</span></div>
+        <div class="row"><span class="label">3D Dist</span><span class="val cyan" id="meas3D">-</span></div>
+        <div class="row"><span class="label">2D (XY)</span><span class="val cyan" id="meas2D">-</span></div>
+        <div class="row"><span class="label">&Delta;Z (Height)</span><span class="val orange" id="measDZ">-</span></div>
+        <button class="btn btn-full" id="measClearBtn" style="margin-top: 6px;">CLEAR MEASUREMENT</button>
+      </div>
+      <div style="margin-top: 8px; font-size: 9px; color: var(--text-faint); letter-spacing: 0.5px; line-height: 1.5;">
+        Click two points in viewport
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Statistics</h3>
+      <div class="row"><span class="label">File</span><span class="val" id="statFile">none</span></div>
+      <div class="row"><span class="label">Format</span><span class="val" id="statFmt">-</span></div>
+      <div class="row"><span class="label">Size</span><span class="val" id="statSize">0</span></div>
+      <div class="row"><span class="label">Points</span><span class="val cyan" id="statPts">0</span></div>
+      <div class="row"><span class="label">Rendered</span><span class="val green" id="statRend">0</span></div>
+      <div class="row"><span class="label">Has RGB</span><span class="val" id="statRGB">-</span></div>
+      <div class="row"><span class="label">Has Intensity</span><span class="val" id="statInt">-</span></div>
+      <div class="row" style="padding-top: 6px; border-top: 1px solid var(--border); margin-top: 6px;">
+        <span class="label">Bounds</span>
+      </div>
+      <div class="row"><span class="label">Min X</span><span class="val mono" id="statMinX">-</span></div>
+      <div class="row"><span class="label">Max X</span><span class="val mono" id="statMaxX">-</span></div>
+      <div class="row"><span class="label">Min Y</span><span class="val mono" id="statMinY">-</span></div>
+      <div class="row"><span class="label">Max Y</span><span class="val mono" id="statMaxY">-</span></div>
+      <div class="row"><span class="label">Min Z</span><span class="val mono" id="statMinZ">-</span></div>
+      <div class="row"><span class="label">Max Z</span><span class="val mono" id="statMaxZ">-</span></div>
+      <div class="row"><span class="label">Size X</span><span class="val mono cyan" id="statSzX">-</span></div>
+      <div class="row"><span class="label">Size Y</span><span class="val mono cyan" id="statSzY">-</span></div>
+      <div class="row"><span class="label">Size Z</span><span class="val mono cyan" id="statSzZ">-</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Export</h3>
+      <button class="btn btn-full orange" id="screenshotBtn">TAKE SCREENSHOT</button>
+    </div>
+
+    <div class="panel">
+      <h3>Controls</h3>
+      <div class="row"><span class="label">Rotate</span><span class="val">Drag</span></div>
+      <div class="row"><span class="label">Pan</span><span class="val">Shift+Drag</span></div>
+      <div class="row"><span class="label">Zoom</span><span class="val">Wheel / Pinch</span></div>
+      <div class="row"><span class="label">Measure</span><span class="val">M</span></div>
+      <div class="row"><span class="label">Fit</span><span class="val">F</span></div>
+      <div class="row"><span class="label">Reset</span><span class="val">R</span></div>
+    </div>
+
+    <div class="panel" style="padding-bottom: 20px;">
+      <div style="font-size: 9px; color: var(--text-faint); letter-spacing: 1px; text-align: center;">
+        KORB ENGINEERING &middot; v1.0
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ================================================================== *
+ *  KORB ENGINEERING - POINT CLOUD VIEWER
+ *  Vanilla JS, WebGL2, no external deps
+ *  Parses LAS (1.2/1.4), PLY (ascii + binary LE), XYZ/TXT
+ * ================================================================== */
+
+// ----- localStorage -----
+const LS = {
+  psize:     'korb_pcv_psize',
+  colorMode: 'korb_pcv_color',
+  subsample: 'korb_pcv_sub',
+  fog:       'korb_pcv_fog',
+  cam:       'korb_pcv_cam'
+};
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+// ----- DOM refs -----
+const $ = (id) => document.getElementById(id);
+const glCanvas = $('gl');
+const overlayCanvas = $('overlay');
+const axisCanvas = $('axisCanvas');
+const viewport = $('viewport');
+const welcome = $('welcome');
+const loading = $('loading');
+const lTxt = $('lTxt');
+const lProg = $('lProg');
+const toast = $('toast');
+const sidebar = $('sidebar');
+
+// ----- Toast -----
+let toastTimer = null;
+function showToast(msg, kind = '', ms = 2200) {
+  toast.textContent = msg;
+  toast.className = 'show ' + kind;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.className = ''; }, ms);
+}
+
+function showLoading(txt = 'LOADING...', p = 0) {
+  lTxt.textContent = txt;
+  lProg.textContent = (p * 100).toFixed(0) + '%';
+  loading.classList.add('show');
+}
+function hideLoading() { loading.classList.remove('show'); }
+
+// ----- vec/mat math -----
+function vec3(x, y, z) { return new Float32Array([x, y, z]); }
+function vsub(a, b) { return vec3(a[0]-b[0], a[1]-b[1], a[2]-b[2]); }
+function vadd(a, b) { return vec3(a[0]+b[0], a[1]+b[1], a[2]+b[2]); }
+function vscale(a, s) { return vec3(a[0]*s, a[1]*s, a[2]*s); }
+function vdot(a, b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function vcross(a, b) { return vec3(a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]); }
+function vlen(a) { return Math.hypot(a[0], a[1], a[2]); }
+function vnorm(a) { const l = vlen(a) || 1; return vec3(a[0]/l, a[1]/l, a[2]/l); }
+
+function mat4Identity() {
+  const m = new Float32Array(16);
+  m[0]=1; m[5]=1; m[10]=1; m[15]=1;
+  return m;
+}
+function mat4Perspective(fovy, aspect, near, far) {
+  const f = 1.0 / Math.tan(fovy / 2);
+  const nf = 1 / (near - far);
+  const m = new Float32Array(16);
+  m[0]=f/aspect; m[5]=f; m[10]=(far+near)*nf; m[11]=-1; m[14]=2*far*near*nf;
+  return m;
+}
+function mat4Ortho(l, r, b, t, n, f) {
+  const m = new Float32Array(16);
+  m[0] = 2/(r-l); m[5] = 2/(t-b); m[10] = -2/(f-n); m[15] = 1;
+  m[12] = -(r+l)/(r-l); m[13] = -(t+b)/(t-b); m[14] = -(f+n)/(f-n);
+  return m;
+}
+function mat4LookAt(eye, target, up) {
+  const f = vnorm(vsub(target, eye));
+  const s = vnorm(vcross(f, up));
+  const u = vcross(s, f);
+  const m = new Float32Array(16);
+  m[0]=s[0]; m[4]=s[1]; m[8]=s[2];
+  m[1]=u[0]; m[5]=u[1]; m[9]=u[2];
+  m[2]=-f[0]; m[6]=-f[1]; m[10]=-f[2];
+  m[12]=-vdot(s,eye);
+  m[13]=-vdot(u,eye);
+  m[14]= vdot(f,eye);
+  m[15]=1;
+  return m;
+}
+function mat4Mul(a, b) {
+  const m = new Float32Array(16);
+  for (let i=0; i<4; i++) {
+    for (let j=0; j<4; j++) {
+      let s = 0;
+      for (let k=0; k<4; k++) s += a[k*4+j] * b[i*4+k];
+      m[i*4+j] = s;
+    }
+  }
+  return m;
+}
+
+/* ================================================================== *
+ *  FILE PARSERS
+ * ================================================================== */
+
+// ----- LAS parser (supports LAS 1.2 through 1.4 point formats 0-10) -----
+// Returns {positions: Float32Array, colors: Uint8Array|null, intensity: Uint16Array|null, bounds, pointCount}
+async function parseLAS(buffer, onProgress) {
+  const dv = new DataView(buffer);
+  const u8 = new Uint8Array(buffer);
+
+  // Header check
+  const sig = String.fromCharCode(u8[0], u8[1], u8[2], u8[3]);
+  if (sig !== 'LASF') throw new Error('Not a LAS file (bad signature)');
+
+  const versionMajor = dv.getUint8(24);
+  const versionMinor = dv.getUint8(25);
+  const headerSize   = dv.getUint16(94, true);
+  const offsetToData = dv.getUint32(96, true);
+  const pointFormat  = dv.getUint8(104) & 0x3F;  // low 6 bits (high bits may have compression flags for LAZ)
+  const pointSize    = dv.getUint16(105, true);
+
+  // Point count - LAS 1.4 uses 64-bit legacy if legacy = 0 at offset 107
+  let pointCount = dv.getUint32(107, true);
+  if (pointCount === 0 && versionMajor >= 1 && versionMinor >= 4 && buffer.byteLength >= headerSize + 8) {
+    // LAS 1.4 legacy point count is at offset 247 (64-bit)
+    try {
+      const low = dv.getUint32(247, true);
+      const high = dv.getUint32(251, true);
+      pointCount = low + high * 4294967296;
+    } catch (e) {}
+  }
+
+  // Scales and offsets
+  const scaleX = dv.getFloat64(131, true);
+  const scaleY = dv.getFloat64(139, true);
+  const scaleZ = dv.getFloat64(147, true);
+  const offX   = dv.getFloat64(155, true);
+  const offY   = dv.getFloat64(163, true);
+  const offZ   = dv.getFloat64(171, true);
+
+  const maxX = dv.getFloat64(179, true);
+  const minX = dv.getFloat64(187, true);
+  const maxY = dv.getFloat64(195, true);
+  const minY = dv.getFloat64(203, true);
+  const maxZ = dv.getFloat64(211, true);
+  const minZ = dv.getFloat64(219, true);
+
+  // Does this format have RGB? Formats 2,3,5,7,8,10
+  const hasRGB = (pointFormat === 2 || pointFormat === 3 || pointFormat === 5
+                  || pointFormat === 7 || pointFormat === 8 || pointFormat === 10);
+
+  // RGB offset within point record
+  // For PF 2: offset 20 (after x,y,z,intensity,returns,classification,scanAngle,userData,ptSrc)
+  // For PF 3: offset 28 (PF1 + rgb at end)
+  // For PF 5: offset 28
+  // For PF 7: offset 30
+  // For PF 8: offset 30
+  // For PF 10: offset 30
+  let rgbOffset = 0;
+  if (pointFormat === 2) rgbOffset = 20;
+  else if (pointFormat === 3) rgbOffset = 28;
+  else if (pointFormat === 5) rgbOffset = 28;
+  else if (pointFormat === 7) rgbOffset = 30;
+  else if (pointFormat === 8) rgbOffset = 30;
+  else if (pointFormat === 10) rgbOffset = 30;
+
+  // Validate we have enough data
+  const expectedMin = offsetToData + pointCount * pointSize;
+  if (pointCount > 0 && expectedMin > buffer.byteLength) {
+    // Trim to what's actually in the file
+    pointCount = Math.max(0, Math.floor((buffer.byteLength - offsetToData) / pointSize));
+  }
+
+  if (pointCount === 0) throw new Error('LAS file has no points');
+
+  // Cap extremely large files
+  const CAP = 20_000_000; // 20M points max in memory
+  const readCount = Math.min(pointCount, CAP);
+  if (readCount < pointCount) {
+    console.warn(`LAS: capping ${pointCount.toLocaleString()} -> ${readCount.toLocaleString()} points`);
+  }
+
+  const positions = new Float32Array(readCount * 3);
+  const colors = hasRGB ? new Uint8Array(readCount * 3) : null;
+  const intensity = new Uint16Array(readCount);
+
+  // We'll normalize positions around min bounds for float32 precision
+  const ox = (minX + maxX) / 2;
+  const oy = (minY + maxY) / 2;
+  const oz = (minZ + maxZ) / 2;
+
+  const progressStep = Math.max(1, Math.floor(readCount / 50));
+  for (let i = 0; i < readCount; i++) {
+    const o = offsetToData + i * pointSize;
+    const xi = dv.getInt32(o, true);
+    const yi = dv.getInt32(o + 4, true);
+    const zi = dv.getInt32(o + 8, true);
+    const intens = dv.getUint16(o + 12, true);
+
+    const x = xi * scaleX + offX - ox;
+    const y = yi * scaleY + offY - oy;
+    const z = zi * scaleZ + offZ - oz;
+
+    positions[i * 3]     = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+    intensity[i] = intens;
+
+    if (hasRGB) {
+      const r = dv.getUint16(o + rgbOffset, true);
+      const g = dv.getUint16(o + rgbOffset + 2, true);
+      const b = dv.getUint16(o + rgbOffset + 4, true);
+      // LAS RGB is 16-bit; downscale to 8-bit (many files store 8-bit values in 16-bit fields, so detect)
+      // Heuristic: if any channel exceeds 255, treat as full 16-bit
+      colors[i * 3]     = r > 255 ? (r >> 8) : r;
+      colors[i * 3 + 1] = g > 255 ? (g >> 8) : g;
+      colors[i * 3 + 2] = b > 255 ? (b >> 8) : b;
+    }
+
+    if (onProgress && i % progressStep === 0) onProgress(i / readCount);
+  }
+
+  // Recenter bounds
+  const bounds = {
+    min: [minX - ox, minY - oy, minZ - oz],
+    max: [maxX - ox, maxY - oy, maxZ - oz],
+    origin: [ox, oy, oz]  // true world origin we subtracted
+  };
+
+  return {
+    positions, colors, intensity,
+    bounds,
+    pointCount: readCount,
+    truncated: readCount < pointCount,
+    totalInFile: pointCount,
+    format: `LAS ${versionMajor}.${versionMinor} PF${pointFormat}`,
+    hasRGB,
+    hasIntensity: true
+  };
+}
+
+// ----- PLY parser (ASCII + binary little-endian) -----
+async function parsePLY(buffer, onProgress) {
+  const u8 = new Uint8Array(buffer);
+  // Read header as text until "end_header\n"
+  let headerText = '';
+  let i = 0;
+  const maxHeader = Math.min(buffer.byteLength, 65536);
+  for (; i < maxHeader; i++) {
+    headerText += String.fromCharCode(u8[i]);
+    if (headerText.endsWith('end_header\n') || headerText.endsWith('end_header\r\n')) {
+      i++;
+      break;
+    }
+  }
+  if (!headerText.includes('end_header')) throw new Error('Not a PLY file or header too long');
+
+  const lines = headerText.split(/\r?\n/);
+  if (lines[0] !== 'ply') throw new Error('Not a PLY file (missing magic)');
+  let fmt = null;
+  const elements = [];
+  let currentElement = null;
+  for (let k = 1; k < lines.length; k++) {
+    const line = lines[k].trim();
+    if (line.startsWith('format ')) fmt = line.substring(7).split(' ')[0];
+    else if (line.startsWith('element ')) {
+      const parts = line.split(/\s+/);
+      currentElement = { name: parts[1], count: parseInt(parts[2], 10), props: [] };
+      elements.push(currentElement);
+    } else if (line.startsWith('property ') && currentElement) {
+      const parts = line.split(/\s+/);
+      if (parts[1] === 'list') {
+        currentElement.props.push({ name: parts[4], type: 'list', countType: parts[2], itemType: parts[3] });
+      } else {
+        currentElement.props.push({ name: parts[2], type: parts[1] });
+      }
+    }
+  }
+
+  const vertexEl = elements.find(e => e.name === 'vertex');
+  if (!vertexEl) throw new Error('PLY has no vertex element');
+
+  const pc = vertexEl.count;
+  if (pc === 0) throw new Error('PLY has zero vertices');
+
+  const positions = new Float32Array(pc * 3);
+  let colors = null, intensity = null;
+  const propNames = vertexEl.props.map(p => p.name);
+  const hasRGB = propNames.includes('red') || propNames.includes('r');
+  const hasInt = propNames.includes('intensity') || propNames.includes('scalar_intensity');
+  if (hasRGB) colors = new Uint8Array(pc * 3);
+  if (hasInt) intensity = new Uint16Array(pc);
+
+  const props = vertexEl.props;
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  if (fmt === 'ascii') {
+    // Parse ascii body (rest of file after headerText)
+    const body = new TextDecoder('ascii').decode(u8.subarray(i));
+    const bodyLines = body.split(/\r?\n/);
+    let li = 0;
+    const progressStep = Math.max(1, Math.floor(pc / 50));
+    for (let p = 0; p < pc; p++) {
+      while (li < bodyLines.length && bodyLines[li].trim() === '') li++;
+      if (li >= bodyLines.length) throw new Error('PLY ascii: unexpected EOF');
+      const tokens = bodyLines[li++].trim().split(/\s+/);
+      let t = 0;
+      let x = 0, y = 0, z = 0, r = 0, g = 0, b = 0, it = 0;
+      for (const pr of props) {
+        if (pr.type === 'list') {
+          const n = parseInt(tokens[t++], 10);
+          t += n;
+          continue;
+        }
+        const v = parseFloat(tokens[t++]);
+        if (pr.name === 'x') x = v;
+        else if (pr.name === 'y') y = v;
+        else if (pr.name === 'z') z = v;
+        else if (pr.name === 'red' || pr.name === 'r') r = v;
+        else if (pr.name === 'green' || pr.name === 'g') g = v;
+        else if (pr.name === 'blue' || pr.name === 'b') b = v;
+        else if (pr.name === 'intensity' || pr.name === 'scalar_intensity') it = v;
+      }
+      positions[p*3] = x; positions[p*3+1] = y; positions[p*3+2] = z;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      if (colors) {
+        colors[p*3] = r | 0; colors[p*3+1] = g | 0; colors[p*3+2] = b | 0;
+      }
+      if (intensity) intensity[p] = it | 0;
+      if (onProgress && p % progressStep === 0) onProgress(p / pc);
+    }
+  } else if (fmt === 'binary_little_endian' || fmt === 'binary_big_endian') {
+    const le = (fmt === 'binary_little_endian');
+    const dv = new DataView(buffer, i);
+    let off = 0;
+    // Calculate record size for speed
+    const sizeOf = (t) => ({
+      char:1, uchar:1, 'int8':1, 'uint8':1,
+      short:2, ushort:2, 'int16':2, 'uint16':2,
+      int:4, uint:4, 'int32':4, 'uint32':4,
+      float:4, 'float32':4,
+      double:8, 'float64':8
+    }[t] || 0);
+    const progressStep = Math.max(1, Math.floor(pc / 50));
+    for (let p = 0; p < pc; p++) {
+      let x = 0, y = 0, z = 0, r = 0, g = 0, b = 0, it = 0;
+      for (const pr of props) {
+        if (pr.type === 'list') {
+          const cs = sizeOf(pr.countType);
+          const ns = sizeOf(pr.itemType);
+          const count = readVal(dv, off, pr.countType, le);
+          off += cs;
+          off += count * ns;
+          continue;
+        }
+        const s = sizeOf(pr.type);
+        if (s === 0) throw new Error('PLY: unknown type ' + pr.type);
+        const v = readVal(dv, off, pr.type, le);
+        off += s;
+        if (pr.name === 'x') x = v;
+        else if (pr.name === 'y') y = v;
+        else if (pr.name === 'z') z = v;
+        else if (pr.name === 'red' || pr.name === 'r') r = v;
+        else if (pr.name === 'green' || pr.name === 'g') g = v;
+        else if (pr.name === 'blue' || pr.name === 'b') b = v;
+        else if (pr.name === 'intensity' || pr.name === 'scalar_intensity') it = v;
+      }
+      positions[p*3] = x; positions[p*3+1] = y; positions[p*3+2] = z;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      if (colors) {
+        colors[p*3] = r & 0xFF; colors[p*3+1] = g & 0xFF; colors[p*3+2] = b & 0xFF;
+      }
+      if (intensity) intensity[p] = it & 0xFFFF;
+      if (onProgress && p % progressStep === 0) onProgress(p / pc);
+    }
+  } else {
+    throw new Error('PLY format not supported: ' + fmt);
+  }
+
+  // Recenter for precision
+  const ox = (minX + maxX) / 2;
+  const oy = (minY + maxY) / 2;
+  const oz = (minZ + maxZ) / 2;
+  for (let p = 0; p < pc; p++) {
+    positions[p*3]   -= ox;
+    positions[p*3+1] -= oy;
+    positions[p*3+2] -= oz;
+  }
+
+  return {
+    positions, colors, intensity,
+    bounds: { min: [minX-ox, minY-oy, minZ-oz], max: [maxX-ox, maxY-oy, maxZ-oz], origin: [ox, oy, oz] },
+    pointCount: pc,
+    format: 'PLY ' + fmt,
+    hasRGB, hasIntensity: hasInt
+  };
+}
+
+function readVal(dv, off, type, le) {
+  switch (type) {
+    case 'char': case 'int8': return dv.getInt8(off);
+    case 'uchar': case 'uint8': return dv.getUint8(off);
+    case 'short': case 'int16': return dv.getInt16(off, le);
+    case 'ushort': case 'uint16': return dv.getUint16(off, le);
+    case 'int': case 'int32': return dv.getInt32(off, le);
+    case 'uint': case 'uint32': return dv.getUint32(off, le);
+    case 'float': case 'float32': return dv.getFloat32(off, le);
+    case 'double': case 'float64': return dv.getFloat64(off, le);
+  }
+  return 0;
+}
+
+// ----- XYZ / TXT parser -----
+async function parseXYZ(buffer, onProgress) {
+  const text = new TextDecoder('utf-8').decode(buffer);
+  const lines = text.split(/\r?\n/);
+
+  // Quick scan: find first non-empty, non-comment line
+  let sample = null;
+  let startLine = 0;
+  for (let i = 0; i < lines.length && i < 20; i++) {
+    const l = lines[i].trim();
+    if (l && !l.startsWith('#') && !l.startsWith('//')) {
+      sample = l;
+      startLine = i;
+      break;
+    }
+  }
+  if (!sample) throw new Error('XYZ file appears empty');
+
+  // Determine separator and columns
+  const parts = sample.split(/[\s,;\t]+/).filter(p => p.length > 0);
+  const ncols = parts.length;
+  if (ncols < 3) throw new Error('XYZ file needs at least 3 columns (X Y Z)');
+
+  // Parse all lines - first pass: count valid lines
+  let count = 0;
+  for (let i = startLine; i < lines.length; i++) {
+    const l = lines[i];
+    if (l.length > 0 && l.charCodeAt(0) !== 35 /*#*/) count++;
+  }
+  if (count === 0) throw new Error('XYZ file has no data lines');
+
+  const positions = new Float32Array(count * 3);
+  const hasRGB = (ncols >= 6);
+  const colors = hasRGB ? new Uint8Array(count * 3) : null;
+
+  // Detect if colors are 0-1 floats or 0-255 ints (sample-based)
+  let colorMax = 0;
+  if (hasRGB) {
+    for (let i = startLine; i < Math.min(startLine + 100, lines.length); i++) {
+      const l = lines[i].trim();
+      if (!l || l.startsWith('#')) continue;
+      const tk = l.split(/[\s,;\t]+/).filter(p => p.length > 0);
+      if (tk.length >= 6) {
+        for (let c = 3; c < 6; c++) {
+          const v = parseFloat(tk[c]);
+          if (isFinite(v) && v > colorMax) colorMax = v;
+        }
+      }
+    }
+  }
+  const colorScale = (colorMax > 1.0) ? 1 : 255;
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let idx = 0;
+  const progressStep = Math.max(1, Math.floor(count / 50));
+
+  for (let i = startLine; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l || l.charCodeAt(0) === 35) continue;
+    const tk = l.split(/[\s,;\t]+/).filter(p => p.length > 0);
+    if (tk.length < 3) continue;
+    const x = parseFloat(tk[0]);
+    const y = parseFloat(tk[1]);
+    const z = parseFloat(tk[2]);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
+    positions[idx*3]   = x;
+    positions[idx*3+1] = y;
+    positions[idx*3+2] = z;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    if (colors && tk.length >= 6) {
+      const r = parseFloat(tk[3]);
+      const g = parseFloat(tk[4]);
+      const b = parseFloat(tk[5]);
+      colors[idx*3]   = Math.max(0, Math.min(255, (r * colorScale) | 0));
+      colors[idx*3+1] = Math.max(0, Math.min(255, (g * colorScale) | 0));
+      colors[idx*3+2] = Math.max(0, Math.min(255, (b * colorScale) | 0));
+    }
+    idx++;
+    if (onProgress && idx % progressStep === 0) onProgress(idx / count);
+  }
+
+  // Truncate to actual valid points
+  const finalPos = idx < count ? positions.slice(0, idx*3) : positions;
+  const finalColors = colors && idx < count ? colors.slice(0, idx*3) : colors;
+
+  // Recenter
+  const ox = (minX + maxX) / 2;
+  const oy = (minY + maxY) / 2;
+  const oz = (minZ + maxZ) / 2;
+  for (let p = 0; p < idx; p++) {
+    finalPos[p*3]   -= ox;
+    finalPos[p*3+1] -= oy;
+    finalPos[p*3+2] -= oz;
+  }
+
+  return {
+    positions: finalPos, colors: finalColors, intensity: null,
+    bounds: { min: [minX-ox, minY-oy, minZ-oz], max: [maxX-ox, maxY-oy, maxZ-oz], origin: [ox, oy, oz] },
+    pointCount: idx,
+    format: 'XYZ/TXT',
+    hasRGB, hasIntensity: false
+  };
+}
+
+/* ================================================================== *
+ *  WEBGL2 RENDERER
+ * ================================================================== */
+
+const gl = glCanvas.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true });
+if (!gl) {
+  showToast('WebGL2 not supported in this browser', 'error', 6000);
+  document.getElementById('welcome').innerHTML = '<div style="color: var(--red); font-size: 14px;">WebGL2 is required but not available in this browser.</div>';
+}
+
+const VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aColor;
+layout(location=2) in float aIntensity;
+
+uniform mat4 uProj;
+uniform mat4 uView;
+uniform float uPointSize;
+uniform float uDistScale;
+uniform int uColorMode;   // 0=rgb, 1=elevation, 2=intensity, 3=single
+uniform vec3 uSingleColor;
+uniform float uMinZ;
+uniform float uMaxZ;
+uniform float uMaxIntensity;
+
+out vec3 vColor;
+out float vDepth;
+
+vec3 rampViridis(float t) {
+  t = clamp(t, 0.0, 1.0);
+  vec3 c0 = vec3(0.267, 0.005, 0.329);   // purple
+  vec3 c1 = vec3(0.129, 0.553, 0.551);   // teal
+  vec3 c2 = vec3(0.992, 0.906, 0.145);   // yellow
+  if (t < 0.5) return mix(c0, c1, t * 2.0);
+  return mix(c1, c2, (t - 0.5) * 2.0);
+}
+vec3 rampHeat(float t) {
+  t = clamp(t, 0.0, 1.0);
+  vec3 a = vec3(0.02, 0.10, 0.20);
+  vec3 b = vec3(0.00, 0.83, 1.00);
+  vec3 c = vec3(1.00, 0.60, 0.00);
+  vec3 d = vec3(1.00, 1.00, 0.85);
+  if (t < 0.33) return mix(a, b, t / 0.33);
+  if (t < 0.66) return mix(b, c, (t - 0.33) / 0.33);
+  return mix(c, d, (t - 0.66) / 0.34);
+}
+
+void main() {
+  vec4 vp = uView * vec4(aPos, 1.0);
+  gl_Position = uProj * vp;
+  vDepth = -vp.z;
+
+  // Point size: scale by distance from camera (smaller if far away)
+  float ps = uPointSize * (uDistScale / max(vDepth, 0.1));
+  gl_PointSize = clamp(ps, 0.5, 50.0);
+
+  if (uColorMode == 0) {
+    vColor = aColor;
+  } else if (uColorMode == 1) {
+    float t = (aPos.z - uMinZ) / max(uMaxZ - uMinZ, 0.0001);
+    vColor = rampHeat(t);
+  } else if (uColorMode == 2) {
+    float t = aIntensity / max(uMaxIntensity, 1.0);
+    vColor = rampViridis(t);
+  } else {
+    vColor = uSingleColor;
+  }
+}
+`;
+
+const FS = `#version 300 es
+precision highp float;
+in vec3 vColor;
+in float vDepth;
+out vec4 outColor;
+
+uniform float uFogStart;
+uniform float uFogEnd;
+uniform float uFogStrength;
+uniform vec3 uFogColor;
+
+void main() {
+  // Circular point sprites
+  vec2 c = gl_PointCoord - vec2(0.5);
+  float d = dot(c, c);
+  if (d > 0.25) discard;
+
+  // Slight anti-alias at edge
+  float edge = 1.0 - smoothstep(0.20, 0.25, d);
+
+  // Fog
+  float f = clamp((vDepth - uFogStart) / max(uFogEnd - uFogStart, 0.01), 0.0, 1.0);
+  f *= uFogStrength;
+  vec3 col = mix(vColor, uFogColor, f);
+
+  outColor = vec4(col, edge);
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    const err = gl.getShaderInfoLog(sh);
+    gl.deleteShader(sh);
+    throw new Error('Shader compile error: ' + err);
+  }
+  return sh;
+}
+function linkProgram(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, vs);
+  gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error('Program link error: ' + gl.getProgramInfoLog(p));
+  }
+  return p;
+}
+
+let program = null;
+const uniforms = {};
+let vao = null;
+let posBuf = null, colorBuf = null, intensityBuf = null;
+
+// ----- Line shader (for measurement line) -----
+const VS_LINE = `#version 300 es
+layout(location=0) in vec3 aPos;
+uniform mat4 uProj;
+uniform mat4 uView;
+void main() { gl_Position = uProj * uView * vec4(aPos, 1.0); }
+`;
+const FS_LINE = `#version 300 es
+precision mediump float;
+uniform vec3 uColor;
+out vec4 outColor;
+void main() { outColor = vec4(uColor, 1.0); }
+`;
+let lineProgram = null, lineUnif = {}, lineVAO = null, lineBuf = null;
+
+try {
+  if (gl) {
+    const vs = compileShader(gl.VERTEX_SHADER, VS);
+    const fs = compileShader(gl.FRAGMENT_SHADER, FS);
+    program = linkProgram(vs, fs);
+    gl.deleteShader(vs); gl.deleteShader(fs);
+
+    uniforms.uProj = gl.getUniformLocation(program, 'uProj');
+    uniforms.uView = gl.getUniformLocation(program, 'uView');
+    uniforms.uPointSize = gl.getUniformLocation(program, 'uPointSize');
+    uniforms.uDistScale = gl.getUniformLocation(program, 'uDistScale');
+    uniforms.uColorMode = gl.getUniformLocation(program, 'uColorMode');
+    uniforms.uSingleColor = gl.getUniformLocation(program, 'uSingleColor');
+    uniforms.uMinZ = gl.getUniformLocation(program, 'uMinZ');
+    uniforms.uMaxZ = gl.getUniformLocation(program, 'uMaxZ');
+    uniforms.uMaxIntensity = gl.getUniformLocation(program, 'uMaxIntensity');
+    uniforms.uFogStart = gl.getUniformLocation(program, 'uFogStart');
+    uniforms.uFogEnd = gl.getUniformLocation(program, 'uFogEnd');
+    uniforms.uFogStrength = gl.getUniformLocation(program, 'uFogStrength');
+    uniforms.uFogColor = gl.getUniformLocation(program, 'uFogColor');
+
+    vao = gl.createVertexArray();
+    posBuf = gl.createBuffer();
+    colorBuf = gl.createBuffer();
+    intensityBuf = gl.createBuffer();
+
+    // Line program
+    const lvs = compileShader(gl.VERTEX_SHADER, VS_LINE);
+    const lfs = compileShader(gl.FRAGMENT_SHADER, FS_LINE);
+    lineProgram = linkProgram(lvs, lfs);
+    gl.deleteShader(lvs); gl.deleteShader(lfs);
+    lineUnif.uProj = gl.getUniformLocation(lineProgram, 'uProj');
+    lineUnif.uView = gl.getUniformLocation(lineProgram, 'uView');
+    lineUnif.uColor = gl.getUniformLocation(lineProgram, 'uColor');
+    lineVAO = gl.createVertexArray();
+    lineBuf = gl.createBuffer();
+    gl.bindVertexArray(lineVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearColor(0.02, 0.04, 0.06, 1.0);
+  }
+} catch (e) {
+  console.error(e);
+  showToast('WebGL init failed: ' + e.message, 'error', 6000);
+}
+
+/* ================================================================== *
+ *  STATE
+ * ================================================================== */
+const state = {
+  cloud: null,           // {positions, colors, intensity, bounds, pointCount, ...}
+  renderPos: null,       // subsampled Float32Array
+  renderColors: null,
+  renderIntensity: null,
+  renderCount: 0,
+  posBuffered: 0,        // how many currently in GL buffers
+  maxIntensity: 1,
+
+  subsamplePct: parseInt(lsGet(LS.subsample, '100'), 10),
+  pointSize: parseFloat(lsGet(LS.psize, '2.5')),
+  colorMode: lsGet(LS.colorMode, 'elevation'),
+  fog: parseFloat(lsGet(LS.fog, '0.55')),
+  singleColor: [0, 0.83, 1.0],
+
+  // Camera (orbit)
+  camTarget: vec3(0, 0, 0),
+  camDist: 10,
+  camYaw: Math.PI * 0.25,
+  camPitch: Math.PI * 0.2,
+  camFov: 55 * Math.PI / 180,
+  camNear: 0.1,
+  camFar: 1000,
+  camEye: vec3(0, 0, 10),
+
+  // Measurement
+  measureMode: false,
+  measureP1: null,
+  measureP2: null,
+
+  // FPS tracking
+  fpsFrames: 0,
+  fpsLast: performance.now(),
+  fpsVal: 0,
+
+  dpr: Math.min(window.devicePixelRatio || 1, 2)
+};
+
+/* ================================================================== *
+ *  CAMERA / VIEW
+ * ================================================================== */
+function updateCamEye() {
+  const cp = Math.cos(state.camPitch);
+  const sp = Math.sin(state.camPitch);
+  const cy = Math.cos(state.camYaw);
+  const sy = Math.sin(state.camYaw);
+  state.camEye[0] = state.camTarget[0] + state.camDist * cp * cy;
+  state.camEye[1] = state.camTarget[1] + state.camDist * cp * sy;
+  state.camEye[2] = state.camTarget[2] + state.camDist * sp;
+}
+
+function fitView(margin = 1.2) {
+  if (!state.cloud) return;
+  const b = state.cloud.bounds;
+  const cx = (b.min[0] + b.max[0]) / 2;
+  const cy = (b.min[1] + b.max[1]) / 2;
+  const cz = (b.min[2] + b.max[2]) / 2;
+  const sx = b.max[0] - b.min[0];
+  const sy = b.max[1] - b.min[1];
+  const sz = b.max[2] - b.min[2];
+  const radius = 0.5 * Math.hypot(sx, sy, sz);
+  state.camTarget = vec3(cx, cy, cz);
+  state.camDist = Math.max(0.01, radius * margin / Math.tan(state.camFov / 2));
+  state.camNear = Math.max(0.01, state.camDist * 0.005);
+  state.camFar = state.camDist * 10 + radius * 3;
+  state.camYaw = Math.PI * 0.3;
+  state.camPitch = Math.PI * 0.22;
+  updateCamEye();
+}
+
+function resetCam() {
+  state.camYaw = Math.PI * 0.3;
+  state.camPitch = Math.PI * 0.22;
+  if (state.cloud) fitView();
+}
+
+function setViewTop() {
+  if (!state.cloud) return;
+  fitView();
+  state.camYaw = 0;
+  state.camPitch = Math.PI * 0.49;
+  updateCamEye();
+}
+function setViewSide() {
+  if (!state.cloud) return;
+  fitView();
+  state.camYaw = 0;
+  state.camPitch = 0;
+  updateCamEye();
+}
+function setViewIso() {
+  if (!state.cloud) return;
+  fitView();
+  state.camYaw = Math.PI * 0.3;
+  state.camPitch = Math.PI * 0.22;
+  updateCamEye();
+}
+
+/* ================================================================== *
+ *  RESIZE
+ * ================================================================== */
+function resize() {
+  const rect = viewport.getBoundingClientRect();
+  const dpr = state.dpr;
+  const w = Math.max(1, Math.floor(rect.width * dpr));
+  const h = Math.max(1, Math.floor(rect.height * dpr));
+  if (glCanvas.width !== w || glCanvas.height !== h) {
+    glCanvas.width = w;
+    glCanvas.height = h;
+  }
+  overlayCanvas.width = w;
+  overlayCanvas.height = h;
+  glCanvas.style.width = rect.width + 'px';
+  glCanvas.style.height = rect.height + 'px';
+  overlayCanvas.style.width = rect.width + 'px';
+  overlayCanvas.style.height = rect.height + 'px';
+  if (gl) gl.viewport(0, 0, w, h);
+}
+window.addEventListener('resize', resize);
+
+/* ================================================================== *
+ *  CAMERA INPUT
+ * ================================================================== */
+let drag = null;  // { x, y, mode: 'rotate'|'pan', lastT, isMulti:false }
+let pinchStartDist = 0, pinchStartCamDist = 0;
+
+function onPointerDown(e) {
+  // For mobile: handle pointer events but check touches count separately
+  glCanvas.setPointerCapture && glCanvas.setPointerCapture(e.pointerId);
+
+  if (state.measureMode) {
+    const rect = glCanvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    pickPointForMeasure(cx, cy);
+    e.preventDefault();
+    return;
+  }
+
+  drag = {
+    x: e.clientX, y: e.clientY,
+    mode: e.shiftKey || e.button === 1 || e.button === 2 ? 'pan' : 'rotate',
+    pointerId: e.pointerId,
+    moved: false
+  };
+  e.preventDefault();
+}
+function onPointerMove(e) {
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  const dx = e.clientX - drag.x;
+  const dy = e.clientY - drag.y;
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) drag.moved = true;
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+
+  if (drag.mode === 'rotate') {
+    state.camYaw -= dx * 0.005;
+    state.camPitch += dy * 0.005;
+    state.camPitch = Math.max(-Math.PI*0.49, Math.min(Math.PI*0.49, state.camPitch));
+    updateCamEye();
+  } else if (drag.mode === 'pan') {
+    // Pan target in camera plane
+    const forward = vnorm(vsub(state.camTarget, state.camEye));
+    const right = vnorm(vcross(forward, vec3(0,0,1)));
+    const up = vnorm(vcross(right, forward));
+    const scale = state.camDist * 0.0015;
+    const panX = vscale(right, -dx * scale);
+    const panY = vscale(up, dy * scale);
+    state.camTarget = vadd(state.camTarget, vadd(panX, panY));
+    updateCamEye();
+  }
+  e.preventDefault();
+}
+function onPointerUp(e) {
+  if (drag && e.pointerId === drag.pointerId) drag = null;
+}
+
+glCanvas.addEventListener('pointerdown', onPointerDown);
+glCanvas.addEventListener('pointermove', onPointerMove);
+glCanvas.addEventListener('pointerup', onPointerUp);
+glCanvas.addEventListener('pointercancel', onPointerUp);
+glCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Touch pinch-zoom (using raw touch events for multi-touch pinch)
+let activeTouches = [];
+glCanvas.addEventListener('touchstart', (e) => {
+  activeTouches = Array.from(e.touches);
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchStartDist = Math.hypot(dx, dy);
+    pinchStartCamDist = state.camDist;
+    drag = null;
+    e.preventDefault();
+  }
+}, { passive: false });
+glCanvas.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && pinchStartDist > 0) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const d = Math.hypot(dx, dy);
+    const factor = pinchStartDist / Math.max(d, 1);
+    state.camDist = Math.max(0.01, pinchStartCamDist * factor);
+    updateCamEye();
+    e.preventDefault();
+  }
+}, { passive: false });
+glCanvas.addEventListener('touchend', (e) => {
+  activeTouches = Array.from(e.touches);
+  if (e.touches.length < 2) pinchStartDist = 0;
+});
+
+// Wheel zoom
+glCanvas.addEventListener('wheel', (e) => {
+  const factor = Math.exp(e.deltaY * 0.001);
+  state.camDist = Math.max(0.01, state.camDist * factor);
+  updateCamEye();
+  e.preventDefault();
+}, { passive: false });
+
+// Keyboard
+window.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+  if (e.key === 'f' || e.key === 'F') { fitView(); }
+  else if (e.key === 'r' || e.key === 'R') { resetCam(); }
+  else if (e.key === 'm' || e.key === 'M') { toggleMeasure(); }
+  else if (e.key === '1') setViewTop();
+  else if (e.key === '2') setViewSide();
+  else if (e.key === '3') setViewIso();
+});
+
+/* ================================================================== *
+ *  PICKING (for measure tool)
+ *  For performance on huge clouds, we rasterize points to a low-res
+ *  pick buffer in JS using only the rendered (subsampled) points.
+ * ================================================================== */
+function pickPointForMeasure(mouseX, mouseY) {
+  if (!state.cloud) return;
+  const dpr = state.dpr;
+  const px = mouseX * dpr;
+  const py = mouseY * dpr;
+
+  // Build projection * view
+  const aspect = glCanvas.width / Math.max(glCanvas.height, 1);
+  const proj = mat4Perspective(state.camFov, aspect, state.camNear, state.camFar);
+  const view = mat4LookAt(state.camEye, state.camTarget, vec3(0,0,1));
+  const mvp = mat4Mul(proj, view);
+
+  const W = glCanvas.width, H = glCanvas.height;
+  let bestIdx = -1;
+  let bestZ = Infinity;
+  const threshold = 20 * dpr;  // 20px tolerance in screen space
+
+  const pos = state.renderPos;
+  const N = state.renderCount;
+  for (let i = 0; i < N; i++) {
+    const x = pos[i*3], y = pos[i*3+1], z = pos[i*3+2];
+    // Transform by mvp
+    const wx = mvp[0]*x + mvp[4]*y + mvp[8]*z + mvp[12];
+    const wy = mvp[1]*x + mvp[5]*y + mvp[9]*z + mvp[13];
+    const wz = mvp[2]*x + mvp[6]*y + mvp[10]*z + mvp[14];
+    const ww = mvp[3]*x + mvp[7]*y + mvp[11]*z + mvp[15];
+    if (ww <= 0) continue;
+    const sx = (wx / ww + 1) * 0.5 * W;
+    const sy = (1 - (wy / ww + 1) * 0.5) * H;
+    const dx = sx - px, dy = sy - py;
+    const distSq = dx*dx + dy*dy;
+    if (distSq > threshold * threshold) continue;
+    // Use depth (wz/ww) as tiebreaker (closest to camera wins)
+    const depth = wz / ww;
+    if (depth < -1 || depth > 1) continue;
+    if (depth < bestZ) {
+      bestZ = depth;
+      bestIdx = i;
+    }
+  }
+
+  if (bestIdx < 0) {
+    showToast('No point found near cursor', 'error', 1400);
+    return;
+  }
+  const p = vec3(state.renderPos[bestIdx*3], state.renderPos[bestIdx*3+1], state.renderPos[bestIdx*3+2]);
+
+  if (!state.measureP1) {
+    state.measureP1 = p;
+    state.measureP2 = null;
+  } else if (!state.measureP2) {
+    state.measureP2 = p;
+  } else {
+    // Reset and start over
+    state.measureP1 = p;
+    state.measureP2 = null;
+  }
+  updateMeasureUI();
+}
+
+function updateMeasureUI() {
+  const resultsDiv = $('measResults');
+  const badge = $('measBadge');
+  badge.className = 'badge ' + (state.measureMode ? 'orange' : '');
+  badge.textContent = state.measureMode ? 'ON' : 'OFF';
+
+  if (state.measureP1 || state.measureP2) {
+    resultsDiv.style.display = 'block';
+  } else {
+    resultsDiv.style.display = 'none';
+  }
+
+  const origin = state.cloud ? state.cloud.bounds.origin : [0,0,0];
+  const fmt = (v) => v.toFixed(2);
+  const fmtPt = (p) => `${fmt(p[0]+origin[0])}, ${fmt(p[1]+origin[1])}, ${fmt(p[2]+origin[2])}`;
+
+  $('measP1').textContent = state.measureP1 ? fmtPt(state.measureP1) : '-';
+  $('measP2').textContent = state.measureP2 ? fmtPt(state.measureP2) : '-';
+  if (state.measureP1 && state.measureP2) {
+    const d = vsub(state.measureP2, state.measureP1);
+    const d3 = vlen(d);
+    const d2 = Math.hypot(d[0], d[1]);
+    const dz = d[2];
+    $('meas3D').textContent = fmt(d3) + ' u';
+    $('meas2D').textContent = fmt(d2) + ' u';
+    $('measDZ').textContent = fmt(dz) + ' u';
+  } else {
+    $('meas3D').textContent = '-';
+    $('meas2D').textContent = '-';
+    $('measDZ').textContent = '-';
+  }
+}
+
+function toggleMeasure() {
+  state.measureMode = !state.measureMode;
+  if (!state.measureMode) {
+    // Don't clear p1/p2 on toggle off; let user keep seeing last measurement
+  }
+  updateMeasureUI();
+  showToast(state.measureMode ? 'Measure mode: ON (click two points)' : 'Measure mode: OFF', '');
+}
+
+/* ================================================================== *
+ *  SUBSAMPLE & UPLOAD
+ * ================================================================== */
+function applySubsample() {
+  if (!state.cloud) return;
+  const pct = state.subsamplePct;
+  const total = state.cloud.pointCount;
+  let keep = Math.round(total * (pct / 100));
+  if (keep < 10) keep = Math.min(10, total);
+  if (keep > total) keep = total;
+
+  // Also cap at 8M for GPU memory safety
+  const HARD_CAP = 8_000_000;
+  keep = Math.min(keep, HARD_CAP);
+
+  state.renderCount = keep;
+
+  if (keep === total) {
+    // Use the arrays directly
+    state.renderPos = state.cloud.positions;
+    state.renderColors = state.cloud.colors;
+    state.renderIntensity = state.cloud.intensity;
+  } else {
+    // Random subsample (reservoir sampling — but for simplicity, use stride + jitter)
+    state.renderPos = new Float32Array(keep * 3);
+    state.renderColors = state.cloud.colors ? new Uint8Array(keep * 3) : null;
+    state.renderIntensity = state.cloud.intensity ? new Float32Array(keep) : null;
+    // Deterministic pseudo-random stride-based sampling
+    const step = total / keep;
+    for (let i = 0; i < keep; i++) {
+      const src = Math.floor(i * step + Math.random() * step) % total;
+      state.renderPos[i*3]   = state.cloud.positions[src*3];
+      state.renderPos[i*3+1] = state.cloud.positions[src*3+1];
+      state.renderPos[i*3+2] = state.cloud.positions[src*3+2];
+      if (state.renderColors) {
+        state.renderColors[i*3]   = state.cloud.colors[src*3];
+        state.renderColors[i*3+1] = state.cloud.colors[src*3+1];
+        state.renderColors[i*3+2] = state.cloud.colors[src*3+2];
+      }
+      if (state.renderIntensity) {
+        state.renderIntensity[i] = state.cloud.intensity[src];
+      }
+    }
+  }
+
+  // Compute max intensity for color ramping
+  if (state.renderIntensity) {
+    let mx = 1;
+    const sampleN = Math.min(state.renderIntensity.length, 100000);
+    for (let i = 0; i < sampleN; i++) {
+      if (state.renderIntensity[i] > mx) mx = state.renderIntensity[i];
+    }
+    state.maxIntensity = mx;
+  } else {
+    state.maxIntensity = 1;
+  }
+
+  uploadToGPU();
+  updateStats();
+
+  // Update subsample badge
+  if (keep < total) {
+    $('hudSub').classList.remove('hidden');
+    $('subA').textContent = keep.toLocaleString();
+    $('subB').textContent = total.toLocaleString();
+  } else {
+    $('hudSub').classList.add('hidden');
+  }
+}
+
+function uploadToGPU() {
+  if (!gl || !state.renderPos) return;
+
+  gl.bindVertexArray(vao);
+
+  // Positions
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, state.renderPos, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+  // Colors — must always have a buffer for attribute 1
+  if (state.renderColors) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, state.renderColors, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.UNSIGNED_BYTE, true, 0, 0);
+  } else {
+    gl.disableVertexAttribArray(1);
+    gl.vertexAttrib3f(1, 0.6, 0.8, 1.0);
+  }
+
+  // Intensity
+  if (state.renderIntensity) {
+    // Convert to Float32 for simplicity
+    let intF32;
+    if (state.renderIntensity instanceof Float32Array) {
+      intF32 = state.renderIntensity;
+    } else {
+      intF32 = new Float32Array(state.renderIntensity.length);
+      for (let i = 0; i < state.renderIntensity.length; i++) {
+        intF32[i] = state.renderIntensity[i];
+      }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, intensityBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, intF32, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 0, 0);
+  } else {
+    gl.disableVertexAttribArray(2);
+    gl.vertexAttrib1f(2, 0.0);
+  }
+
+  gl.bindVertexArray(null);
+  state.posBuffered = state.renderCount;
+}
+
+/* ================================================================== *
+ *  RENDER LOOP
+ * ================================================================== */
+function render() {
+  if (!gl || !program) { requestAnimationFrame(render); return; }
+
+  // FPS
+  const now = performance.now();
+  state.fpsFrames++;
+  const dt = now - state.fpsLast;
+  if (dt >= 500) {
+    state.fpsVal = Math.round((state.fpsFrames * 1000) / dt);
+    state.fpsFrames = 0;
+    state.fpsLast = now;
+    $('hudFps').textContent = state.fpsVal;
+    $('hudCam').textContent = state.camDist.toFixed(1) + 'u';
+  }
+
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  if (state.renderCount > 0 && state.posBuffered > 0) {
+    const aspect = glCanvas.width / Math.max(glCanvas.height, 1);
+    const proj = mat4Perspective(state.camFov, aspect, state.camNear, state.camFar);
+    const view = mat4LookAt(state.camEye, state.camTarget, vec3(0,0,1));
+
+    gl.useProgram(program);
+    gl.uniformMatrix4fv(uniforms.uProj, false, proj);
+    gl.uniformMatrix4fv(uniforms.uView, false, view);
+    gl.uniform1f(uniforms.uPointSize, state.pointSize);
+    // Distance scaling: scale point size based on height of canvas (in pixels) and fov
+    const distScale = glCanvas.height / (2 * Math.tan(state.camFov / 2));
+    gl.uniform1f(uniforms.uDistScale, distScale);
+
+    const modeIdx = {rgb:0, elevation:1, intensity:2, single:3}[state.colorMode] ?? 1;
+    // Fall back to elevation if rgb selected but no colors
+    const effectiveMode = (modeIdx === 0 && !state.renderColors) ? 1 : modeIdx;
+    gl.uniform1i(uniforms.uColorMode, effectiveMode);
+    gl.uniform3fv(uniforms.uSingleColor, new Float32Array(state.singleColor));
+
+    const b = state.cloud ? state.cloud.bounds : { min:[0,0,0], max:[1,1,1] };
+    gl.uniform1f(uniforms.uMinZ, b.min[2]);
+    gl.uniform1f(uniforms.uMaxZ, b.max[2]);
+    gl.uniform1f(uniforms.uMaxIntensity, state.maxIntensity);
+
+    // Fog
+    gl.uniform1f(uniforms.uFogStart, state.camDist * 0.8);
+    gl.uniform1f(uniforms.uFogEnd, state.camFar * 0.7);
+    gl.uniform1f(uniforms.uFogStrength, state.fog);
+    gl.uniform3fv(uniforms.uFogColor, new Float32Array([0.02, 0.04, 0.06]));
+
+    gl.bindVertexArray(vao);
+    gl.drawArrays(gl.POINTS, 0, state.renderCount);
+    gl.bindVertexArray(null);
+
+    // Draw measurement line
+    if (state.measureP1 && state.measureP2) {
+      gl.useProgram(lineProgram);
+      gl.uniformMatrix4fv(lineUnif.uProj, false, proj);
+      gl.uniformMatrix4fv(lineUnif.uView, false, view);
+      gl.uniform3f(lineUnif.uColor, 1.0, 0.6, 0.0);
+      gl.bindVertexArray(lineVAO);
+      gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
+      const lineVerts = new Float32Array([
+        state.measureP1[0], state.measureP1[1], state.measureP1[2],
+        state.measureP2[0], state.measureP2[1], state.measureP2[2]
+      ]);
+      gl.bufferData(gl.ARRAY_BUFFER, lineVerts, gl.DYNAMIC_DRAW);
+      gl.disable(gl.DEPTH_TEST);
+      gl.drawArrays(gl.LINES, 0, 2);
+      gl.enable(gl.DEPTH_TEST);
+      gl.bindVertexArray(null);
+    }
+  }
+
+  // 2D overlay (measure points, labels)
+  drawOverlay();
+  drawAxisIndicator();
+
+  requestAnimationFrame(render);
+}
+
+function worldToScreen(p, W, H) {
+  const aspect = W / Math.max(H, 1);
+  const proj = mat4Perspective(state.camFov, aspect, state.camNear, state.camFar);
+  const view = mat4LookAt(state.camEye, state.camTarget, vec3(0,0,1));
+  const mvp = mat4Mul(proj, view);
+  const x = p[0], y = p[1], z = p[2];
+  const wx = mvp[0]*x + mvp[4]*y + mvp[8]*z + mvp[12];
+  const wy = mvp[1]*x + mvp[5]*y + mvp[9]*z + mvp[13];
+  const ww = mvp[3]*x + mvp[7]*y + mvp[11]*z + mvp[15];
+  if (ww <= 0) return null;
+  return {
+    x: (wx / ww + 1) * 0.5 * W,
+    y: (1 - (wy / ww + 1) * 0.5) * H
+  };
+}
+
+function drawOverlay() {
+  const ctx = overlayCanvas.getContext('2d');
+  const W = overlayCanvas.width, H = overlayCanvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!state.cloud) return;
+
+  // Draw measure points
+  const r = state.dpr * 7;
+  if (state.measureP1) {
+    const s = worldToScreen(state.measureP1, W, H);
+    if (s) {
+      ctx.strokeStyle = '#ff9900';
+      ctx.fillStyle = 'rgba(255, 153, 0, 0.2)';
+      ctx.lineWidth = 2 * state.dpr;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.font = `${11*state.dpr}px 'IBM Plex Mono', monospace`;
+      ctx.fillStyle = '#ff9900';
+      ctx.fillText('P1', s.x + r + 4*state.dpr, s.y + 4*state.dpr);
+    }
+  }
+  if (state.measureP2) {
+    const s = worldToScreen(state.measureP2, W, H);
+    if (s) {
+      ctx.strokeStyle = '#ff9900';
+      ctx.fillStyle = 'rgba(255, 153, 0, 0.2)';
+      ctx.lineWidth = 2 * state.dpr;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.font = `${11*state.dpr}px 'IBM Plex Mono', monospace`;
+      ctx.fillStyle = '#ff9900';
+      ctx.fillText('P2', s.x + r + 4*state.dpr, s.y + 4*state.dpr);
+    }
+  }
+  // Midpoint label with distance
+  if (state.measureP1 && state.measureP2) {
+    const mid = vec3(
+      (state.measureP1[0]+state.measureP2[0])/2,
+      (state.measureP1[1]+state.measureP2[1])/2,
+      (state.measureP1[2]+state.measureP2[2])/2
+    );
+    const s = worldToScreen(mid, W, H);
+    if (s) {
+      const d = vlen(vsub(state.measureP2, state.measureP1));
+      const text = `${d.toFixed(2)} u`;
+      ctx.font = `${12*state.dpr}px 'IBM Plex Mono', monospace`;
+      const tw = ctx.measureText(text).width;
+      const pad = 6 * state.dpr;
+      ctx.fillStyle = 'rgba(5, 10, 15, 0.92)';
+      ctx.strokeStyle = '#ff9900';
+      ctx.lineWidth = 1 * state.dpr;
+      const bx = s.x - tw/2 - pad, by = s.y - 8*state.dpr - pad;
+      ctx.fillRect(bx, by, tw + pad*2, 16*state.dpr + pad*2);
+      ctx.strokeRect(bx, by, tw + pad*2, 16*state.dpr + pad*2);
+      ctx.fillStyle = '#ff9900';
+      ctx.fillText(text, s.x - tw/2, s.y + 4*state.dpr);
+    }
+  }
+}
+
+function drawAxisIndicator() {
+  const ctx = axisCanvas.getContext('2d');
+  const W = axisCanvas.width, H = axisCanvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+  const len = Math.min(W, H) * 0.35;
+
+  // Build view rotation (just the orientation, not translation)
+  const cp = Math.cos(state.camPitch);
+  const sp = Math.sin(state.camPitch);
+  const cy_ = Math.cos(state.camYaw);
+  const sy_ = Math.sin(state.camYaw);
+  // Camera forward vector (from eye to target): opposite of eye direction
+  const fx = -cp * cy_, fy = -cp * sy_, fz = -sp;
+  const upX = 0, upY = 0, upZ = 1;
+  // right = normalize(cross(forward, up))
+  const rx = fy*upZ - fz*upY;
+  const ry = fz*upX - fx*upZ;
+  const rz = fx*upY - fy*upX;
+  const rlen = Math.hypot(rx, ry, rz);
+  const rxN = rx/rlen, ryN = ry/rlen, rzN = rz/rlen;
+  // up_cam = cross(right, forward)
+  const ux = ryN*fz - rzN*fy;
+  const uy = rzN*fx - rxN*fz;
+  const uz = rxN*fy - ryN*fx;
+  // World axes projected: x' = dot(axis, right), y' = -dot(axis, up)
+  const axes = [
+    { v:[1,0,0], c:'#ef4444', n:'X' },
+    { v:[0,1,0], c:'#10b981', n:'Y' },
+    { v:[0,0,1], c:'#00d4ff', n:'Z' }
+  ];
+  // Z-order: draw far first
+  axes.forEach(a => {
+    a.sx = a.v[0]*rxN + a.v[1]*ryN + a.v[2]*rzN;
+    a.sy = -(a.v[0]*ux + a.v[1]*uy + a.v[2]*uz);
+    a.sz = -(a.v[0]*fx + a.v[1]*fy + a.v[2]*fz);  // depth
+  });
+  axes.sort((a,b) => a.sz - b.sz);
+
+  ctx.lineCap = 'round';
+  ctx.font = `bold ${14}px 'IBM Plex Mono', monospace`;
+  axes.forEach(a => {
+    const ex = cx + a.sx * len;
+    const ey = cy + a.sy * len;
+    ctx.strokeStyle = a.c;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = a.c;
+    ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillText(a.n, ex + 4, ey + 4);
+  });
+  // Origin
+  ctx.fillStyle = 'rgba(0, 212, 255, 0.5)';
+  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
+}
+
+/* ================================================================== *
+ *  FILE HANDLING
+ * ================================================================== */
+async function loadFile(file) {
+  if (!file) return;
+  welcome.classList.add('hide');
+  showLoading('READING FILE...', 0);
+
+  const name = (file.name || '').toLowerCase();
+  const size = file.size || 0;
+
+  try {
+    showLoading('READING BUFFER...', 0.05);
+    const buffer = await file.arrayBuffer();
+    showLoading('PARSING...', 0.1);
+
+    let cloud = null;
+    if (name.endsWith('.las')) {
+      cloud = await parseLAS(buffer, (p) => showLoading('PARSING LAS...', 0.1 + p * 0.8));
+    } else if (name.endsWith('.laz')) {
+      hideLoading();
+      showToast('LAZ decompression not supported. Please extract to .las first (try laszip or QGIS).', 'error', 5200);
+      return;
+    } else if (name.endsWith('.ply')) {
+      cloud = await parsePLY(buffer, (p) => showLoading('PARSING PLY...', 0.1 + p * 0.8));
+    } else if (name.endsWith('.xyz') || name.endsWith('.txt')) {
+      cloud = await parseXYZ(buffer, (p) => showLoading('PARSING XYZ...', 0.1 + p * 0.8));
+    } else {
+      // Try to detect by signature
+      const u8 = new Uint8Array(buffer, 0, Math.min(16, buffer.byteLength));
+      const sig = String.fromCharCode(...u8.slice(0, 4));
+      if (sig === 'LASF') {
+        cloud = await parseLAS(buffer);
+      } else {
+        const asStr = String.fromCharCode(...u8);
+        if (asStr.startsWith('ply')) {
+          cloud = await parsePLY(buffer);
+        } else {
+          cloud = await parseXYZ(buffer);
+        }
+      }
+    }
+
+    if (!cloud) throw new Error('No cloud produced');
+    if (cloud.pointCount === 0) throw new Error('File contains no points');
+
+    showLoading('UPLOADING TO GPU...', 0.95);
+    await new Promise(r => setTimeout(r, 40));  // let UI paint
+
+    state.cloud = cloud;
+    state.cloud.fileName = file.name;
+    state.cloud.fileSize = size;
+
+    state.measureP1 = state.measureP2 = null;
+    updateMeasureUI();
+
+    // Auto subsample if huge
+    if (cloud.pointCount > 2_000_000) {
+      state.subsamplePct = Math.max(5, Math.round(2_000_000 / cloud.pointCount * 100));
+      $('subsample').value = state.subsamplePct;
+      $('subVal').textContent = state.subsamplePct + '%';
+    }
+
+    applySubsample();
+    fitView();
+
+    hideLoading();
+    showToast(`Loaded ${cloud.pointCount.toLocaleString()} points`, 'success', 2600);
+
+  } catch (e) {
+    hideLoading();
+    console.error(e);
+    showToast('Error: ' + e.message, 'error', 4500);
+    welcome.classList.remove('hide');
+  }
+}
+
+function updateStats() {
+  if (!state.cloud) {
+    $('statFile').textContent = 'none';
+    return;
+  }
+  const c = state.cloud;
+  $('statFile').textContent = c.fileName || 'unknown';
+  $('statFmt').textContent = c.format || '-';
+  $('statSize').textContent = formatBytes(c.fileSize || 0);
+  $('statPts').textContent = c.pointCount.toLocaleString();
+  $('statRend').textContent = state.renderCount.toLocaleString();
+  $('statRGB').textContent = c.hasRGB ? 'YES' : 'NO';
+  $('statInt').textContent = c.hasIntensity ? 'YES' : 'NO';
+
+  const b = c.bounds;
+  const o = b.origin;
+  const fmt = (v) => v.toFixed(2);
+  $('statMinX').textContent = fmt(b.min[0] + o[0]);
+  $('statMaxX').textContent = fmt(b.max[0] + o[0]);
+  $('statMinY').textContent = fmt(b.min[1] + o[1]);
+  $('statMaxY').textContent = fmt(b.max[1] + o[1]);
+  $('statMinZ').textContent = fmt(b.min[2] + o[2]);
+  $('statMaxZ').textContent = fmt(b.max[2] + o[2]);
+  $('statSzX').textContent = fmt(b.max[0] - b.min[0]);
+  $('statSzY').textContent = fmt(b.max[1] - b.min[1]);
+  $('statSzZ').textContent = fmt(b.max[2] - b.min[2]);
+
+  $('hudPts').textContent = state.renderCount.toLocaleString();
+}
+
+function formatBytes(n) {
+  if (n === 0) return '0 B';
+  const k = 1024, units = ['B','KB','MB','GB'];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), units.length - 1);
+  return (n / Math.pow(k, i)).toFixed(i === 0 ? 0 : 2) + ' ' + units[i];
+}
+
+/* ================================================================== *
+ *  DEMO DATA
+ * ================================================================== */
+function generateDemo() {
+  // Synthesize an interesting demo cloud: a runway-like strip with scattered structures
+  const N = 180_000;
+  const positions = new Float32Array(N * 3);
+  const colors = new Uint8Array(N * 3);
+  let idx = 0;
+
+  // Runway surface
+  for (let i = 0; i < 80000 && idx < N; i++, idx++) {
+    const x = (Math.random() - 0.5) * 200;
+    const y = (Math.random() - 0.5) * 30;
+    const z = Math.random() * 0.2 - 0.1;
+    positions[idx*3] = x;
+    positions[idx*3+1] = y;
+    positions[idx*3+2] = z;
+    const c = 80 + Math.random() * 40;
+    colors[idx*3] = c;
+    colors[idx*3+1] = c;
+    colors[idx*3+2] = c;
+  }
+  // Centerline stripes
+  for (let i = 0; i < 3000 && idx < N; i++, idx++) {
+    const x = (Math.random() - 0.5) * 180;
+    const y = (Math.random() - 0.5) * 0.8;
+    const z = 0.05;
+    positions[idx*3] = x;
+    positions[idx*3+1] = y;
+    positions[idx*3+2] = z;
+    colors[idx*3] = 255;
+    colors[idx*3+1] = 255;
+    colors[idx*3+2] = 255;
+  }
+  // Edge lights (scattered)
+  for (let side = 0; side < 2; side++) {
+    const y = side === 0 ? 16 : -16;
+    for (let i = 0; i < 2500 && idx < N; i++, idx++) {
+      const x = (Math.random() - 0.5) * 190;
+      const yy = y + (Math.random() - 0.5) * 2;
+      const z = Math.random() * 0.5;
+      positions[idx*3] = x;
+      positions[idx*3+1] = yy;
+      positions[idx*3+2] = z;
+      colors[idx*3] = 255;
+      colors[idx*3+1] = 200;
+      colors[idx*3+2] = 50;
+    }
+  }
+  // Hangar-like structure
+  for (let i = 0; i < 25000 && idx < N; i++, idx++) {
+    const hxC = 90, hyC = 40;
+    const u = Math.random();
+    const v = Math.random();
+    let x, y, z;
+    // Roof
+    if (u < 0.3) {
+      x = hxC + (Math.random() - 0.5) * 40;
+      y = hyC + (Math.random() - 0.5) * 25;
+      z = 12 + Math.sin(Math.abs(y - hyC) / 12.5 * Math.PI) * 4;
+    } else {
+      // Walls
+      const side = Math.floor(Math.random() * 4);
+      z = Math.random() * 12;
+      if (side === 0) { x = hxC - 20; y = hyC + (Math.random() - 0.5) * 25; }
+      else if (side === 1) { x = hxC + 20; y = hyC + (Math.random() - 0.5) * 25; }
+      else if (side === 2) { y = hyC - 12.5; x = hxC + (Math.random() - 0.5) * 40; }
+      else { y = hyC + 12.5; x = hxC + (Math.random() - 0.5) * 40; }
+    }
+    positions[idx*3] = x;
+    positions[idx*3+1] = y;
+    positions[idx*3+2] = z;
+    colors[idx*3] = 200;
+    colors[idx*3+1] = 180;
+    colors[idx*3+2] = 150;
+  }
+  // Some trees (cone-ish)
+  for (let t = 0; t < 12; t++) {
+    const tx = -60 + Math.random() * 140;
+    const ty = -40 - Math.random() * 30;
+    const thought = Math.random() * 0.3 + 0.4;
+    for (let i = 0; i < 3500 && idx < N; i++, idx++) {
+      const h = Math.random() * 15;
+      const r = (15 - h) * 0.35 * thought;
+      const ang = Math.random() * Math.PI * 2;
+      const x = tx + Math.cos(ang) * r;
+      const y = ty + Math.sin(ang) * r;
+      const z = h;
+      positions[idx*3] = x;
+      positions[idx*3+1] = y;
+      positions[idx*3+2] = z;
+      const g = 40 + Math.random() * 80;
+      colors[idx*3] = 20 + Math.random() * 40;
+      colors[idx*3+1] = g;
+      colors[idx*3+2] = 20 + Math.random() * 30;
+    }
+  }
+  // Terrain noise to fill
+  for (; idx < N; idx++) {
+    const x = (Math.random() - 0.5) * 300;
+    const y = (Math.random() - 0.5) * 200;
+    const z = Math.sin(x * 0.05) * 0.5 + Math.cos(y * 0.04) * 0.4 + (Math.random() - 0.5) * 0.3;
+    positions[idx*3] = x;
+    positions[idx*3+1] = y;
+    positions[idx*3+2] = z;
+    colors[idx*3] = 50 + Math.random() * 30;
+    colors[idx*3+1] = 80 + Math.random() * 30;
+    colors[idx*3+2] = 40 + Math.random() * 30;
+  }
+
+  // Bounds
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < N; i++) {
+    const x = positions[i*3], y = positions[i*3+1], z = positions[i*3+2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+
+  return {
+    positions, colors, intensity: null,
+    bounds: { min: [minX, minY, minZ], max: [maxX, maxY, maxZ], origin: [0,0,0] },
+    pointCount: N,
+    format: 'DEMO (synthetic)',
+    hasRGB: true, hasIntensity: false,
+    fileName: 'korb-demo-airfield.synth',
+    fileSize: N * 16
+  };
+}
+
+function loadDemo() {
+  welcome.classList.add('hide');
+  showLoading('GENERATING DEMO...', 0.4);
+  setTimeout(() => {
+    state.cloud = generateDemo();
+    state.measureP1 = state.measureP2 = null;
+    updateMeasureUI();
+    state.subsamplePct = 100;
+    $('subsample').value = 100;
+    $('subVal').textContent = '100%';
+    applySubsample();
+    fitView();
+    hideLoading();
+    showToast('Demo cloud loaded (180K points)', 'success');
+  }, 50);
+}
+
+/* ================================================================== *
+ *  SCREENSHOT
+ * ================================================================== */
+function takeScreenshot() {
+  if (!state.cloud) {
+    showToast('No cloud loaded', 'error');
+    return;
+  }
+  // Force a re-render to ensure GL buffer is current
+  requestAnimationFrame(() => {
+    try {
+      // Composite GL canvas + overlay onto a temp canvas
+      const tmp = document.createElement('canvas');
+      tmp.width = glCanvas.width;
+      tmp.height = glCanvas.height;
+      const tctx = tmp.getContext('2d');
+      // Background
+      tctx.fillStyle = '#050a0f';
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      // GL canvas
+      tctx.drawImage(glCanvas, 0, 0);
+      // Overlay
+      tctx.drawImage(overlayCanvas, 0, 0);
+      // Branding
+      tctx.font = `${12 * state.dpr}px 'IBM Plex Mono', monospace`;
+      tctx.fillStyle = '#00d4ff';
+      tctx.fillText('KORB ENGINEERING · POINT CLOUD VIEWER', 10 * state.dpr, tmp.height - 10 * state.dpr);
+
+      tmp.toBlob((blob) => {
+        if (!blob) { showToast('Screenshot failed', 'error'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const ts = new Date().toISOString().replace(/[:T]/g,'-').slice(0,19);
+        a.download = `pointcloud-${ts}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        showToast('Screenshot saved', 'success');
+      }, 'image/png');
+    } catch (e) {
+      showToast('Screenshot failed: ' + e.message, 'error');
+    }
+  });
+}
+
+/* ================================================================== *
+ *  UI WIRING
+ * ================================================================== */
+
+// Drag & drop
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+['dragenter', 'dragover'].forEach(evt => {
+  [dropZone, viewport, document.body].forEach(el => {
+    el.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('dragover');
+    });
+  });
+});
+['dragleave', 'drop'].forEach(evt => {
+  [dropZone, viewport, document.body].forEach(el => {
+    el.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (evt === 'dragleave' && e.currentTarget === dropZone) dropZone.classList.remove('dragover');
+    });
+  });
+});
+document.body.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+    loadFile(e.dataTransfer.files[0]);
+  }
+});
+
+// Welcome buttons
+$('welcomePickBtn').addEventListener('click', () => fileInput.click());
+$('welcomeDemoBtn').addEventListener('click', () => loadDemo());
+
+// Sidebar buttons
+$('demoBtn').addEventListener('click', () => loadDemo());
+$('clearBtn').addEventListener('click', () => {
+  state.cloud = null;
+  state.renderCount = 0;
+  state.renderPos = null;
+  state.posBuffered = 0;
+  state.measureP1 = state.measureP2 = null;
+  updateMeasureUI();
+  $('hudSub').classList.add('hidden');
+  updateStats();
+  welcome.classList.remove('hide');
+  $('statFile').textContent = 'none';
+  showToast('Cleared');
+});
+
+// Rendering controls
+$('colorMode').value = state.colorMode;
+$('colorMode').addEventListener('change', (e) => {
+  state.colorMode = e.target.value;
+  lsSet(LS.colorMode, state.colorMode);
+});
+
+$('psize').value = state.pointSize;
+$('psizeVal').textContent = state.pointSize.toFixed(1);
+$('psize').addEventListener('input', (e) => {
+  state.pointSize = parseFloat(e.target.value);
+  $('psizeVal').textContent = state.pointSize.toFixed(1);
+  lsSet(LS.psize, state.pointSize);
+});
+
+$('subsample').value = state.subsamplePct;
+$('subVal').textContent = state.subsamplePct + '%';
+let subsampleTimer = null;
+$('subsample').addEventListener('input', (e) => {
+  state.subsamplePct = parseInt(e.target.value, 10);
+  $('subVal').textContent = state.subsamplePct + '%';
+  lsSet(LS.subsample, state.subsamplePct);
+  if (subsampleTimer) clearTimeout(subsampleTimer);
+  subsampleTimer = setTimeout(() => applySubsample(), 200);
+});
+
+$('fog').value = state.fog;
+$('fogVal').textContent = state.fog.toFixed(2);
+$('fog').addEventListener('input', (e) => {
+  state.fog = parseFloat(e.target.value);
+  $('fogVal').textContent = state.fog.toFixed(2);
+  lsSet(LS.fog, state.fog);
+});
+
+$('fitBtn').addEventListener('click', () => { fitView(); showToast('Fit to view'); });
+$('resetViewBtn').addEventListener('click', () => { resetCam(); showToast('Camera reset'); });
+$('topBtn').addEventListener('click', () => { setViewTop(); showToast('Top view'); });
+$('sideBtn').addEventListener('click', () => { setViewSide(); showToast('Side view'); });
+$('isoBtn').addEventListener('click', () => { setViewIso(); showToast('Isometric view'); });
+
+$('measBtn').addEventListener('click', () => toggleMeasure());
+$('measClearBtn').addEventListener('click', () => {
+  state.measureP1 = state.measureP2 = null;
+  updateMeasureUI();
+});
+
+$('screenshotBtn').addEventListener('click', () => takeScreenshot());
+
+// Mobile panel toggle
+$('togglePanel').addEventListener('click', () => sidebar.classList.toggle('open'));
+
+/* ================================================================== *
+ *  INIT
+ * ================================================================== */
+resize();
+requestAnimationFrame(render);
+updateStats();
+
+// Handle dpr changes
+window.matchMedia && window.matchMedia('(resolution: 1dppx)').addEventListener && window.matchMedia('(resolution: 1dppx)').addEventListener('change', () => {
+  state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  resize();
+});
+
+// Orientation change
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+
+// Prevent accidental navigation on drag
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
+console.log('%cKORB POINT CLOUD VIEWER','color:#00d4ff;font-size:14px;font-weight:bold;');
+console.log('Drop .las / .ply / .xyz files to load');
+
+</script>
+</body>
+</html>
