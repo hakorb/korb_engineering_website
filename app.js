@@ -598,9 +598,6 @@ function renderHome() {
           </span>
         </a>
       </div>
-      <div style="text-align:center;padding:16px 0 8px">
-        <a href="mailto:harrison@korb.engineering" class="site-email-link">harrison@korb.engineering</a>
-      </div>
     </section>
   `;
 
