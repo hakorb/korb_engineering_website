@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOIA Request Generator | Korb Engineering</title>
+<meta name="description" content="Generate federal FOIA and state public records request letters. Covers 5 USC 552 and all 50 state open-records laws.">
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg-raised: #0f1410;
+    --panel: #121912;
+    --border: #1f2a1f;
+    --border-hot: #2d4a2d;
+    --ink: #9bff9b;
+    --ink-dim: #5f8a5f;
+    --ink-hot: #c8ffc8;
+    --ink-amber: #ffb83d;
+    --ink-red: #ff6060;
+    --ink-cyan: #5fd1ff;
+    --paper: #1a1f1a;
+    --paper-ink: #d8e8d8;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Monaco, 'Courier New', monospace;
+    --serif: Georgia, 'Times New Roman', serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+  body {
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(120,255,120,0.05), transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(120,255,120,0.03), transparent 50%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  a { color: var(--ink-cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header.topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; background: var(--bg-raised);
+    border-bottom: 1px solid var(--border-hot);
+    backdrop-filter: blur(6px);
+  }
+  header.topbar h1 {
+    margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--ink-hot); text-transform: uppercase;
+  }
+  header.topbar .tag {
+    font-size: 10px; color: var(--ink-dim); letter-spacing: 0.12em;
+    text-transform: uppercase; margin-left: 8px;
+  }
+  header.topbar .back {
+    font-size: 11px; color: var(--ink-dim); letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 4px 10px;
+    border: 1px solid var(--border-hot); border-radius: 3px;
+  }
+  header.topbar .back:hover { color: var(--ink-hot); border-color: var(--ink); text-decoration: none; }
+
+  .scan {
+    pointer-events: none; position: fixed; inset: 0; z-index: 1;
+    background: repeating-linear-gradient(
+      0deg, rgba(120,255,120,0.02) 0, rgba(120,255,120,0.02) 1px,
+      transparent 1px, transparent 3px
+    );
+    mix-blend-mode: screen;
+  }
+
+  main {
+    position: relative; z-index: 2;
+    max-width: 1400px; margin: 0 auto; padding: 16px;
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+  }
+  @media (min-width: 960px) {
+    main { grid-template-columns: 1fr 1fr; }
+    .full-span { grid-column: 1 / -1; }
+  }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden;
+  }
+  .panel > header {
+    padding: 8px 12px; background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-hot); display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel > header .hint { font-size: 10px; color: var(--ink-dim); letter-spacing: 0.08em; }
+  .panel .body { padding: 12px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 4px; }
+  .field label .req { color: var(--ink-amber); margin-left: 2px; }
+  .field .help { font-size: 10px; color: var(--ink-dim); margin-top: 3px; font-style: italic; }
+
+  input[type="text"], input[type="email"], input[type="tel"], input[type="date"], input[type="number"], select, textarea {
+    width: 100%; background: var(--bg); color: var(--ink-hot);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 7px 9px; font-family: var(--mono); font-size: 12px;
+    transition: border-color 120ms;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--ink);
+    box-shadow: 0 0 0 1px rgba(155,255,155,0.25);
+  }
+  textarea { resize: vertical; min-height: 70px; font-family: var(--mono); }
+  select option { background: var(--bg); color: var(--ink-hot); }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 600px) { .row, .row-3 { grid-template-columns: 1fr; } }
+
+  .check { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; font-size: 12px; color: var(--ink-hot); cursor: pointer; }
+  .check input[type="checkbox"] { margin-top: 3px; accent-color: var(--ink); }
+  .check span.lbl { flex: 1; }
+
+  button, .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--bg); color: var(--ink-hot);
+    border: 1px solid var(--border-hot); border-radius: 3px;
+    padding: 7px 12px; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    transition: all 120ms;
+  }
+  button:hover, .btn:hover { border-color: var(--ink); color: var(--ink); background: rgba(155,255,155,0.05); }
+  button.primary {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  button.primary:hover { background: var(--ink-hot); color: var(--bg); }
+  button.danger { color: var(--ink-red); border-color: #5a2020; }
+  button.danger:hover { border-color: var(--ink-red); background: rgba(255,96,96,0.05); }
+  button.small { padding: 4px 8px; font-size: 10px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+  .agency-info, .law-info {
+    background: var(--bg-raised); border-left: 2px solid var(--ink);
+    padding: 8px 10px; font-size: 11px; line-height: 1.55;
+    margin-bottom: 10px; border-radius: 2px;
+  }
+  .agency-info .addr { color: var(--ink-dim); margin-top: 3px; }
+  .law-info .lawname { color: var(--ink-amber); font-weight: 600; }
+  .law-info .citation { color: var(--ink-cyan); font-size: 10px; letter-spacing: 0.06em; }
+  .law-info .respdays { color: var(--ink-hot); }
+
+  .preview {
+    background: var(--paper); color: var(--paper-ink);
+    font-family: var(--serif); font-size: 13.5px; line-height: 1.7;
+    padding: 40px 48px; border-radius: 3px; border: 1px solid var(--border);
+    white-space: pre-wrap; word-wrap: break-word; min-height: 600px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.35);
+  }
+  @media (max-width: 600px) { .preview { padding: 22px 20px; font-size: 12.5px; } }
+
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 600px) { .status-grid { grid-template-columns: 1fr; } }
+
+  .saved-list {
+    max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+  .saved-item {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; font-size: 11px;
+  }
+  .saved-item:last-child { border-bottom: 0; }
+  .saved-item .meta { flex: 1; min-width: 0; }
+  .saved-item .meta .title { color: var(--ink-hot); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item .meta .sub { color: var(--ink-dim); font-size: 10px; margin-top: 2px; }
+  .saved-item .actions { display: flex; gap: 4px; }
+  .saved-empty { padding: 14px; text-align: center; color: var(--ink-dim); font-size: 11px; font-style: italic; }
+
+  .edu-block { background: var(--bg-raised); border: 1px dashed var(--border-hot); border-radius: 3px; padding: 10px 12px; margin-bottom: 10px; }
+  .edu-block h4 { margin: 0 0 6px; color: var(--ink-amber); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .edu-block ul { margin: 0; padding-left: 18px; }
+  .edu-block li { margin-bottom: 3px; font-size: 11.5px; color: var(--ink-hot); }
+  .edu-block p { margin: 4px 0; font-size: 11.5px; color: var(--ink-hot); }
+
+  .exempt-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .exempt-table th, .exempt-table td { border: 1px solid var(--border); padding: 5px 7px; text-align: left; vertical-align: top; }
+  .exempt-table th { background: var(--bg-raised); color: var(--ink-amber); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+  .exempt-table .code { color: var(--ink-cyan); font-weight: 700; white-space: nowrap; }
+
+  .toast-host {
+    position: fixed; bottom: 16px; right: 16px; z-index: 100;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .toast {
+    background: var(--bg-raised); border: 1px solid var(--ink);
+    color: var(--ink-hot); padding: 8px 12px; border-radius: 3px;
+    font-size: 11px; letter-spacing: 0.05em;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    animation: toastIn 180ms ease-out;
+  }
+  @keyframes toastIn {
+    from { transform: translateX(10px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .chip {
+    display: inline-block; padding: 2px 7px; border-radius: 10px;
+    border: 1px solid var(--border-hot); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-dim); margin-right: 4px;
+  }
+  .chip.active { color: var(--ink-hot); border-color: var(--ink); background: rgba(155,255,155,0.08); }
+
+  .divider { height: 1px; background: var(--border); margin: 10px 0; }
+
+  .foot {
+    text-align: center; color: var(--ink-dim); font-size: 10px;
+    padding: 16px 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .foot .disclaim { display: block; color: var(--ink-amber); margin-top: 4px; letter-spacing: 0.04em; text-transform: none; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="scan"></div>
+
+<header class="topbar">
+  <div>
+    <h1>FOIA Request Generator</h1>
+    <span class="tag">// public records letter drafting system</span>
+  </div>
+  <a class="back" href="../../index.html#misc">&larr; Back</a>
+</header>
+
+<main>
+
+  <!-- JURISDICTION PANEL -->
+  <section class="panel">
+    <header>
+      <span>01 / Jurisdiction &amp; Law</span>
+      <span class="hint">select the governing statute</span>
+    </header>
+    <div class="body">
+      <div class="field">
+        <label for="jurisdiction">Jurisdiction <span class="req">*</span></label>
+        <select id="jurisdiction"></select>
+        <div class="help">Choose federal (FOIA) or the state whose records you seek.</div>
+      </div>
+      <div id="law-info-box" class="law-info"></div>
+    </div>
+  </section>
+
+  <!-- AGENCY PANEL -->
+  <section class="panel">
+    <header>
+      <span>02 / Agency / Custodian</span>
+      <span class="hint">where records are held</span>
+    </header>
+    <div class="body">
+      <div class="field">
+        <label for="agency-preset">Common Agency (Federal)</label>
+        <select id="agency-preset">
+          <option value="">-- select federal agency or use custom --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="agency-name">Agency / Body Name <span class="req">*</span></label>
+        <input type="text" id="agency-name" placeholder="e.g., Dept. of Transportation">
+      </div>
+      <div class="field">
+        <label for="foia-officer">FOIA / Records Officer Name / Title</label>
+        <input type="text" id="foia-officer" value="FOIA Officer" placeholder="FOIA Officer">
+      </div>
+      <div class="field">
+        <label for="agency-address">Agency Address</label>
+        <textarea id="agency-address" rows="3" placeholder="Street&#10;City, State ZIP"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="agency-email">FOIA Office Email</label>
+          <input type="email" id="agency-email" placeholder="foia@agency.gov">
+        </div>
+        <div class="field">
+          <label for="agency-phone">FOIA Office Phone</label>
+          <input type="tel" id="agency-phone" placeholder="+1 (202) 555-0100">
+        </div>
+      </div>
+      <div id="agency-info-box"></div>
+    </div>
+  </section>
+
+  <!-- REQUEST PANEL -->
+  <section class="panel">
+    <header>
+      <span>03 / Records Requested</span>
+      <span class="hint">be specific &mdash; vague requests get denied</span>
+    </header>
+    <div class="body">
+      <div class="field">
+        <label for="subject">Subject / Scope of Records <span class="req">*</span></label>
+        <textarea id="subject" rows="3" placeholder="e.g., All emails, memos, and meeting minutes related to the proposed runway expansion at DFW International Airport"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="date-from">Date Range - From</label>
+          <input type="date" id="date-from">
+        </div>
+        <div class="field">
+          <label for="date-to">Date Range - To</label>
+          <input type="date" id="date-to">
+        </div>
+      </div>
+      <div class="field">
+        <label for="keywords">Keywords / Identifiers</label>
+        <textarea id="keywords" rows="2" placeholder='Specific keywords, case numbers, contract IDs. Example: "runway 18R", "contract DTFA-2023-0142", "Kelsey Whitfield"'></textarea>
+      </div>
+      <div class="field">
+        <label for="custodians">Potential Custodians (optional)</label>
+        <input type="text" id="custodians" placeholder="e.g., Assistant Administrator's office, Regional Office Dallas">
+        <div class="help">Identifying likely custodians speeds searches.</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="format-pref">Format Preference</label>
+          <select id="format-pref">
+            <option value="electronic">Electronic (PDF / native format)</option>
+            <option value="paper">Paper copies</option>
+            <option value="either">Either</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="delivery-pref">Delivery Preference</label>
+          <select id="delivery-pref">
+            <option value="email">Email</option>
+            <option value="portal">Agency portal download</option>
+            <option value="mail">Postal mail</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEES & EXPEDITE PANEL -->
+  <section class="panel">
+    <header>
+      <span>04 / Fees &amp; Expedite</span>
+      <span class="hint">optional but often powerful</span>
+    </header>
+    <div class="body">
+      <label class="check">
+        <input type="checkbox" id="fee-waiver">
+        <span class="lbl">Request full fee waiver (justify below)</span>
+      </label>
+      <div class="field" id="fee-waiver-group" style="display:none;">
+        <label for="fee-waiver-reason">Fee Waiver Category</label>
+        <select id="fee-waiver-reason">
+          <option value="journalism">News media representative (journalism)</option>
+          <option value="educational">Educational institution</option>
+          <option value="noncommercial">Noncommercial scientific institution</option>
+          <option value="public_interest">Public interest / noncommercial requester</option>
+        </select>
+        <div class="field" style="margin-top:8px;">
+          <label for="fee-waiver-detail">Justification Statement</label>
+          <textarea id="fee-waiver-detail" rows="3" placeholder="Briefly explain how disclosure would primarily benefit the public, how you will disseminate it, and your noncommercial purpose."></textarea>
+        </div>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="fee-limit-on" checked>
+        <span class="lbl">Willing to pay up to</span>
+      </label>
+      <div class="field" id="fee-limit-group">
+        <input type="number" id="fee-limit" value="50" min="0" step="5">
+        <div class="help">Agency must contact you before exceeding this amount.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <label class="check">
+        <input type="checkbox" id="expedite">
+        <span class="lbl">Request expedited processing</span>
+      </label>
+      <div class="field" id="expedite-group" style="display:none;">
+        <label for="expedite-reason">Expedite Category</label>
+        <select id="expedite-reason">
+          <option value="urgency">Urgency to inform the public about actual or alleged federal govt. activity (news media)</option>
+          <option value="life_safety">Imminent threat to life or physical safety</option>
+          <option value="due_process">Loss of substantial due process rights</option>
+          <option value="public_concern">Widespread and exceptional media interest</option>
+        </select>
+        <div class="field" style="margin-top:8px;">
+          <label for="expedite-detail">Justification (required)</label>
+          <textarea id="expedite-detail" rows="3" placeholder="Explain compelling need. This section will be certified as true and correct under penalty of perjury per 5 USC 552(a)(6)(E)(vi)."></textarea>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <label class="check">
+        <input type="checkbox" id="privacy-waiver">
+        <span class="lbl">I am requesting records about myself (include Privacy Act waiver)</span>
+      </label>
+      <div id="privacy-waiver-group" style="display:none;">
+        <div class="row">
+          <div class="field">
+            <label for="pw-dob">Date of Birth</label>
+            <input type="date" id="pw-dob">
+          </div>
+          <div class="field">
+            <label for="pw-ssn">Last 4 of SSN (optional)</label>
+            <input type="text" id="pw-ssn" maxlength="4" placeholder="1234">
+          </div>
+        </div>
+        <div class="help" style="font-size:10px;color:var(--ink-amber);">Some agencies require notarization for Privacy Act requests. Check with the specific agency.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUESTER PANEL -->
+  <section class="panel">
+    <header>
+      <span>05 / Requester Information</span>
+      <span class="hint">your contact &amp; requester category</span>
+    </header>
+    <div class="body">
+      <div class="row">
+        <div class="field">
+          <label for="req-name">Full Name <span class="req">*</span></label>
+          <input type="text" id="req-name" placeholder="Jane Q. Requester">
+        </div>
+        <div class="field">
+          <label for="req-org">Organization (optional)</label>
+          <input type="text" id="req-org" placeholder="News outlet, university, firm">
+        </div>
+      </div>
+      <div class="field">
+        <label for="req-address">Mailing Address</label>
+        <textarea id="req-address" rows="3" placeholder="Street&#10;City, State ZIP"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="req-email">Email <span class="req">*</span></label>
+          <input type="email" id="req-email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label for="req-phone">Phone</label>
+          <input type="tel" id="req-phone" placeholder="+1 (214) 555-0100">
+        </div>
+      </div>
+      <div class="field">
+        <label for="req-category">Requester Fee Category</label>
+        <select id="req-category">
+          <option value="other">Other (individual, noncommercial)</option>
+          <option value="news">News media representative</option>
+          <option value="educational">Educational institution</option>
+          <option value="scientific">Noncommercial scientific institution</option>
+          <option value="commercial">Commercial use</option>
+        </select>
+        <div class="help">Determines fee schedule. Commercial requesters pay search + review + duplication.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OUTPUT / ACTIONS PANEL -->
+  <section class="panel">
+    <header>
+      <span>06 / Output</span>
+      <span class="hint">copy, download, email</span>
+    </header>
+    <div class="body">
+      <div class="btn-row">
+        <button type="button" class="primary" id="btn-copy">Copy Text</button>
+        <button type="button" id="btn-download-txt">Download .txt</button>
+        <button type="button" id="btn-download-pdf">Download PDF</button>
+        <button type="button" id="btn-download-eml">Download .eml</button>
+        <button type="button" id="btn-open-mail">Open in Mail</button>
+        <button type="button" id="btn-print">Print</button>
+      </div>
+      <div class="divider"></div>
+      <div class="btn-row">
+        <button type="button" id="btn-save">Save Template</button>
+        <button type="button" id="btn-new">New / Clear</button>
+        <button type="button" id="btn-sample" class="small">Load Sample</button>
+        <button type="button" id="btn-export-all" class="small">Export All (JSON)</button>
+        <button type="button" id="btn-import-all" class="small">Import JSON</button>
+        <input type="file" id="file-import" accept=".json" style="display:none;">
+      </div>
+    </div>
+  </section>
+
+  <!-- LETTER PREVIEW -->
+  <section class="panel full-span">
+    <header>
+      <span>Preview &mdash; Letter</span>
+      <span class="hint" id="preview-len">0 characters</span>
+    </header>
+    <div class="body">
+      <div class="preview" id="letter-preview">Complete the form to generate your request letter.</div>
+    </div>
+  </section>
+
+  <!-- SAVED / STATUS TRACKER -->
+  <section class="panel">
+    <header>
+      <span>Saved Requests</span>
+      <span class="hint">stored locally on this device</span>
+    </header>
+    <div class="body">
+      <div class="saved-list" id="saved-list"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header>
+      <span>Status Tracker</span>
+      <span class="hint">update dates as request progresses</span>
+    </header>
+    <div class="body">
+      <div class="status-grid">
+        <div class="field">
+          <label for="st-sent">Date Sent</label>
+          <input type="date" id="st-sent">
+        </div>
+        <div class="field">
+          <label for="st-due">Est. Statutory Due</label>
+          <input type="date" id="st-due" readonly>
+        </div>
+        <div class="field">
+          <label for="st-ack">Acknowledgement Received</label>
+          <input type="date" id="st-ack">
+        </div>
+        <div class="field">
+          <label for="st-responded">Actual Response Date</label>
+          <input type="date" id="st-responded">
+        </div>
+        <div class="field">
+          <label for="st-status">Status</label>
+          <select id="st-status">
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="partial">Partial release</option>
+            <option value="full">Full release</option>
+            <option value="denied">Denied</option>
+            <option value="appealed">Appealed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="st-tracking">Tracking Number</label>
+          <input type="text" id="st-tracking" placeholder="Agency tracking / reference #">
+        </div>
+      </div>
+      <div class="field">
+        <label for="st-notes">Notes</label>
+        <textarea id="st-notes" rows="3" placeholder="Correspondence log, contact names, appeal status..."></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- EDUCATIONAL -->
+  <section class="panel full-span">
+    <header>
+      <span>Reference &mdash; Know Your Rights</span>
+      <span class="hint">FOIA &amp; public records primer</span>
+    </header>
+    <div class="body">
+      <div class="edu-block">
+        <h4>What records can you request?</h4>
+        <p>Generally: any record (paper, email, database export, video, audio, report, contract, memo, calendar, text message) created, received, or maintained by the agency in the course of government business. Personal notes, drafts-in-progress, and records not yet received by the agency may be excluded.</p>
+        <p><strong>Tips:</strong> Request records by subject + date range + custodian. Ask for electronic format to reduce duplication fees. Request metadata where relevant (email headers, edit history).</p>
+      </div>
+
+      <div class="edu-block">
+        <h4>The 9 Federal FOIA Exemptions (5 USC 552(b))</h4>
+        <table class="exempt-table">
+          <thead>
+            <tr><th style="width:70px;">Exemption</th><th>Scope</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="code">b(1)</td><td>Classified national defense / foreign policy info properly marked under Executive Order</td></tr>
+            <tr><td class="code">b(2)</td><td>Records related solely to internal personnel rules and practices</td></tr>
+            <tr><td class="code">b(3)</td><td>Information specifically exempted from disclosure by another statute</td></tr>
+            <tr><td class="code">b(4)</td><td>Trade secrets and confidential commercial / financial information obtained from a person</td></tr>
+            <tr><td class="code">b(5)</td><td>Inter-agency or intra-agency pre-decisional / deliberative memoranda (limited after FOIA Improvement Act 2016)</td></tr>
+            <tr><td class="code">b(6)</td><td>Personnel, medical, and similar files where disclosure constitutes clearly unwarranted invasion of personal privacy</td></tr>
+            <tr><td class="code">b(7)</td><td>Law enforcement records (6 sub-exemptions: ongoing proceedings, fair trial, privacy, sources, techniques, safety)</td></tr>
+            <tr><td class="code">b(8)</td><td>Records from examination, operation, or condition reports of financial institutions</td></tr>
+            <tr><td class="code">b(9)</td><td>Geological and geophysical information and data concerning wells</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="edu-block">
+        <h4>If you are denied</h4>
+        <ul>
+          <li>The agency MUST tell you which exemption applies and provide instructions for appeal.</li>
+          <li>Administrative appeal typically must be filed within <strong>90 days</strong> of the denial (federal; state timelines vary).</li>
+          <li>Use the same request tracking number. Demand the agency release all reasonably segregable non-exempt portions.</li>
+          <li>If the administrative appeal fails, you may sue in U.S. District Court (or state court equivalent). FOIA litigation has attorney-fee shifting when you substantially prevail.</li>
+          <li>Contact the Office of Government Information Services (OGIS) for federal FOIA mediation: <a href="https://www.archives.gov/ogis" target="_blank" rel="noopener">archives.gov/ogis</a></li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>Pro tips</h4>
+        <ul>
+          <li><strong>Be specific.</strong> "All records related to X" gets rejected as overbroad. Use date range + custodian + keyword.</li>
+          <li><strong>Request electronic format.</strong> Cheaper, faster, searchable.</li>
+          <li><strong>Don't pay unreasonable fees.</strong> You can challenge fee estimates. Commercial requesters pay more &mdash; ensure your category is correct.</li>
+          <li><strong>If the agency misses the statutory deadline</strong>, you have "constructively exhausted" administrative remedies and may sue. Write a follow-up citing the missed deadline before escalating.</li>
+          <li><strong>State laws differ.</strong> Some states require residency; most don't. Response windows range 3&ndash;60 days.</li>
+          <li><strong>Save everything.</strong> Keep copies of your request, the agency's response, and all correspondence.</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>Additional resources</h4>
+        <ul>
+          <li><a href="https://www.muckrock.com/" target="_blank" rel="noopener">MuckRock</a> &mdash; FOIA request filing, tracking, crowdfunding, and archive</li>
+          <li><a href="https://www.rcfp.org/foia/" target="_blank" rel="noopener">Reporters Committee for Freedom of the Press</a> &mdash; state-by-state open records guides, legal hotline</li>
+          <li><a href="https://www.foia.gov/" target="_blank" rel="noopener">FOIA.gov</a> &mdash; central federal portal, agency contact finder</li>
+          <li><a href="https://www.nfoic.org/" target="_blank" rel="noopener">National Freedom of Information Coalition</a> &mdash; state open-government coalitions</li>
+          <li><a href="https://www.justice.gov/oip" target="_blank" rel="noopener">DOJ Office of Information Policy</a> &mdash; federal FOIA policy guidance</li>
+          <li><a href="https://www.archives.gov/ogis" target="_blank" rel="noopener">Office of Government Information Services (OGIS)</a> &mdash; FOIA mediation and ombudsman</li>
+          <li><a href="https://www.spj.org/foi.asp" target="_blank" rel="noopener">Society of Professional Journalists - FOI</a> &mdash; FOI resources and advocacy</li>
+          <li><a href="https://www.pogo.org/" target="_blank" rel="noopener">Project on Government Oversight (POGO)</a> &mdash; accountability journalism and FOIA activism</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>Drafting tips by request type</h4>
+        <ul>
+          <li><strong>Email / Slack / Teams records:</strong> Name the custodian(s), specify the domain (@agency.gov), and request native format with headers + attachments. For Slack/Teams, request channel names or DM pairs.</li>
+          <li><strong>Contracts &amp; procurement:</strong> Request the solicitation, all bids, the awarded contract (with modifications), invoices, and correspondence with the vendor. Cite contract numbers if known.</li>
+          <li><strong>Calendars &amp; schedules:</strong> Specify the official and date range. Most agencies maintain calendar records in Outlook/Google; request native export.</li>
+          <li><strong>Law enforcement:</strong> Expect heavy b(7) redactions. Request the case number. Consider requesting only "closed" cases to avoid the b(7)(A) ongoing-investigation exemption.</li>
+          <li><strong>Body-worn camera &amp; 911:</strong> State laws vary widely &mdash; some require a waiver or court order. Check your state's bodycam statute separately.</li>
+          <li><strong>Data / databases:</strong> Many states require agencies to produce data in its native format (not scanned PDFs). Ask for CSV, JSON, or database export; cite the applicable statutory provision.</li>
+          <li><strong>Text messages / personal accounts:</strong> Cite recent case law (e.g., federal Competitive Enterprise Institute v. OSTP) confirming that agency business on personal devices is still subject to FOIA.</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>Response workflow &mdash; what to expect</h4>
+        <ol style="margin:0;padding-left:18px;color:var(--ink-hot);font-size:11.5px;">
+          <li style="margin-bottom:3px;"><strong>Acknowledgement</strong> (1&ndash;20 days): Agency assigns a tracking number and categorizes your request.</li>
+          <li style="margin-bottom:3px;"><strong>Fee estimate</strong> (if you didn't waive fees): Agency estimates search + review + duplication costs.</li>
+          <li style="margin-bottom:3px;"><strong>Search &amp; review</strong> (weeks to years): Records located, reviewed for exemptions, redacted.</li>
+          <li style="margin-bottom:3px;"><strong>Determination</strong>: Full release / partial release / denial. Must cite exemption(s).</li>
+          <li style="margin-bottom:3px;"><strong>Production</strong>: Records delivered via portal, email, mail, or in-person inspection.</li>
+          <li style="margin-bottom:3px;"><strong>Administrative appeal</strong> (90 days federal): File with agency's appeals officer.</li>
+          <li><strong>Litigation</strong> (after appeal exhausted or deadline missed): U.S. District Court for federal; state court for state requests.</li>
+        </ol>
+      </div>
+
+      <div class="edu-block">
+        <h4>Fee category quick reference</h4>
+        <table class="exempt-table">
+          <thead><tr><th style="width:140px;">Category</th><th>What you pay (federal FOIA)</th></tr></thead>
+          <tbody>
+            <tr><td class="code">Commercial</td><td>Search + review + duplication. First 2 hours and 100 pages NOT free.</td></tr>
+            <tr><td class="code">News media / Educational / Noncommercial scientific</td><td>Duplication ONLY (first 100 pages free). No search or review fees.</td></tr>
+            <tr><td class="code">All other</td><td>Search + duplication (first 2 hours search and 100 pages free). No review fees.</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:6px;font-size:11px;color:var(--ink-dim);">Verify your category in the request. A misclassification dramatically changes what you owe.</p>
+      </div>
+
+      <div class="edu-block">
+        <h4>Common mistakes to avoid</h4>
+        <ul>
+          <li><strong>Asking for information, not records.</strong> FOIA produces existing records; it does not compel agencies to create new records or answer questions. Reframe "why did you do X?" as "all records documenting the decision to do X."</li>
+          <li><strong>Overbreadth.</strong> Requests that would produce millions of pages get rejected or delayed. Narrow by time + custodian + keyword.</li>
+          <li><strong>Underspecificity.</strong> "All records about immigration" &rarr; rejected. "All emails between Assistant Secretary Jones and any DHS employee, 1/1/2024&ndash;6/1/2024, containing the word 'parole'" &rarr; accepted.</li>
+          <li><strong>Paying fees you shouldn't.</strong> If the agency misses its statutory deadline, it generally can't charge search fees (commercial requesters excepted). Cite 5 USC 552(a)(4)(A)(viii) at the federal level.</li>
+          <li><strong>Forgetting to appeal.</strong> Administrative appeal is free and often the agency reverses. File even if you're uncertain &mdash; it's a prerequisite to suing.</li>
+          <li><strong>Missing appeal deadlines.</strong> Federal: 90 days. State deadlines vary. Calendar the due date the moment you get a denial.</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>State law quirks worth knowing</h4>
+        <ul>
+          <li><strong>Residency requirements:</strong> Alabama, Arkansas, Delaware, New Hampshire, New Jersey, Tennessee, and Virginia historically required requesters to be state residents (Virginia's requirement was upheld by SCOTUS in McBurney v. Young, 2013). Many agencies waive informally &mdash; if denied, ask a resident friend to file.</li>
+          <li><strong>No deadline states:</strong> Alabama, Arizona, Florida, Minnesota, Montana, North Carolina, North Dakota, Ohio, Oklahoma, Wisconsin &mdash; laws say "promptly" or "reasonable time" but set no numeric deadline. Courts enforce "reasonable" via suit.</li>
+          <li><strong>Sunshine states:</strong> Florida has one of the strongest public records laws in the country; records are presumed open, anonymous requests are allowed, and courts must award fees if you prevail.</li>
+          <li><strong>AG ruling states:</strong> Texas (uniquely) requires agencies to request an Attorney General opinion before withholding records. This creates a public paper trail of exemption claims.</li>
+          <li><strong>Electronic preference:</strong> California, Colorado, Oregon, and Washington expressly require agencies to produce data in electronic/native format if the agency maintains it electronically.</li>
+          <li><strong>Personnel records:</strong> Some states (California, Washington) are expanding police personnel/misconduct record access; others keep them sealed. Check SB 1421 (CA) and SB 12 (WA).</li>
+          <li><strong>Time for review:</strong> Several states (CO, VA, MO) charge for time spent reviewing records for redaction. Request that agency itemize any review charges.</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>9 federal exemptions &mdash; with real-world examples</h4>
+        <ul>
+          <li><strong>b(1) National security:</strong> CIA operational files, intelligence sources and methods, current classified briefings.</li>
+          <li><strong>b(2) Internal rules:</strong> Agency-only HR procedures, guard-schedule procedures. Narrowed by <em>Milner v. Dept. of Navy</em> (2011) &mdash; no longer covers "high-2" law enforcement manuals.</li>
+          <li><strong>b(3) Other statute:</strong> Tax returns (26 USC 6103), census responses (13 USC 9), grand jury material (Rule 6(e)).</li>
+          <li><strong>b(4) Trade secrets:</strong> Pharmaceutical formulations in FDA submissions, bid protest confidentials. <em>Food Marketing Institute v. Argus Leader</em> (2019) expanded scope to any "customarily and actually treated as private" info.</li>
+          <li><strong>b(5) Deliberative process:</strong> Draft memos, options papers, pre-decisional recommendations. FOIA Improvement Act 2016 added 25-year sunset &mdash; records older than 25 years cannot be withheld under b(5).</li>
+          <li><strong>b(6) Personal privacy:</strong> Employee home addresses, medical records of federal workers. Balances privacy vs. public interest.</li>
+          <li><strong>b(7)(A) Ongoing investigation:</strong> Most commonly used by FBI, DEA. Expires when case closes. (b)(7) sub-exemptions also protect sources, techniques, and witness safety.</li>
+          <li><strong>b(8) Financial institution oversight:</strong> FDIC/Fed/OCC bank exam reports, CAMELS ratings.</li>
+          <li><strong>b(9) Geological:</strong> Rarely invoked; protects oil and gas well data.</li>
+        </ul>
+      </div>
+
+      <div class="edu-block">
+        <h4>Sample appeal language</h4>
+        <p>When you receive a denial, the appeal letter should (1) cite the tracking number, (2) identify each contested determination, (3) explain why each exemption is misapplied, and (4) demand segregability. Template opening:</p>
+        <p style="font-family:var(--serif);font-size:12px;color:var(--paper-ink);background:rgba(216,232,216,0.05);padding:8px 10px;border-radius:2px;">
+          "Pursuant to 5 U.S.C. § 552(a)(6)(A)(i) and [agency] regulations at [cite], I hereby appeal the [date] determination regarding FOIA request [tracking #]. The agency withheld [X] records in full and redacted [Y] records under Exemption [N]. For the reasons that follow, the withholding is unjustified and must be reversed..."
+        </p>
+      </div>
+
+      <div class="edu-block">
+        <h4>Glossary</h4>
+        <ul style="font-size:11.5px;">
+          <li><strong>Custodian</strong> &mdash; the employee/office physically or electronically holding the records.</li>
+          <li><strong>Glomar response</strong> &mdash; agency's refusal to confirm or deny the existence of records (common with FBI/CIA).</li>
+          <li><strong>Vaughn index</strong> &mdash; in litigation, the itemized list agencies must produce describing each withheld document and exemption claimed.</li>
+          <li><strong>Segregability</strong> &mdash; requirement that agencies release non-exempt portions of partially exempt records.</li>
+          <li><strong>In camera review</strong> &mdash; a judge privately examining withheld records to assess exemption claims.</li>
+          <li><strong>Mandatory declassification review (MDR)</strong> &mdash; separate process for declassifying classified records, sometimes faster than FOIA for b(1) material.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="foot">
+  Korb Engineering &middot; FOIA Request Generator v1.0
+  <span class="disclaim">This tool provides a drafting template &mdash; not legal advice. Consult counsel for complex or sensitive requests.</span>
+</div>
+
+<div class="toast-host" id="toast-host"></div>
+
+<!-- Vendored jsPDF for PDF export -->
+<script src="../../vendor/jspdf-2.5.1.umd.min.js"></script>
+<script>
+/* ============================================================
+   FOIA Request Generator
+   Korb Engineering  -  korb.engineering
+   ============================================================ */
+
+/* ---------- JURISDICTION DATA ---------- */
+const JURISDICTIONS = [
+  {
+    code: 'US', name: 'Federal (United States)',
+    law: 'Freedom of Information Act',
+    citation: '5 U.S.C. § 552',
+    responseDays: 20, businessDays: true,
+    portal: 'https://www.foia.gov/',
+    notes: '20 working days to respond; may be tolled. Fee waiver per 5 USC 552(a)(4)(A)(iii).'
+  },
+  { code: 'AL', name: 'Alabama', law: 'Open Records Act', citation: 'Ala. Code § 36-12-40', responseDays: 0, businessDays: false, portal: 'https://www.alabamaag.gov/', notes: 'No statutory deadline; must provide "reasonable" access.' },
+  { code: 'AK', name: 'Alaska', law: 'Public Records Act', citation: 'Alaska Stat. § 40.25.110 et seq.', responseDays: 10, businessDays: true, portal: 'https://law.alaska.gov/', notes: '10 working days; may extend 10 more days for good cause.' },
+  { code: 'AZ', name: 'Arizona', law: 'Public Records Law', citation: 'Ariz. Rev. Stat. § 39-121 et seq.', responseDays: 0, businessDays: false, portal: 'https://www.azag.gov/', notes: '"Promptly" — no fixed deadline. Commercial use may be restricted.' },
+  { code: 'AR', name: 'Arkansas', law: 'Freedom of Information Act', citation: 'Ark. Code Ann. § 25-19-101 et seq.', responseDays: 3, businessDays: true, portal: 'https://arkansasag.gov/', notes: '3 business days; Arkansas citizens only for some records.' },
+  { code: 'CA', name: 'California', law: 'California Public Records Act', citation: 'Cal. Gov. Code § 7920.000 et seq.', responseDays: 10, businessDays: false, portal: 'https://oag.ca.gov/', notes: '10 calendar days to determine; production thereafter "promptly".' },
+  { code: 'CO', name: 'Colorado', law: 'Colorado Open Records Act (CORA)', citation: 'Colo. Rev. Stat. § 24-72-201 et seq.', responseDays: 3, businessDays: true, portal: 'https://coag.gov/', notes: '3 working days; may extend 7 days for "extenuating circumstances".' },
+  { code: 'CT', name: 'Connecticut', law: 'Freedom of Information Act', citation: 'Conn. Gen. Stat. § 1-200 et seq.', responseDays: 4, businessDays: true, portal: 'https://portal.ct.gov/FOI', notes: '4 business days to acknowledge.' },
+  { code: 'DE', name: 'Delaware', law: 'Freedom of Information Act', citation: '29 Del. C. § 10001 et seq.', responseDays: 15, businessDays: true, portal: 'https://attorneygeneral.delaware.gov/', notes: '15 business days.' },
+  { code: 'DC', name: 'District of Columbia', law: 'Freedom of Information Act', citation: 'D.C. Code § 2-531 et seq.', responseDays: 15, businessDays: true, portal: 'https://foia-dc.gov/', notes: '15 business days; may extend 10 days.' },
+  { code: 'FL', name: 'Florida', law: 'Public Records Law (Chapter 119)', citation: 'Fla. Stat. Ch. 119', responseDays: 0, businessDays: false, portal: 'https://myfloridalegal.com/', notes: 'No set deadline — must produce "within a reasonable period of time". Anonymous requests allowed.' },
+  { code: 'GA', name: 'Georgia', law: 'Open Records Act', citation: 'O.C.G.A. § 50-18-70 et seq.', responseDays: 3, businessDays: true, portal: 'https://law.georgia.gov/', notes: '3 business days to respond.' },
+  { code: 'HI', name: 'Hawaii', law: 'Uniform Information Practices Act', citation: 'Haw. Rev. Stat. Ch. 92F', responseDays: 10, businessDays: true, portal: 'https://oip.hawaii.gov/', notes: '10 business days to respond.' },
+  { code: 'ID', name: 'Idaho', law: 'Public Records Act', citation: 'Idaho Code § 74-101 et seq.', responseDays: 3, businessDays: true, portal: 'https://www.ag.idaho.gov/', notes: '3 working days; 10 with notice.' },
+  { code: 'IL', name: 'Illinois', law: 'Freedom of Information Act', citation: '5 ILCS 140', responseDays: 5, businessDays: true, portal: 'https://foia.ilattorneygeneral.gov/', notes: '5 business days; 5-day extension allowed.' },
+  { code: 'IN', name: 'Indiana', law: 'Access to Public Records Act', citation: 'Ind. Code § 5-14-3', responseDays: 7, businessDays: false, portal: 'https://www.in.gov/pac/', notes: '24 hours to acknowledge in-person; 7 calendar days for mail/email.' },
+  { code: 'IA', name: 'Iowa', law: 'Open Records Law', citation: 'Iowa Code Ch. 22', responseDays: 20, businessDays: false, portal: 'https://www.iowaattorneygeneral.gov/', notes: 'Records must be produced "without unreasonable delay", generally 10-20 days.' },
+  { code: 'KS', name: 'Kansas', law: 'Open Records Act (KORA)', citation: 'Kan. Stat. Ann. § 45-215 et seq.', responseDays: 3, businessDays: true, portal: 'https://ag.ks.gov/', notes: '3 business days.' },
+  { code: 'KY', name: 'Kentucky', law: 'Open Records Act', citation: 'KRS § 61.870-61.884', responseDays: 5, businessDays: true, portal: 'https://ag.ky.gov/', notes: '5 business days.' },
+  { code: 'LA', name: 'Louisiana', law: 'Public Records Law', citation: 'La. R.S. § 44:1 et seq.', responseDays: 3, businessDays: true, portal: 'https://www.ag.state.la.us/', notes: '3 business days to produce or deny with written reason.' },
+  { code: 'ME', name: 'Maine', law: 'Freedom of Access Act', citation: '1 M.R.S. § 400 et seq.', responseDays: 5, businessDays: true, portal: 'https://www.maine.gov/foaa/', notes: '5 working days to acknowledge.' },
+  { code: 'MD', name: 'Maryland', law: 'Public Information Act', citation: 'Md. Code, Gen. Provisions § 4-101 et seq.', responseDays: 30, businessDays: false, portal: 'https://www.marylandattorneygeneral.gov/', notes: '30 days; may extend.' },
+  { code: 'MA', name: 'Massachusetts', law: 'Public Records Law', citation: 'Mass. Gen. Laws Ch. 66, § 10', responseDays: 10, businessDays: true, portal: 'https://www.sec.state.ma.us/pre/preidx.htm', notes: '10 business days.' },
+  { code: 'MI', name: 'Michigan', law: 'Freedom of Information Act', citation: 'Mich. Comp. Laws § 15.231 et seq.', responseDays: 5, businessDays: true, portal: 'https://www.michigan.gov/ag/', notes: '5 business days; 10-day extension allowed.' },
+  { code: 'MN', name: 'Minnesota', law: 'Government Data Practices Act', citation: 'Minn. Stat. Ch. 13', responseDays: 0, businessDays: false, portal: 'https://mn.gov/admin/data-practices/', notes: '"Appropriate and prompt" — no fixed deadline.' },
+  { code: 'MS', name: 'Mississippi', law: 'Public Records Act', citation: 'Miss. Code Ann. § 25-61-1 et seq.', responseDays: 7, businessDays: true, portal: 'https://www.ago.state.ms.us/', notes: '7 business days; may be extended to 14.' },
+  { code: 'MO', name: 'Missouri', law: 'Sunshine Law', citation: 'Mo. Rev. Stat. Ch. 610', responseDays: 3, businessDays: true, portal: 'https://ago.mo.gov/', notes: '3 business days.' },
+  { code: 'MT', name: 'Montana', law: 'Constitution Art. II § 9 & § 2-6-101 et seq.', citation: 'Mont. Code Ann. § 2-6-1001', responseDays: 0, businessDays: false, portal: 'https://dojmt.gov/', notes: 'Constitutional right of access; no fixed deadline.' },
+  { code: 'NE', name: 'Nebraska', law: 'Public Records Statutes', citation: 'Neb. Rev. Stat. § 84-712 et seq.', responseDays: 4, businessDays: true, portal: 'https://ago.nebraska.gov/', notes: '4 business days.' },
+  { code: 'NV', name: 'Nevada', law: 'Public Records Act', citation: 'Nev. Rev. Stat. Ch. 239', responseDays: 5, businessDays: true, portal: 'https://ag.nv.gov/', notes: '5 business days.' },
+  { code: 'NH', name: 'New Hampshire', law: 'Right-to-Know Law', citation: 'N.H. Rev. Stat. Ch. 91-A', responseDays: 5, businessDays: true, portal: 'https://www.doj.nh.gov/', notes: '5 business days.' },
+  { code: 'NJ', name: 'New Jersey', law: 'Open Public Records Act (OPRA)', citation: 'N.J. Stat. Ann. § 47:1A-1 et seq.', responseDays: 7, businessDays: true, portal: 'https://www.nj.gov/opra/', notes: '7 business days.' },
+  { code: 'NM', name: 'New Mexico', law: 'Inspection of Public Records Act', citation: 'N.M. Stat. Ann. § 14-2-1 et seq.', responseDays: 3, businessDays: true, portal: 'https://www.nmag.gov/', notes: '3 business days to acknowledge; 15 days to produce.' },
+  { code: 'NY', name: 'New York', law: 'Freedom of Information Law (FOIL)', citation: 'N.Y. Pub. Off. Law § 84 et seq.', responseDays: 5, businessDays: true, portal: 'https://www.dos.ny.gov/coog/foil2.html', notes: '5 business days to acknowledge; production thereafter within a reasonable time.' },
+  { code: 'NC', name: 'North Carolina', law: 'Public Records Law', citation: 'N.C. Gen. Stat. Ch. 132', responseDays: 0, businessDays: false, portal: 'https://ncdoj.gov/', notes: '"As promptly as possible" — no set deadline.' },
+  { code: 'ND', name: 'North Dakota', law: 'Open Records Statute', citation: 'N.D. Cent. Code § 44-04-18', responseDays: 0, businessDays: false, portal: 'https://attorneygeneral.nd.gov/', notes: '"Reasonable time" — no fixed deadline.' },
+  { code: 'OH', name: 'Ohio', law: 'Public Records Act', citation: 'Ohio Rev. Code § 149.43', responseDays: 0, businessDays: false, portal: 'https://www.ohioattorneygeneral.gov/YellowBook', notes: '"Within a reasonable period of time".' },
+  { code: 'OK', name: 'Oklahoma', law: 'Open Records Act', citation: '51 Okla. Stat. § 24A.1 et seq.', responseDays: 0, businessDays: false, portal: 'https://www.oag.ok.gov/', notes: '"Prompt and reasonable" — no fixed deadline.' },
+  { code: 'OR', name: 'Oregon', law: 'Public Records Law', citation: 'Or. Rev. Stat. § 192.311 et seq.', responseDays: 15, businessDays: true, portal: 'https://www.doj.state.or.us/oregon-department-of-justice/public-records/', notes: 'Must acknowledge within 5 business days; complete response within 15 business days.' },
+  { code: 'PA', name: 'Pennsylvania', law: 'Right-to-Know Law', citation: '65 P.S. § 67.101 et seq.', responseDays: 5, businessDays: true, portal: 'https://www.openrecords.pa.gov/', notes: '5 business days; 30-day extension possible.' },
+  { code: 'RI', name: 'Rhode Island', law: 'Access to Public Records Act', citation: 'R.I. Gen. Laws § 38-2-1 et seq.', responseDays: 10, businessDays: true, portal: 'https://www.riag.ri.gov/', notes: '10 business days; may extend 20.' },
+  { code: 'SC', name: 'South Carolina', law: 'Freedom of Information Act', citation: 'S.C. Code Ann. § 30-4-10 et seq.', responseDays: 10, businessDays: true, portal: 'https://www.scag.gov/', notes: '10 business days to determine; 30 days to produce for records < 2 years old.' },
+  { code: 'SD', name: 'South Dakota', law: 'Open Records Law', citation: 'S.D. Codified Laws § 1-27-1 et seq.', responseDays: 10, businessDays: false, portal: 'https://atg.sd.gov/', notes: '10 business days; extensions allowed.' },
+  { code: 'TN', name: 'Tennessee', law: 'Public Records Act', citation: 'Tenn. Code Ann. § 10-7-503 et seq.', responseDays: 7, businessDays: true, portal: 'https://www.comptroller.tn.gov/office-functions/open-records-counsel.html', notes: '7 business days.' },
+  { code: 'TX', name: 'Texas', law: 'Public Information Act', citation: 'Tex. Gov\'t Code Ch. 552', responseDays: 10, businessDays: true, portal: 'https://www.texasattorneygeneral.gov/open-government', notes: '10 business days; request for AG ruling if withholding.' },
+  { code: 'UT', name: 'Utah', law: 'Government Records Access and Management Act (GRAMA)', citation: 'Utah Code § 63G-2-101 et seq.', responseDays: 10, businessDays: true, portal: 'https://www.utah.gov/transparency/', notes: '10 business days; 5 days for expedited (media/public safety).' },
+  { code: 'VT', name: 'Vermont', law: 'Public Records Act', citation: '1 V.S.A. § 315 et seq.', responseDays: 3, businessDays: true, portal: 'https://ago.vermont.gov/', notes: '3 business days; 10-day extension.' },
+  { code: 'VA', name: 'Virginia', law: 'Freedom of Information Act', citation: 'Va. Code § 2.2-3700 et seq.', responseDays: 5, businessDays: true, portal: 'https://foiacouncil.dls.virginia.gov/', notes: '5 business days; Virginia residents / media only for some records.' },
+  { code: 'WA', name: 'Washington', law: 'Public Records Act', citation: 'Rev. Code Wash. § 42.56', responseDays: 5, businessDays: true, portal: 'https://www.atg.wa.gov/open-government-internet-manual', notes: '5 business days to acknowledge; installment production common.' },
+  { code: 'WV', name: 'West Virginia', law: 'Freedom of Information Act', citation: 'W. Va. Code § 29B-1-1 et seq.', responseDays: 5, businessDays: true, portal: 'https://ago.wv.gov/', notes: '5 business days.' },
+  { code: 'WI', name: 'Wisconsin', law: 'Public Records Law', citation: 'Wis. Stat. § 19.31 et seq.', responseDays: 0, businessDays: false, portal: 'https://www.doj.state.wi.us/office-open-government/office-open-government', notes: '"As soon as practicable and without delay".' },
+  { code: 'WY', name: 'Wyoming', law: 'Public Records Act', citation: 'Wyo. Stat. Ann. § 16-4-201 et seq.', responseDays: 30, businessDays: false, portal: 'https://ag.wyo.gov/', notes: '30 days; 7 business days to acknowledge.' }
+];
+
+/* ---------- FEDERAL AGENCY PRESETS ---------- */
+const FEDERAL_AGENCIES = [
+  { key: 'FAA', name: 'Federal Aviation Administration', officer: 'FAA FOIA Officer', address: '800 Independence Avenue, SW\nARC-40, Room 915C\nWashington, DC 20591', email: 'foia@faa.gov', phone: '(202) 267-9165' },
+  { key: 'FBI', name: 'Federal Bureau of Investigation', officer: 'Chief, Record/Information Dissemination Section', address: '170 Marcel Drive\nWinchester, VA 22602-4843', email: 'foiparequest@fbi.gov', phone: '(540) 868-4593' },
+  { key: 'DOJ', name: 'U.S. Department of Justice', officer: 'Office of Information Policy', address: '441 G Street, NW, 6th Floor\nWashington, DC 20530', email: 'DOJ.OIP.FOIA@usdoj.gov', phone: '(202) 514-3642' },
+  { key: 'DHS', name: 'Department of Homeland Security', officer: 'Privacy Office, FOIA', address: '2707 Martin Luther King Jr. Ave SE\nSTOP 0655\nWashington, DC 20528-0655', email: 'foia@hq.dhs.gov', phone: '(202) 343-1743' },
+  { key: 'CDC', name: 'Centers for Disease Control and Prevention', officer: 'FOIA Office', address: '4770 Buford Highway NE, MS-S107-8\nAtlanta, GA 30341-3717', email: 'foiarequest@cdc.gov', phone: '(770) 488-6277' },
+  { key: 'FDA', name: 'Food and Drug Administration', officer: 'Division of Freedom of Information', address: '12420 Parklawn Drive, ELEM-1029\nRockville, MD 20857', email: 'FDAFOIAElectronicRequest@fda.hhs.gov', phone: '(301) 796-3900' },
+  { key: 'DOT', name: 'U.S. Department of Transportation', officer: 'Departmental FOIA Officer', address: '1200 New Jersey Avenue, SE\nW94-122\nWashington, DC 20590', email: 'foia@dot.gov', phone: '(202) 366-4542' },
+  { key: 'HHS', name: 'Department of Health and Human Services', officer: 'FOIA Officer', address: '200 Independence Avenue, SW\nRoom 729H\nWashington, DC 20201', email: 'foiarequest@hhs.gov', phone: '(202) 690-7453' },
+  { key: 'EPA', name: 'Environmental Protection Agency', officer: 'National FOIA Office', address: '1200 Pennsylvania Avenue, NW\nMail Code 2822T\nWashington, DC 20460', email: 'hq.foia@epa.gov', phone: '(202) 566-1667' },
+  { key: 'NASA', name: 'National Aeronautics and Space Administration', officer: 'HQ FOIA Officer', address: 'NASA Headquarters, Mail Stop 5Q16\n300 E Street, SW\nWashington, DC 20546', email: 'hq-foia@nasa.gov', phone: '(202) 358-0001' },
+  { key: 'DOE', name: 'U.S. Department of Energy', officer: 'FOIA Officer, MA-46', address: '1000 Independence Avenue, SW\nWashington, DC 20585', email: 'foia-central@hq.doe.gov', phone: '(202) 586-5955' },
+  { key: 'VA',  name: 'Department of Veterans Affairs', officer: 'VA FOIA Service (005R1C)', address: '810 Vermont Avenue, NW\nWashington, DC 20420', email: 'vacofoiaservice@va.gov', phone: '(202) 461-7457' },
+  { key: 'USPS',name: 'United States Postal Service', officer: 'FOIA Requester Service Center', address: '475 L\'Enfant Plaza, SW, Room 1P830\nWashington, DC 20260-1101', email: 'foiarequest@usps.gov', phone: '(202) 268-2608' },
+  { key: 'IRS', name: 'Internal Revenue Service', officer: 'IRS FOIA Public Access Portal', address: 'CC:PA:LPD:DLS\nRoom 6716\n1111 Constitution Ave NW\nWashington, DC 20224', email: 'FOIA.Request@irs.gov', phone: '(877) 777-4778' },
+  { key: 'DoD', name: 'U.S. Department of Defense', officer: 'OSD/JS FOIA Requester Service Center', address: '1155 Defense Pentagon\nWashington, DC 20301-1155', email: 'osd.foia-appeal@mail.mil', phone: '(866) 574-4970' },
+  { key: 'SEC', name: 'Securities and Exchange Commission', officer: 'SEC FOIA Officer', address: '100 F Street, NE\nMail Stop 2465\nWashington, DC 20549', email: 'foiapa@sec.gov', phone: '(202) 551-7900' },
+  { key: 'NLRB',name: 'National Labor Relations Board', officer: 'FOIA Officer', address: '1015 Half Street, SE\nWashington, DC 20570', email: 'foia@nlrb.gov', phone: '(202) 273-3840' },
+  { key: 'FTC', name: 'Federal Trade Commission', officer: 'FOIA Office', address: '600 Pennsylvania Avenue, NW\nRoom CC-5229\nWashington, DC 20580', email: 'foia@ftc.gov', phone: '(202) 326-2430' },
+  { key: 'USCIS',name:'U.S. Citizenship and Immigration Services', officer: 'National Records Center, FOIA/PA Office', address: 'P.O. Box 648010\nLee\'s Summit, MO 64064-8010', email: 'uscis.foia@uscis.dhs.gov', phone: '(800) 375-5283' },
+  { key: 'NOAA',name: 'National Oceanic and Atmospheric Administration', officer: 'NOAA FOIA Officer', address: '1305 East-West Highway\nSSMC4, Room 9719\nSilver Spring, MD 20910', email: 'FOIA@noaa.gov', phone: '(301) 628-5658' }
+];
+
+/* ---------- STATE / KEY SHORTCUTS ---------- */
+const LS_PREFIX = 'korb_foia_';
+const LS_SAVED  = 'korb_foia_saved';
+const LS_DRAFT  = 'korb_foia_draft';
+
+/* ---------- DOM HELPERS ---------- */
+const $ = (id) => document.getElementById(id);
+function toast(msg, kind) {
+  const host = $('toast-host');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  if (kind === 'warn') el.style.borderColor = 'var(--ink-amber)';
+  if (kind === 'err')  el.style.borderColor = 'var(--ink-red)';
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(10px)'; el.style.transition = 'all 160ms'; }, 2400);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/* ---------- POPULATE SELECTORS ---------- */
+function initJurisdictions() {
+  const sel = $('jurisdiction');
+  JURISDICTIONS.forEach(j => {
+    const opt = document.createElement('option');
+    opt.value = j.code;
+    opt.textContent = j.code === 'US' ? `${j.name} — FOIA` : `${j.code} — ${j.name} — ${j.law}`;
+    sel.appendChild(opt);
+  });
+}
+function initAgencyPresets() {
+  const sel = $('agency-preset');
+  FEDERAL_AGENCIES.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.key; opt.textContent = `${a.key} — ${a.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+/* ---------- JURISDICTION INFO RENDER ---------- */
+function currentJurisdiction() {
+  const code = $('jurisdiction').value;
+  return JURISDICTIONS.find(j => j.code === code) || JURISDICTIONS[0];
+}
+function renderLawInfo() {
+  const j = currentJurisdiction();
+  const respTxt = j.responseDays > 0
+    ? `${j.responseDays} ${j.businessDays ? 'business' : 'calendar'} days`
+    : 'no fixed statutory deadline';
+  $('law-info-box').innerHTML = `
+    <div><span class="lawname">${j.law}</span></div>
+    <div class="citation">${j.citation}</div>
+    <div class="respdays">Response window: ${respTxt}</div>
+    <div style="margin-top:4px;color:var(--ink-dim);">${j.notes}</div>
+    <div style="margin-top:4px;"><a href="${j.portal}" target="_blank" rel="noopener">${j.portal}</a></div>
+  `;
+  computeDueDate();
+}
+
+/* ---------- AGENCY PRESET -> FIELDS ---------- */
+function applyAgencyPreset() {
+  const key = $('agency-preset').value;
+  if (!key) return;
+  const a = FEDERAL_AGENCIES.find(x => x.key === key);
+  if (!a) return;
+  $('agency-name').value = a.name;
+  $('foia-officer').value = a.officer;
+  $('agency-address').value = a.address;
+  $('agency-email').value = a.email;
+  $('agency-phone').value = a.phone;
+  // show summary card
+  $('agency-info-box').innerHTML = `
+    <div class="agency-info">
+      <div><strong style="color:var(--ink-hot);">${a.name}</strong></div>
+      <div class="addr">${a.address.replace(/\n/g,' · ')}</div>
+      <div class="addr">${a.email} &middot; ${a.phone}</div>
+    </div>
+  `;
+  regenerate();
+}
+
+/* ---------- DUE DATE CALC ---------- */
+function addBusinessDays(date, n) {
+  const d = new Date(date);
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return d;
+}
+function addCalendarDays(date, n) {
+  const d = new Date(date); d.setDate(d.getDate() + n); return d;
+}
+function computeDueDate() {
+  const sent = $('st-sent').value;
+  const j = currentJurisdiction();
+  if (!sent || !j.responseDays) { $('st-due').value = ''; return; }
+  const base = new Date(sent + 'T12:00:00');
+  const due = j.businessDays ? addBusinessDays(base, j.responseDays) : addCalendarDays(base, j.responseDays);
+  $('st-due').value = due.toISOString().slice(0,10);
+}
+
+/* ---------- LETTER GENERATION ---------- */
+function todayString() {
+  const d = new Date();
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+function nonEmpty(s) { return (s || '').trim().length > 0; }
+
+function buildLetter() {
+  const j = currentJurisdiction();
+  const isFederal = j.code === 'US';
+
+  // Collect
+  const agencyName    = $('agency-name').value.trim() || '[Agency Name]';
+  const officer       = $('foia-officer').value.trim() || 'FOIA Officer';
+  const agencyAddr    = $('agency-address').value.trim();
+  const agencyEmail   = $('agency-email').value.trim();
+
+  const subject       = $('subject').value.trim();
+  const dateFrom      = $('date-from').value;
+  const dateTo        = $('date-to').value;
+  const keywords      = $('keywords').value.trim();
+  const custodians    = $('custodians').value.trim();
+  const formatPref    = $('format-pref').value;
+  const deliveryPref  = $('delivery-pref').value;
+
+  const feeWaiver     = $('fee-waiver').checked;
+  const feeWaiverCat  = $('fee-waiver-reason').value;
+  const feeWaiverTxt  = $('fee-waiver-detail').value.trim();
+  const feeLimitOn    = $('fee-limit-on').checked;
+  const feeLimit      = $('fee-limit').value;
+
+  const expedite      = $('expedite').checked;
+  const expediteCat   = $('expedite-reason').value;
+  const expediteTxt   = $('expedite-detail').value.trim();
+
+  const privacy       = $('privacy-waiver').checked;
+  const pwDob         = $('pw-dob').value;
+  const pwSsn         = $('pw-ssn').value.trim();
+
+  const reqName       = $('req-name').value.trim() || '[Your Name]';
+  const reqOrg        = $('req-org').value.trim();
+  const reqAddress    = $('req-address').value.trim();
+  const reqEmail      = $('req-email').value.trim() || '[your.email@example.com]';
+  const reqPhone      = $('req-phone').value.trim();
+  const reqCategory   = $('req-category').value;
+
+  const lines = [];
+
+  // Header (sender block)
+  lines.push(reqName);
+  if (reqOrg) lines.push(reqOrg);
+  if (reqAddress) lines.push(reqAddress);
+  if (reqEmail) lines.push(reqEmail);
+  if (reqPhone) lines.push(reqPhone);
+  lines.push('');
+  lines.push(todayString());
+  lines.push('');
+
+  // Recipient block
+  lines.push(officer);
+  lines.push(agencyName);
+  if (agencyAddr) lines.push(agencyAddr);
+  if (agencyEmail) lines.push(agencyEmail);
+  lines.push('');
+
+  // Via
+  if (deliveryPref === 'email' && agencyEmail) {
+    lines.push(`Via Email: ${agencyEmail}`);
+    lines.push('');
+  } else if (deliveryPref === 'portal') {
+    lines.push('Via Agency FOIA Portal');
+    lines.push('');
+  }
+
+  // Re line
+  const reLine = isFederal
+    ? 'Re: Freedom of Information Act Request'
+    : `Re: ${j.law} Request`;
+  lines.push(reLine);
+  if (expedite) lines.push('    -- REQUEST FOR EXPEDITED PROCESSING --');
+  if (feeWaiver) lines.push('    -- REQUEST FOR FEE WAIVER --');
+  lines.push('');
+
+  // Salutation
+  lines.push(`Dear ${officer}:`);
+  lines.push('');
+
+  // Opening paragraph
+  const openStatute = isFederal
+    ? `Pursuant to the Freedom of Information Act, 5 U.S.C. § 552, I hereby request the following records from ${agencyName}.`
+    : `Pursuant to the ${j.law}, ${j.citation}, I hereby request the following public records from ${agencyName}.`;
+  lines.push(openStatute);
+  lines.push('');
+
+  // Scope
+  lines.push('SCOPE OF RECORDS REQUESTED');
+  lines.push('');
+  if (subject) {
+    lines.push(subject);
+  } else {
+    lines.push('[Describe the records you seek with specificity: topic, type of record, and context.]');
+  }
+  lines.push('');
+
+  // Date range
+  if (dateFrom || dateTo) {
+    const fromTxt = dateFrom ? formatDate(dateFrom) : 'the earliest available records';
+    const toTxt   = dateTo   ? formatDate(dateTo)   : 'the present';
+    lines.push(`Time period: Records created, received, sent, or modified between ${fromTxt} and ${toTxt}.`);
+    lines.push('');
+  }
+
+  // Keywords
+  if (keywords) {
+    lines.push('Relevant keywords, identifiers, and search terms include, without limitation:');
+    lines.push(keywords);
+    lines.push('');
+  }
+
+  // Custodians
+  if (custodians) {
+    lines.push(`Likely custodians: ${custodians}.`);
+    lines.push('');
+  }
+
+  // Record types -- boilerplate ensuring coverage
+  lines.push('"Records" as used herein should be interpreted broadly to include, without limitation: emails (including attachments, headers, and metadata), memoranda, letters, reports, studies, presentations, meeting minutes and agendas, calendars, contracts, agreements, invoices, payment records, photographs, videos, audio recordings, text messages, instant messages, chat logs (including Microsoft Teams, Slack, Signal, and similar platforms), databases and database exports, spreadsheets, GIS data, drawings, diagrams, and any other recorded information in whatever form, whether originals, copies, or drafts, and whether stored on agency servers, cloud services, personal accounts used for agency business, or portable devices.');
+  lines.push('');
+
+  // Format preference
+  const fmtMap = {
+    electronic: 'I request that responsive records be produced in electronic format (native file format where available, otherwise searchable PDF). Emails should be produced in their original native format (.pst, .mbox, .eml, or .msg) with all headers and attachments intact where feasible.',
+    paper:      'I request that responsive records be produced as paper copies.',
+    either:     'I request that responsive records be produced in the most efficient format, preferably electronic (native format or searchable PDF).'
+  };
+  lines.push(fmtMap[formatPref]);
+  lines.push('');
+
+  // Segregation + appeal reservation
+  lines.push(`If you determine that any responsive record or portion thereof is exempt from disclosure, I request that you (1) identify each withheld record or redacted portion, (2) specify the exemption(s) claimed with reference to the applicable statute, and (3) release all reasonably segregable non-exempt portions. I reserve all rights to appeal any adverse determination.`);
+  lines.push('');
+
+  // FEES
+  lines.push('FEES');
+  lines.push('');
+  if (feeWaiver) {
+    const catText = {
+      journalism:   'a representative of the news media, whose primary professional activity is to gather and disseminate information to the public',
+      educational:  'an educational institution whose use of the requested records is scholarly and noncommercial',
+      noncommercial:'a noncommercial scientific institution whose use of the requested records is scientific research',
+      public_interest:'a noncommercial requester seeking these records primarily to benefit the general public'
+    }[feeWaiverCat];
+    lines.push(`I request a full waiver of all fees pursuant to ${isFederal ? '5 U.S.C. § 552(a)(4)(A)(iii)' : 'the applicable fee-waiver provisions of ' + j.citation}. I qualify because I am ${catText}.`);
+    lines.push('');
+    lines.push('Disclosure of the requested records is in the public interest because it is likely to contribute significantly to public understanding of the operations or activities of the government, and is not primarily in my commercial interest.');
+    if (feeWaiverTxt) { lines.push(''); lines.push(feeWaiverTxt); }
+    lines.push('');
+    if (feeLimitOn) {
+      lines.push(`In the alternative, should you deny the fee-waiver request, I am willing to pay reasonable fees up to $${feeLimit || '0'}. Please notify me in writing before incurring any charges above that amount.`);
+      lines.push('');
+    }
+  } else if (feeLimitOn) {
+    const catLbl = {
+      other:'Other (noncommercial individual requester)',
+      news:'News media representative',
+      educational:'Educational institution',
+      scientific:'Noncommercial scientific institution',
+      commercial:'Commercial use'
+    }[reqCategory];
+    lines.push(`I am willing to pay reasonable fees associated with this request up to $${feeLimit || '0'}. My requester fee category is: ${catLbl}. Please notify me in writing before incurring any charges above that amount so that I may authorize or limit the request accordingly.`);
+    lines.push('');
+  }
+
+  // EXPEDITE
+  if (expedite) {
+    lines.push('REQUEST FOR EXPEDITED PROCESSING');
+    lines.push('');
+    const expMap = {
+      urgency:       'There is an urgent need to inform the public about actual or alleged federal government activity, and I am a person primarily engaged in disseminating information.',
+      life_safety:   'The failure to obtain these records on an expedited basis could reasonably be expected to pose an imminent threat to the life or physical safety of an individual.',
+      due_process:   'Delay would result in the loss of substantial due process rights.',
+      public_concern:'The matter is of widespread and exceptional media interest in which there are possible questions about the government\'s integrity that affect public confidence.'
+    };
+    lines.push(`I request expedited processing of this request pursuant to ${isFederal ? '5 U.S.C. § 552(a)(6)(E)' : j.citation + ' and applicable agency rules'}. The basis for expedition is: ${expMap[expediteCat]}`);
+    lines.push('');
+    if (expediteTxt) { lines.push(expediteTxt); lines.push(''); }
+    if (isFederal) {
+      lines.push('I certify that the foregoing statements supporting the request for expedited processing are true and correct to the best of my knowledge and belief, as required by 5 U.S.C. § 552(a)(6)(E)(vi).');
+      lines.push('');
+    }
+  }
+
+  // PRIVACY WAIVER (self-request)
+  if (privacy) {
+    lines.push('PRIVACY ACT WAIVER');
+    lines.push('');
+    lines.push(`I am requesting records concerning myself. I hereby waive any Privacy Act protections that would otherwise apply to records about me for the purpose of this request. My identifying information is:`);
+    lines.push(`   Full legal name: ${reqName}`);
+    if (pwDob) lines.push(`   Date of birth: ${formatDate(pwDob)}`);
+    if (pwSsn) lines.push(`   Last four digits of SSN: ${pwSsn}`);
+    lines.push('');
+    lines.push('I declare under penalty of perjury pursuant to 28 U.S.C. § 1746 that the foregoing is true and correct, and that I am the person named above.');
+    lines.push('');
+  }
+
+  // RESPONSE
+  const respClause = j.responseDays > 0
+    ? `I expect a substantive response within the ${j.responseDays} ${j.businessDays ? 'business' : 'calendar'} days required by ${j.citation}.`
+    : `I expect a prompt response as required by ${j.citation}.`;
+  lines.push(respClause);
+  lines.push('');
+
+  // Closing
+  lines.push('Thank you for your prompt attention to this request. If you have any questions or need clarification regarding the scope, please contact me at the information below. I look forward to your response.');
+  lines.push('');
+  lines.push('Respectfully,');
+  lines.push('');
+  lines.push('');
+  lines.push(reqName);
+  if (reqOrg) lines.push(reqOrg);
+  if (reqEmail) lines.push(reqEmail);
+  if (reqPhone) lines.push(reqPhone);
+
+  return lines.join('\n');
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) { return iso; }
+}
+
+function regenerate() {
+  const txt = buildLetter();
+  $('letter-preview').textContent = txt;
+  $('preview-len').textContent = `${txt.length.toLocaleString()} characters · ${txt.split('\n').length} lines`;
+  saveDraft();
+}
+
+/* ---------- DRAFT (AUTO-SAVE) ---------- */
+function collectForm() {
+  const o = {};
+  ['jurisdiction','agency-preset','agency-name','foia-officer','agency-address','agency-email','agency-phone',
+   'subject','date-from','date-to','keywords','custodians','format-pref','delivery-pref',
+   'fee-waiver-reason','fee-waiver-detail','fee-limit','expedite-reason','expedite-detail',
+   'pw-dob','pw-ssn','req-name','req-org','req-address','req-email','req-phone','req-category',
+   'st-sent','st-ack','st-responded','st-status','st-tracking','st-notes','st-due'
+  ].forEach(id => { o[id] = $(id).value; });
+  ['fee-waiver','fee-limit-on','expedite','privacy-waiver'].forEach(id => { o[id] = $(id).checked; });
+  return o;
+}
+function applyForm(o) {
+  if (!o) return;
+  Object.keys(o).forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!o[id];
+    else el.value = o[id];
+  });
+  syncToggles();
+  renderLawInfo();
+}
+function saveDraft() {
+  try {
+    localStorage.setItem(LS_DRAFT, JSON.stringify(collectForm()));
+  } catch (e) {}
+}
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(LS_DRAFT);
+    if (raw) applyForm(JSON.parse(raw));
+  } catch (e) {}
+}
+
+/* ---------- TOGGLES ---------- */
+function syncToggles() {
+  $('fee-waiver-group').style.display     = $('fee-waiver').checked ? '' : 'none';
+  $('fee-limit-group').style.display      = $('fee-limit-on').checked ? '' : 'none';
+  $('expedite-group').style.display       = $('expedite').checked ? '' : 'none';
+  $('privacy-waiver-group').style.display = $('privacy-waiver').checked ? '' : 'none';
+}
+
+/* ---------- SAVED TEMPLATES ---------- */
+function loadSavedList() {
+  try {
+    const raw = localStorage.getItem(LS_SAVED);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function writeSavedList(arr) {
+  localStorage.setItem(LS_SAVED, JSON.stringify(arr));
+}
+function renderSavedList() {
+  const box = $('saved-list');
+  const arr = loadSavedList();
+  if (!arr.length) {
+    box.innerHTML = `<div class="saved-empty">No saved requests yet. Fill the form and click "Save Template".</div>`;
+    return;
+  }
+  box.innerHTML = '';
+  arr.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    const subj = (item.data['subject'] || '').slice(0, 60) || '(no subject)';
+    const jur  = item.data['jurisdiction'] || 'US';
+    const agy  = item.data['agency-name'] || '(no agency)';
+    const st   = item.data['st-status'] || 'draft';
+    const dt   = item.saved ? new Date(item.saved).toLocaleDateString() : '';
+    row.innerHTML = `
+      <div class="meta">
+        <div class="title">${escapeHtml(item.title || subj)}</div>
+        <div class="sub">${escapeHtml(jur)} · ${escapeHtml(agy)} · <span class="chip active">${escapeHtml(st)}</span> ${dt}</div>
+      </div>
+      <div class="actions">
+        <button class="small" data-act="load" data-idx="${idx}">Load</button>
+        <button class="small danger" data-act="del" data-idx="${idx}">Del</button>
+      </div>
+    `;
+    box.appendChild(row);
+  });
+  box.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const idx = parseInt(b.dataset.idx, 10);
+      const act = b.dataset.act;
+      const list = loadSavedList();
+      if (act === 'load') {
+        applyForm(list[idx].data);
+        regenerate();
+        toast('Template loaded.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (act === 'del') {
+        if (!confirm('Delete this saved request?')) return;
+        list.splice(idx, 1);
+        writeSavedList(list);
+        renderSavedList();
+        toast('Deleted.');
+      }
+    });
+  });
+}
+function saveCurrent() {
+  const data = collectForm();
+  const subj = (data['subject'] || '(untitled request)').slice(0, 60);
+  const title = prompt('Save as (title):', subj);
+  if (title === null) return;
+  const arr = loadSavedList();
+  arr.unshift({ title: title.trim() || subj, data, saved: Date.now() });
+  writeSavedList(arr.slice(0, 100));
+  renderSavedList();
+  toast('Saved.');
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+/* ---------- EXPORT / OUTPUT ---------- */
+function copyText() {
+  const txt = $('letter-preview').textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('Letter copied to clipboard.'))
+    .catch(() => toast('Copy failed.', 'err'));
+}
+function downloadTxt() {
+  const txt = $('letter-preview').textContent;
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  triggerDownload(blob, filenameBase() + '.txt');
+}
+function downloadEml() {
+  const txt = $('letter-preview').textContent;
+  const toAddr = $('agency-email').value.trim() || 'foia@agency.gov';
+  const fromAddr = $('req-email').value.trim() || 'requester@example.com';
+  const j = currentJurisdiction();
+  const subj = j.code === 'US' ? 'FOIA Request' : `${j.law} Request`;
+  const eml = [
+    `To: ${toAddr}`,
+    `From: ${fromAddr}`,
+    `Subject: ${subj}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    txt
+  ].join('\r\n');
+  const blob = new Blob([eml], { type: 'message/rfc822' });
+  triggerDownload(blob, filenameBase() + '.eml');
+}
+function openMail() {
+  const txt = $('letter-preview').textContent;
+  const toAddr = $('agency-email').value.trim();
+  if (!toAddr) { toast('Add an agency email first.', 'warn'); return; }
+  const j = currentJurisdiction();
+  const subj = j.code === 'US' ? 'FOIA Request' : `${j.law} Request`;
+  const href = `mailto:${encodeURIComponent(toAddr)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(txt)}`;
+  window.location.href = href;
+}
+function downloadPdf() {
+  const txt = $('letter-preview').textContent;
+  try {
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) throw new Error('jsPDF not available');
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    doc.setFont('times', 'normal');
+    doc.setFontSize(11);
+    const margin = 54, maxW = 612 - margin * 2, lineH = 14;
+    const lines = doc.splitTextToSize(txt, maxW);
+    let y = margin;
+    for (const line of lines) {
+      if (y > 792 - margin) { doc.addPage(); y = margin; }
+      doc.text(line, margin, y);
+      y += lineH;
+    }
+    doc.save(filenameBase() + '.pdf');
+  } catch (e) {
+    toast('PDF export failed: ' + e.message, 'err');
+  }
+}
+function printLetter() {
+  const txt = $('letter-preview').textContent;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Popup blocked.', 'warn'); return; }
+  w.document.write(`<html><head><title>FOIA Request</title>
+    <style>body{font-family:Georgia,serif;font-size:12pt;line-height:1.6;padding:1in;white-space:pre-wrap;}</style>
+    </head><body></body></html>`);
+  w.document.body.textContent = txt;
+  w.document.close();
+  setTimeout(() => w.print(), 200);
+}
+function triggerDownload(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 0);
+}
+function filenameBase() {
+  const agy = ($('agency-name').value || 'agency').replace(/[^a-z0-9]+/gi, '_').toLowerCase().slice(0, 28);
+  const d = new Date().toISOString().slice(0, 10);
+  return `foia_${agy}_${d}`;
+}
+
+/* ---------- EXPORT / IMPORT ALL ---------- */
+function exportAll() {
+  const all = { saved: loadSavedList(), draft: collectForm(), version: 1, exportedAt: Date.now() };
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+  triggerDownload(blob, 'foia_tool_export_' + new Date().toISOString().slice(0,10) + '.json');
+}
+function importAll(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (d.saved && Array.isArray(d.saved)) {
+        const existing = loadSavedList();
+        writeSavedList([...d.saved, ...existing]);
+        renderSavedList();
+      }
+      if (d.draft) applyForm(d.draft);
+      regenerate();
+      toast('Import complete.');
+    } catch (err) {
+      toast('Invalid file.', 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- SAMPLE ---------- */
+function loadSample() {
+  $('jurisdiction').value = 'US';
+  $('agency-preset').value = 'FAA';
+  applyAgencyPreset();
+  $('subject').value = 'All emails, memoranda, reports, briefings, meeting minutes, and communications (internal and external) concerning the proposed runway expansion at Dallas/Fort Worth International Airport (DFW), including environmental impact assessments, community outreach, and correspondence with local officials.';
+  $('date-from').value = '2023-01-01';
+  $('date-to').value   = new Date().toISOString().slice(0,10);
+  $('keywords').value  = 'DFW runway expansion, EIS, 18R, 17C, community impact, noise study';
+  $('custodians').value = 'FAA Southwest Regional Office (Fort Worth); Office of Airports; ARP-1';
+  $('format-pref').value = 'electronic';
+  $('delivery-pref').value = 'email';
+  $('fee-waiver').checked = true;
+  $('fee-waiver-reason').value = 'public_interest';
+  $('fee-waiver-detail').value = 'The requested records concern a major infrastructure decision affecting tens of thousands of residents in the DFW metroplex. I intend to publish findings via a public-interest blog and share the raw records with affected community groups. I have no commercial purpose.';
+  $('expedite').checked = false;
+  $('privacy-waiver').checked = false;
+  $('req-name').value = 'Harrison Korb';
+  $('req-org').value = 'Independent Researcher';
+  $('req-address').value = 'Dallas, TX';
+  $('req-email').value = 'example@example.com';
+  $('req-phone').value = '';
+  $('req-category').value = 'other';
+  syncToggles();
+  renderLawInfo();
+  regenerate();
+  toast('Sample loaded.');
+}
+
+/* ---------- NEW / CLEAR ---------- */
+function clearAll() {
+  if (!confirm('Clear the current draft? (Saved templates are kept.)')) return;
+  document.querySelectorAll('input, textarea, select').forEach(el => {
+    if (el.id === 'agency-preset') { el.value = ''; return; }
+    if (el.id === 'jurisdiction')  { el.value = 'US'; return; }
+    if (el.id === 'foia-officer')  { el.value = 'FOIA Officer'; return; }
+    if (el.id === 'format-pref')   { el.value = 'electronic'; return; }
+    if (el.id === 'delivery-pref') { el.value = 'email'; return; }
+    if (el.id === 'req-category')  { el.value = 'other'; return; }
+    if (el.id === 'fee-waiver-reason') { el.value = 'journalism'; return; }
+    if (el.id === 'expedite-reason')   { el.value = 'urgency'; return; }
+    if (el.id === 'st-status')     { el.value = 'draft'; return; }
+    if (el.id === 'fee-limit')     { el.value = '50'; return; }
+    if (el.type === 'checkbox') {
+      el.checked = (el.id === 'fee-limit-on');
+      return;
+    }
+    el.value = '';
+  });
+  syncToggles();
+  renderLawInfo();
+  regenerate();
+  toast('Cleared.');
+}
+
+/* ---------- EVENT WIRING ---------- */
+function wire() {
+  // form inputs
+  document.querySelectorAll('input, textarea, select').forEach(el => {
+    const ev = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'date') ? 'change' : 'input';
+    el.addEventListener(ev, regenerate);
+  });
+
+  $('jurisdiction').addEventListener('change', () => { renderLawInfo(); regenerate(); });
+  $('agency-preset').addEventListener('change', applyAgencyPreset);
+
+  $('fee-waiver').addEventListener('change', syncToggles);
+  $('fee-limit-on').addEventListener('change', syncToggles);
+  $('expedite').addEventListener('change', syncToggles);
+  $('privacy-waiver').addEventListener('change', syncToggles);
+
+  $('st-sent').addEventListener('change', computeDueDate);
+
+  $('btn-copy').addEventListener('click', copyText);
+  $('btn-download-txt').addEventListener('click', downloadTxt);
+  $('btn-download-pdf').addEventListener('click', downloadPdf);
+  $('btn-download-eml').addEventListener('click', downloadEml);
+  $('btn-open-mail').addEventListener('click', openMail);
+  $('btn-print').addEventListener('click', printLetter);
+
+  $('btn-save').addEventListener('click', saveCurrent);
+  $('btn-new').addEventListener('click', clearAll);
+  $('btn-sample').addEventListener('click', loadSample);
+  $('btn-export-all').addEventListener('click', exportAll);
+  $('btn-import-all').addEventListener('click', () => $('file-import').click());
+  $('file-import').addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) importAll(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // keyboard
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveCurrent(); }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') { e.preventDefault(); copyText(); }
+  });
+}
+
+/* ---------- BOOT ---------- */
+(function boot() {
+  initJurisdictions();
+  initAgencyPresets();
+  loadDraft();
+  if (!$('jurisdiction').value) $('jurisdiction').value = 'US';
+  renderLawInfo();
+  syncToggles();
+  renderSavedList();
+  wire();
+  regenerate();
+})();
+
+</script>
+</body>
+</html>
