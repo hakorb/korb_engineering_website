@@ -1294,13 +1294,32 @@ var holeConfigs = [];
 function setHolePositions() {
   var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
   if(!def || !def.holes) return;
+  // Moving-hole oscillation — each level picks a wander amplitude + per-hole speed
+  // The oscillation scales UP with level so later levels feel increasingly chaotic.
+  var levelIdx = G.endlessMode ? Math.min(19, G.endlessDifficulty || 0) : (G.level || 0);
+  var amp = Math.min(0.08, 0.015 + levelIdx * 0.004); // fractional screen units
+  var now = performance.now() / 1000;
   holePositions = [];
   holeConfigs = [];
   for(var i=0; i<def.holes.length; i++) {
     var h = def.holes[i];
+    // Stable per-hole phase so motion is reproducible / not jittery
+    var phaseX = (h.fx * 7.3 + i * 1.13) % (Math.PI * 2);
+    var phaseY = (h.fy * 5.9 + i * 0.71) % (Math.PI * 2);
+    var spdX = 0.3 + ((h.pts || 10) / 400); // higher-point holes wander faster
+    var spdY = 0.2 + ((h.pts || 10) / 500);
+    // Each hole class gets different motion shape:
+    // - low pts: still (small amp)
+    // - mid pts: linear oscillation
+    // - high pts: circular/figure-8 orbit
+    var movingAmp = h.pts >= 100 ? amp : h.pts >= 50 ? amp * 0.7 : amp * 0.3;
+    var dx = Math.sin(now * spdX + phaseX) * movingAmp;
+    var dy = (h.pts >= 200 ? Math.cos(now * spdY + phaseY) : Math.sin(now * spdY * 0.7 + phaseY)) * movingAmp;
+    var nx = Math.max(0.04, Math.min(0.96, h.fx + dx));
+    var ny = Math.max(0.05, Math.min(0.95, h.fy + dy));
     holePositions.push({
-      x: h.fx * W,
-      y: h.fy * H,
+      x: nx * W,
+      y: ny * H,
       ri: i
     });
     holeConfigs.push({
@@ -1313,6 +1332,13 @@ function setHolePositions() {
 
 function drawHoles(t) {
   setHolePositions();
+  // Keep target sensors in sync with moving hole positions
+  if(G.targets && G.targets.length === holePositions.length){
+    for(var k = 0; k < G.targets.length; k++){
+      var tp = holePositions[k];
+      if(tp && G.targets[k]) MBody.setPosition(G.targets[k], { x: tp.x, y: tp.y });
+    }
+  }
 
   for(var i=0; i<holePositions.length; i++) {
     var hp = holePositions[i];
