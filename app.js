@@ -237,6 +237,7 @@ const SECTIONS = {
       { name: '2048', file: './tools/misc/2048.html' },
       { name: '2D to 3D Generator', file: './tools/misc/2d-to-3d-generator.html' },
       { name: 'Age of Castles', file: './tools/misc/age-of-castles.html' },
+      { name: 'Air Hockey', file: './tools/misc/air-hockey.html' },
       { name: '3D Print Library', file: './tools/misc/3d-print-library.html' },
       { name: 'AI Tax Counsel', file: './tools/misc/ai-tax-counsel.html' },
       { name: "AJ's Synthesizer", file: './tools/misc/ajs-synthesizer.html' },
@@ -317,6 +318,7 @@ const SECTIONS = {
       { name: 'Legends of the Hidden Temple', file: './tools/misc/legends-of-the-hidden-temple.html' },
       { name: 'Lunar Lander', file: './tools/misc/lunar-lander.html' },
       { name: 'Makeup Mirror', file: './tools/misc/makeup-mirror.html' },
+      { name: 'Mancala', file: './tools/misc/mancala.html' },
       { name: 'Mandala Maker', file: './tools/misc/mandala-maker.html' },
       { name: 'Markdown Editor', file: './tools/misc/markdown-editor.html' },
       { name: "Mary Kay's Recipes", file: './tools/misc/mary-kays-recipes.html' },
@@ -330,6 +332,7 @@ const SECTIONS = {
       { name: 'Moving Specialist Invoice', file: './tools/misc/moving-invoice.html' },
       { name: "Alex's Muscle Atlas", file: './tools/misc/alexs-muscle-atlas.html' },
       { name: 'Music Library', file: './tools/misc/music-library.html' },
+      { name: 'Nerf Arcade', file: './tools/misc/nerf-arcade.html' },
       { name: 'Nutrition Tracker 3000', file: './tools/misc/TheNutritionTracker3000.html' },
       { name: "Olivia's Digital Escape Room", file: './tools/misc/olivias-digital-escape-room.html' },
       { name: 'OrcaSlicer Studio', file: './tools/misc/orcaslicer_studio.html' },
@@ -338,6 +341,7 @@ const SECTIONS = {
       { name: 'PDF Markup Studio', file: './tools/misc/pdf-markup-studio.html' },
       { name: 'Photo Forge', file: './tools/misc/photo-forge.html' },
       { name: 'Piano', file: './tools/misc/piano.html' },
+      { name: 'Pinball (1970s)', file: './tools/misc/pinball-1970s.html' },
       { name: 'Pipe Sizing Tool', file: './tools/aviation/pipe-sizing-tool.html' },
       { name: 'Pixel Art Editor', file: './tools/misc/pixel-art-editor.html' },
       { name: 'Podcast Player', file: './tools/misc/podcast-player.html' },
@@ -377,6 +381,7 @@ const SECTIONS = {
       { name: 'Vintage Web Game Vault', file: './tools/misc/vintage-web-game-vault.html' },
       { name: 'Webhook Playground', file: './tools/misc/webhook-playground.html' },
       { name: 'Whiteboard', file: './tools/misc/whiteboard.html' },
+      { name: 'Wicked Tuna', file: './tools/misc/wicked-tuna.html' },
       { name: 'World Cup 2026', file: './tools/misc/world-cup-2026.html' },
       { name: 'World Explorer', file: './tools/misc/world-explorer.html' },
       { name: 'World Travel Guide', file: './tools/misc/world-travel-guide.html' },
@@ -567,18 +572,7 @@ function renderHome() {
 
   main.innerHTML = `
     <section class="landing">
-      <h1 class="sr-only">Korb Engineering — Free Aviation &amp; Civil Engineering Tools</h1>
-      <div class="home-pitch reveal" aria-label="About this site">
-        <p class="home-pitch-line">
-          <span class="home-pitch-count">${homeToolCount}+</span>
-          self-contained, mobile-first tools.
-          Built by one engineer, in the browser, with no signups and no tracking.
-        </p>
-        <p class="home-pitch-sub">
-          Aviation &amp; civil work I actually use, productivity tools I actually open,
-          and a few gifts for family along the way.
-        </p>
-      </div>
+      <h1 class="sr-only">Korb Engineering — Free Aviation &amp; Civil Engineering Tools (${homeToolCount}+ tools)</h1>
       <div class="home-toolbar" role="search">
         <div class="search-bar-wrap">
           <label for="toolSearch" class="sr-only">Search all tools</label>
@@ -977,6 +971,11 @@ const TOOL_DESCRIPTIONS = {
   'Point Cloud Viewer': 'In-browser LiDAR / LAS / PLY / XYZ point-cloud viewer with WebGL2, orbit camera, elevation/RGB color modes, and distance measurements.',
   'Bumper Pool': 'Digital bumper pool with Matter.js physics, AI opponent, 10 bumpers, turn-based gameplay.',
   'Catan (Settlers of Korb)': 'Settlers of Catan clone with house rule: no player trading. Trade 4:1 with the bank or 3:1 / 2:1 at ports any time. 2-4 players pass-and-play or vs AI.',
+  'Mancala': 'Ancient sowing-and-capture game (Kalah rules). Play pass-and-play or against a minimax AI with three difficulty settings.',
+  'Pinball (1970s)': 'Groovy 70s-themed pinball with pop bumpers, slingshots, drop targets, spinner, multiball, and a digital score display.',
+  'Air Hockey': 'Fast-paced air hockey. VS CPU or pass-and-play on one device. First to 7 goals wins.',
+  'Nerf Arcade': 'Moving-target blaster. Tap to fire foam darts at red/blue/green/gold targets for points — dodge the penalty skulls. 60-second rounds.',
+  'Wicked Tuna': 'Gloucester-style tuna fishing sim. Cast, hook, manage line tension, and haul in a season\u2019s catch before fuel runs out.',
   'Music Library': 'Audio library with drag-drop upload, IndexedDB storage, playlists, now-playing with visualizer, and Harrison iPod sync.',
   'Serendipity Feed': 'Anti-algorithm feed: 8 live API sources, inverse category weighting, chaos dial, and perpetual-anticipation UX.',
   'Tool Request': 'Public tool suggestion form. Describe your idea and it gets emailed straight to Harrison.',

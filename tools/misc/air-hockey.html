@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Air Hockey // Korb Engineering</title>
+<meta name="description" content="Fast-paced air hockey. Play against a friend (split screen) or the CPU. First to 7 goals wins.">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: #0a1424; color: #fff; min-height: 100dvh;
+  font-family: 'Fredoka', sans-serif; overscroll-behavior: none;
+}
+body {
+  padding: 8px; max-width: 520px; margin: 0 auto;
+}
+a { color: #00eaff; text-decoration: none; }
+.back {
+  display: inline-block; color: #00eaff;
+  font-size: 11px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid #1a4a6a; border-radius: 3px; margin-bottom: 8px;
+}
+h1 {
+  font-size: clamp(22px, 5vw, 30px); letter-spacing: 3px; text-align: center;
+  color: #00eaff; text-shadow: 0 0 14px #00eaff;
+  margin-bottom: 4px;
+}
+.scoreboard {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px;
+  align-items: center; margin: 8px 0;
+  background: #000; padding: 8px; border-radius: 6px;
+  border: 2px solid #1a4a6a;
+}
+.score-num {
+  font-family: 'VT323', monospace; font-size: 40px;
+  text-align: center; color: #00eaff; text-shadow: 0 0 12px #00eaff;
+  font-variant-numeric: tabular-nums;
+}
+.score-num.p2 { color: #ff3ec9; text-shadow: 0 0 12px #ff3ec9; }
+.vs { font-size: 14px; letter-spacing: 3px; color: #5a7a9a; }
+
+#stage {
+  position: relative;
+  aspect-ratio: 1 / 2;
+  max-height: 80dvh;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  touch-action: none;
+  border: 4px solid #d0d8e0;
+  box-shadow: 0 0 20px rgba(0,234,255,0.3);
+}
+canvas { display: block; width: 100%; height: 100%; background: #e8f4ff; cursor: pointer; }
+
+.overlay {
+  position: absolute; inset: 0; background: rgba(10,20,40,0.92);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 14px; z-index: 20; text-align: center; padding: 20px;
+}
+.overlay.hidden { display: none; }
+.overlay h2 {
+  font-size: 28px; color: #00eaff; letter-spacing: 3px;
+  text-shadow: 0 0 14px #00eaff;
+}
+.mode-row { display: flex; gap: 6px; justify-content: center; }
+.btn {
+  background: linear-gradient(180deg, #00eaff, #0088aa);
+  color: #000; border: none;
+  padding: 14px 22px; border-radius: 24px; cursor: pointer;
+  font: 700 14px 'Fredoka', sans-serif; letter-spacing: 2px;
+  min-height: 48px; touch-action: manipulation;
+}
+.btn.pink { background: linear-gradient(180deg, #ff3ec9, #a02080); color: #fff; }
+.btn.secondary { background: rgba(0,234,255,0.15); color: #00eaff; border: 1px solid #00eaff; }
+.hint { font-size: 12px; color: #7aa0c0; max-width: 340px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<a href="../../index.html#misc" class="back">&larr; BACK</a>
+<h1>AIR HOCKEY</h1>
+
+<div class="scoreboard">
+  <div class="score-num p2" id="s2">0</div>
+  <div class="vs">VS</div>
+  <div class="score-num" id="s1">0</div>
+</div>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div class="overlay" id="start">
+    <h2>AIR HOCKEY</h2>
+    <div class="hint">Drag your paddle to control it. First to 7 goals wins.</div>
+    <div class="mode-row">
+      <button class="btn" id="btn-ai">VS CPU</button>
+      <button class="btn pink" id="btn-local">PASS &amp; PLAY</button>
+    </div>
+  </div>
+  <div class="overlay hidden" id="end">
+    <h2 id="end-title">YOU WIN!</h2>
+    <div class="hint" id="end-sub"></div>
+    <button class="btn" id="btn-rematch">REMATCH</button>
+    <button class="btn secondary" id="btn-menu">MENU</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas = document.getElementById('game');
+var ctx = canvas.getContext('2d');
+var W = 400, H = 800;
+function resize(){
+  var r = canvas.getBoundingClientRect();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = r.width * dpr;
+  canvas.height = r.height * dpr;
+  // Virtual coords 400×800 scaled to r
+  var sx = r.width / 400, sy = r.height / 800;
+  ctx.setTransform(sx * dpr, 0, 0, sy * dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+// Audio
+var AC = null;
+function audio(){ if(!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} return AC; }
+function beep(freq, dur, type, vol){
+  var ac = audio(); if(!ac) return;
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  g.gain.value = vol || 0.08;
+  o.connect(g); g.connect(ac.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  o.stop(ac.currentTime + dur);
+}
+function sfxHit(){ beep(600 + Math.random()*400, 0.04, 'square', 0.06); }
+function sfxGoal(){ beep(200, 0.1, 'sawtooth', 0.1); setTimeout(function(){ beep(400, 0.15, 'sawtooth', 0.1); }, 100); }
+
+var G = {
+  mode: 'ai',
+  state: 'menu',
+  score: [0, 0], // [p1, p2]
+  paddle1: { x: 200, y: 700, r: 28, vx: 0, vy: 0 },
+  paddle2: { x: 200, y: 100, r: 28, vx: 0, vy: 0 },
+  puck: { x: 200, y: 400, vx: 0, vy: 0, r: 18 },
+  winScore: 7,
+  touches: { p1: null, p2: null }, // pointerIds
+};
+
+function resetPuck(toPlayer){
+  G.puck.x = 200;
+  G.puck.y = toPlayer === 1 ? 500 : 300;
+  G.puck.vx = (Math.random() - 0.5) * 100;
+  G.puck.vy = toPlayer === 1 ? 200 : -200;
+}
+
+function startGame(mode){
+  G.mode = mode;
+  G.state = 'playing';
+  G.score = [0, 0];
+  document.getElementById('s1').textContent = 0;
+  document.getElementById('s2').textContent = 0;
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('end').classList.add('hidden');
+  resetPuck(1);
+  audio();
+}
+
+// Input
+canvas.addEventListener('pointerdown', function(e){
+  e.preventDefault();
+  var r = canvas.getBoundingClientRect();
+  var x = (e.clientX - r.left) * 400 / r.width;
+  var y = (e.clientY - r.top) * 800 / r.height;
+  // Which paddle? In pass & play: top half = p2, bottom = p1. In AI: only p1.
+  if(G.mode === 'ai'){
+    if(y > 400 && G.touches.p1 === null){ G.touches.p1 = e.pointerId; movePaddle(G.paddle1, x, y); }
+  } else {
+    if(y > 400 && G.touches.p1 === null){ G.touches.p1 = e.pointerId; movePaddle(G.paddle1, x, y); }
+    else if(y <= 400 && G.touches.p2 === null){ G.touches.p2 = e.pointerId; movePaddle(G.paddle2, x, y); }
+  }
+});
+canvas.addEventListener('pointermove', function(e){
+  var r = canvas.getBoundingClientRect();
+  var x = (e.clientX - r.left) * 400 / r.width;
+  var y = (e.clientY - r.top) * 800 / r.height;
+  if(e.pointerId === G.touches.p1){ movePaddle(G.paddle1, x, y); }
+  if(e.pointerId === G.touches.p2){ movePaddle(G.paddle2, x, y); }
+});
+function endPtr(e){
+  if(e.pointerId === G.touches.p1){ G.touches.p1 = null; G.paddle1.vx = 0; G.paddle1.vy = 0; }
+  if(e.pointerId === G.touches.p2){ G.touches.p2 = null; G.paddle2.vx = 0; G.paddle2.vy = 0; }
+}
+canvas.addEventListener('pointerup', endPtr);
+canvas.addEventListener('pointercancel', endPtr);
+
+function movePaddle(p, x, y){
+  // Clamp to player's half
+  var minY = p === G.paddle1 ? 400 + p.r : p.r + 50;
+  var maxY = p === G.paddle1 ? 800 - p.r : 400 - p.r;
+  var targetX = Math.max(p.r, Math.min(400 - p.r, x));
+  var targetY = Math.max(minY, Math.min(maxY, y));
+  var dx = targetX - p.x, dy = targetY - p.y;
+  p.vx = dx * 15; p.vy = dy * 15; // velocity for puck collision
+  p.x = targetX; p.y = targetY;
+}
+
+// AI
+function aiUpdate(dt){
+  if(G.mode !== 'ai') return;
+  var p = G.paddle2, puck = G.puck;
+  // Chase the puck, but only if it's on AI's side or heading there
+  var targetX = p.x, targetY = p.y;
+  if(puck.y < 400 && puck.vy < 200){
+    targetX = puck.x;
+    targetY = Math.min(350, puck.y + 30);
+  } else {
+    // Return to center of goal
+    targetX = 200;
+    targetY = 80;
+  }
+  var speed = 320; // pixels per second
+  var dx = targetX - p.x, dy = targetY - p.y;
+  var d = Math.sqrt(dx*dx + dy*dy);
+  if(d > 2){
+    var mv = Math.min(d, speed * dt);
+    p.vx = dx / d * speed;
+    p.vy = dy / d * speed;
+    p.x += dx / d * mv;
+    p.y += dy / d * mv;
+  } else { p.vx = 0; p.vy = 0; }
+  // Clamp
+  p.x = Math.max(p.r, Math.min(400 - p.r, p.x));
+  p.y = Math.max(p.r + 50, Math.min(400 - p.r, p.y));
+}
+
+function update(dt){
+  if(G.state !== 'playing') return;
+  aiUpdate(dt);
+  // Puck physics
+  var p = G.puck;
+  p.x += p.vx * dt; p.y += p.vy * dt;
+  p.vx *= 0.995; p.vy *= 0.995;
+  // Wall bounce (side walls all the way; top/bottom everywhere except goal mouth)
+  if(p.x - p.r < 0){ p.x = p.r; p.vx = Math.abs(p.vx); sfxHit(); }
+  if(p.x + p.r > 400){ p.x = 400 - p.r; p.vx = -Math.abs(p.vx); sfxHit(); }
+  var goalHalfWidth = 80;
+  // Top wall
+  if(p.y - p.r < 0){
+    if(Math.abs(p.x - 200) < goalHalfWidth){
+      // Goal for player 1
+      G.score[0]++;
+      document.getElementById('s1').textContent = G.score[0];
+      sfxGoal();
+      if(G.score[0] >= G.winScore){ endGame(0); return; }
+      resetPuck(2);
+      return;
+    }
+    p.y = p.r; p.vy = Math.abs(p.vy); sfxHit();
+  }
+  // Bottom wall
+  if(p.y + p.r > 800){
+    if(Math.abs(p.x - 200) < goalHalfWidth){
+      G.score[1]++;
+      document.getElementById('s2').textContent = G.score[1];
+      sfxGoal();
+      if(G.score[1] >= G.winScore){ endGame(1); return; }
+      resetPuck(1);
+      return;
+    }
+    p.y = 800 - p.r; p.vy = -Math.abs(p.vy); sfxHit();
+  }
+  // Collide with paddles
+  [G.paddle1, G.paddle2].forEach(function(pad){
+    var dx = p.x - pad.x, dy = p.y - pad.y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if(d < p.r + pad.r){
+      var nx = dx/d, ny = dy/d;
+      p.x = pad.x + nx * (p.r + pad.r);
+      p.y = pad.y + ny * (p.r + pad.r);
+      // Reflect velocity + add paddle velocity
+      var vn = p.vx * nx + p.vy * ny;
+      p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny;
+      p.vx += pad.vx * 0.5;
+      p.vy += pad.vy * 0.5;
+      p.vx *= 1.05; p.vy *= 1.05;
+      // Speed cap
+      var sp = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+      if(sp > 900){ p.vx = p.vx/sp*900; p.vy = p.vy/sp*900; }
+      sfxHit();
+    }
+  });
+  // Decay paddle velocity
+  G.paddle1.vx *= 0.7; G.paddle1.vy *= 0.7;
+  G.paddle2.vx *= 0.7; G.paddle2.vy *= 0.7;
+}
+
+function draw(){
+  // Rink
+  ctx.clearRect(0, 0, 400, 800);
+  ctx.fillStyle = '#e8f4ff';
+  ctx.fillRect(0, 0, 400, 800);
+  // Center line
+  ctx.strokeStyle = '#ff3ec9'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0, 400); ctx.lineTo(400, 400); ctx.stroke();
+  // Center circle
+  ctx.beginPath(); ctx.arc(200, 400, 60, 0, Math.PI * 2); ctx.stroke();
+  // Player goal boxes
+  ctx.strokeStyle = '#00aaff'; ctx.lineWidth = 3;
+  ctx.strokeRect(200 - 80, 0, 160, 60); // top
+  ctx.strokeStyle = '#ff8844';
+  ctx.strokeRect(200 - 80, 740, 160, 60); // bottom
+  // Goals (open area at top/bottom center)
+  ctx.fillStyle = '#00aaff';
+  ctx.fillRect(200 - 80, 0, 160, 4);
+  ctx.fillStyle = '#ff8844';
+  ctx.fillRect(200 - 80, 796, 160, 4);
+
+  // Paddles
+  drawPaddle(G.paddle1, '#ff8844', '#a04020');
+  drawPaddle(G.paddle2, '#00aaff', '#004466');
+  // Puck
+  var p = G.puck;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.r * 0.7, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawPaddle(pad, top, side){
+  ctx.fillStyle = side;
+  ctx.beginPath();
+  ctx.arc(pad.x, pad.y + 3, pad.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = top;
+  ctx.beginPath();
+  ctx.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(pad.x, pad.y, pad.r * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function endGame(winner){
+  G.state = 'ended';
+  document.getElementById('end-title').textContent =
+    G.mode === 'ai' ? (winner === 0 ? 'YOU WIN!' : 'CPU WINS') :
+    (winner === 0 ? 'PLAYER 1 WINS!' : 'PLAYER 2 WINS!');
+  document.getElementById('end-sub').textContent = 'Final: ' + G.score[0] + ' — ' + G.score[1];
+  document.getElementById('end').classList.remove('hidden');
+}
+
+document.getElementById('btn-ai').addEventListener('click', function(){ startGame('ai'); });
+document.getElementById('btn-local').addEventListener('click', function(){ startGame('local'); });
+document.getElementById('btn-rematch').addEventListener('click', function(){ startGame(G.mode); });
+document.getElementById('btn-menu').addEventListener('click', function(){
+  G.state = 'menu';
+  document.getElementById('end').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+});
+
+// Loop
+var lastT = 0;
+function loop(ts){
+  if(!lastT) lastT = ts;
+  var dt = Math.min(0.033, (ts - lastT) / 1000);
+  lastT = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+resize();
+requestAnimationFrame(loop);
+
+})();
+</script>
+
+</body>
+</html>

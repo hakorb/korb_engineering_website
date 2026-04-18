@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mancala // Korb Engineering</title>
+<meta name="description" content="Mancala (Kalah) — ancient sowing-and-capture game. Play against the computer or a friend pass-and-play.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #2a1808;
+  --wood-dark: #3a2510;
+  --wood: #5a3818;
+  --wood-light: #8a5828;
+  --pit: #1a0e04;
+  --p1: #d03030;
+  --p2: #2060c0;
+  --gold: #ffc83d;
+  --text: #f5e8c8;
+  --dim: #a89a78;
+  --stone: #e8d0a0;
+  --stone-2: #c8a868;
+  --stone-3: #8e6f2a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; line-height: 1.5;
+}
+body {
+  padding: 12px 12px 40px; max-width: 1100px; margin: 0 auto;
+  background:
+    radial-gradient(ellipse at center, rgba(255,200,61,0.08), transparent 60%),
+    var(--bg);
+}
+a { color: var(--gold); text-decoration: none; }
+.back {
+  display: inline-block; color: var(--gold);
+  font-size: 11px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid rgba(255,200,61,0.3); border-radius: 3px; margin-bottom: 10px;
+}
+.back:hover { background: rgba(255,200,61,0.08); }
+h1 {
+  font-family: 'Fredoka', sans-serif; font-weight: 700;
+  font-size: clamp(26px, 6vw, 38px); letter-spacing: 3px;
+  text-align: center; color: var(--gold);
+  text-shadow: 0 0 14px rgba(255,200,61,0.5), 2px 2px 0 var(--wood-dark);
+}
+.tagline {
+  text-align: center; color: var(--dim); font-size: 11px;
+  letter-spacing: 4px; margin-bottom: 14px;
+}
+
+.panel {
+  background: var(--wood-dark); border: 1px solid var(--wood);
+  border-radius: 4px; padding: 14px; margin-bottom: 10px;
+}
+.panel-hdr {
+  font-family: 'Fredoka', sans-serif; font-size: 12px; letter-spacing: 2px;
+  color: var(--gold); margin-bottom: 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--wood);
+}
+
+/* Setup */
+.setup { max-width: 440px; margin: 0 auto; }
+.mode-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.mode-btn {
+  background: var(--wood); border: 2px solid var(--wood-light);
+  color: var(--text); padding: 14px; border-radius: 4px; cursor: pointer;
+  font: 700 14px 'Fredoka', sans-serif; letter-spacing: 2px;
+  min-height: 56px; touch-action: manipulation;
+}
+.mode-btn.selected { border-color: var(--gold); background: rgba(255,200,61,0.12); color: var(--gold); }
+.mode-btn:hover { border-color: var(--gold); }
+
+.diff-pick { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-bottom: 12px; }
+.diff-pick button {
+  background: var(--wood); border: 2px solid var(--wood-light); color: var(--text);
+  padding: 10px 6px; border-radius: 4px; cursor: pointer;
+  font: 600 12px 'IBM Plex Mono', monospace; letter-spacing: 1px;
+  min-height: 48px;
+}
+.diff-pick button.selected { border-color: var(--gold); color: var(--gold); background: rgba(255,200,61,0.12); }
+
+.btn {
+  background: var(--gold); color: #1a1008; border: none;
+  padding: 12px 20px; border-radius: 3px; cursor: pointer;
+  font-family: 'Fredoka', sans-serif; font-size: 14px; letter-spacing: 2px;
+  font-weight: 700; min-height: 48px; touch-action: manipulation;
+  width: 100%;
+}
+.btn:hover { background: #ffe14b; }
+.btn.secondary { background: var(--wood); color: var(--text); border: 1px solid var(--wood-light); }
+.btn.tiny { padding: 6px 10px; font-size: 11px; min-height: 34px; width: auto; }
+
+/* Board */
+.board-wrap { position: relative; }
+.board {
+  background: linear-gradient(180deg, var(--wood-light), var(--wood) 70%, var(--wood-dark));
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow:
+    0 0 0 3px var(--wood-dark),
+    0 0 0 6px var(--wood),
+    0 8px 24px rgba(0,0,0,0.6),
+    inset 0 2px 6px rgba(255,255,255,0.1);
+  position: relative;
+}
+.board-inner {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px;
+  gap: 10px;
+  align-items: stretch;
+}
+@media (max-width: 560px) {
+  .board-inner { grid-template-columns: 60px 1fr 60px; gap: 6px; }
+  .board { padding: 10px; border-radius: 18px; }
+}
+
+.mancala-store {
+  background: var(--pit);
+  border-radius: 40px;
+  box-shadow: inset 0 4px 10px rgba(0,0,0,0.7), inset 0 0 0 2px var(--wood-dark);
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 14px 6px;
+  min-height: 260px;
+}
+.mancala-store.p1 { border-top: 4px solid var(--p1); }
+.mancala-store.p2 { border-top: 4px solid var(--p2); }
+.store-label {
+  font-family: 'Fredoka', sans-serif; font-size: 11px; letter-spacing: 2px;
+  color: var(--dim); margin-bottom: 6px; text-transform: uppercase;
+}
+.store-count {
+  font-family: 'Fredoka', sans-serif; font-weight: 700;
+  font-size: 32px; color: var(--gold);
+  text-shadow: 0 0 14px rgba(255,200,61,0.5);
+  z-index: 2;
+}
+@media (max-width: 560px) {
+  .store-count { font-size: 24px; }
+  .mancala-store { min-height: 200px; padding: 10px 4px; }
+}
+
+.pits-rows {
+  display: flex; flex-direction: column; justify-content: space-between;
+  gap: 6px;
+}
+.pit-row {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+}
+.pit-row.p2-row { direction: rtl; } /* top row reads right to left for display */
+
+.pit {
+  background: var(--pit);
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  box-shadow: inset 0 4px 8px rgba(0,0,0,0.7), inset 0 0 0 2px var(--wood-dark);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  direction: ltr;
+}
+.pit.owned-p1 { border: 3px solid transparent; }
+.pit.owned-p2 { border: 3px solid transparent; }
+.pit.active {
+  border-color: var(--gold) !important;
+  box-shadow: inset 0 4px 8px rgba(0,0,0,0.7), 0 0 18px rgba(255,200,61,0.5);
+}
+.pit.playable { cursor: pointer; }
+.pit.playable:hover { transform: scale(1.05); border-color: var(--gold) !important; }
+.pit.disabled { cursor: not-allowed; opacity: 0.85; }
+.pit-count {
+  font-family: 'Fredoka', sans-serif; font-weight: 700;
+  font-size: 22px; color: var(--gold);
+  z-index: 3; position: relative;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.6);
+}
+@media (max-width: 560px) { .pit-count { font-size: 18px; } }
+
+.stones {
+  position: absolute; inset: 8%;
+  border-radius: 50%; overflow: hidden;
+  pointer-events: none;
+}
+.stone {
+  position: absolute; border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(0,0,0,0.3), inset 1px 1px 2px rgba(255,255,255,0.3);
+  width: 14%; height: 14%;
+}
+@media (max-width: 560px) { .stone { width: 18%; height: 18%; } }
+
+/* HUD */
+.hud {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px;
+  align-items: center; margin-bottom: 8px;
+  font-family: 'Fredoka', sans-serif;
+}
+.hud .turn {
+  text-align: center; font-size: 16px; letter-spacing: 2px;
+  padding: 6px 14px; border-radius: 20px;
+  background: rgba(0,0,0,0.4); border: 1px solid var(--wood);
+}
+.hud .p-name {
+  font-size: 13px; letter-spacing: 2px; padding: 6px 10px;
+  border-radius: 4px; text-align: center;
+  background: rgba(0,0,0,0.3);
+}
+.hud .p-name.p1 { border-left: 4px solid var(--p1); }
+.hud .p-name.p2 { border-right: 4px solid var(--p2); }
+.hud .p-name.active { background: rgba(255,200,61,0.15); color: var(--gold); box-shadow: 0 0 10px rgba(255,200,61,0.25); }
+
+.log {
+  max-height: 140px; overflow-y: auto; font-size: 11px;
+  background: rgba(0,0,0,0.5); border-radius: 3px; padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace; line-height: 1.6;
+}
+.log-line { color: var(--text); margin-bottom: 2px; }
+.log-line.p1 { color: #ff8080; }
+.log-line.p2 { color: #80c0ff; }
+.log-line.win { color: var(--gold); font-weight: 700; font-size: 13px; }
+.log-line.capture { color: var(--gold); }
+.log-line.free { color: var(--gold); font-style: italic; }
+
+.controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px;
+}
+
+/* Rules panel */
+.rules { font-size: 12px; color: var(--dim); line-height: 1.7; }
+.rules b { color: var(--gold); }
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* Win overlay */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 200;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.overlay .box {
+  background: var(--wood-dark); border: 2px solid var(--gold); border-radius: 10px;
+  padding: 24px; max-width: 400px; text-align: center;
+}
+.overlay h2 {
+  font-family: 'Fredoka', sans-serif; font-size: 24px; letter-spacing: 3px;
+  color: var(--gold); margin-bottom: 10px;
+  text-shadow: 0 0 14px rgba(255,200,61,0.5);
+}
+.overlay .score {
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; margin: 12px 0;
+}
+</style>
+</head>
+<body>
+
+<a href="../../index.html#misc" class="back">&larr; BACK</a>
+
+<h1>MANCALA</h1>
+<div class="tagline">ANCIENT SOWING GAME &bull; KALAH RULES</div>
+
+<!-- SETUP -->
+<div class="screen active" id="screen-setup">
+  <div class="setup">
+    <div class="panel">
+      <div class="panel-hdr">GAME MODE</div>
+      <div class="mode-pick">
+        <button class="mode-btn selected" data-mode="ai">VS COMPUTER</button>
+        <button class="mode-btn" data-mode="local">PASS &amp; PLAY</button>
+      </div>
+      <div id="diff-section">
+        <div class="panel-hdr" style="margin-top:10px">DIFFICULTY</div>
+        <div class="diff-pick" id="diff-pick">
+          <button data-d="1">EASY</button>
+          <button data-d="3" class="selected">MEDIUM</button>
+          <button data-d="5">HARD</button>
+        </div>
+      </div>
+      <div class="panel-hdr" style="margin-top:10px">NAMES</div>
+      <div style="display:grid;grid-template-columns:50px 1fr;gap:6px;margin-bottom:6px;align-items:center">
+        <div style="text-align:center"><div style="width:16px;height:16px;border-radius:50%;background:var(--p1);margin:0 auto"></div></div>
+        <input type="text" id="name1" value="You" style="background:var(--wood);border:1px solid var(--wood-light);color:var(--text);padding:10px 12px;border-radius:3px;font:500 14px 'IBM Plex Mono';min-height:44px">
+      </div>
+      <div style="display:grid;grid-template-columns:50px 1fr;gap:6px;align-items:center">
+        <div style="text-align:center"><div style="width:16px;height:16px;border-radius:50%;background:var(--p2);margin:0 auto"></div></div>
+        <input type="text" id="name2" value="CPU" style="background:var(--wood);border:1px solid var(--wood-light);color:var(--text);padding:10px 12px;border-radius:3px;font:500 14px 'IBM Plex Mono';min-height:44px">
+      </div>
+      <button class="btn" id="btn-begin" style="margin-top:14px">BEGIN GAME</button>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">HOW TO PLAY</div>
+      <div class="rules">
+        Pick up all the stones in a pit on <b>your</b> side. Sow them one-per-pit <b>counter-clockwise</b>, including your own store but <b>skipping</b> your opponent's store.
+        <br><br>
+        <b>Free turn:</b> Land your last stone in your own store.<br>
+        <b>Capture:</b> Land your last stone in an <b>empty</b> pit on your side and capture both that stone and all stones in the opposite pit on the opponent's side.<br>
+        <b>Game ends</b> when one player's side is empty. The other player sweeps their remaining stones into their store. Most stones wins.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen" id="screen-game">
+  <div class="hud">
+    <div class="p-name p2" id="hud-p2">P2</div>
+    <div class="turn" id="hud-turn">&middot;</div>
+    <div class="p-name p1 active" id="hud-p1">P1</div>
+  </div>
+
+  <div class="board">
+    <div class="board-inner">
+      <div class="mancala-store p2">
+        <div class="store-label" id="store-p2-label">P2</div>
+        <div class="store-count" id="store-p2">0</div>
+      </div>
+      <div class="pits-rows">
+        <div class="pit-row p2-row" id="row-p2"></div>
+        <div class="pit-row p1-row" id="row-p1"></div>
+      </div>
+      <div class="mancala-store p1">
+        <div class="store-label" id="store-p1-label">P1</div>
+        <div class="store-count" id="store-p1">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:10px">
+    <div class="panel-hdr">LOG</div>
+    <div class="log" id="log"></div>
+    <div class="controls">
+      <button class="btn secondary" id="btn-new">NEW GAME</button>
+      <button class="btn secondary" id="btn-undo">UNDO</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay-root"></div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// STATE
+// The standard Mancala board has 14 positions indexed as follows (P1 on bottom):
+//   12 11 10  9  8  7    <- P2's pits
+//   13                6   <- stores (P2 left, P1 right); wait, actually
+// Better: indices 0-5 = P1 pits (left to right), 6 = P1 store
+//         indices 7-12 = P2 pits (right to left from P1's view), 13 = P2 store
+// Sowing direction: from 0 → 6 → 7 → ... → 12 → 13 (but skip 13 if it's not your own store)
+// Actually: P1's store is index 6, sowing after index 5 goes to 6 then 7.
+// P2's store is index 13, sowing after index 12 goes to 13 then 0 (skip 0? no, 0 is P1's pit, that's fine)
+// When P1 is sowing and about to pass index 13 (P2's store), skip it — go to 0 instead.
+// When P2 is sowing and about to pass index 6 (P1's store), skip it — go to 7 instead.
+// ============================================================
+var S;
+
+function freshState(mode, diff, name1, name2){
+  // board array of 14 positions
+  var board = new Array(14).fill(4);
+  board[6] = 0;  // P1 store
+  board[13] = 0; // P2 store
+  return {
+    board: board,
+    turn: 0, // 0 = P1, 1 = P2
+    mode: mode,
+    diff: diff,
+    names: [name1, name2],
+    history: [],
+    gameOver: false,
+    animating: false,
+  };
+}
+
+// ============================================================
+// GAME LOGIC
+// ============================================================
+var P1_STORE = 6, P2_STORE = 13;
+var P1_PITS = [0,1,2,3,4,5];
+var P2_PITS = [7,8,9,10,11,12];
+
+function ownedByP1(i){ return i >= 0 && i <= 5; }
+function ownedByP2(i){ return i >= 7 && i <= 12; }
+function isPlayerPit(i, player){ return player === 0 ? ownedByP1(i) : ownedByP2(i); }
+function isPlayerStore(i, player){ return player === 0 ? i === P1_STORE : i === P2_STORE; }
+function isOtherStore(i, player){ return player === 0 ? i === P2_STORE : i === P1_STORE; }
+function oppositePit(i){ return 12 - i; } // 0 ↔ 12, 1 ↔ 11, 2 ↔ 10, 3 ↔ 9, 4 ↔ 8, 5 ↔ 7
+
+function validMoves(state){
+  var pits = state.turn === 0 ? P1_PITS : P2_PITS;
+  return pits.filter(function(i){ return state.board[i] > 0; });
+}
+
+function applyMove(state, fromIdx){
+  // Sow stones starting from fromIdx+1, counter-clockwise
+  var stones = state.board[fromIdx];
+  if(stones === 0) return { freeTurn: false, captured: 0 };
+  state.board[fromIdx] = 0;
+  var i = fromIdx;
+  while(stones > 0){
+    i = (i + 1) % 14;
+    if(isOtherStore(i, state.turn)) continue; // skip opponent's store
+    state.board[i]++;
+    stones--;
+  }
+  var lastIdx = i;
+  var freeTurn = false;
+  var captured = 0;
+  if(isPlayerStore(lastIdx, state.turn)){
+    freeTurn = true;
+  } else if(isPlayerPit(lastIdx, state.turn) && state.board[lastIdx] === 1){
+    // Capture!
+    var opp = oppositePit(lastIdx);
+    if(state.board[opp] > 0){
+      captured = state.board[opp] + 1;
+      state.board[opp] = 0;
+      state.board[lastIdx] = 0;
+      var myStore = state.turn === 0 ? P1_STORE : P2_STORE;
+      state.board[myStore] += captured;
+    }
+  }
+  return { freeTurn: freeTurn, captured: captured, lastIdx: lastIdx };
+}
+
+function checkGameOver(state){
+  var p1Empty = P1_PITS.every(function(i){ return state.board[i] === 0; });
+  var p2Empty = P2_PITS.every(function(i){ return state.board[i] === 0; });
+  if(p1Empty || p2Empty){
+    // Sweep remaining to the other player's store
+    if(p1Empty){
+      var sum = P2_PITS.reduce(function(a,i){ return a + state.board[i]; }, 0);
+      P2_PITS.forEach(function(i){ state.board[i] = 0; });
+      state.board[P2_STORE] += sum;
+    } else {
+      var sum = P1_PITS.reduce(function(a,i){ return a + state.board[i]; }, 0);
+      P1_PITS.forEach(function(i){ state.board[i] = 0; });
+      state.board[P1_STORE] += sum;
+    }
+    return true;
+  }
+  return false;
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function $(id){ return document.getElementById(id); }
+function screen(id){
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  $('screen-'+id).classList.add('active');
+}
+function log(msg, cls){
+  var el = $('log');
+  var line = document.createElement('div');
+  line.className = 'log-line' + (cls ? ' ' + cls : '');
+  line.textContent = msg;
+  el.insertBefore(line, el.firstChild);
+  while(el.children.length > 40) el.removeChild(el.lastChild);
+}
+
+function renderBoard(highlightIdx){
+  $('store-p1').textContent = S.board[P1_STORE];
+  $('store-p2').textContent = S.board[P2_STORE];
+  $('store-p1-label').textContent = S.names[0].toUpperCase();
+  $('store-p2-label').textContent = S.names[1].toUpperCase();
+
+  // P1 row (bottom) — pits 0..5 left to right
+  var p1HTML = '';
+  P1_PITS.forEach(function(i){
+    var playable = S.turn === 0 && !S.gameOver && !S.animating && S.board[i] > 0;
+    var classes = ['pit', 'owned-p1'];
+    if(playable) classes.push('playable');
+    else classes.push('disabled');
+    if(highlightIdx === i) classes.push('active');
+    p1HTML += '<div class="' + classes.join(' ') + '" data-idx="' + i + '" style="border-color:' + (playable ? 'rgba(208,48,48,0.4)' : 'var(--wood-dark)') + '">' +
+      '<div class="stones">' + renderStones(S.board[i]) + '</div>' +
+      '<div class="pit-count">' + S.board[i] + '</div>' +
+      '</div>';
+  });
+  $('row-p1').innerHTML = p1HTML;
+
+  // P2 row (top) — pits 12..7 left to right (reversed from array order)
+  // Because direction: rtl, we actually render 7..12 and CSS flips display
+  var p2HTML = '';
+  P2_PITS.forEach(function(i){
+    var playable = S.turn === 1 && !S.gameOver && !S.animating && S.board[i] > 0 && S.mode !== 'ai';
+    var classes = ['pit', 'owned-p2'];
+    if(playable) classes.push('playable');
+    else classes.push('disabled');
+    if(highlightIdx === i) classes.push('active');
+    p2HTML += '<div class="' + classes.join(' ') + '" data-idx="' + i + '" style="border-color:' + (playable ? 'rgba(32,96,192,0.4)' : 'var(--wood-dark)') + '">' +
+      '<div class="stones">' + renderStones(S.board[i]) + '</div>' +
+      '<div class="pit-count">' + S.board[i] + '</div>' +
+      '</div>';
+  });
+  $('row-p2').innerHTML = p2HTML;
+
+  // Attach click handlers
+  document.querySelectorAll('.pit.playable').forEach(function(el){
+    el.addEventListener('click', function(){ makeMove(parseInt(el.dataset.idx, 10)); });
+  });
+
+  // Turn HUD
+  $('hud-turn').textContent = S.gameOver ? 'GAME OVER' : S.names[S.turn].toUpperCase() + '\'s TURN';
+  $('hud-p1').textContent = S.names[0];
+  $('hud-p2').textContent = S.names[1];
+  $('hud-p1').classList.toggle('active', S.turn === 0 && !S.gameOver);
+  $('hud-p2').classList.toggle('active', S.turn === 1 && !S.gameOver);
+}
+
+function renderStones(n){
+  // Place up to 12 stone dots in the pit for visual flair
+  var html = '';
+  var maxDots = Math.min(n, 12);
+  for(var k=0; k<maxDots; k++){
+    var angle = (k / maxDots) * Math.PI * 2;
+    var r = k < 4 ? 20 : k < 8 ? 36 : 48;
+    var cx = 50 + Math.cos(angle + k*0.3) * r;
+    var cy = 50 + Math.sin(angle + k*0.3) * r;
+    var colors = ['var(--stone)','var(--stone-2)','var(--stone-3)'];
+    var color = colors[k % colors.length];
+    html += '<div class="stone" style="left:' + cx + '%;top:' + cy + '%;background:radial-gradient(circle at 30% 30%, #fff5d0 0%, ' + color + ' 60%, #5a4520 100%);"></div>';
+  }
+  return html;
+}
+
+// ============================================================
+// TURN FLOW WITH ANIMATION
+// ============================================================
+async function makeMove(fromIdx){
+  if(S.animating || S.gameOver) return;
+  if(!isPlayerPit(fromIdx, S.turn)) return;
+  if(S.board[fromIdx] === 0) return;
+
+  // Save history for undo
+  S.history.push({ board: S.board.slice(), turn: S.turn });
+  if(S.history.length > 20) S.history.shift();
+
+  S.animating = true;
+  var stones = S.board[fromIdx];
+  S.board[fromIdx] = 0;
+  renderBoard(fromIdx);
+  await sleep(160);
+
+  // Sow stone by stone with animation
+  var i = fromIdx;
+  while(stones > 0){
+    i = (i + 1) % 14;
+    if(isOtherStore(i, S.turn)) continue;
+    S.board[i]++;
+    stones--;
+    renderBoard(i);
+    await sleep(120);
+  }
+
+  var lastIdx = i;
+  var freeTurn = false, captured = 0;
+
+  if(isPlayerStore(lastIdx, S.turn)){
+    freeTurn = true;
+    log(S.names[S.turn] + ' earns a free turn!', 'free');
+  } else if(isPlayerPit(lastIdx, S.turn) && S.board[lastIdx] === 1){
+    var opp = oppositePit(lastIdx);
+    if(S.board[opp] > 0){
+      captured = S.board[opp] + 1;
+      S.board[opp] = 0;
+      S.board[lastIdx] = 0;
+      var myStore = S.turn === 0 ? P1_STORE : P2_STORE;
+      S.board[myStore] += captured;
+      log(S.names[S.turn] + ' captures ' + captured + ' stones!', 'capture');
+      renderBoard();
+      await sleep(600);
+    }
+  }
+
+  // Check game over
+  if(checkGameOver(S)){
+    S.gameOver = true;
+    S.animating = false;
+    renderBoard();
+    showWinner();
+    return;
+  }
+
+  if(!freeTurn){
+    S.turn = 1 - S.turn;
+  }
+
+  S.animating = false;
+  renderBoard();
+
+  // Trigger AI if it's AI's turn
+  if(S.mode === 'ai' && S.turn === 1 && !S.gameOver){
+    setTimeout(aiTurn, 600);
+  }
+}
+
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+// ============================================================
+// AI (Minimax with alpha-beta)
+// ============================================================
+function aiTurn(){
+  if(S.gameOver) return;
+  var move = pickBestMove(S, S.diff);
+  if(move === null){ return; }
+  log(S.names[1] + ' plays pit ' + (move - 6), 'p2');
+  makeMove(move);
+}
+
+function pickBestMove(state, depth){
+  var valid = validMoves(state);
+  if(valid.length === 0) return null;
+  if(depth <= 1){
+    // Easy: random-weighted
+    var best = valid[0], bestScore = -Infinity;
+    valid.forEach(function(m){
+      var sc = state.board[m] + Math.random() * 0.5;
+      // Prefer moves landing in own store
+      var landing = (m + state.board[m]) % 14;
+      if(landing === P2_STORE) sc += 5;
+      if(sc > bestScore){ bestScore = sc; best = m; }
+    });
+    return best;
+  }
+  // Medium/Hard: minimax
+  var bestMove = valid[0], bestVal = -Infinity;
+  valid.forEach(function(m){
+    var clone = cloneState(state);
+    var res = applyMove(clone, m);
+    var moreFromSame = false;
+    if(res.freeTurn){ moreFromSame = true; }
+    else { clone.turn = 1 - clone.turn; }
+    if(checkGameOver(clone)){
+      var val = scoreFor(clone, 1);
+      if(val > bestVal){ bestVal = val; bestMove = m; }
+      return;
+    }
+    var val = minimax(clone, depth - 1, -Infinity, Infinity, moreFromSame ? true : false);
+    if(val > bestVal){ bestVal = val; bestMove = m; }
+  });
+  return bestMove;
+}
+
+function cloneState(state){
+  return {
+    board: state.board.slice(),
+    turn: state.turn,
+    mode: state.mode,
+    diff: state.diff,
+    names: state.names,
+    history: [],
+    gameOver: state.gameOver,
+  };
+}
+
+function scoreFor(state, player){
+  var myStore = player === 0 ? P1_STORE : P2_STORE;
+  var oppStore = player === 0 ? P2_STORE : P1_STORE;
+  return state.board[myStore] - state.board[oppStore];
+}
+
+function minimax(state, depth, alpha, beta, maximizing){
+  // Maximizing = AI (player 1) perspective
+  if(depth === 0 || checkGameOverNoMutate(state)){
+    return scoreFor(state, 1);
+  }
+  var valid = validMoves(state);
+  if(valid.length === 0) return scoreFor(state, 1);
+  if(maximizing){
+    var value = -Infinity;
+    for(var i=0;i<valid.length;i++){
+      var clone = cloneState(state);
+      var res = applyMove(clone, valid[i]);
+      if(!res.freeTurn) clone.turn = 1 - clone.turn;
+      value = Math.max(value, minimax(clone, depth - 1, alpha, beta, res.freeTurn));
+      alpha = Math.max(alpha, value);
+      if(beta <= alpha) break;
+    }
+    return value;
+  } else {
+    var value = Infinity;
+    for(var i=0;i<valid.length;i++){
+      var clone = cloneState(state);
+      var res = applyMove(clone, valid[i]);
+      if(!res.freeTurn) clone.turn = 1 - clone.turn;
+      value = Math.min(value, minimax(clone, depth - 1, alpha, beta, !res.freeTurn));
+      beta = Math.min(beta, value);
+      if(beta <= alpha) break;
+    }
+    return value;
+  }
+}
+function checkGameOverNoMutate(state){
+  var p1Empty = P1_PITS.every(function(i){ return state.board[i] === 0; });
+  var p2Empty = P2_PITS.every(function(i){ return state.board[i] === 0; });
+  return p1Empty || p2Empty;
+}
+
+// ============================================================
+// WINNER SCREEN
+// ============================================================
+function showWinner(){
+  var p1 = S.board[P1_STORE];
+  var p2 = S.board[P2_STORE];
+  var winner = p1 > p2 ? 0 : p2 > p1 ? 1 : -1;
+  var title = winner === -1 ? 'TIE GAME' : S.names[winner].toUpperCase() + ' WINS!';
+  log(title + ' (' + p1 + ' vs ' + p2 + ')', 'win');
+  $('overlay-root').innerHTML =
+    '<div class="overlay"><div class="box">' +
+      '<h2>' + title + '</h2>' +
+      '<div class="score">' +
+        '<div><span style="color:var(--p1)">' + S.names[0] + '</span>: ' + p1 + ' stones</div>' +
+        '<div><span style="color:#80c0ff">' + S.names[1] + '</span>: ' + p2 + ' stones</div>' +
+      '</div>' +
+      '<button class="btn" id="overlay-new">PLAY AGAIN</button>' +
+      '<button class="btn secondary" id="overlay-menu" style="margin-top:6px">MAIN MENU</button>' +
+    '</div></div>';
+  $('overlay-new').addEventListener('click', function(){ restart(); });
+  $('overlay-menu').addEventListener('click', function(){
+    $('overlay-root').innerHTML = '';
+    screen('setup');
+  });
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+document.querySelectorAll('.mode-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.mode-btn').forEach(function(x){ x.classList.remove('selected'); });
+    b.classList.add('selected');
+    $('diff-section').style.display = b.dataset.mode === 'ai' ? 'block' : 'none';
+    $('name2').value = b.dataset.mode === 'ai' ? 'CPU' : 'Player 2';
+  });
+});
+document.querySelectorAll('#diff-pick button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('#diff-pick button').forEach(function(x){ x.classList.remove('selected'); });
+    b.classList.add('selected');
+  });
+});
+
+$('btn-begin').addEventListener('click', function(){
+  var mode = document.querySelector('.mode-btn.selected').dataset.mode;
+  var diff = parseInt((document.querySelector('#diff-pick button.selected') || {}).dataset?.d || '3', 10);
+  var n1 = $('name1').value || 'Player 1';
+  var n2 = $('name2').value || (mode === 'ai' ? 'CPU' : 'Player 2');
+  S = freshState(mode, diff, n1, n2);
+  screen('game');
+  $('log').innerHTML = '';
+  log(S.names[0] + ' vs ' + S.names[1] + ' — ' + S.names[0] + ' goes first', 'p1');
+  renderBoard();
+});
+
+$('btn-new').addEventListener('click', function(){
+  if(confirm('Start a new game?')) restart();
+});
+$('btn-undo').addEventListener('click', function(){
+  if(S.animating) return;
+  if(S.history.length === 0) return;
+  // In AI mode, undo two steps if possible so player ends up on their turn
+  var target = S.mode === 'ai' && S.history.length >= 2 ? 2 : 1;
+  for(var i=0; i<target && S.history.length > 0; i++){
+    var h = S.history.pop();
+    S.board = h.board;
+    S.turn = h.turn;
+  }
+  S.gameOver = false;
+  $('overlay-root').innerHTML = '';
+  renderBoard();
+  log('Move undone', 'capture');
+});
+function restart(){
+  $('overlay-root').innerHTML = '';
+  var n1 = S.names[0], n2 = S.names[1];
+  S = freshState(S.mode, S.diff, n1, n2);
+  $('log').innerHTML = '';
+  log('New game: ' + S.names[0] + ' goes first', 'p1');
+  renderBoard();
+}
+
+})();
+</script>
+
+</body>
+</html>
