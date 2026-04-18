@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>korb.wars — Geometry Wars</title>
-<meta name="description" content="Twin-stick neon geometry shooter. Survive waves of geometric foes. Clone of Geometry Wars.">
+<title>Neon Grid // Korb Engineering</title>
+<meta name="description" content="Neon Grid — twin-stick shooter through a neon geometric arena. Collect crystals from fallen foes, pump to the high-tempo soundtrack, or try Pacifist mode where you dodge everything without firing a shot.">
 <style>
 :root {
   --bg: #050510;
@@ -149,12 +149,18 @@ canvas { display: block; width: 100%; height: 100%; background: var(--bg); touch
 <button id="bomb-btn">&#9733;</button>
 
 <div id="title" class="active">
-  <div class="title-logo">KORB.WARS</div>
-  <div class="title-sub">GEOMETRY COMBAT</div>
+  <div class="title-logo">NEON GRID</div>
+  <div class="title-sub">COLLECT · COMBAT · CATHARSIS</div>
   <button class="title-btn" id="btn-start">START</button>
+  <button class="title-btn pink" id="btn-pacifist">PACIFIST MODE</button>
+  <label style="color:#8888aa;font-size:11px;letter-spacing:2px;margin-top:10px;display:flex;align-items:center;gap:8px;cursor:pointer">
+    <input type="checkbox" id="music-toggle" checked style="transform:scale(1.2)">MUSIC
+  </label>
   <div class="hint">
-    <b>DESKTOP:</b> WASD or Arrows to move &bull; Mouse to aim &bull; Click/Space to shoot &bull; X or Enter for Bomb &bull; P to pause<br>
-    <b>MOBILE:</b> Left stick moves &bull; Right stick aims and fires &bull; &#9733; for Bomb
+    <b>DESKTOP:</b> WASD/arrows to move &bull; Mouse to aim &bull; Click/Space to shoot &bull; X/Enter bomb &bull; P pause<br>
+    <b>GAMEPAD:</b> Left stick moves &bull; Right stick aims/fires &bull; RT/A shoots &bull; LT/B bomb<br>
+    <b>MOBILE:</b> Dual sticks + &#9733; bomb button<br>
+    <b>PACIFIST:</b> You can't shoot. Just survive and collect crystals.
   </div>
 </div>
 
@@ -231,6 +237,107 @@ function sfxBossWarn(){
     (function(n){ setTimeout(function(){ beep(220, 0.2, 'sawtooth', 0.15); }, n*250); })(i);
   }
 }
+function sfxCrystal(){ beep(1800, 0.04, 'triangle', 0.1); setTimeout(function(){ beep(2400, 0.06, 'triangle', 0.08); }, 30); }
+
+// ================== MUSIC (synthesized, high-tempo) ==================
+// A tight 16-step sequencer with a driving bass, a clap on 2 & 4, and a neon lead
+var MUSIC = {
+  bpm: 148,
+  step: 0,
+  lastStepTime: 0,
+  // Step patterns (16 steps / bar)
+  kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+  snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1],
+  hat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+  // Bass notes (Hz) at each step — A minor pulse
+  bass:  [55,0,0,55, 55,0,0,0, 82.4,0,0,82.4, 65.4,0,0,0],
+  // Lead arpeggio — A minor pentatonic, octave up
+  lead:  [440, 523, 659, 783, 659, 523, 440, 392, 440, 523, 587, 659, 783, 659, 523, 392],
+  leadStep: 0,
+  barCount: 0,
+};
+function musicTick(){
+  var ac = ensureAudio();
+  if(!ac || !G.musicOn || G.state !== 'playing') return;
+  var stepDur = 60 / MUSIC.bpm / 4; // 16th notes
+  var now = ac.currentTime;
+  if(!MUSIC.nextTime) MUSIC.nextTime = now + 0.1;
+  while(MUSIC.nextTime < now + 0.25){
+    scheduleStep(MUSIC.nextTime);
+    MUSIC.nextTime += stepDur;
+  }
+}
+function scheduleStep(when){
+  var ac = ensureAudio(); if(!ac) return;
+  var s = MUSIC.step;
+  var master = G.pacifist ? 0.35 : 0.55; // softer in pacifist mode
+  // Kick
+  if(MUSIC.kick[s]){
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(110, when);
+    o.frequency.exponentialRampToValueAtTime(30, when + 0.12);
+    g.gain.setValueAtTime(0.4 * master, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.18);
+    o.connect(g); g.connect(ac.destination);
+    o.start(when); o.stop(when + 0.2);
+  }
+  // Hi-hat
+  if(MUSIC.hat[s]){
+    var len = 0.03;
+    var buf = ac.createBuffer(1, ac.sampleRate * len, ac.sampleRate);
+    var d = buf.getChannelData(0);
+    for(var i=0;i<d.length;i++) d[i] = (Math.random() * 2 - 1) * (1 - i/d.length);
+    var src = ac.createBufferSource(); src.buffer = buf;
+    var hg = ac.createGain(); hg.gain.setValueAtTime(0.06 * master, when);
+    hg.gain.exponentialRampToValueAtTime(0.0001, when + len);
+    // High-pass via biquad
+    var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6000;
+    src.connect(hp); hp.connect(hg); hg.connect(ac.destination);
+    src.start(when); src.stop(when + len);
+  }
+  // Snare (noise + tone)
+  if(MUSIC.snare[s]){
+    var slen = 0.08;
+    var sbuf = ac.createBuffer(1, ac.sampleRate * slen, ac.sampleRate);
+    var sd = sbuf.getChannelData(0);
+    for(var i=0;i<sd.length;i++) sd[i] = (Math.random() * 2 - 1) * (1 - i/sd.length);
+    var ssrc = ac.createBufferSource(); ssrc.buffer = sbuf;
+    var sg = ac.createGain(); sg.gain.setValueAtTime(0.15 * master, when);
+    sg.gain.exponentialRampToValueAtTime(0.0001, when + slen);
+    var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2000;
+    ssrc.connect(bp); bp.connect(sg); sg.connect(ac.destination);
+    ssrc.start(when); ssrc.stop(when + slen);
+  }
+  // Bass
+  if(MUSIC.bass[s]){
+    var bo = ac.createOscillator(); var bg = ac.createGain();
+    bo.type = 'sawtooth'; bo.frequency.value = MUSIC.bass[s];
+    var bf = ac.createBiquadFilter(); bf.type = 'lowpass';
+    bf.frequency.setValueAtTime(400, when);
+    bf.frequency.exponentialRampToValueAtTime(120, when + 0.18);
+    bg.gain.setValueAtTime(0.22 * master, when);
+    bg.gain.exponentialRampToValueAtTime(0.001, when + 0.22);
+    bo.connect(bf); bf.connect(bg); bg.connect(ac.destination);
+    bo.start(when); bo.stop(when + 0.25);
+  }
+  // Lead (every 2nd step, on top of a sustained pad)
+  if(s % 2 === 0){
+    var noteIdx = MUSIC.leadStep % MUSIC.lead.length;
+    var freq = MUSIC.lead[noteIdx];
+    var lo = ac.createOscillator(), lg = ac.createGain();
+    lo.type = 'square'; lo.frequency.value = freq;
+    lg.gain.setValueAtTime(0, when);
+    lg.gain.linearRampToValueAtTime(0.06 * master, when + 0.01);
+    lg.gain.exponentialRampToValueAtTime(0.001, when + 0.18);
+    var lf = ac.createBiquadFilter(); lf.type = 'lowpass';
+    lf.frequency.value = 1800 + 400 * Math.sin(MUSIC.barCount * 0.3);
+    lo.connect(lf); lf.connect(lg); lg.connect(ac.destination);
+    lo.start(when); lo.stop(when + 0.2);
+    MUSIC.leadStep++;
+  }
+  MUSIC.step = (MUSIC.step + 1) % 16;
+  if(MUSIC.step === 0) MUSIC.barCount++;
+}
 
 
 function resize(){
@@ -280,6 +387,14 @@ var G = {
   bombFlash: 0,
   invuln: 0,
   snakeCooldown: 0,
+  // New: pacifist + crystals + music
+  pacifist: false,
+  pacifistTime: 0,
+  crystals: [],
+  crystalsCollected: 0,
+  musicOn: true,
+  musicTick: 0,
+  gamepadIndex: -1,
 };
 
 // ================== INPUT ==================
@@ -428,6 +543,127 @@ function applyPowerup(p){
 }
 function spawnFloatText(x, y, text, color){
   G.floatTexts.push({x:x, y:y, text:text, color:color, life: 60, maxLife: 60});
+}
+
+// ================== CRYSTALS ==================
+// Shiny gems dropped on enemy death. They drift, get magnetized toward player,
+// and award bonus score + a gentle score-multiplier bump on pickup.
+function spawnCrystals(x, y, count){
+  for(var i=0;i<count;i++){
+    var ang = Math.random() * Math.PI * 2;
+    var sp = 60 + Math.random() * 180;
+    var tier = Math.random() < 0.08 ? 2 : Math.random() < 0.3 ? 1 : 0;
+    G.crystals.push({
+      x: x, y: y,
+      vx: Math.cos(ang) * sp / 60,
+      vy: Math.sin(ang) * sp / 60,
+      r: tier === 2 ? 7 : tier === 1 ? 5 : 4,
+      tier: tier, // 0 cyan, 1 yellow, 2 pink (rare)
+      life: 480, // frames
+      rot: Math.random() * Math.PI * 2,
+      pulse: Math.random() * Math.PI * 2,
+    });
+  }
+}
+function crystalValue(tier){ return tier === 2 ? 500 : tier === 1 ? 100 : 25; }
+function crystalColor(tier){ return tier === 2 ? '#ff3ec9' : tier === 1 ? '#ffe14b' : '#5eeaff'; }
+function updateCrystals(){
+  if(!G.player) return;
+  var p = G.player;
+  var magnetRange = p.magnetTimer > 0 ? 500 : 160;
+  for(var i=0;i<G.crystals.length;i++){
+    var c = G.crystals[i];
+    c.life--;
+    c.rot += 0.08;
+    c.pulse += 0.12;
+    c.x += c.vx; c.y += c.vy;
+    c.vx *= 0.98; c.vy *= 0.98;
+    // Magnet toward player
+    var dx = p.x - c.x, dy = p.y - c.y;
+    var d = Math.sqrt(dx*dx + dy*dy) || 1;
+    if(d < magnetRange){
+      var pull = 0.4 + (1 - d / magnetRange) * 2.2;
+      c.vx += (dx/d) * pull * 0.2;
+      c.vy += (dy/d) * pull * 0.2;
+    }
+    // Pickup
+    if(d < p.r + c.r + 6){
+      var val = crystalValue(c.tier);
+      G.score += val * G.mult;
+      G.multProgress = Math.min(1, G.multProgress + 0.02);
+      G.multTimer = 180;
+      G.crystalsCollected++;
+      sfxCrystal();
+      spawnFloatText(c.x, c.y - 10, '+' + val, crystalColor(c.tier));
+      // Sparkle particles
+      for(var k=0;k<6;k++){
+        var ang = Math.random() * Math.PI * 2;
+        var sp = 1 + Math.random() * 3;
+        G.particles.push({
+          x: c.x, y: c.y,
+          vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp,
+          life: 20, maxLife: 20,
+          color: crystalColor(c.tier), len: 6
+        });
+      }
+      c.life = 0;
+    }
+    // Wall bounce
+    if(c.x < 6){ c.x = 6; c.vx = Math.abs(c.vx) * 0.6; }
+    if(c.x > W-6){ c.x = W-6; c.vx = -Math.abs(c.vx) * 0.6; }
+    if(c.y < 6){ c.y = 6; c.vy = Math.abs(c.vy) * 0.6; }
+    if(c.y > H-6){ c.y = H-6; c.vy = -Math.abs(c.vy) * 0.6; }
+  }
+  G.crystals = G.crystals.filter(function(c){ return c.life > 0; });
+}
+function drawCrystals(){
+  for(var i=0;i<G.crystals.length;i++){
+    var c = G.crystals[i];
+    var col = crystalColor(c.tier);
+    var pulseScale = 1 + 0.2 * Math.sin(c.pulse);
+    var alpha = c.life < 60 ? c.life / 60 : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.scale(pulseScale, pulseScale);
+    ctx.strokeStyle = col;
+    ctx.fillStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = 2;
+    // Diamond
+    ctx.beginPath();
+    ctx.moveTo(0, -c.r);
+    ctx.lineTo(c.r * 0.7, 0);
+    ctx.lineTo(0, c.r);
+    ctx.lineTo(-c.r * 0.7, 0);
+    ctx.closePath();
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.fill();
+    ctx.globalAlpha = alpha;
+    ctx.stroke();
+    // Inner highlight
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -c.r * 0.6);
+    ctx.lineTo(c.r * 0.4, 0);
+    ctx.lineTo(0, c.r * 0.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ================== GAMEPAD ==================
+function pollGamepad(){
+  if(!navigator.getGamepads) return null;
+  var pads = navigator.getGamepads();
+  for(var i=0;i<pads.length;i++){
+    if(pads[i]){ G.gamepadIndex = i; return pads[i]; }
+  }
+  G.gamepadIndex = -1;
+  return null;
 }
 
 // ================== ENEMIES ==================
@@ -613,6 +849,26 @@ function update(){
   if(keys['a'] || keys['arrowleft']) mx -= 1;
   if(keys['d'] || keys['arrowright']) mx += 1;
   if(touchL.active){ mx = touchL.dx; my = touchL.dy; }
+  // Gamepad support
+  var pad = pollGamepad();
+  var gpAimX = 0, gpAimY = 0, gpFiring = false, gpBomb = false;
+  if(pad){
+    var DZ = 0.18;
+    var lx = pad.axes[0] || 0, ly = pad.axes[1] || 0;
+    if(Math.abs(lx) > DZ || Math.abs(ly) > DZ){ mx = lx; my = ly; }
+    var rx = pad.axes[2] || 0, ry = pad.axes[3] || 0;
+    if(Math.abs(rx) > DZ || Math.abs(ry) > DZ){ gpAimX = rx; gpAimY = ry; gpFiring = true; }
+    // Right trigger (standard mapping = buttons[7]) or A (buttons[0])
+    if(pad.buttons[7] && pad.buttons[7].pressed) gpFiring = true;
+    if(pad.buttons[0] && pad.buttons[0].pressed) gpFiring = true;
+    // Bomb: LT (6) or B (1)
+    if(pad.buttons[6] && pad.buttons[6].pressed){ if(!G._bombHeld) useBomb(); G._bombHeld = true; }
+    else if(pad.buttons[1] && pad.buttons[1].pressed){ if(!G._bombHeld) useBomb(); G._bombHeld = true; }
+    else G._bombHeld = false;
+    // Pause: Start (9)
+    if(pad.buttons[9] && pad.buttons[9].pressed){ if(!G._pauseHeld) togglePause(); G._pauseHeld = true; }
+    else G._pauseHeld = false;
+  }
   var ml = Math.sqrt(mx*mx+my*my);
   if(ml > 1){ mx/=ml; my/=ml; }
   var speed = 5.5;
@@ -629,7 +885,10 @@ function update(){
   // Aim & fire
   var firing = false;
   var aimX, aimY;
-  if(touchR.active && (Math.abs(touchR.dx) > 0.2 || Math.abs(touchR.dy) > 0.2)){
+  if(gpFiring){
+    p.aim = Math.atan2(gpAimY, gpAimX);
+    firing = true;
+  } else if(touchR.active && (Math.abs(touchR.dx) > 0.2 || Math.abs(touchR.dy) > 0.2)){
     p.aim = Math.atan2(touchR.dy, touchR.dx);
     firing = true;
   } else {
@@ -639,6 +898,8 @@ function update(){
     }
     firing = mouse.down || keys[' '];
   }
+  // Pacifist mode disables shooting
+  if(G.pacifist) firing = false;
 
   if(p.fireCD > 0) p.fireCD--;
   if(firing && p.fireCD <= 0){
@@ -882,6 +1143,7 @@ function update(){
             addScore(e.points);
             sfxExplode(e.r);
             spawnPowerup(e.x, e.y);
+            spawnCrystals(e.x, e.y, e.type === 'boss' ? 12 : e.type === 'gravityWell' ? 6 : 3);
             if(e.type === 'boss'){
               G.bossActive = false;
               spawnFloatText(W/2, H/2, 'BOSS DOWN!', '#ffdd33');
@@ -906,6 +1168,7 @@ function update(){
           sfxExplode(e.r);
           G.shake = Math.min(8, G.shake + 3);
           spawnPowerup(e.x, e.y);
+          spawnCrystals(e.x, e.y, e.type === 'splitter' ? 5 : 2);
           if(e.type === 'splitter'){
             for(var s=0;s<3;s++){
               var ang = Math.random()*Math.PI*2;
@@ -1009,6 +1272,19 @@ function update(){
   else if(G.mult > 1) {
     G.multProgress -= 0.01;
     if(G.multProgress < 0){ G.mult = Math.max(1, G.mult - 1); G.multProgress = 0.9; }
+  }
+
+  // Crystals
+  updateCrystals();
+
+  // Music
+  musicTick();
+
+  // Pacifist survival scoring: steady score over time + wave advance by time
+  if(G.pacifist){
+    G.pacifistTime++;
+    if(G.pacifistTime % 30 === 0) G.score += 10 * G.mult;
+    if(G.pacifistTime % 900 === 0) nextWave();
   }
 
   updateHUD();
@@ -1466,6 +1742,7 @@ function render(){
 
   for(var i=0;i<G.particles.length;i++) drawParticle(G.particles[i]);
   for(var i=0;i<G.powerups.length;i++) drawPowerup(G.powerups[i]);
+  drawCrystals();
   for(var i=0;i<G.enemies.length;i++) drawEnemy(G.enemies[i]);
   for(var i=0;i<G.enemyBullets.length;i++) drawEnemyBullet(G.enemyBullets[i]);
   for(var i=0;i<G.bullets.length;i++) drawBullet(G.bullets[i]);
@@ -1545,11 +1822,15 @@ function startGame(){
   G.spawnCooldown = 60;
   G.enemies = []; G.bullets = []; G.enemyBullets = []; G.particles = [];
   G.powerups = []; G.floatTexts = []; G.edgeWarnings = [];
+  G.crystals = []; G.crystalsCollected = 0;
+  G.pacifistTime = 0;
   G.bossActive = false; G.bossIntroTimer = 0;
   G.player = makePlayer();
   G.invuln = 60;
   initStars();
   ensureAudio();
+  // Reset music scheduler
+  MUSIC.step = 0; MUSIC.leadStep = 0; MUSIC.barCount = 0; MUSIC.nextTime = 0;
   document.getElementById('title').classList.remove('active');
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('pause').classList.remove('active');
@@ -1566,8 +1847,18 @@ function togglePause(){
   }
 }
 
-document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-start').addEventListener('click', function(){
+  G.pacifist = false;
+  startGame();
+});
+document.getElementById('btn-pacifist').addEventListener('click', function(){
+  G.pacifist = true;
+  startGame();
+});
 document.getElementById('btn-retry').addEventListener('click', startGame);
+document.getElementById('music-toggle').addEventListener('change', function(e){
+  G.musicOn = e.target.checked;
+});
 document.getElementById('btn-menu').addEventListener('click', function(){
   G.state = 'title';
   document.getElementById('gameover').classList.remove('active');
