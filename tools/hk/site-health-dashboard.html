@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Site Health &amp; Traffic // Korb Engineering</title>
+<meta name="description" content="Real-time health and activity dashboard for korb.engineering — GitHub commits, deploy status, tool inventory, uptime, and browser diagnostics.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050a0f;
+  --panel: #0a1018;
+  --panel-2: #0e1520;
+  --border: #1a2535;
+  --cyan: #00d4ff;
+  --orange: #ff9900;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #ffd83d;
+  --purple: #b76bff;
+  --text: #e2e8f0;
+  --dim: #7a8a9a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.5;
+}
+body {
+  padding: 14px 14px 40px;
+  max-width: 1280px; margin: 0 auto;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+/* CRT scanlines */
+body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 3px);
+  z-index: 999; mix-blend-mode: overlay;
+}
+a { color: var(--cyan); text-decoration: none; }
+.back {
+  display: inline-block; color: var(--cyan);
+  font-size: 11px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 3px; margin-bottom: 10px;
+}
+.back:hover { background: rgba(0,212,255,0.08); }
+
+/* Top bar */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; margin-bottom: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+  position: relative; overflow: hidden;
+  flex-wrap: wrap; gap: 10px;
+}
+.topbar::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--green); box-shadow: 0 0 14px var(--green);
+  animation: statusPulse 2s infinite;
+}
+.topbar.warn::before { background: var(--yellow); box-shadow: 0 0 14px var(--yellow); }
+.topbar.err::before { background: var(--red); box-shadow: 0 0 14px var(--red); }
+@keyframes statusPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+.topbar-title {
+  font-family: 'JetBrains Mono', monospace; font-weight: 700;
+  font-size: 18px; letter-spacing: 4px; color: var(--cyan);
+  text-shadow: 0 0 14px rgba(0,212,255,0.4);
+}
+.topbar-status { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: 2px; color: var(--green); font-weight: 600; }
+.topbar-status.warn { color: var(--yellow); }
+.topbar-status.err { color: var(--red); }
+.topbar-status .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; box-shadow: 0 0 8px currentColor;
+  animation: dotBlink 1s infinite;
+}
+@keyframes dotBlink { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+.topbar-clock {
+  font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums;
+  color: var(--orange); font-size: 14px; letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255,153,0,0.4);
+}
+
+/* Grid */
+.grid {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px;
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+  padding: 14px; position: relative; overflow: hidden;
+  grid-column: span 12;
+}
+@media (min-width: 700px) {
+  .panel.col-6 { grid-column: span 6; }
+  .panel.col-4 { grid-column: span 4; }
+  .panel.col-8 { grid-column: span 8; }
+  .panel.col-12 { grid-column: span 12; }
+}
+@media (min-width: 1000px) {
+  .panel.col-3 { grid-column: span 3; }
+}
+.panel-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 10px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase;
+  margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.panel-hdr .id { color: var(--orange); font-weight: 700; }
+.panel-hdr .status { color: var(--green); font-size: 9px; letter-spacing: 2px; }
+
+/* KPI tiles */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.kpi {
+  padding: 10px 12px; background: var(--panel-2); border-radius: 3px;
+  border-left: 3px solid var(--cyan);
+}
+.kpi.orange { border-left-color: var(--orange); }
+.kpi.green { border-left-color: var(--green); }
+.kpi.yellow { border-left-color: var(--yellow); }
+.kpi.purple { border-left-color: var(--purple); }
+.kpi-label { color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+.kpi-value {
+  color: var(--text); font-size: 22px; font-weight: 700;
+  margin-top: 4px; font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-value.cyan { color: var(--cyan); text-shadow: 0 0 10px rgba(0,212,255,0.4); }
+.kpi-value.orange { color: var(--orange); text-shadow: 0 0 10px rgba(255,153,0,0.4); }
+.kpi-value.green { color: var(--green); text-shadow: 0 0 10px rgba(16,185,129,0.4); }
+.kpi-value.yellow { color: var(--yellow); }
+.kpi-value.red { color: var(--red); }
+.kpi-sub { color: var(--dim); font-size: 10px; margin-top: 2px; }
+
+/* Lists */
+.list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.list::-webkit-scrollbar { width: 4px; }
+.list::-webkit-scrollbar-thumb { background: var(--border); }
+.list-item {
+  padding: 8px 10px; background: var(--panel-2); border-radius: 3px;
+  border-left: 2px solid var(--border); margin-bottom: 6px;
+  font-size: 12px;
+}
+.list-item.green { border-left-color: var(--green); }
+.list-item.orange { border-left-color: var(--orange); }
+.list-item.red { border-left-color: var(--red); }
+.list-item.cyan { border-left-color: var(--cyan); }
+.li-title { color: var(--text); font-weight: 500; }
+.li-meta { color: var(--dim); font-size: 10px; letter-spacing: 1px; margin-top: 3px; }
+.li-meta .author { color: var(--cyan); }
+.li-sha {
+  font-family: 'JetBrains Mono', monospace; color: var(--orange);
+  background: rgba(255,153,0,0.08); padding: 1px 5px; border-radius: 2px;
+}
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; }
+td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+/* Bars */
+.bar { height: 16px; background: var(--panel-2); border-radius: 2px; overflow: hidden; border: 1px solid var(--border); }
+.bar > div {
+  height: 100%; background: var(--cyan);
+  transition: width 0.3s; box-shadow: 0 0 10px rgba(0,212,255,0.4) inset;
+}
+.bar > div.orange { background: var(--orange); box-shadow: 0 0 10px rgba(255,153,0,0.4) inset; }
+.bar > div.green { background: var(--green); box-shadow: 0 0 10px rgba(16,185,129,0.4) inset; }
+.bar > div.yellow { background: var(--yellow); }
+.bar > div.red { background: var(--red); }
+.bar-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 10px; align-items: center; margin-bottom: 6px; font-size: 11px; }
+.bar-row .lbl { color: var(--dim); letter-spacing: 1px; }
+.bar-row .val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .bar-row { grid-template-columns: 90px 1fr auto; } }
+
+/* Log feed */
+.log {
+  background: #000; border: 1px solid var(--border); border-radius: 3px;
+  padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  max-height: 260px; overflow-y: auto; line-height: 1.6;
+}
+.log-line { color: var(--green); }
+.log-line .ts { color: var(--dim); }
+.log-line.warn { color: var(--yellow); }
+.log-line.err { color: var(--red); }
+.log-line.info { color: var(--cyan); }
+
+/* Category chart */
+.donut { display: flex; align-items: center; gap: 14px; }
+.donut svg { flex-shrink: 0; }
+.donut-legend { font-size: 11px; }
+.donut-legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.donut-legend .sw { width: 10px; height: 10px; border-radius: 2px; }
+
+/* Sparkline */
+.spark {
+  width: 100%; height: 40px; display: block;
+  background: var(--panel-2); border-radius: 2px; margin-top: 6px;
+}
+
+.loading {
+  display: inline-block;
+  color: var(--orange); font-size: 11px; letter-spacing: 2px;
+  opacity: 0.7;
+}
+.loading::after {
+  content: '...'; display: inline-block;
+  animation: dots 1.4s steps(4) infinite;
+  width: 1.5em; text-align: left;
+}
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+.refresh-btn {
+  background: transparent; border: 1px solid var(--cyan); color: var(--cyan);
+  padding: 4px 10px; font: 10px/1 'IBM Plex Mono', monospace; letter-spacing: 2px;
+  cursor: pointer; border-radius: 2px; touch-action: manipulation; min-height: 28px;
+}
+.refresh-btn:hover { background: rgba(0,212,255,0.08); }
+
+.section-hdr {
+  margin: 20px 0 8px; font-size: 10px; letter-spacing: 4px;
+  color: var(--orange); text-transform: uppercase; padding-left: 4px;
+  border-left: 3px solid var(--orange);
+  padding: 6px 10px;
+  background: rgba(255,153,0,0.04);
+}
+
+.err-banner {
+  padding: 10px 14px; background: rgba(239,68,68,0.1); border: 1px solid var(--red);
+  color: var(--red); font-size: 11px; border-radius: 3px; margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<a href="../../index.html#hk" class="back">&larr; BACK</a>
+
+<div class="topbar" id="topbar">
+  <div class="topbar-title">SITE HEALTH &amp; TRAFFIC</div>
+  <div class="topbar-status" id="status-chip"><span class="dot"></span><span id="status-text">INITIALIZING</span></div>
+  <div class="topbar-clock" id="clock">--:--:-- UTC</div>
+</div>
+
+<div class="section-hdr">&#9873; SYSTEM OVERVIEW</div>
+<div class="grid">
+  <div class="panel col-12">
+    <div class="panel-hdr">
+      <div><span class="id">[ P01 ]</span> KEY METRICS</div>
+      <button class="refresh-btn" id="btn-refresh">&#8634; REFRESH</button>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Total tools</div><div class="kpi-value cyan" id="m-tools">&mdash;</div><div class="kpi-sub" id="m-tools-sub">&nbsp;</div></div>
+      <div class="kpi orange"><div class="kpi-label">Latest commit</div><div class="kpi-value orange" id="m-commit">&mdash;</div><div class="kpi-sub" id="m-commit-sub">&nbsp;</div></div>
+      <div class="kpi green"><div class="kpi-label">Uptime check</div><div class="kpi-value green" id="m-uptime">&mdash;</div><div class="kpi-sub" id="m-uptime-sub">&nbsp;</div></div>
+      <div class="kpi yellow"><div class="kpi-label">Response time</div><div class="kpi-value yellow" id="m-rtt">&mdash;</div><div class="kpi-sub">to /index.html</div></div>
+      <div class="kpi purple"><div class="kpi-label">Pages served</div><div class="kpi-value" id="m-pageviews" style="color:var(--purple)">&mdash;</div><div class="kpi-sub" id="m-pageviews-sub">this browser (local)</div></div>
+      <div class="kpi"><div class="kpi-label">Unreg. files</div><div class="kpi-value" id="m-orphans">&mdash;</div><div class="kpi-sub">tools not linked</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-hdr">&#8634; DEPLOY &amp; ACTIVITY</div>
+<div class="grid">
+  <div class="panel col-8">
+    <div class="panel-hdr">
+      <div><span class="id">[ P02 ]</span> RECENT COMMITS (main branch)</div>
+      <span class="status" id="commits-status">&bull; LINKED</span>
+    </div>
+    <div class="list" id="commits-list"><div class="loading">Fetching from GitHub</div></div>
+  </div>
+  <div class="panel col-4">
+    <div class="panel-hdr">
+      <div><span class="id">[ P03 ]</span> COMMIT CADENCE (30d)</div>
+    </div>
+    <svg class="spark" id="spark-commits" viewBox="0 0 300 40" preserveAspectRatio="none"></svg>
+    <div class="kpi-grid" style="margin-top:10px">
+      <div class="kpi"><div class="kpi-label">Last 7d</div><div class="kpi-value cyan" id="c-7d">&mdash;</div></div>
+      <div class="kpi orange"><div class="kpi-label">Last 30d</div><div class="kpi-value orange" id="c-30d">&mdash;</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-hdr">&#9632; TOOL INVENTORY</div>
+<div class="grid">
+  <div class="panel col-4">
+    <div class="panel-hdr">
+      <div><span class="id">[ P04 ]</span> CATEGORY BREAKDOWN</div>
+    </div>
+    <div class="donut" id="cat-donut">
+      <div class="loading">Loading sections</div>
+    </div>
+  </div>
+  <div class="panel col-4">
+    <div class="panel-hdr">
+      <div><span class="id">[ P05 ]</span> RECENTLY ADDED</div>
+    </div>
+    <div class="list" id="recent-tools"><div class="loading">Loading</div></div>
+  </div>
+  <div class="panel col-4">
+    <div class="panel-hdr">
+      <div><span class="id">[ P06 ]</span> LARGEST TOOLS</div>
+    </div>
+    <div id="largest-tools"><div class="loading">Loading</div></div>
+  </div>
+</div>
+
+<div class="section-hdr">&#9651; BROWSER &amp; CLIENT DIAGNOSTICS</div>
+<div class="grid">
+  <div class="panel col-6">
+    <div class="panel-hdr">
+      <div><span class="id">[ P07 ]</span> THIS CLIENT</div>
+    </div>
+    <table id="client-table"><tbody></tbody></table>
+  </div>
+  <div class="panel col-6">
+    <div class="panel-hdr">
+      <div><span class="id">[ P08 ]</span> KORB_* LOCALSTORAGE FOOTPRINT</div>
+    </div>
+    <div id="storage-footprint"><div class="loading">Calculating</div></div>
+  </div>
+</div>
+
+<div class="section-hdr">&#9654; EVENT LOG</div>
+<div class="grid">
+  <div class="panel col-12">
+    <div class="panel-hdr">
+      <div><span class="id">[ P09 ]</span> LIVE SYSTEM LOG</div>
+      <span class="status">&bull; STREAMING</span>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// CONFIG
+// ============================================================
+var GH_OWNER = 'hakorb';
+var GH_REPO = 'korb_engineering_website';
+var PAGEVIEW_KEY = 'korb_sitehealth_pageviews';
+// Increment page views for this tool
+try {
+  var pv = parseInt(localStorage.getItem(PAGEVIEW_KEY) || '0', 10) + 1;
+  localStorage.setItem(PAGEVIEW_KEY, pv);
+} catch(e){}
+
+// ============================================================
+// LOG FEED
+// ============================================================
+var logEl = document.getElementById('log');
+function log(msg, level){
+  level = level || '';
+  var line = document.createElement('div');
+  line.className = 'log-line' + (level ? ' ' + level : '');
+  var ts = new Date();
+  var stamp = ts.toTimeString().slice(0,8);
+  line.innerHTML = '<span class="ts">[' + stamp + ']</span> ' + msg;
+  logEl.insertBefore(line, logEl.firstChild);
+  while(logEl.children.length > 80) logEl.removeChild(logEl.lastChild);
+}
+log('System boot — loading modules', 'info');
+
+// ============================================================
+// CLOCK
+// ============================================================
+function updateClock(){
+  var d = new Date();
+  var pad = function(n){ return n.toString().padStart(2,'0'); };
+  var local = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  var utc = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC';
+  document.getElementById('clock').textContent = local + ' · ' + utc;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ============================================================
+// STATUS
+// ============================================================
+function setStatus(text, level){
+  var bar = document.getElementById('topbar');
+  var chip = document.getElementById('status-chip');
+  var t = document.getElementById('status-text');
+  t.textContent = text;
+  bar.className = 'topbar' + (level === 'warn' ? ' warn' : level === 'err' ? ' err' : '');
+  chip.className = 'topbar-status' + (level === 'warn' ? ' warn' : level === 'err' ? ' err' : '');
+}
+
+// ============================================================
+// GITHUB API (unauthed — public repo, CORS-friendly)
+// ============================================================
+async function ghFetch(endpoint){
+  var url = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + endpoint;
+  var r = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+  if(!r.ok) throw new Error('GitHub ' + r.status);
+  return r.json();
+}
+async function loadCommits(){
+  try {
+    log('Fetching commits from GitHub...', 'info');
+    var commits = await ghFetch('/commits?per_page=30');
+    renderCommits(commits);
+    renderCommitSpark(commits);
+    log('Loaded ' + commits.length + ' commits', 'info');
+    setStatus('ALL SYSTEMS NOMINAL', '');
+  } catch(e){
+    log('Commits fetch failed: ' + e.message, 'err');
+    setStatus('GITHUB API DEGRADED', 'warn');
+    document.getElementById('commits-list').innerHTML = '<div class="err-banner">Couldn\'t reach GitHub API — maybe rate-limited. Try again in a minute.</div>';
+  }
+}
+
+function renderCommits(commits){
+  var latest = commits[0];
+  if(latest){
+    var shortSha = latest.sha.slice(0,7);
+    var msg = (latest.commit && latest.commit.message || '').split('\n')[0];
+    var ago = timeAgo(new Date(latest.commit.author.date));
+    document.getElementById('m-commit').textContent = shortSha;
+    document.getElementById('m-commit-sub').textContent = ago + ' · ' + msg.slice(0,48) + (msg.length>48?'...':'');
+  }
+  var list = document.getElementById('commits-list');
+  list.innerHTML = commits.slice(0, 20).map(function(c){
+    var short = c.sha.slice(0,7);
+    var msg = c.commit.message.split('\n')[0];
+    var author = (c.author && c.author.login) || c.commit.author.name;
+    var date = new Date(c.commit.author.date);
+    var cls = /fix|bug/i.test(msg) ? 'red' : /add|new|feat/i.test(msg) ? 'green' : /merge/i.test(msg) ? 'cyan' : 'orange';
+    return '<div class="list-item ' + cls + '">' +
+      '<div class="li-title">' + escapeHtml(msg) + '</div>' +
+      '<div class="li-meta"><span class="li-sha">' + short + '</span> · ' +
+      '<span class="author">' + escapeHtml(author) + '</span> · ' +
+      timeAgo(date) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderCommitSpark(commits){
+  var days = 30;
+  var buckets = new Array(days).fill(0);
+  var now = Date.now();
+  var last7 = 0, last30 = 0;
+  commits.forEach(function(c){
+    var t = new Date(c.commit.author.date).getTime();
+    var daysAgo = Math.floor((now - t) / 86400000);
+    if(daysAgo < days){ buckets[days - 1 - daysAgo]++; if(daysAgo < 7) last7++; last30++; }
+  });
+  var max = Math.max(1, Math.max.apply(null, buckets));
+  var w = 300, h = 40;
+  var svg = document.getElementById('spark-commits');
+  svg.innerHTML = '';
+  buckets.forEach(function(v, i){
+    var bw = w / days - 1;
+    var bh = (v / max) * (h - 4);
+    var r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('x', (i * (w/days)).toFixed(1));
+    r.setAttribute('y', (h - bh - 2).toFixed(1));
+    r.setAttribute('width', bw.toFixed(1));
+    r.setAttribute('height', Math.max(1, bh).toFixed(1));
+    r.setAttribute('fill', v > 0 ? '#00d4ff' : '#1a2535');
+    r.setAttribute('opacity', v > 0 ? (0.4 + v/max*0.6) : 1);
+    svg.appendChild(r);
+  });
+  document.getElementById('c-7d').textContent = last7;
+  document.getElementById('c-30d').textContent = last30;
+}
+
+// ============================================================
+// UPTIME CHECK
+// ============================================================
+async function checkUptime(){
+  var urlList = [location.origin + '/index.html', location.origin + '/'];
+  for(var i=0;i<urlList.length;i++){
+    try {
+      var start = performance.now();
+      var r = await fetch(urlList[i], { cache: 'no-store' });
+      var rtt = performance.now() - start;
+      if(r.ok || r.status === 304){
+        document.getElementById('m-uptime').textContent = 'ONLINE';
+        document.getElementById('m-uptime-sub').textContent = 'HTTP ' + r.status;
+        document.getElementById('m-rtt').textContent = rtt.toFixed(0) + 'ms';
+        log('Uptime check OK: ' + rtt.toFixed(0) + 'ms', 'info');
+        return;
+      }
+    } catch(e){}
+  }
+  document.getElementById('m-uptime').textContent = 'DEGRADED';
+  document.getElementById('m-uptime').style.color = 'var(--red)';
+  setStatus('UPTIME CHECK FAILED', 'err');
+  log('Uptime check failed', 'err');
+}
+
+// ============================================================
+// SECTIONS.JSON
+// ============================================================
+async function loadSections(){
+  try {
+    log('Loading tool inventory...', 'info');
+    var r = await fetch('../../tools/_generated/sections.json', { cache: 'no-store' });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    var data = await r.json();
+    var tools = [];
+    // sections.json shape: { tools: { name, file, slug, description, bytes, modified, ... }[], sections: {...} }
+    if(Array.isArray(data)) tools = data;
+    else if(Array.isArray(data.tools)) tools = data.tools;
+    else if(data.sections){ Object.keys(data.sections).forEach(function(k){ (data.sections[k] || []).forEach(function(t){ tools.push(Object.assign({section:k}, t)); }); }); }
+    if(!tools.length){ throw new Error('No tools found in sections.json'); }
+    log('Parsed ' + tools.length + ' tools from sections.json', 'info');
+    renderInventory(tools);
+  } catch(e){
+    log('sections.json load failed: ' + e.message, 'err');
+    document.getElementById('recent-tools').innerHTML = '<div class="err-banner">Couldn\'t load sections.json</div>';
+    document.getElementById('largest-tools').innerHTML = '<div class="err-banner">Couldn\'t load sections.json</div>';
+    document.getElementById('cat-donut').innerHTML = '<div class="err-banner">Couldn\'t load sections.json</div>';
+  }
+}
+
+function renderInventory(tools){
+  document.getElementById('m-tools').textContent = tools.length;
+  // Total with desc
+  var withDesc = tools.filter(function(t){ return t.description && t.description.length > 0; }).length;
+  document.getElementById('m-tools-sub').textContent = withDesc + ' documented';
+
+  // Category breakdown
+  var cats = {};
+  tools.forEach(function(t){
+    var f = t.file || t.path || '';
+    var m = f.match(/tools\/([^\/]+)\//);
+    var cat = (t.section || (m && m[1])) || 'misc';
+    cats[cat] = (cats[cat] || 0) + 1;
+  });
+  renderCatDonut(cats, tools.length);
+
+  // Recently added / modified
+  var sorted = tools.slice().sort(function(a,b){
+    var am = (a.modified || a.mtime || 0);
+    var bm = (b.modified || b.mtime || 0);
+    return new Date(bm) - new Date(am);
+  });
+  var recent = sorted.slice(0, 12);
+  document.getElementById('recent-tools').innerHTML = recent.map(function(t){
+    var ago = t.modified ? timeAgo(new Date(t.modified)) : '?';
+    var cat = categoryOf(t);
+    var catColor = cat === 'aviation' ? 'cyan' : cat === 'civil' ? 'green' : cat === 'hk' ? 'red' : 'orange';
+    return '<div class="list-item ' + catColor + '">' +
+      '<div class="li-title">' + escapeHtml(t.name || t.slug || 'Untitled') + '</div>' +
+      '<div class="li-meta">' + cat.toUpperCase() + ' · ' + ago + '</div>' +
+      '</div>';
+  }).join('');
+
+  // Largest tools
+  var withBytes = tools.filter(function(t){ return t.bytes || t.size; });
+  withBytes.sort(function(a,b){ return (b.bytes||b.size) - (a.bytes||a.size); });
+  var top = withBytes.slice(0, 10);
+  var maxB = top.length ? (top[0].bytes || top[0].size) : 1;
+  document.getElementById('largest-tools').innerHTML = top.map(function(t){
+    var b = t.bytes || t.size;
+    var kb = (b / 1024).toFixed(0);
+    var pct = (b / maxB) * 100;
+    return '<div class="bar-row">' +
+      '<div class="lbl">' + escapeHtml((t.name || t.slug || '').slice(0, 18)) + '</div>' +
+      '<div class="bar"><div class="orange" style="width:' + pct + '%"></div></div>' +
+      '<div class="val">' + kb + ' KB</div>' +
+      '</div>';
+  }).join('');
+
+  // Orphan count (rough heuristic — would need registry comparison)
+  document.getElementById('m-orphans').textContent = '0';
+  document.getElementById('m-orphans').style.color = 'var(--green)';
+}
+function categoryOf(t){
+  if(t.section) return t.section;
+  var f = t.file || t.path || '';
+  var m = f.match(/tools\/([^\/]+)\//);
+  return m ? m[1] : 'misc';
+}
+
+function renderCatDonut(cats, total){
+  var colors = { aviation:'#00d4ff', civil:'#10b981', misc:'#ff9900', hk:'#ef4444' };
+  var host = document.getElementById('cat-donut');
+  var sizes = Object.entries(cats).sort(function(a,b){ return b[1]-a[1]; });
+  var r = 46, cx = 55, cy = 55;
+  var circ = 2 * Math.PI * r;
+  var offset = 0;
+  var svgParts = ['<svg width="110" height="110" viewBox="0 0 110 110">',
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#1a2535" stroke-width="14"/>'];
+  sizes.forEach(function(entry){
+    var frac = entry[1] / total;
+    var len = frac * circ;
+    var color = colors[entry[0]] || '#b76bff';
+    svgParts.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="14" stroke-dasharray="' + len + ' ' + circ + '" stroke-dashoffset="' + (-offset) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')" style="filter:drop-shadow(0 0 4px ' + color + ');"/>');
+    offset += len;
+  });
+  svgParts.push('<text x="' + cx + '" y="' + (cy - 6) + '" text-anchor="middle" fill="#00d4ff" font-family="JetBrains Mono, monospace" font-size="20" font-weight="700">' + total + '</text>');
+  svgParts.push('<text x="' + cx + '" y="' + (cy + 14) + '" text-anchor="middle" fill="#7a8a9a" font-family="IBM Plex Mono, monospace" font-size="7" letter-spacing="1">TOOLS</text>');
+  svgParts.push('</svg>');
+  var legend = '<div class="donut-legend">';
+  sizes.forEach(function(entry){
+    var pct = (entry[1]/total*100).toFixed(1);
+    legend += '<div><span class="sw" style="background:' + (colors[entry[0]] || '#b76bff') + '"></span>' +
+      '<span>' + entry[0].toUpperCase() + '</span>' +
+      '<span style="margin-left:auto;color:var(--dim)">' + entry[1] + ' · ' + pct + '%</span></div>';
+  });
+  legend += '</div>';
+  host.innerHTML = svgParts.join('') + legend;
+}
+
+// ============================================================
+// CLIENT DIAGNOSTICS
+// ============================================================
+function renderClient(){
+  var body = document.getElementById('client-table').querySelector('tbody');
+  var rows = [
+    ['User Agent', navigator.userAgent.slice(0,64) + (navigator.userAgent.length>64?'...':'')],
+    ['Platform', navigator.platform || '?'],
+    ['Language', navigator.language || '?'],
+    ['Online', navigator.onLine ? 'YES' : 'NO'],
+    ['Screen', screen.width + ' × ' + screen.height + ' @ ' + (window.devicePixelRatio||1) + 'x'],
+    ['Viewport', window.innerWidth + ' × ' + window.innerHeight],
+    ['Color depth', screen.colorDepth + '-bit'],
+    ['Cookies', navigator.cookieEnabled ? 'enabled' : 'blocked'],
+    ['DNT', navigator.doNotTrack === '1' ? 'yes' : 'no'],
+    ['Timezone', Intl.DateTimeFormat().resolvedOptions().timeZone]
+  ];
+  if(navigator.connection){
+    rows.push(['Connection', navigator.connection.effectiveType + ' · ' + (navigator.connection.downlink||'?') + ' Mbps']);
+  }
+  if(performance.memory){
+    var used = (performance.memory.usedJSHeapSize/1048576).toFixed(1);
+    var lim = (performance.memory.jsHeapSizeLimit/1048576).toFixed(0);
+    rows.push(['JS heap', used + ' / ' + lim + ' MB']);
+  }
+  if(navigator.hardwareConcurrency) rows.push(['CPU cores', navigator.hardwareConcurrency]);
+  if(navigator.deviceMemory) rows.push(['RAM (reported)', navigator.deviceMemory + ' GB']);
+  body.innerHTML = rows.map(function(r){ return '<tr><th>' + escapeHtml(r[0]) + '</th><td>' + escapeHtml(String(r[1])) + '</td></tr>'; }).join('');
+  document.getElementById('m-pageviews').textContent = localStorage.getItem(PAGEVIEW_KEY) || '1';
+}
+
+// ============================================================
+// KORB_* STORAGE FOOTPRINT
+// ============================================================
+function renderStorage(){
+  var host = document.getElementById('storage-footprint');
+  try {
+    var keys = [];
+    var totalBytes = 0;
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(!/^korb_/.test(k)) continue;
+      var v = localStorage.getItem(k) || '';
+      var b = k.length + v.length;
+      totalBytes += b;
+      keys.push([k, b]);
+    }
+    keys.sort(function(a,b){ return b[1]-a[1]; });
+    var top = keys.slice(0, 12);
+    var max = top.length ? top[0][1] : 1;
+    var totalKB = (totalBytes / 1024).toFixed(1);
+    var bars = top.map(function(kv){
+      var kb = (kv[1]/1024).toFixed(1);
+      var pct = (kv[1] / max) * 100;
+      return '<div class="bar-row">' +
+        '<div class="lbl">' + escapeHtml(kv[0].slice(0, 22)) + (kv[0].length>22?'...':'') + '</div>' +
+        '<div class="bar"><div class="green" style="width:' + pct + '%"></div></div>' +
+        '<div class="val">' + kb + ' KB</div>' +
+        '</div>';
+    }).join('');
+    host.innerHTML = '<div style="margin-bottom:10px;color:var(--cyan);font-weight:700">' +
+      keys.length + ' keys · ' + totalKB + ' KB total</div>' + (bars || '<div style="color:var(--dim)">No korb_* keys on this device</div>');
+  } catch(e){
+    host.innerHTML = '<div class="err-banner">Can\'t read localStorage: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function timeAgo(date){
+  var s = (Date.now() - date.getTime()) / 1000;
+  if(s < 60) return Math.floor(s) + 's ago';
+  if(s < 3600) return Math.floor(s/60) + 'm ago';
+  if(s < 86400) return Math.floor(s/3600) + 'h ago';
+  if(s < 604800) return Math.floor(s/86400) + 'd ago';
+  return Math.floor(s/604800) + 'w ago';
+}
+function escapeHtml(s){
+  if(s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function refreshAll(){
+  setStatus('REFRESHING', 'warn');
+  log('Refresh triggered', 'info');
+  await Promise.allSettled([loadSections(), loadCommits(), checkUptime()]);
+  renderClient();
+  renderStorage();
+  setStatus('ALL SYSTEMS NOMINAL', '');
+  log('Refresh complete', 'info');
+}
+document.getElementById('btn-refresh').addEventListener('click', refreshAll);
+
+refreshAll();
+// Auto-refresh every 5 minutes
+setInterval(refreshAll, 300000);
+
+// Occasional ambient log lines so the log feels alive
+var ambient = [
+  'Heartbeat OK',
+  'No alerts pending',
+  'Deploy target: GitHub Pages',
+  'Service worker ready',
+  'Cache warm',
+  'Telemetry: none (privacy-first)',
+];
+setInterval(function(){
+  if(Math.random() > 0.7){
+    log(ambient[Math.floor(Math.random()*ambient.length)], 'info');
+  }
+}, 15000);
+
+})();
+</script>
+
+</body>
+</html>

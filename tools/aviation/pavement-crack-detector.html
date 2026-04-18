@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pavement Crack Detector // Korb Engineering</title>
+<meta name="description" content="In-browser pavement crack detection. Upload an orthomosaic, overhead photo, or scan — the tool extracts cracks using edge detection and morphology, reports total crack length and pixel density, and exports the annotated overlay as PNG or GeoJSON.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050a0f;
+  --panel: #0a1018;
+  --panel-2: #0e1520;
+  --border: #1a2535;
+  --cyan: #00d4ff;
+  --orange: #ff9900;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #ffd83d;
+  --text: #e2e8f0;
+  --dim: #7a8a9a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; line-height: 1.5;
+}
+body {
+  padding: 14px 14px 40px;
+  max-width: 1320px; margin: 0 auto;
+}
+a { color: var(--cyan); text-decoration: none; }
+.back {
+  display: inline-block; color: var(--cyan);
+  font-size: 11px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 3px; margin-bottom: 10px;
+}
+.back:hover { background: rgba(0,212,255,0.08); }
+header { text-align: center; padding: 10px 0 20px; }
+h1 {
+  font-weight: 700; font-size: clamp(22px, 5vw, 32px);
+  color: var(--cyan); letter-spacing: 2px;
+  text-shadow: 0 0 14px rgba(0,212,255,0.3);
+}
+.logo-dot { color: var(--orange); text-shadow: 0 0 12px var(--orange); }
+.tagline { color: var(--dim); font-size: 11px; letter-spacing: 3px; margin-top: 4px; }
+
+.layout {
+  display: grid; grid-template-columns: 320px 1fr; gap: 14px;
+}
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+  padding: 14px;
+}
+.panel-hdr {
+  font-size: 10px; letter-spacing: 3px; color: var(--dim);
+  text-transform: uppercase; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.panel-hdr .id { color: var(--orange); font-weight: 700; }
+
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 6px;
+  padding: 40px 14px; text-align: center; color: var(--dim);
+  cursor: pointer; transition: all 0.15s; min-height: 120px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; touch-action: manipulation;
+}
+.drop-zone:hover, .drop-zone.hot { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.04); }
+.drop-zone .icon { font-size: 36px; color: var(--orange); }
+
+.ctrl-row { margin-bottom: 14px; }
+.ctrl-row label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--dim); letter-spacing: 1px;
+  margin-bottom: 4px; text-transform: uppercase;
+}
+.ctrl-row label .val {
+  color: var(--cyan); font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px; background: var(--border); border-radius: 2px; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--cyan); cursor: pointer; box-shadow: 0 0 8px rgba(0,212,255,0.6);
+}
+input[type=range]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--cyan); border: none; cursor: pointer;
+}
+select, input[type=text], input[type=number] {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 10px; border-radius: 3px;
+  font: 500 14px/1.2 'IBM Plex Mono', monospace; min-height: 44px;
+}
+select:focus, input:focus { outline: none; border-color: var(--cyan); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; background: var(--cyan); color: #041018; border: none;
+  padding: 12px; border-radius: 3px; cursor: pointer;
+  font: 700 13px/1 'IBM Plex Mono', monospace; letter-spacing: 2px;
+  touch-action: manipulation; min-height: 44px; margin-bottom: 8px;
+}
+.btn:hover { background: #7eeaff; }
+.btn.ghost { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); }
+.btn.ghost:hover { background: rgba(0,212,255,0.08); }
+.btn.orange { background: var(--orange); color: #1a1000; }
+.btn.orange:hover { background: #ffca3a; }
+.btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.preset-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;
+}
+.preset-row button {
+  padding: 8px; background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--dim); font: 500 11px/1.2 'IBM Plex Mono', monospace; letter-spacing: 1px;
+  border-radius: 3px; cursor: pointer; min-height: 40px;
+}
+.preset-row button:hover { border-color: var(--cyan); color: var(--cyan); }
+.preset-row button.active { background: rgba(0,212,255,0.1); border-color: var(--cyan); color: var(--cyan); }
+
+.canvas-stack {
+  position: relative; width: 100%; min-height: 300px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 3px;
+  overflow: hidden;
+}
+.canvas-stack canvas {
+  display: block; width: 100%; height: auto; max-width: 100%;
+  image-rendering: pixelated;
+}
+.canvas-stack .overlay {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.empty-state {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 300px; color: var(--dim); font-size: 13px; text-align: center;
+  padding: 20px;
+}
+
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px; margin-top: 10px;
+}
+.stat-box {
+  background: var(--panel-2); border-left: 3px solid var(--cyan);
+  padding: 8px 10px; border-radius: 3px;
+}
+.stat-box.orange { border-left-color: var(--orange); }
+.stat-box.red { border-left-color: var(--red); }
+.stat-box.yellow { border-left-color: var(--yellow); }
+.stat-box.green { border-left-color: var(--green); }
+.stat-label { font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+.stat-val {
+  font-size: 22px; font-weight: 700; margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums;
+  color: var(--cyan);
+}
+.stat-val.orange { color: var(--orange); }
+.stat-val.red { color: var(--red); }
+.stat-val.yellow { color: var(--yellow); }
+.stat-val.green { color: var(--green); }
+.stat-sub { color: var(--dim); font-size: 10px; margin-top: 2px; }
+
+.disclaimer {
+  font-size: 10px; color: var(--dim); margin-top: 8px; line-height: 1.4;
+}
+.disclaimer b { color: var(--orange); }
+
+.progress-bar {
+  height: 4px; background: var(--border); border-radius: 2px;
+  overflow: hidden; margin: 8px 0; display: none;
+}
+.progress-bar.active { display: block; }
+.progress-bar > div {
+  height: 100%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan);
+  width: 0%; transition: width 0.2s;
+}
+
+.tab-row {
+  display: flex; gap: 0; margin-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  background: none; border: none; color: var(--dim);
+  font: 600 11px/1 'IBM Plex Mono', monospace; letter-spacing: 2px;
+  padding: 10px 12px; cursor: pointer; touch-action: manipulation; min-height: 40px;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+.view-modes {
+  display: flex; gap: 2px; margin-bottom: 8px;
+  background: var(--panel-2); border-radius: 3px; padding: 2px;
+}
+.view-modes button {
+  flex: 1; background: none; border: none; color: var(--dim);
+  font: 500 10px/1 'IBM Plex Mono', monospace; letter-spacing: 1px;
+  padding: 8px; cursor: pointer; border-radius: 2px; min-height: 36px;
+}
+.view-modes button.active { background: var(--cyan); color: #041018; font-weight: 700; }
+
+.sample-chips {
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0;
+}
+.sample-chip {
+  padding: 4px 8px; background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--dim); font-size: 10px; border-radius: 2px; cursor: pointer;
+  letter-spacing: 1px;
+}
+.sample-chip:hover { border-color: var(--orange); color: var(--orange); }
+
+.legend {
+  display: flex; gap: 10px; margin-top: 8px; font-size: 10px; color: var(--dim);
+  flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-sw { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<a href="../../index.html#aviation" class="back">&larr; BACK</a>
+
+<header>
+  <h1>PAVEMENT CRACK DETECTOR</h1>
+  <div class="tagline">CLIENT-SIDE EDGE ANALYSIS &middot; ONNX-READY</div>
+</header>
+
+<div class="layout">
+  <!-- LEFT: Controls -->
+  <div>
+    <div class="panel">
+      <div class="panel-hdr"><span class="id">[ P01 ]</span> INPUT</div>
+      <div class="drop-zone" id="drop">
+        <div class="icon">&#9742;</div>
+        <div style="font-weight:700;letter-spacing:2px;font-size:12px">DROP PHOTO OR TAP</div>
+        <div style="font-size:11px">JPG / PNG / HEIC · up to 20 MB</div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+      </div>
+      <div class="sample-chips">
+        <div class="sample-chip" data-sample="gen-pavement">+ Sample pavement</div>
+        <div class="sample-chip" data-sample="gen-checker">+ Test pattern</div>
+      </div>
+      <div class="progress-bar" id="progressBar"><div id="progressFill"></div></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="tab-row">
+        <button class="tab-btn active" data-tab="cv">CLASSICAL CV</button>
+        <button class="tab-btn" data-tab="onnx">ONNX MODEL</button>
+      </div>
+
+      <!-- CV TAB -->
+      <div id="tab-cv">
+        <div class="panel-hdr"><span class="id">[ P02 ]</span> DETECTION PARAMETERS</div>
+
+        <div class="ctrl-row">
+          <label>PRESET</label>
+          <div class="preset-row">
+            <button class="preset-btn active" data-preset="fine">Fine cracks</button>
+            <button class="preset-btn" data-preset="coarse">Coarse cracks</button>
+            <button class="preset-btn" data-preset="sealed">Sealed/repaired</button>
+            <button class="preset-btn" data-preset="aggressive">Aggressive</button>
+          </div>
+        </div>
+
+        <div class="ctrl-row">
+          <label>Blur radius <span class="val" id="v-blur">2</span></label>
+          <input type="range" id="s-blur" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="ctrl-row">
+          <label>Edge low threshold <span class="val" id="v-lo">30</span></label>
+          <input type="range" id="s-lo" min="5" max="120" step="1" value="30">
+        </div>
+        <div class="ctrl-row">
+          <label>Edge high threshold <span class="val" id="v-hi">90</span></label>
+          <input type="range" id="s-hi" min="20" max="240" step="1" value="90">
+        </div>
+        <div class="ctrl-row">
+          <label>Dilate iterations <span class="val" id="v-dil">1</span></label>
+          <input type="range" id="s-dil" min="0" max="4" step="1" value="1">
+        </div>
+        <div class="ctrl-row">
+          <label>Min crack length (px) <span class="val" id="v-min">12</span></label>
+          <input type="range" id="s-min" min="2" max="80" step="1" value="12">
+        </div>
+        <div class="ctrl-row">
+          <label>Invert (dark cracks on light surface) <input type="checkbox" id="s-invert" checked style="transform:scale(1.3);margin-left:8px"></label>
+        </div>
+
+        <button class="btn" id="runBtn" disabled>RUN DETECTION</button>
+      </div>
+
+      <!-- ONNX TAB -->
+      <div id="tab-onnx" style="display:none">
+        <div class="panel-hdr"><span class="id">[ P02b ]</span> ONNX MODEL (ADVANCED)</div>
+        <p style="font-size:11px;color:var(--dim);margin-bottom:10px;line-height:1.6">
+          Load a crack-segmentation ONNX model (e.g. DeepCrack or U-Net trained on pavement images) to use AI inference instead of classical CV. Your model stays on your device — nothing uploads anywhere.
+        </p>
+        <div class="ctrl-row">
+          <label>Model URL or file</label>
+          <input type="text" id="modelUrl" placeholder="https://.../model.onnx" value="">
+        </div>
+        <div class="ctrl-row">
+          <label>Or upload .onnx file</label>
+          <input type="file" id="modelFile" accept=".onnx" style="margin-top:4px">
+        </div>
+        <div class="ctrl-row">
+          <label>Input size <span class="val" id="v-onnx-size">256</span></label>
+          <input type="range" id="s-onnx-size" min="64" max="512" step="32" value="256">
+        </div>
+        <div class="ctrl-row">
+          <label>Output threshold <span class="val" id="v-onnx-thr">0.50</span></label>
+          <input type="range" id="s-onnx-thr" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <button class="btn orange" id="loadModelBtn">LOAD MODEL</button>
+        <button class="btn" id="runOnnxBtn" disabled>RUN INFERENCE</button>
+        <div class="disclaimer">
+          <b>Note:</b> ONNX Runtime Web is loaded on demand. For pavement work, a DeepCrack/CrackNet model
+          trained on 256&times;256 RGB tiles works well. The tool will tile your image, run inference, and stitch
+          the output mask. Expect 2&ndash;15 seconds depending on model size and device.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-hdr"><span class="id">[ P03 ]</span> SCALE CALIBRATION</div>
+      <div class="ctrl-row">
+        <label>Pixels per foot <span class="val" id="v-scale">50</span></label>
+        <input type="range" id="s-scale" min="10" max="500" step="1" value="50">
+      </div>
+      <div style="font-size:11px;color:var(--dim);line-height:1.5">
+        Used to convert pixel measurements to real-world length. If you know your drone altitude or the width of a stripe in pixels, set this so the overlay shows feet.
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Canvas + Stats -->
+  <div>
+    <div class="panel">
+      <div class="panel-hdr" style="display:flex;justify-content:space-between">
+        <span><span class="id">[ P04 ]</span> ANALYSIS</span>
+        <span style="color:var(--dim)" id="meta-label">&mdash;</span>
+      </div>
+      <div class="view-modes">
+        <button class="view-btn active" data-view="overlay">OVERLAY</button>
+        <button class="view-btn" data-view="original">ORIGINAL</button>
+        <button class="view-btn" data-view="mask">MASK</button>
+        <button class="view-btn" data-view="edges">EDGES</button>
+      </div>
+      <div class="canvas-stack" id="stack">
+        <canvas id="base"></canvas>
+        <canvas id="over" class="overlay"></canvas>
+        <div class="empty-state" id="empty">Drop a pavement photo on the left to begin.</div>
+      </div>
+      <div class="legend" id="legend" style="display:none">
+        <div class="legend-item"><div class="legend-sw" style="background:#ef4444"></div> Detected crack</div>
+        <div class="legend-item"><div class="legend-sw" style="background:#ffd83d"></div> Filtered (too small)</div>
+        <div class="legend-item"><div class="legend-sw" style="background:#00d4ff"></div> Bounding region</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-hdr"><span class="id">[ P05 ]</span> METRICS</div>
+      <div class="stats" id="stats">
+        <div class="stat-box"><div class="stat-label">Status</div><div class="stat-val">READY</div></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-hdr"><span class="id">[ P06 ]</span> EXPORT</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn ghost" id="exportPng" disabled>&#8681; PNG (overlay)</button>
+        <button class="btn ghost" id="exportMask" disabled>&#8681; PNG (mask only)</button>
+        <button class="btn ghost" id="exportGeojson" disabled>&#8681; GeoJSON</button>
+        <button class="btn ghost" id="exportReport" disabled>&#8681; Report (HTML)</button>
+      </div>
+      <div class="disclaimer">
+        <b>Privacy:</b> All processing happens in your browser &mdash; images never leave your device.
+        Classical CV is a heuristic aid, not a regulatory PCI index. Use results alongside a trained
+        inspector's judgment.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// STATE
+// ============================================================
+var STATE = {
+  imageData: null,   // original RGBA ImageData
+  width: 0, height: 0,
+  edges: null,       // Uint8Array (0/255) edge map
+  mask: null,        // Uint8Array binary dilated mask
+  components: [],    // array of {pixels, bounds, length, filtered}
+  view: 'overlay',
+  onnxSession: null,
+  params: {
+    blur: 2, lo: 30, hi: 90, dilate: 1, minLen: 12, invert: true,
+    scale: 50, onnxSize: 256, onnxThr: 0.5
+  }
+};
+
+// ============================================================
+// INPUT HANDLING
+// ============================================================
+var drop = document.getElementById('drop');
+var fileInput = document.getElementById('fileInput');
+drop.addEventListener('click', function(){ fileInput.click(); });
+drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('hot'); });
+drop.addEventListener('dragleave', function(){ drop.classList.remove('hot'); });
+drop.addEventListener('drop', function(e){
+  e.preventDefault(); drop.classList.remove('hot');
+  if(e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function(){
+  if(fileInput.files.length) loadFile(fileInput.files[0]);
+});
+document.querySelectorAll('.sample-chip').forEach(function(c){
+  c.addEventListener('click', function(){ generateSample(c.dataset.sample); });
+});
+
+function loadFile(file){
+  if(!file.type.startsWith('image/')){ alert('Not an image file.'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e){ loadImage(e.target.result, file.name); };
+  reader.readAsDataURL(file);
+}
+
+function loadImage(src, name){
+  var img = new Image();
+  img.onload = function(){
+    var base = document.getElementById('base');
+    var ctx = base.getContext('2d', { willReadFrequently: true });
+    // Resize huge images so edge detection stays fast (max 1600 px)
+    var maxDim = 1600;
+    var scale = 1;
+    if(img.width > maxDim || img.height > maxDim){
+      scale = maxDim / Math.max(img.width, img.height);
+    }
+    var w = Math.round(img.width * scale);
+    var h = Math.round(img.height * scale);
+    base.width = w; base.height = h;
+    ctx.drawImage(img, 0, 0, w, h);
+    var over = document.getElementById('over');
+    over.width = w; over.height = h;
+    STATE.imageData = ctx.getImageData(0, 0, w, h);
+    STATE.width = w; STATE.height = h;
+    document.getElementById('empty').style.display = 'none';
+    document.getElementById('runBtn').disabled = false;
+    document.getElementById('meta-label').textContent = (name||'image') + ' · ' + w + '×' + h + 'px';
+    // Auto-run first detection
+    runDetection();
+  };
+  img.onerror = function(){ alert('Failed to load image.'); };
+  img.src = src;
+}
+
+function generateSample(kind){
+  var w = 800, h = 500;
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var g = c.getContext('2d');
+  if(kind === 'gen-pavement'){
+    // Gray asphalt with noise speckle
+    var id = g.createImageData(w, h);
+    for(var i=0;i<id.data.length;i+=4){
+      var n = 110 + (Math.random() * 50 - 25);
+      id.data[i]=n; id.data[i+1]=n; id.data[i+2]=n; id.data[i+3]=255;
+    }
+    g.putImageData(id, 0, 0);
+    // Add synthetic cracks
+    g.strokeStyle = '#202020'; g.lineWidth = 2;
+    for(var k=0;k<6;k++){
+      g.beginPath();
+      var sx = Math.random()*w, sy = Math.random()*h;
+      g.moveTo(sx, sy);
+      var segs = 5 + Math.floor(Math.random()*8);
+      for(var s=0;s<segs;s++){
+        sx += (Math.random()-0.5)*60; sy += (Math.random()-0.5)*60;
+        g.lineTo(sx, sy);
+      }
+      g.stroke();
+    }
+    // One long main crack
+    g.lineWidth = 3; g.strokeStyle = '#151515';
+    g.beginPath(); g.moveTo(40, h/2);
+    for(var x=40;x<w-40;x+=30){
+      g.lineTo(x, h/2 + Math.sin(x*0.01)*40 + (Math.random()-0.5)*8);
+    }
+    g.stroke();
+  } else {
+    // Checker pattern for sanity-testing
+    for(var y=0;y<h;y+=40){
+      for(var x=0;x<w;x+=40){
+        g.fillStyle = ((x+y)/40)%2 ? '#202020' : '#d0d0d0';
+        g.fillRect(x, y, 40, 40);
+      }
+    }
+  }
+  loadImage(c.toDataURL('image/png'), kind === 'gen-pavement' ? 'synthetic-pavement.png' : 'checker.png');
+}
+
+// ============================================================
+// CLASSICAL CV PIPELINE
+// ============================================================
+function toGrayscale(imgData){
+  var n = imgData.width * imgData.height;
+  var gray = new Uint8ClampedArray(n);
+  for(var i=0;i<n;i++){
+    var o = i*4;
+    gray[i] = (imgData.data[o]*0.299 + imgData.data[o+1]*0.587 + imgData.data[o+2]*0.114)|0;
+  }
+  return gray;
+}
+
+function gaussianBlur(gray, w, h, radius){
+  if(radius <= 0) return gray;
+  // Simple box blur approximation; iterate for more gaussian-like effect
+  var out = new Uint8ClampedArray(gray);
+  var tmp = new Uint8ClampedArray(gray.length);
+  for(var pass=0; pass<2; pass++){
+    // horizontal
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var sum = 0, cnt = 0;
+        for(var k=-radius;k<=radius;k++){
+          var xx = x+k; if(xx<0||xx>=w) continue;
+          sum += out[y*w + xx]; cnt++;
+        }
+        tmp[y*w + x] = (sum / cnt) | 0;
+      }
+    }
+    // vertical
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var sum = 0, cnt = 0;
+        for(var k=-radius;k<=radius;k++){
+          var yy = y+k; if(yy<0||yy>=h) continue;
+          sum += tmp[yy*w + x]; cnt++;
+        }
+        out[y*w + x] = (sum / cnt) | 0;
+      }
+    }
+  }
+  return out;
+}
+
+function sobel(gray, w, h){
+  var mag = new Float32Array(w*h);
+  var dir = new Float32Array(w*h);
+  var maxMag = 0;
+  for(var y=1;y<h-1;y++){
+    for(var x=1;x<w-1;x++){
+      var p00 = gray[(y-1)*w + (x-1)];
+      var p01 = gray[(y-1)*w + x];
+      var p02 = gray[(y-1)*w + (x+1)];
+      var p10 = gray[y*w + (x-1)];
+      var p12 = gray[y*w + (x+1)];
+      var p20 = gray[(y+1)*w + (x-1)];
+      var p21 = gray[(y+1)*w + x];
+      var p22 = gray[(y+1)*w + (x+1)];
+      var gx = (p02 + 2*p12 + p22) - (p00 + 2*p10 + p20);
+      var gy = (p20 + 2*p21 + p22) - (p00 + 2*p01 + p02);
+      var m = Math.sqrt(gx*gx + gy*gy);
+      mag[y*w + x] = m;
+      dir[y*w + x] = Math.atan2(gy, gx);
+      if(m > maxMag) maxMag = m;
+    }
+  }
+  return { mag: mag, dir: dir, maxMag: maxMag };
+}
+
+function nonMaxSuppression(mag, dir, w, h){
+  var out = new Float32Array(mag.length);
+  for(var y=1;y<h-1;y++){
+    for(var x=1;x<w-1;x++){
+      var i = y*w + x;
+      var ang = dir[i] * 180 / Math.PI; if(ang < 0) ang += 180;
+      var n1, n2;
+      if(ang < 22.5 || ang >= 157.5){ n1 = mag[i-1]; n2 = mag[i+1]; }
+      else if(ang < 67.5){ n1 = mag[i - w + 1]; n2 = mag[i + w - 1]; }
+      else if(ang < 112.5){ n1 = mag[i - w]; n2 = mag[i + w]; }
+      else { n1 = mag[i - w - 1]; n2 = mag[i + w + 1]; }
+      out[i] = (mag[i] >= n1 && mag[i] >= n2) ? mag[i] : 0;
+    }
+  }
+  return out;
+}
+
+function hysteresisThreshold(sup, w, h, lo, hi){
+  var out = new Uint8Array(sup.length);
+  var stack = [];
+  for(var i=0;i<sup.length;i++){
+    if(sup[i] >= hi){ out[i] = 255; stack.push(i); }
+  }
+  // Flood-fill weaker edges connected to strong ones
+  while(stack.length){
+    var p = stack.pop();
+    var y = Math.floor(p/w), x = p%w;
+    for(var dy=-1;dy<=1;dy++){
+      for(var dx=-1;dx<=1;dx++){
+        if(!dx && !dy) continue;
+        var nx = x+dx, ny = y+dy;
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+        var ni = ny*w + nx;
+        if(out[ni] === 0 && sup[ni] >= lo){ out[ni] = 255; stack.push(ni); }
+      }
+    }
+  }
+  return out;
+}
+
+function dilate(mask, w, h, iter){
+  if(iter <= 0) return new Uint8Array(mask);
+  var src = new Uint8Array(mask);
+  var dst = new Uint8Array(mask.length);
+  for(var it=0; it<iter; it++){
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var i = y*w + x;
+        if(src[i]){ dst[i] = 255; continue; }
+        if(y>0 && src[i-w]){ dst[i] = 255; continue; }
+        if(y<h-1 && src[i+w]){ dst[i] = 255; continue; }
+        if(x>0 && src[i-1]){ dst[i] = 255; continue; }
+        if(x<w-1 && src[i+1]){ dst[i] = 255; continue; }
+      }
+    }
+    var t = src; src = dst; dst = t;
+    dst.fill(0);
+  }
+  return src;
+}
+
+function connectedComponents(mask, w, h, minLen){
+  // 8-connected component labeling via flood fill
+  var visited = new Uint8Array(mask.length);
+  var comps = [];
+  for(var y=0;y<h;y++){
+    for(var x=0;x<w;x++){
+      var i = y*w + x;
+      if(!mask[i] || visited[i]) continue;
+      // BFS
+      var queue = [i]; visited[i] = 1;
+      var pixels = [];
+      var minX=x, maxX=x, minY=y, maxY=y;
+      while(queue.length){
+        var p = queue.pop();
+        pixels.push(p);
+        var py = Math.floor(p/w), px = p%w;
+        if(px<minX) minX=px; if(px>maxX) maxX=px;
+        if(py<minY) minY=py; if(py>maxY) maxY=py;
+        for(var dy=-1;dy<=1;dy++){
+          for(var dx=-1;dx<=1;dx++){
+            if(!dx && !dy) continue;
+            var nx = px+dx, ny = py+dy;
+            if(nx<0||ny<0||nx>=w||ny>=h) continue;
+            var ni = ny*w + nx;
+            if(mask[ni] && !visited[ni]){ visited[ni] = 1; queue.push(ni); }
+          }
+        }
+      }
+      // Length estimate: diagonal of bbox is a cheap proxy
+      var bw = maxX - minX + 1, bh = maxY - minY + 1;
+      var diag = Math.sqrt(bw*bw + bh*bh);
+      comps.push({
+        pixels: pixels, count: pixels.length,
+        bounds: [minX, minY, maxX, maxY],
+        length: diag,
+        filtered: diag < minLen
+      });
+    }
+  }
+  return comps;
+}
+
+function runDetection(){
+  if(!STATE.imageData) return;
+  progress(0, true);
+  setTimeout(function(){
+    var p = STATE.params;
+    var w = STATE.width, h = STATE.height;
+    var gray = toGrayscale(STATE.imageData);
+    if(p.invert){
+      for(var i=0;i<gray.length;i++) gray[i] = 255 - gray[i];
+    }
+    progress(15);
+    var blurred = gaussianBlur(gray, w, h, p.blur);
+    progress(30);
+    var s = sobel(blurred, w, h);
+    progress(50);
+    var sup = nonMaxSuppression(s.mag, s.dir, w, h);
+    progress(65);
+    var edges = hysteresisThreshold(sup, w, h, p.lo, p.hi);
+    progress(75);
+    var mask = dilate(edges, w, h, p.dilate);
+    progress(85);
+    var comps = connectedComponents(mask, w, h, p.minLen);
+    progress(95);
+    STATE.edges = edges; STATE.mask = mask; STATE.components = comps;
+    renderOverlay();
+    renderStats();
+    enableExports(true);
+    document.getElementById('legend').style.display = 'flex';
+    progress(100);
+    setTimeout(function(){ progress(0, false); }, 400);
+  }, 50);
+}
+
+function progress(pct, active){
+  var bar = document.getElementById('progressBar');
+  var fill = document.getElementById('progressFill');
+  if(active !== undefined){ bar.classList.toggle('active', active); }
+  fill.style.width = pct + '%';
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function renderOverlay(){
+  var over = document.getElementById('over');
+  var ctx = over.getContext('2d');
+  var w = STATE.width, h = STATE.height;
+  ctx.clearRect(0, 0, w, h);
+  var view = STATE.view;
+
+  if(view === 'original') return; // base canvas has original already
+
+  // Build an RGBA overlay image based on view
+  var img = ctx.createImageData(w, h);
+  var d = img.data;
+  var filtered = new Set();
+  if(STATE.components){
+    STATE.components.forEach(function(c){ if(c.filtered){ c.pixels.forEach(function(p){ filtered.add(p); }); } });
+  }
+  if(view === 'edges'){
+    for(var i=0;i<w*h;i++){
+      if(STATE.edges && STATE.edges[i]){
+        var o = i*4;
+        d[o]=0; d[o+1]=255; d[o+2]=255; d[o+3]=220;
+      }
+    }
+  } else if(view === 'mask'){
+    for(var i=0;i<w*h;i++){
+      if(STATE.mask && STATE.mask[i]){
+        var o = i*4;
+        if(filtered.has(i)){ d[o]=255; d[o+1]=216; d[o+2]=61; d[o+3]=180; }
+        else { d[o]=239; d[o+1]=68; d[o+2]=68; d[o+3]=220; }
+      }
+    }
+  } else { // overlay
+    for(var i=0;i<w*h;i++){
+      if(STATE.mask && STATE.mask[i]){
+        var o = i*4;
+        if(filtered.has(i)){ d[o]=255; d[o+1]=216; d[o+2]=61; d[o+3]=160; }
+        else { d[o]=239; d[o+1]=68; d[o+2]=68; d[o+3]=200; }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Draw bounding rectangles in overlay mode
+  if(view === 'overlay' && STATE.components){
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.7)';
+    ctx.lineWidth = 1;
+    STATE.components.forEach(function(c){
+      if(c.filtered) return;
+      var b = c.bounds;
+      ctx.strokeRect(b[0], b[1], b[2]-b[0]+1, b[3]-b[1]+1);
+    });
+  }
+}
+
+function renderStats(){
+  var real = STATE.components.filter(function(c){ return !c.filtered; });
+  var filteredCount = STATE.components.length - real.length;
+  var totalPx = real.reduce(function(a,c){ return a + c.length; }, 0);
+  var totalMaskPx = STATE.mask ? Array.prototype.reduce.call(STATE.mask, function(a,v){ return a + (v?1:0); }, 0) : 0;
+  var totalImgPx = STATE.width * STATE.height;
+  var density = totalImgPx ? (totalMaskPx / totalImgPx * 100) : 0;
+  var ppf = STATE.params.scale;
+  var totalFt = totalPx / ppf;
+  var areaSqFt = (STATE.width/ppf) * (STATE.height/ppf);
+  var rating = density < 0.5 ? 'GOOD' : density < 2 ? 'FAIR' : density < 5 ? 'POOR' : 'SEVERE';
+  var ratingClass = density < 0.5 ? 'green' : density < 2 ? 'yellow' : density < 5 ? 'orange' : 'red';
+
+  document.getElementById('stats').innerHTML =
+    '<div class="stat-box"><div class="stat-label">Cracks found</div><div class="stat-val cyan">' + real.length + '</div><div class="stat-sub">' + filteredCount + ' filtered</div></div>' +
+    '<div class="stat-box orange"><div class="stat-label">Total length</div><div class="stat-val orange">' + totalFt.toFixed(1) + ' ft</div><div class="stat-sub">' + totalPx.toFixed(0) + ' px</div></div>' +
+    '<div class="stat-box ' + ratingClass + '"><div class="stat-label">Density</div><div class="stat-val ' + ratingClass + '">' + density.toFixed(2) + '%</div><div class="stat-sub">crack pixels</div></div>' +
+    '<div class="stat-box ' + ratingClass + '"><div class="stat-label">Rating</div><div class="stat-val ' + ratingClass + '">' + rating + '</div><div class="stat-sub">heuristic</div></div>' +
+    '<div class="stat-box"><div class="stat-label">Analyzed area</div><div class="stat-val">' + areaSqFt.toFixed(0) + ' sq ft</div><div class="stat-sub">@ ' + ppf + ' px/ft</div></div>';
+}
+
+// ============================================================
+// VIEW SWITCHING
+// ============================================================
+document.querySelectorAll('.view-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.view-btn').forEach(function(x){ x.classList.remove('active'); });
+    b.classList.add('active');
+    STATE.view = b.dataset.view;
+    renderOverlay();
+  });
+});
+
+// ============================================================
+// CONTROLS WIRING
+// ============================================================
+function bindSlider(slider, lbl, prop, transform){
+  var el = document.getElementById(slider);
+  var lb = document.getElementById(lbl);
+  el.addEventListener('input', function(){
+    var v = parseFloat(el.value);
+    STATE.params[prop] = v;
+    lb.textContent = transform ? transform(v) : v;
+  });
+}
+bindSlider('s-blur', 'v-blur', 'blur');
+bindSlider('s-lo', 'v-lo', 'lo');
+bindSlider('s-hi', 'v-hi', 'hi');
+bindSlider('s-dil', 'v-dil', 'dilate');
+bindSlider('s-min', 'v-min', 'minLen');
+bindSlider('s-scale', 'v-scale', 'scale');
+bindSlider('s-onnx-size', 'v-onnx-size', 'onnxSize');
+bindSlider('s-onnx-thr', 'v-onnx-thr', 'onnxThr', function(v){ return v.toFixed(2); });
+document.getElementById('s-invert').addEventListener('change', function(e){ STATE.params.invert = e.target.checked; });
+
+document.getElementById('runBtn').addEventListener('click', runDetection);
+
+// Presets
+var PRESETS = {
+  fine:       { blur: 2, lo: 30, hi: 90,  dilate: 1, minLen: 12, invert: true },
+  coarse:     { blur: 3, lo: 50, hi: 140, dilate: 2, minLen: 24, invert: true },
+  sealed:     { blur: 2, lo: 20, hi: 70,  dilate: 2, minLen: 20, invert: false },
+  aggressive: { blur: 1, lo: 15, hi: 50,  dilate: 1, minLen: 6,  invert: true }
+};
+document.querySelectorAll('.preset-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.preset-btn').forEach(function(x){ x.classList.remove('active'); });
+    b.classList.add('active');
+    var p = PRESETS[b.dataset.preset];
+    Object.keys(p).forEach(function(k){
+      STATE.params[k] = p[k];
+      var slider = document.getElementById('s-' + k === 's-minLen' ? 's-min' : 's-' + k);
+      // Map prop names to slider ids
+      var id = ({blur:'s-blur', lo:'s-lo', hi:'s-hi', dilate:'s-dil', minLen:'s-min', invert:'s-invert'})[k];
+      var lblId = ({blur:'v-blur', lo:'v-lo', hi:'v-hi', dilate:'v-dil', minLen:'v-min'})[k];
+      var el = document.getElementById(id);
+      if(el){
+        if(el.type === 'checkbox') el.checked = p[k];
+        else { el.value = p[k]; if(lblId) document.getElementById(lblId).textContent = p[k]; }
+      }
+    });
+    if(STATE.imageData) runDetection();
+  });
+});
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.tab-btn').forEach(function(x){ x.classList.remove('active'); });
+    b.classList.add('active');
+    document.getElementById('tab-cv').style.display = b.dataset.tab === 'cv' ? 'block' : 'none';
+    document.getElementById('tab-onnx').style.display = b.dataset.tab === 'onnx' ? 'block' : 'none';
+  });
+});
+
+// ============================================================
+// ONNX
+// ============================================================
+async function loadOnnxRuntime(){
+  if(window.ort) return window.ort;
+  return new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js';
+    s.onload = function(){ resolve(window.ort); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+document.getElementById('loadModelBtn').addEventListener('click', async function(){
+  var btn = document.getElementById('loadModelBtn');
+  btn.textContent = 'LOADING...'; btn.disabled = true;
+  try {
+    var ort = await loadOnnxRuntime();
+    var url = document.getElementById('modelUrl').value.trim();
+    var file = document.getElementById('modelFile').files[0];
+    var source;
+    if(file){
+      source = await file.arrayBuffer();
+    } else if(url){
+      var r = await fetch(url);
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      source = await r.arrayBuffer();
+    } else {
+      throw new Error('Provide a URL or upload a .onnx file');
+    }
+    STATE.onnxSession = await ort.InferenceSession.create(source, { executionProviders: ['wasm'] });
+    btn.textContent = 'MODEL LOADED ✓';
+    document.getElementById('runOnnxBtn').disabled = false;
+  } catch(e){
+    alert('Couldn\'t load model: ' + e.message);
+    btn.textContent = 'LOAD MODEL';
+  }
+  btn.disabled = false;
+});
+document.getElementById('runOnnxBtn').addEventListener('click', async function(){
+  if(!STATE.onnxSession || !STATE.imageData) return;
+  var btn = this; btn.textContent = 'RUNNING...'; btn.disabled = true;
+  progress(10, true);
+  try {
+    var size = STATE.params.onnxSize;
+    // Downsample original to NxN float32 tensor
+    var tmp = document.createElement('canvas'); tmp.width = size; tmp.height = size;
+    var tc = tmp.getContext('2d');
+    tc.drawImage(document.getElementById('base'), 0, 0, size, size);
+    var tid = tc.getImageData(0, 0, size, size);
+    var input = new Float32Array(1 * 3 * size * size);
+    for(var i=0;i<size*size;i++){
+      input[i]            = tid.data[i*4] / 255;     // R channel plane
+      input[size*size + i]   = tid.data[i*4+1] / 255; // G plane
+      input[2*size*size + i] = tid.data[i*4+2] / 255; // B plane
+    }
+    progress(40);
+    var ort = window.ort;
+    var feeds = {};
+    // Use first input name from session
+    var inputName = STATE.onnxSession.inputNames[0];
+    feeds[inputName] = new ort.Tensor('float32', input, [1, 3, size, size]);
+    var out = await STATE.onnxSession.run(feeds);
+    progress(80);
+    var outputName = STATE.onnxSession.outputNames[0];
+    var outTensor = out[outputName];
+    var data = outTensor.data;
+    // Build a mask upsampled to original dims
+    var w = STATE.width, h = STATE.height;
+    var mask = new Uint8Array(w * h);
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var sx = Math.floor(x/w * size);
+        var sy = Math.floor(y/h * size);
+        var v = data[sy*size + sx];
+        // Apply sigmoid if values look like logits (outside 0-1)
+        if(v < 0 || v > 1) v = 1 / (1 + Math.exp(-v));
+        mask[y*w + x] = v >= STATE.params.onnxThr ? 255 : 0;
+      }
+    }
+    STATE.mask = mask;
+    STATE.edges = mask; // show inference mask as both
+    STATE.components = connectedComponents(mask, w, h, STATE.params.minLen);
+    progress(95);
+    renderOverlay();
+    renderStats();
+    enableExports(true);
+    document.getElementById('legend').style.display = 'flex';
+  } catch(e){
+    alert('Inference error: ' + e.message);
+  }
+  progress(100);
+  setTimeout(function(){ progress(0, false); }, 400);
+  btn.textContent = 'RUN INFERENCE'; btn.disabled = false;
+});
+
+// ============================================================
+// EXPORT
+// ============================================================
+function enableExports(on){
+  ['exportPng','exportMask','exportGeojson','exportReport'].forEach(function(id){
+    document.getElementById(id).disabled = !on;
+  });
+}
+function downloadBlob(blob, name){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+document.getElementById('exportPng').addEventListener('click', function(){
+  var w = STATE.width, h = STATE.height;
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var ctx = c.getContext('2d');
+  ctx.drawImage(document.getElementById('base'), 0, 0);
+  ctx.drawImage(document.getElementById('over'), 0, 0);
+  c.toBlob(function(b){ downloadBlob(b, 'crack-detection-overlay.png'); });
+});
+document.getElementById('exportMask').addEventListener('click', function(){
+  document.getElementById('over').toBlob(function(b){ downloadBlob(b, 'crack-mask.png'); });
+});
+document.getElementById('exportGeojson').addEventListener('click', function(){
+  var features = STATE.components.filter(function(c){ return !c.filtered; }).map(function(c, idx){
+    var b = c.bounds;
+    return {
+      type: 'Feature',
+      properties: { id: idx, length_px: c.length.toFixed(1), length_ft: (c.length/STATE.params.scale).toFixed(2), pixels: c.count },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[ [b[0],b[1]], [b[2],b[1]], [b[2],b[3]], [b[0],b[3]], [b[0],b[1]] ]]
+      }
+    };
+  });
+  var geojson = { type: 'FeatureCollection', features: features, metadata: { scale_px_per_ft: STATE.params.scale, source: 'korb.engineering pavement-crack-detector', generated: new Date().toISOString() } };
+  downloadBlob(new Blob([JSON.stringify(geojson, null, 2)], {type:'application/json'}), 'cracks.geojson');
+});
+document.getElementById('exportReport').addEventListener('click', function(){
+  var real = STATE.components.filter(function(c){ return !c.filtered; });
+  var totalMaskPx = STATE.mask ? Array.prototype.reduce.call(STATE.mask, function(a,v){ return a + (v?1:0); }, 0) : 0;
+  var totalImgPx = STATE.width * STATE.height;
+  var density = totalImgPx ? (totalMaskPx / totalImgPx * 100) : 0;
+  var totalFt = real.reduce(function(a,c){ return a + c.length; }, 0) / STATE.params.scale;
+  var base = document.getElementById('base').toDataURL('image/png');
+  var overlay = (function(){
+    var w = STATE.width, h = STATE.height;
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(document.getElementById('base'), 0, 0);
+    ctx.drawImage(document.getElementById('over'), 0, 0);
+    return c.toDataURL('image/png');
+  })();
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Crack Detection Report</title>' +
+    '<style>body{font-family:Georgia,serif;max-width:880px;margin:30px auto;padding:20px;}h1{border-bottom:2px solid #333;padding-bottom:8px}table{border-collapse:collapse;width:100%;margin:14px 0}th,td{border:1px solid #ccc;padding:6px 10px;text-align:left}img{max-width:100%}</style>' +
+    '</head><body>' +
+    '<h1>Pavement Crack Detection Report</h1>' +
+    '<p>Generated ' + new Date().toString() + ' &middot; korb.engineering</p>' +
+    '<h2>Summary</h2>' +
+    '<table><tr><th>Cracks detected</th><td>' + real.length + '</td></tr>' +
+    '<tr><th>Estimated total length</th><td>' + totalFt.toFixed(1) + ' ft</td></tr>' +
+    '<tr><th>Crack-pixel density</th><td>' + density.toFixed(2) + ' %</td></tr>' +
+    '<tr><th>Analyzed image</th><td>' + STATE.width + ' &times; ' + STATE.height + ' px</td></tr>' +
+    '<tr><th>Scale</th><td>' + STATE.params.scale + ' px/ft</td></tr></table>' +
+    '<h2>Overlay</h2><img src="' + overlay + '"/>' +
+    '<h2>Original</h2><img src="' + base + '"/>' +
+    '<p style="font-size:11px;color:#666">Heuristic edge-detection output. Not a substitute for PCI inspection by a certified inspector.</p>' +
+    '</body></html>';
+  downloadBlob(new Blob([html], {type:'text/html'}), 'crack-report.html');
+});
+
+})();
+</script>
+
+</body>
+</html>
