@@ -935,14 +935,44 @@ a:hover { text-decoration: underline; }
     bets: {},          // { bet_id: amount }
     rolling: false,
     teach: loadBool(LS.TEACH, false),
+    // Fire Bet: tracks unique points made in the current shooter's hand
+    firePoints: new Set(),
+    shooter: 1,
+    recentRolls: [],
+    soundsOn: true,
     stats: loadJSON(LS.STATS, {
       rolls: 0,
       wins: 0,
       losses: 0,
       biggestWin: 0,
-      biggestLoss: 0
+      biggestLoss: 0,
+      sevenOuts: 0,
+      pointsMade: 0,
+      firesLit: 0,
+      sessionsPlayed: 0
     })
   };
+
+  // Sound effects (Web Audio)
+  let AC = null;
+  function audio(){ if(!AC) try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} return AC; }
+  function sfx(freq, dur, type, vol){
+    if(!state.soundsOn) return;
+    const ac = audio(); if(!ac) return;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.value = vol || 0.08;
+    o.connect(g); g.connect(ac.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+    o.stop(ac.currentTime + dur);
+  }
+  function sfxDice(){ sfx(220, 0.1, 'square', 0.06); setTimeout(function(){ sfx(180, 0.08, 'square', 0.06); }, 60); }
+  function sfxWin(){ sfx(880, 0.08, 'triangle', 0.1); setTimeout(function(){ sfx(1320, 0.12, 'triangle', 0.1); }, 80); }
+  function sfxLoss(){ sfx(220, 0.3, 'sawtooth', 0.08); }
+  function sfxFire(){
+    [523, 659, 784, 1047, 1319].forEach(function(f, i){ setTimeout(function(){ sfx(f, 0.18, 'sine', 0.12); }, i * 80); });
+  }
 
   // ======== Bet definitions ========
   // Each bet has: id, class (for grid), label, payout desc, resolve function
