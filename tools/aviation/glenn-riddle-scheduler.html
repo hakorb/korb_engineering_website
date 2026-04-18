@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Glenn Riddle Scheduler // Korb Engineering</title>
+<meta name="description" content="Staff scheduling + workload balancing tool. Rank employees by hours worked, auto-suggest best candidates for new shifts based on low hours, track leave, and export CSV reports.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050a0f;
+  --panel: #0a1018;
+  --panel-2: #0e1520;
+  --border: #1a2535;
+  --cyan: #00d4ff;
+  --orange: #ff9900;
+  --green: #10b981;
+  --red: #ef4444;
+  --yellow: #ffd83d;
+  --purple: #b76bff;
+  --text: #e2e8f0;
+  --dim: #7a8a9a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.5;
+}
+body { padding: 12px 12px 40px; max-width: 1400px; margin: 0 auto; }
+a { color: var(--cyan); text-decoration: none; }
+.back {
+  display: inline-block; color: var(--cyan);
+  font-size: 11px; letter-spacing: 2px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 3px; margin-bottom: 10px;
+}
+.back:hover { background: rgba(0,212,255,0.08); }
+header { text-align: center; padding: 10px 0 14px; }
+h1 {
+  font-size: clamp(22px, 5vw, 32px); font-weight: 700;
+  color: var(--cyan); letter-spacing: 2px;
+  text-shadow: 0 0 14px rgba(0,212,255,0.3);
+}
+.logo-dot { color: var(--orange); text-shadow: 0 0 12px var(--orange); }
+.tagline { color: var(--dim); font-size: 11px; letter-spacing: 3px; margin-top: 4px; }
+
+.tabs {
+  display: flex; gap: 2px; margin: 14px 0 12px;
+  border-bottom: 1px solid var(--border); overflow-x: auto;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  background: none; border: none; color: var(--dim);
+  font: 600 12px/1 'IBM Plex Mono', monospace; letter-spacing: 2px;
+  padding: 12px 14px; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  touch-action: manipulation; min-height: 44px; flex-shrink: 0;
+}
+.tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 4px;
+  padding: 14px; margin-bottom: 12px;
+}
+.panel-hdr {
+  font-size: 10px; letter-spacing: 3px; color: var(--dim);
+  text-transform: uppercase; margin-bottom: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+}
+.panel-hdr .id { color: var(--orange); font-weight: 700; }
+
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* KPIs */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.kpi {
+  background: var(--panel-2); padding: 10px 12px; border-radius: 3px;
+  border-left: 3px solid var(--cyan);
+}
+.kpi.orange { border-left-color: var(--orange); }
+.kpi.green { border-left-color: var(--green); }
+.kpi.red { border-left-color: var(--red); }
+.kpi.yellow { border-left-color: var(--yellow); }
+.kpi-label { color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+.kpi-value {
+  color: var(--text); font-size: 22px; font-weight: 700;
+  margin-top: 4px; font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-value.cyan { color: var(--cyan); }
+.kpi-value.orange { color: var(--orange); }
+.kpi-value.green { color: var(--green); }
+.kpi-value.red { color: var(--red); }
+.kpi-value.yellow { color: var(--yellow); }
+.kpi-sub { color: var(--dim); font-size: 10px; margin-top: 2px; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th {
+  color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  font-weight: 600; cursor: pointer; user-select: none;
+  position: sticky; top: 0; background: var(--panel);
+}
+th:hover { color: var(--cyan); }
+td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.hours-bar {
+  display: inline-block; vertical-align: middle;
+  width: 80px; height: 8px; background: var(--panel-2); border-radius: 2px;
+  overflow: hidden; margin-right: 8px;
+}
+.hours-bar > div { height: 100%; background: var(--cyan); transition: width 0.2s; }
+.hours-bar.warn > div { background: var(--yellow); }
+.hours-bar.danger > div { background: var(--red); }
+.hours-bar.ok > div { background: var(--green); }
+
+.status-pill {
+  display: inline-block; padding: 3px 8px; border-radius: 10px;
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;
+}
+.status-pill.active { background: rgba(16,185,129,0.2); color: var(--green); }
+.status-pill.leave { background: rgba(255,216,61,0.2); color: var(--yellow); }
+.status-pill.overtime { background: rgba(239,68,68,0.2); color: var(--red); }
+.status-pill.low { background: rgba(0,212,255,0.2); color: var(--cyan); }
+.status-pill.role { background: rgba(183,107,255,0.15); color: var(--purple); font-weight: 600; }
+
+/* Forms */
+input, select, textarea {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 10px; border-radius: 3px;
+  font: 500 13px/1.2 'IBM Plex Mono', monospace; min-height: 40px;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--cyan); }
+label {
+  display: block; font-size: 9px; letter-spacing: 2px; color: var(--dim);
+  margin-bottom: 3px; text-transform: uppercase;
+}
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.row.full { grid-template-columns: 1fr; }
+.row.three { grid-template-columns: repeat(3, 1fr); }
+
+.btn {
+  background: var(--cyan); color: #041018; border: none;
+  padding: 10px 16px; border-radius: 3px; cursor: pointer;
+  font: 700 12px/1 'IBM Plex Mono', monospace; letter-spacing: 2px;
+  touch-action: manipulation; min-height: 40px; white-space: nowrap;
+}
+.btn:hover { background: #7eeaff; }
+.btn.secondary { background: var(--panel-2); color: var(--cyan); border: 1px solid var(--cyan); }
+.btn.secondary:hover { background: rgba(0,212,255,0.08); }
+.btn.orange { background: var(--orange); color: #1a1000; }
+.btn.green { background: var(--green); color: #001a10; }
+.btn.red { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn.red:hover { background: rgba(239,68,68,0.1); }
+.btn.tiny { padding: 5px 9px; font-size: 10px; letter-spacing: 1px; min-height: 32px; }
+
+.date-range {
+  display: flex; gap: 6px; align-items: end; flex-wrap: wrap;
+}
+.date-range > div { flex: 1; min-width: 110px; }
+.date-range label { display: block; }
+
+/* Calendar */
+.cal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cal-title {
+  font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 16px;
+  color: var(--cyan); letter-spacing: 1px;
+}
+.cal-grid {
+  display: grid; grid-template-columns: 160px repeat(7, 1fr); gap: 2px;
+  font-size: 11px; min-width: 680px;
+}
+.cal-scroll { overflow-x: auto; }
+.cal-scroll::-webkit-scrollbar { height: 6px; }
+.cal-head-cell {
+  padding: 6px 4px; text-align: center;
+  background: var(--panel-2); color: var(--dim); font-size: 9px; letter-spacing: 2px;
+  border-radius: 2px;
+}
+.cal-emp-cell {
+  padding: 6px 8px; background: var(--panel-2); border-radius: 2px;
+  display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden;
+}
+.cal-emp-name { font-weight: 700; font-size: 12px; color: var(--text); }
+.cal-emp-role { font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+.cal-day-cell {
+  padding: 4px; background: var(--panel-2); border-radius: 2px;
+  min-height: 40px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  position: relative;
+}
+.cal-day-cell.weekend { background: #08131c; color: var(--dim); }
+.cal-day-cell.today { outline: 1px solid var(--cyan); }
+.cal-day-cell.leave { background: rgba(255,216,61,0.15); color: var(--yellow); }
+.cal-day-cell.high { background: rgba(239,68,68,0.12); color: var(--red); }
+.cal-day-cell.low { background: rgba(16,185,129,0.10); color: var(--green); }
+.cal-day-cell .hrs { font-weight: 700; font-size: 13px; }
+.cal-day-cell .sub { font-size: 8px; letter-spacing: 1px; color: var(--dim); margin-top: 2px; }
+
+.empty-state {
+  text-align: center; padding: 40px 14px;
+  color: var(--dim); font-size: 13px;
+}
+
+.view { display: none; }
+.view.active { display: block; }
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.92); color: var(--green); padding: 10px 18px;
+  border-radius: 20px; font-size: 12px; letter-spacing: 1px;
+  z-index: 100; opacity: 0; transition: opacity 0.2s;
+  border: 1px solid var(--green); pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Suggestion highlight */
+.suggestion-card {
+  background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(0,212,255,0.06));
+  border: 2px solid var(--green); border-radius: 6px;
+  padding: 16px; margin-bottom: 12px;
+}
+.suggestion-hdr {
+  font-size: 11px; letter-spacing: 3px; color: var(--green);
+  margin-bottom: 8px; text-transform: uppercase; font-weight: 700;
+}
+.suggestion-name {
+  font-size: 22px; font-weight: 700; color: var(--text);
+  margin-bottom: 4px;
+}
+.suggestion-meta { color: var(--dim); font-size: 11px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<a href="../../index.html#aviation" class="back">&larr; BACK</a>
+
+<header>
+  <h1>GLENN RIDDLE<span class="logo-dot">.</span>SCHEDULER</h1>
+  <div class="tagline">WORKLOAD BALANCER &middot; LEAVE TRACKER &middot; SHIFT SUGGESTER</div>
+</header>
+
+<div class="tabs" role="tablist">
+  <button class="tab active" data-view="dashboard">DASHBOARD</button>
+  <button class="tab" data-view="roster">ROSTER</button>
+  <button class="tab" data-view="shifts">SHIFTS</button>
+  <button class="tab" data-view="leave">LEAVE</button>
+  <button class="tab" data-view="calendar">CALENDAR</button>
+  <button class="tab" data-view="settings">EXPORT / IMPORT</button>
+</div>
+
+<!-- DASHBOARD -->
+<section class="view active" id="view-dashboard">
+  <div class="panel">
+    <div class="panel-hdr">
+      <span><span class="id">[ P01 ]</span> REPORTING WINDOW</span>
+      <span id="emp-count-hdr" style="color:var(--dim)">0 employees</span>
+    </div>
+    <div class="date-range">
+      <div>
+        <label>FROM</label>
+        <input type="date" id="range-from">
+      </div>
+      <div>
+        <label>TO</label>
+        <input type="date" id="range-to">
+      </div>
+      <div>
+        <label>QUICK RANGE</label>
+        <select id="range-quick">
+          <option value="custom">Custom</option>
+          <option value="week">This week</option>
+          <option value="last-week">Last week</option>
+          <option value="month" selected>This month</option>
+          <option value="last-month">Last month</option>
+          <option value="quarter">This quarter</option>
+          <option value="ytd">Year to date</option>
+        </select>
+      </div>
+      <div>
+        <label>STD HOURS / WEEK</label>
+        <input type="number" id="std-hours" min="1" max="168" value="40">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P02 ]</span> HEADLINE METRICS</span></div>
+    <div class="kpi-grid" id="kpi-row"></div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr"><span><span class="id">[ P03 ]</span> &uarr; TOP WORKLOAD (burn-out risk)</span></div>
+      <table id="tbl-top"><thead><tr><th>Employee</th><th class="num">Hours</th><th class="num">vs Std</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span><span class="id">[ P04 ]</span> &darr; LOW WORKLOAD (best shift candidates)</span></div>
+      <table id="tbl-low"><thead><tr><th>Employee</th><th class="num">Hours</th><th class="num">vs Std</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="suggestion-card" id="best-candidate"></div>
+
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P05 ]</span> FULL RANKING</span></div>
+    <div style="overflow-x:auto"><table id="tbl-rank">
+      <thead><tr>
+        <th data-sort="name">Employee</th>
+        <th data-sort="role">Role</th>
+        <th data-sort="hours" class="num">Hours</th>
+        <th data-sort="pct" class="num">% of Std</th>
+        <th class="num">Load</th>
+        <th>Status</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ROSTER -->
+<section class="view" id="view-roster">
+  <div class="panel">
+    <div class="panel-hdr">
+      <span><span class="id">[ P10 ]</span> ADD EMPLOYEE</span>
+    </div>
+    <div class="row three">
+      <div><label>NAME</label><input type="text" id="new-emp-name" placeholder="First Last"></div>
+      <div><label>ROLE</label><input type="text" id="new-emp-role" placeholder="Engineer / Inspector / Admin"></div>
+      <div><label>STANDARD WEEKLY HOURS</label><input type="number" id="new-emp-std" value="40" min="1" max="168"></div>
+    </div>
+    <div class="row">
+      <div><label>HIRE DATE</label><input type="date" id="new-emp-hire"></div>
+      <div><label>HOURLY RATE (OPTIONAL)</label><input type="number" id="new-emp-rate" placeholder="0" min="0" step="0.01"></div>
+    </div>
+    <button class="btn" id="btn-add-emp">+ ADD EMPLOYEE</button>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P11 ]</span> CURRENT ROSTER</span></div>
+    <div style="overflow-x:auto"><table id="tbl-roster">
+      <thead><tr><th>Name</th><th>Role</th><th class="num">Std/wk</th><th>Hire date</th><th class="num">Rate</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- SHIFTS -->
+<section class="view" id="view-shifts">
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P20 ]</span> LOG SHIFT</span></div>
+    <div class="row three">
+      <div><label>EMPLOYEE</label><select id="shift-emp"></select></div>
+      <div><label>DATE</label><input type="date" id="shift-date"></div>
+      <div><label>HOURS</label><input type="number" id="shift-hours" min="0" max="24" step="0.25" value="8"></div>
+    </div>
+    <div class="row">
+      <div><label>TYPE</label>
+        <select id="shift-type">
+          <option value="project">Project / billable</option>
+          <option value="admin">Admin / overhead</option>
+          <option value="training">Training</option>
+          <option value="travel">Travel</option>
+          <option value="overtime">Overtime</option>
+        </select>
+      </div>
+      <div><label>NOTE</label><input type="text" id="shift-note" placeholder="project code, client, etc."></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" id="btn-add-shift">+ LOG SHIFT</button>
+      <button class="btn secondary" id="btn-bulk-shift">LOG WEEK OF 8-HR SHIFTS</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr">
+      <span><span class="id">[ P21 ]</span> RECENT SHIFTS</span>
+      <span style="color:var(--dim)" id="shift-count">0 entries</span>
+    </div>
+    <div style="overflow-x:auto"><table id="tbl-shifts">
+      <thead><tr><th>Date</th><th>Employee</th><th class="num">Hours</th><th>Type</th><th>Note</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- LEAVE -->
+<section class="view" id="view-leave">
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P30 ]</span> ADD LEAVE</span></div>
+    <div class="row three">
+      <div><label>EMPLOYEE</label><select id="leave-emp"></select></div>
+      <div><label>START DATE</label><input type="date" id="leave-start"></div>
+      <div><label>END DATE</label><input type="date" id="leave-end"></div>
+    </div>
+    <div class="row">
+      <div><label>TYPE</label>
+        <select id="leave-type">
+          <option value="vacation">Vacation / PTO</option>
+          <option value="sick">Sick</option>
+          <option value="holiday">Holiday</option>
+          <option value="personal">Personal day</option>
+          <option value="bereavement">Bereavement</option>
+          <option value="unpaid">Unpaid</option>
+        </select>
+      </div>
+      <div><label>NOTE (optional)</label><input type="text" id="leave-note"></div>
+    </div>
+    <button class="btn" id="btn-add-leave">+ SCHEDULE LEAVE</button>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P31 ]</span> SCHEDULED LEAVE</span></div>
+    <div style="overflow-x:auto"><table id="tbl-leave">
+      <thead><tr><th>Employee</th><th>Type</th><th>Start</th><th>End</th><th class="num">Days</th><th>Note</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- CALENDAR -->
+<section class="view" id="view-calendar">
+  <div class="panel">
+    <div class="panel-hdr">
+      <span><span class="id">[ P40 ]</span> WEEK CALENDAR</span>
+    </div>
+    <div class="cal-hdr">
+      <button class="btn secondary tiny" id="cal-prev">&larr; Prev</button>
+      <div class="cal-title" id="cal-title">—</div>
+      <button class="btn secondary tiny" id="cal-next">Next &rarr;</button>
+    </div>
+    <div class="cal-scroll">
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--dim)">
+      <div><span class="status-pill leave">LEAVE</span></div>
+      <div><span class="status-pill low" style="background:rgba(16,185,129,0.15);color:var(--green)">LIGHT LOAD</span></div>
+      <div><span class="status-pill overtime">HEAVY LOAD</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS / EXPORT -->
+<section class="view" id="view-settings">
+  <div class="grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr"><span><span class="id">[ P50 ]</span> EXPORT</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn secondary" id="btn-export-json">JSON BACKUP</button>
+        <button class="btn secondary" id="btn-export-roster">ROSTER CSV</button>
+        <button class="btn secondary" id="btn-export-shifts">SHIFTS CSV</button>
+        <button class="btn secondary" id="btn-export-leave">LEAVE CSV</button>
+        <button class="btn secondary" id="btn-export-summary">SUMMARY CSV</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span><span class="id">[ P51 ]</span> IMPORT</span></div>
+      <input type="file" id="import-file" accept=".json,application/json" style="margin-bottom:8px">
+      <button class="btn" id="btn-import">IMPORT JSON BACKUP</button>
+      <div style="margin-top:10px;font-size:11px;color:var(--dim);line-height:1.6">
+        Import a previously-exported JSON backup. <b style="color:var(--orange)">Warning:</b> this will replace your current roster, shifts, and leave data.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr"><span><span class="id">[ P52 ]</span> SEED DATA</span></div>
+    <div style="font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px">
+      First-time setup? Load a small example roster to see how the tool works. This will ADD to your current data (won\'t overwrite).
+    </div>
+    <button class="btn orange" id="btn-seed">LOAD EXAMPLE ROSTER</button>
+  </div>
+
+  <div class="panel" style="border-color:var(--red)">
+    <div class="panel-hdr" style="color:var(--red)"><span><span class="id">[ P53 ]</span> DANGER ZONE</span></div>
+    <button class="btn red" id="btn-reset">DELETE ALL DATA</button>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// STATE
+// ============================================================
+var STORE = 'korb_grs_state_v1';
+var state = loadState();
+
+function loadState(){
+  try {
+    var s = JSON.parse(localStorage.getItem(STORE));
+    if(s && s.employees) return s;
+  } catch(e){}
+  return {
+    employees: [],   // {id, name, role, std, hired, rate}
+    shifts: [],      // {id, empId, date (YYYY-MM-DD), hours, type, note}
+    leave: [],       // {id, empId, start, end, type, note}
+    settings: { stdHours: 40 },
+    rangeFrom: null,
+    rangeTo: null,
+    rangeQuick: 'month',
+    calWeekStart: null,
+  };
+}
+function save(){ localStorage.setItem(STORE, JSON.stringify(state)); }
+
+function uid(){ return Math.random().toString(36).slice(2, 10); }
+
+// ============================================================
+// DATE HELPERS
+// ============================================================
+function today(){
+  var d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function parseDate(s){
+  if(!s) return null;
+  var d = new Date(s + 'T00:00:00');
+  return isNaN(d) ? null : d;
+}
+function fmtDate(d){
+  if(!(d instanceof Date)) d = parseDate(d);
+  if(!d) return '';
+  return d.toISOString().slice(0, 10);
+}
+function fmtShort(d){
+  if(!(d instanceof Date)) d = parseDate(d);
+  if(!d) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function daysBetween(a, b){
+  return Math.round((parseDate(b) - parseDate(a)) / 86400000) + 1;
+}
+function startOfWeek(d){
+  d = (d instanceof Date) ? new Date(d) : parseDate(d);
+  var day = d.getDay();
+  d.setDate(d.getDate() - day);
+  return d;
+}
+function addDays(d, n){
+  d = (d instanceof Date) ? new Date(d) : parseDate(d);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function weeksBetween(from, to){
+  var days = daysBetween(from, to);
+  return days / 7;
+}
+function inRange(date, from, to){
+  return date >= from && date <= to;
+}
+function monthLabel(d){
+  d = (d instanceof Date) ? d : parseDate(d);
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function setQuickRange(which){
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth();
+  var from, to;
+  if(which === 'week'){ from = startOfWeek(now); to = addDays(from, 6); }
+  else if(which === 'last-week'){ var lw = startOfWeek(now); from = addDays(lw, -7); to = addDays(lw, -1); }
+  else if(which === 'month'){ from = new Date(y, m, 1); to = new Date(y, m + 1, 0); }
+  else if(which === 'last-month'){ from = new Date(y, m - 1, 1); to = new Date(y, m, 0); }
+  else if(which === 'quarter'){ var q = Math.floor(m / 3); from = new Date(y, q * 3, 1); to = new Date(y, q * 3 + 3, 0); }
+  else if(which === 'ytd'){ from = new Date(y, 0, 1); to = now; }
+  else return;
+  state.rangeFrom = fmtDate(from);
+  state.rangeTo = fmtDate(to);
+  state.rangeQuick = which;
+}
+
+// ============================================================
+// COMPUTATIONS
+// ============================================================
+function getHoursInRange(empId, fromStr, toStr){
+  var total = 0, byType = {};
+  state.shifts.forEach(function(s){
+    if(s.empId !== empId) return;
+    if(s.date < fromStr || s.date > toStr) return;
+    total += parseFloat(s.hours) || 0;
+    byType[s.type] = (byType[s.type] || 0) + (parseFloat(s.hours) || 0);
+  });
+  return { total: total, byType: byType };
+}
+function getLeaveDaysInRange(empId, fromStr, toStr){
+  var days = 0;
+  state.leave.forEach(function(l){
+    if(l.empId !== empId) return;
+    // Overlap calculation
+    var a = l.start > fromStr ? l.start : fromStr;
+    var b = l.end < toStr ? l.end : toStr;
+    if(a <= b){ days += daysBetween(a, b); }
+  });
+  return days;
+}
+function isOnLeave(empId, dateStr){
+  return state.leave.some(function(l){
+    return l.empId === empId && dateStr >= l.start && dateStr <= l.end;
+  });
+}
+
+function computeRankings(){
+  var from = state.rangeFrom, to = state.rangeTo;
+  if(!from || !to) return [];
+  var weeks = weeksBetween(from, to);
+  return state.employees.map(function(e){
+    var h = getHoursInRange(e.id, from, to);
+    var leaveDays = getLeaveDaysInRange(e.id, from, to);
+    var expectedHours = (e.std || state.settings.stdHours) * weeks;
+    // Adjust for leave — deduct leave days proportionally
+    var leaveWeeks = leaveDays / 7;
+    var expectedAfterLeave = Math.max(0, (e.std || state.settings.stdHours) * (weeks - leaveWeeks));
+    var pct = expectedAfterLeave > 0 ? (h.total / expectedAfterLeave) * 100 : 0;
+    return {
+      emp: e, hours: h.total, byType: h.byType,
+      leaveDays: leaveDays,
+      expected: expectedHours, expectedAfterLeave: expectedAfterLeave,
+      pct: pct,
+      delta: h.total - expectedAfterLeave,
+      onLeaveToday: isOnLeave(e.id, today())
+    };
+  });
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function $(id){ return document.getElementById(id); }
+
+function renderAll(){
+  $('emp-count-hdr').textContent = state.employees.length + ' employee' + (state.employees.length === 1 ? '' : 's');
+  renderDashboard();
+  renderRoster();
+  renderShifts();
+  renderLeave();
+  renderCalendar();
+  renderSelects();
+}
+
+function renderDashboard(){
+  var rank = computeRankings();
+  // KPIs
+  var totalHours = rank.reduce(function(a,r){ return a + r.hours; }, 0);
+  var totalExpected = rank.reduce(function(a,r){ return a + r.expectedAfterLeave; }, 0);
+  var overworked = rank.filter(function(r){ return r.pct > 110; }).length;
+  var underworked = rank.filter(function(r){ return r.pct < 80; }).length;
+  var onLeaveNow = rank.filter(function(r){ return r.onLeaveToday; }).length;
+  $('kpi-row').innerHTML =
+    '<div class="kpi"><div class="kpi-label">Total hours</div><div class="kpi-value cyan">' + totalHours.toFixed(0) + '</div><div class="kpi-sub">expected ' + totalExpected.toFixed(0) + '</div></div>' +
+    '<div class="kpi ' + (totalExpected ? '' : '') + '"><div class="kpi-label">Utilization</div><div class="kpi-value ' + (totalExpected && totalHours/totalExpected < 0.9 ? 'red' : 'green') + '">' + (totalExpected ? (totalHours/totalExpected*100).toFixed(0) + '%' : '—') + '</div><div class="kpi-sub">actual / expected</div></div>' +
+    '<div class="kpi red"><div class="kpi-label">Over-worked</div><div class="kpi-value red">' + overworked + '</div><div class="kpi-sub">> 110% of std</div></div>' +
+    '<div class="kpi green"><div class="kpi-label">Under-booked</div><div class="kpi-value green">' + underworked + '</div><div class="kpi-sub">< 80% of std</div></div>' +
+    '<div class="kpi yellow"><div class="kpi-label">On leave today</div><div class="kpi-value yellow">' + onLeaveNow + '</div><div class="kpi-sub">currently out</div></div>' +
+    '<div class="kpi orange"><div class="kpi-label">Window</div><div class="kpi-value orange" style="font-size:14px;line-height:1.3">' + (state.rangeFrom || '—') + '<br>' + (state.rangeTo || '') + '</div></div>';
+
+  // Top / low
+  var sorted = rank.slice().sort(function(a,b){ return b.hours - a.hours; });
+  var top = sorted.slice(0, 5);
+  $('tbl-top').querySelector('tbody').innerHTML = top.length ?
+    top.map(function(r){ return renderRankRow(r, 'top'); }).join('') :
+    '<tr><td colspan="3" class="empty-state">No shifts in this window yet.</td></tr>';
+
+  var sortedAsc = rank.slice().filter(function(r){ return !r.onLeaveToday; }).sort(function(a,b){ return a.pct - b.pct; });
+  var low = sortedAsc.slice(0, 5);
+  $('tbl-low').querySelector('tbody').innerHTML = low.length ?
+    low.map(function(r){ return renderRankRow(r, 'low'); }).join('') :
+    '<tr><td colspan="3" class="empty-state">No eligible employees.</td></tr>';
+
+  // Best candidate card
+  var best = sortedAsc[0];
+  var bestCard = $('best-candidate');
+  if(best){
+    var gap = Math.max(0, best.expectedAfterLeave - best.hours).toFixed(0);
+    bestCard.innerHTML =
+      '<div class="suggestion-hdr">&#9734; BEST CANDIDATE FOR NEW SHIFT</div>' +
+      '<div class="suggestion-name">' + escapeHtml(best.emp.name) + '</div>' +
+      '<div class="suggestion-meta">' + escapeHtml(best.emp.role || 'staff') + ' &middot; ' + best.hours.toFixed(1) + ' hrs logged (' + best.pct.toFixed(0) + '% of std) &middot; ' + gap + ' hrs available</div>' +
+      '<div class="suggestion-meta" style="margin-top:6px">Other low-load staff: ' +
+        sortedAsc.slice(1, 4).map(function(r){ return escapeHtml(r.emp.name) + ' (' + r.pct.toFixed(0) + '%)'; }).join(', ') +
+      '</div>';
+  } else {
+    bestCard.innerHTML = '<div class="suggestion-hdr">NO CANDIDATE DATA</div><div class="suggestion-meta">Add employees and shifts to get shift-assignment suggestions.</div>';
+  }
+
+  // Full ranking table
+  sortedTableDir = sortedTableDir || 'hours';
+  var full = rank.slice().sort(sortFn(sortedTableDir));
+  $('tbl-rank').querySelector('tbody').innerHTML = full.length ?
+    full.map(function(r){
+      var pill = r.onLeaveToday ? '<span class="status-pill leave">ON LEAVE</span>' :
+                 r.pct > 110 ? '<span class="status-pill overtime">OVER</span>' :
+                 r.pct < 80 ? '<span class="status-pill low">LIGHT</span>' :
+                 '<span class="status-pill active">ON TRACK</span>';
+      var barCls = r.pct > 110 ? 'danger' : r.pct > 95 ? 'warn' : r.pct < 80 ? 'ok' : '';
+      var barW = Math.min(200, r.pct);
+      return '<tr>' +
+        '<td><b>' + escapeHtml(r.emp.name) + '</b></td>' +
+        '<td><span class="status-pill role">' + escapeHtml(r.emp.role || 'staff') + '</span></td>' +
+        '<td class="num">' + r.hours.toFixed(1) + '</td>' +
+        '<td class="num">' + r.pct.toFixed(0) + '%</td>' +
+        '<td class="num"><div class="hours-bar ' + barCls + '"><div style="width:' + barW/2 + '%"></div></div></td>' +
+        '<td>' + pill + '</td>' +
+      '</tr>';
+    }).join('') :
+    '<tr><td colspan="6" class="empty-state">No employees yet. Add some in the ROSTER tab.</td></tr>';
+}
+function renderRankRow(r, kind){
+  var delta = r.delta.toFixed(1);
+  var deltaCls = r.delta > 0 ? 'red' : r.delta < -10 ? 'green' : 'dim';
+  var deltaStr = (r.delta >= 0 ? '+' : '') + delta;
+  return '<tr>' +
+    '<td><b>' + escapeHtml(r.emp.name) + '</b><br><span style="color:var(--dim);font-size:10px">' + escapeHtml(r.emp.role || '') + '</span></td>' +
+    '<td class="num">' + r.hours.toFixed(1) + '</td>' +
+    '<td class="num" style="color:var(--' + deltaCls + ')">' + deltaStr + '</td>' +
+  '</tr>';
+}
+
+var sortedTableDir = 'hours';
+function sortFn(key){
+  return function(a, b){
+    if(key === 'name') return a.emp.name.localeCompare(b.emp.name);
+    if(key === 'role') return (a.emp.role || '').localeCompare(b.emp.role || '');
+    if(key === 'pct') return b.pct - a.pct;
+    return b.hours - a.hours;
+  };
+}
+document.querySelectorAll('#tbl-rank th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    sortedTableDir = th.dataset.sort;
+    renderDashboard();
+  });
+});
+
+function renderRoster(){
+  var body = $('tbl-roster').querySelector('tbody');
+  if(state.employees.length === 0){
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">No employees yet. Add one above.</td></tr>';
+    return;
+  }
+  body.innerHTML = state.employees.map(function(e){
+    return '<tr>' +
+      '<td><b>' + escapeHtml(e.name) + '</b></td>' +
+      '<td><span class="status-pill role">' + escapeHtml(e.role || 'staff') + '</span></td>' +
+      '<td class="num">' + (e.std || state.settings.stdHours) + '</td>' +
+      '<td>' + escapeHtml(fmtShort(e.hired) || '—') + '</td>' +
+      '<td class="num">' + (e.rate ? '$' + parseFloat(e.rate).toFixed(2) : '—') + '</td>' +
+      '<td style="text-align:right"><button class="btn red tiny" data-rm-emp="' + e.id + '">REMOVE</button></td>' +
+    '</tr>';
+  }).join('');
+  body.querySelectorAll('[data-rm-emp]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var id = b.dataset.rmEmp;
+      var emp = state.employees.find(function(e){ return e.id === id; });
+      if(!emp) return;
+      if(!confirm('Remove ' + emp.name + '? This will also delete all their shifts and leave.')) return;
+      state.employees = state.employees.filter(function(e){ return e.id !== id; });
+      state.shifts = state.shifts.filter(function(s){ return s.empId !== id; });
+      state.leave = state.leave.filter(function(l){ return l.empId !== id; });
+      save(); renderAll(); toast('Removed ' + emp.name);
+    });
+  });
+}
+
+function renderShifts(){
+  $('shift-count').textContent = state.shifts.length + ' entries';
+  var body = $('tbl-shifts').querySelector('tbody');
+  if(state.shifts.length === 0){
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">No shifts logged yet.</td></tr>';
+    return;
+  }
+  var sorted = state.shifts.slice().sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var top = sorted.slice(0, 100);
+  body.innerHTML = top.map(function(s){
+    var emp = state.employees.find(function(e){ return e.id === s.empId; });
+    return '<tr>' +
+      '<td>' + fmtShort(s.date) + '</td>' +
+      '<td>' + escapeHtml(emp ? emp.name : '[deleted]') + '</td>' +
+      '<td class="num">' + parseFloat(s.hours).toFixed(1) + '</td>' +
+      '<td><span class="status-pill role">' + escapeHtml(s.type) + '</span></td>' +
+      '<td>' + escapeHtml(s.note || '') + '</td>' +
+      '<td style="text-align:right"><button class="btn red tiny" data-rm-shift="' + s.id + '">×</button></td>' +
+    '</tr>';
+  }).join('');
+  body.querySelectorAll('[data-rm-shift]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.shifts = state.shifts.filter(function(s){ return s.id !== b.dataset.rmShift; });
+      save(); renderAll(); toast('Shift removed');
+    });
+  });
+}
+
+function renderLeave(){
+  var body = $('tbl-leave').querySelector('tbody');
+  if(state.leave.length === 0){
+    body.innerHTML = '<tr><td colspan="7" class="empty-state">No leave scheduled.</td></tr>';
+    return;
+  }
+  var sorted = state.leave.slice().sort(function(a,b){ return a.start.localeCompare(b.start); });
+  body.innerHTML = sorted.map(function(l){
+    var emp = state.employees.find(function(e){ return e.id === l.empId; });
+    var days = daysBetween(l.start, l.end);
+    return '<tr>' +
+      '<td>' + escapeHtml(emp ? emp.name : '[deleted]') + '</td>' +
+      '<td><span class="status-pill leave">' + escapeHtml(l.type) + '</span></td>' +
+      '<td>' + fmtShort(l.start) + '</td>' +
+      '<td>' + fmtShort(l.end) + '</td>' +
+      '<td class="num">' + days + '</td>' +
+      '<td>' + escapeHtml(l.note || '') + '</td>' +
+      '<td style="text-align:right"><button class="btn red tiny" data-rm-leave="' + l.id + '">×</button></td>' +
+    '</tr>';
+  }).join('');
+  body.querySelectorAll('[data-rm-leave]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.leave = state.leave.filter(function(l){ return l.id !== b.dataset.rmLeave; });
+      save(); renderAll(); toast('Leave removed');
+    });
+  });
+}
+
+function renderCalendar(){
+  if(!state.calWeekStart) state.calWeekStart = fmtDate(startOfWeek(new Date()));
+  var start = parseDate(state.calWeekStart);
+  var days = [];
+  for(var i=0;i<7;i++) days.push(addDays(start, i));
+  $('cal-title').textContent = 'Week of ' + fmtShort(start);
+
+  var grid = $('cal-grid');
+  var html = '<div class="cal-head-cell">EMPLOYEE</div>';
+  days.forEach(function(d){
+    var lbl = d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.getDate();
+    html += '<div class="cal-head-cell">' + lbl + '</div>';
+  });
+  var todayStr = today();
+  state.employees.forEach(function(e){
+    html += '<div class="cal-emp-cell"><div class="cal-emp-name">' + escapeHtml(e.name) + '</div><div class="cal-emp-role">' + escapeHtml(e.role || '') + '</div></div>';
+    days.forEach(function(d){
+      var ds = fmtDate(d);
+      var hrs = state.shifts.filter(function(s){ return s.empId === e.id && s.date === ds; }).reduce(function(a,s){ return a + parseFloat(s.hours||0); }, 0);
+      var onLeave = isOnLeave(e.id, ds);
+      var isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      var cls = ['cal-day-cell'];
+      if(isWeekend) cls.push('weekend');
+      if(ds === todayStr) cls.push('today');
+      if(onLeave) cls.push('leave');
+      else if(hrs > 10) cls.push('high');
+      else if(hrs > 0 && hrs < 4) cls.push('low');
+      var content;
+      if(onLeave){
+        var lv = state.leave.find(function(l){ return l.empId === e.id && l.start <= ds && l.end >= ds; });
+        content = '<div class="hrs">—</div><div class="sub">' + (lv ? escapeHtml(lv.type).slice(0,8).toUpperCase() : 'LEAVE') + '</div>';
+      } else if(hrs > 0){
+        content = '<div class="hrs">' + hrs.toFixed(1) + '</div><div class="sub">HRS</div>';
+      } else {
+        content = '<div class="hrs" style="color:var(--dim)">·</div>';
+      }
+      html += '<div class="' + cls.join(' ') + '">' + content + '</div>';
+    });
+  });
+  if(state.employees.length === 0){
+    html += '<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--dim)">Add employees in the ROSTER tab to see the calendar.</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function renderSelects(){
+  var opts = state.employees.map(function(e){ return '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>'; }).join('');
+  $('shift-emp').innerHTML = opts || '<option disabled>No employees yet</option>';
+  $('leave-emp').innerHTML = opts || '<option disabled>No employees yet</option>';
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function escapeHtml(s){
+  if(s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function toast(msg){
+  var t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._to);
+  t._to = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+}
+
+// ============================================================
+// WIRING
+// ============================================================
+// Tabs
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('active'); });
+    t.classList.add('active');
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    $('view-' + t.dataset.view).classList.add('active');
+    if(t.dataset.view === 'calendar') renderCalendar();
+  });
+});
+
+// Date range
+$('range-quick').addEventListener('change', function(e){
+  if(e.target.value !== 'custom'){
+    setQuickRange(e.target.value);
+    $('range-from').value = state.rangeFrom;
+    $('range-to').value = state.rangeTo;
+    save(); renderDashboard();
+  }
+});
+$('range-from').addEventListener('change', function(e){
+  state.rangeFrom = e.target.value;
+  state.rangeQuick = 'custom';
+  $('range-quick').value = 'custom';
+  save(); renderDashboard();
+});
+$('range-to').addEventListener('change', function(e){
+  state.rangeTo = e.target.value;
+  state.rangeQuick = 'custom';
+  $('range-quick').value = 'custom';
+  save(); renderDashboard();
+});
+$('std-hours').addEventListener('change', function(e){
+  state.settings.stdHours = parseFloat(e.target.value) || 40;
+  save(); renderDashboard();
+});
+
+// Add employee
+$('btn-add-emp').addEventListener('click', function(){
+  var name = $('new-emp-name').value.trim();
+  if(!name){ toast('Name required'); return; }
+  var emp = {
+    id: uid(),
+    name: name,
+    role: $('new-emp-role').value.trim(),
+    std: parseFloat($('new-emp-std').value) || 40,
+    hired: $('new-emp-hire').value,
+    rate: parseFloat($('new-emp-rate').value) || 0
+  };
+  state.employees.push(emp);
+  save();
+  $('new-emp-name').value = '';
+  $('new-emp-role').value = '';
+  $('new-emp-rate').value = '';
+  renderAll();
+  toast('Added ' + name);
+});
+
+// Add shift
+$('btn-add-shift').addEventListener('click', function(){
+  var empId = $('shift-emp').value;
+  if(!empId){ toast('Select an employee'); return; }
+  var sh = {
+    id: uid(), empId: empId,
+    date: $('shift-date').value || today(),
+    hours: parseFloat($('shift-hours').value) || 0,
+    type: $('shift-type').value,
+    note: $('shift-note').value.trim()
+  };
+  if(sh.hours <= 0){ toast('Hours must be positive'); return; }
+  state.shifts.push(sh);
+  save();
+  $('shift-note').value = '';
+  renderAll();
+  toast('Shift logged');
+});
+
+// Bulk-log week
+$('btn-bulk-shift').addEventListener('click', function(){
+  var empId = $('shift-emp').value;
+  if(!empId){ toast('Select an employee'); return; }
+  var dateStr = $('shift-date').value || today();
+  var start = startOfWeek(parseDate(dateStr));
+  var type = $('shift-type').value;
+  var hours = parseFloat($('shift-hours').value) || 8;
+  var added = 0;
+  for(var d=1; d<=5; d++){  // Mon-Fri
+    var day = addDays(start, d);
+    var ds = fmtDate(day);
+    state.shifts.push({
+      id: uid(), empId: empId, date: ds,
+      hours: hours, type: type, note: 'bulk week'
+    });
+    added++;
+  }
+  save();
+  renderAll();
+  toast('Added ' + added + ' shifts (Mon-Fri)');
+});
+
+// Add leave
+$('btn-add-leave').addEventListener('click', function(){
+  var empId = $('leave-emp').value;
+  if(!empId){ toast('Select an employee'); return; }
+  var start = $('leave-start').value;
+  var end = $('leave-end').value || start;
+  if(!start){ toast('Start date required'); return; }
+  if(end < start){ toast('End date must be >= start'); return; }
+  state.leave.push({
+    id: uid(), empId: empId, start: start, end: end,
+    type: $('leave-type').value, note: $('leave-note').value.trim()
+  });
+  save();
+  $('leave-note').value = '';
+  renderAll();
+  toast('Leave scheduled');
+});
+
+// Calendar nav
+$('cal-prev').addEventListener('click', function(){
+  state.calWeekStart = fmtDate(addDays(state.calWeekStart, -7));
+  save(); renderCalendar();
+});
+$('cal-next').addEventListener('click', function(){
+  state.calWeekStart = fmtDate(addDays(state.calWeekStart, 7));
+  save(); renderCalendar();
+});
+
+// Exports
+function downloadBlob(blob, name){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+function toCsvVal(v){
+  v = v === null || v === undefined ? '' : String(v);
+  if(/[",\n]/.test(v)) return '"' + v.replace(/"/g,'""') + '"';
+  return v;
+}
+function toCsv(rows){
+  return rows.map(function(r){ return r.map(toCsvVal).join(','); }).join('\n');
+}
+$('btn-export-json').addEventListener('click', function(){
+  downloadBlob(new Blob([JSON.stringify(state, null, 2)], {type:'application/json'}), 'glenn-riddle-backup-' + today() + '.json');
+});
+$('btn-export-roster').addEventListener('click', function(){
+  var rows = [['Name','Role','Std hrs/wk','Hired','Rate']];
+  state.employees.forEach(function(e){ rows.push([e.name, e.role, e.std, e.hired, e.rate]); });
+  downloadBlob(new Blob([toCsv(rows)], {type:'text/csv'}), 'roster.csv');
+});
+$('btn-export-shifts').addEventListener('click', function(){
+  var rows = [['Date','Employee','Hours','Type','Note']];
+  state.shifts.forEach(function(s){
+    var e = state.employees.find(function(e){ return e.id === s.empId; });
+    rows.push([s.date, e ? e.name : '', s.hours, s.type, s.note]);
+  });
+  downloadBlob(new Blob([toCsv(rows)], {type:'text/csv'}), 'shifts.csv');
+});
+$('btn-export-leave').addEventListener('click', function(){
+  var rows = [['Employee','Start','End','Type','Note','Days']];
+  state.leave.forEach(function(l){
+    var e = state.employees.find(function(e){ return e.id === l.empId; });
+    rows.push([e ? e.name : '', l.start, l.end, l.type, l.note, daysBetween(l.start, l.end)]);
+  });
+  downloadBlob(new Blob([toCsv(rows)], {type:'text/csv'}), 'leave.csv');
+});
+$('btn-export-summary').addEventListener('click', function(){
+  var rank = computeRankings();
+  var rows = [['Name','Role','Std/wk','Window hours','Expected','Variance','% of std','Leave days in window','Rate','Payroll in window']];
+  rank.forEach(function(r){
+    var payroll = (r.emp.rate || 0) * r.hours;
+    rows.push([r.emp.name, r.emp.role, r.emp.std, r.hours.toFixed(2), r.expectedAfterLeave.toFixed(2), r.delta.toFixed(2), r.pct.toFixed(1), r.leaveDays, r.emp.rate || 0, payroll.toFixed(2)]);
+  });
+  rows.push([]);
+  rows.push(['Range:', state.rangeFrom, 'to', state.rangeTo]);
+  rows.push(['Generated:', new Date().toString()]);
+  downloadBlob(new Blob([toCsv(rows)], {type:'text/csv'}), 'hours-summary-' + (state.rangeFrom || 'all') + '.csv');
+});
+
+// Import
+$('btn-import').addEventListener('click', function(){
+  var f = $('import-file').files[0];
+  if(!f){ toast('Select a file first'); return; }
+  if(!confirm('This replaces all current data with the imported backup. Continue?')) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var data = JSON.parse(e.target.result);
+      if(data.employees && Array.isArray(data.employees)){
+        state = Object.assign(loadState(), data);
+        save(); renderAll();
+        toast('Imported ' + state.employees.length + ' employees');
+      } else {
+        toast('Unrecognized backup format');
+      }
+    } catch(err){ toast('Invalid JSON: ' + err.message); }
+  };
+  reader.readAsText(f);
+});
+
+// Seed
+$('btn-seed').addEventListener('click', function(){
+  if(!confirm('Add example roster of 6 employees with recent shifts?')) return;
+  var roles = ['Senior Engineer','Engineer','Technician','Inspector','Admin','Project Manager'];
+  var names = ['Monte Walter','Monte Alan','Andrew Douglas','Harrison Korb','Alex Chen','Blake Stevens'];
+  var newIds = [];
+  for(var i=0;i<6;i++){
+    var id = uid();
+    newIds.push(id);
+    state.employees.push({ id: id, name: names[i], role: roles[i], std: 40, hired: '2020-01-0' + (i+1), rate: 75 + i*5 });
+  }
+  // 4 weeks of shifts, varying load
+  var end = new Date();
+  for(var i=0;i<6;i++){
+    var factor = [1, 1.15, 0.9, 0.75, 0.55, 1.05][i];
+    for(var d=28; d>=0; d--){
+      var day = addDays(end, -d);
+      if(day.getDay() === 0 || day.getDay() === 6) continue;
+      if(Math.random() < 0.05) continue;
+      var hours = Math.round((8 * factor + (Math.random() - 0.5) * 2) * 4) / 4;
+      state.shifts.push({ id: uid(), empId: newIds[i], date: fmtDate(day), hours: hours, type: 'project', note: '' });
+    }
+  }
+  // Add sample leave
+  state.leave.push({ id: uid(), empId: newIds[2], start: fmtDate(addDays(end, 7)), end: fmtDate(addDays(end, 11)), type: 'vacation', note: 'Beach trip' });
+  state.leave.push({ id: uid(), empId: newIds[4], start: fmtDate(addDays(end, -2)), end: fmtDate(addDays(end, -1)), type: 'sick', note: '' });
+  save(); renderAll();
+  toast('Example roster loaded');
+});
+
+// Reset
+$('btn-reset').addEventListener('click', function(){
+  if(!confirm('Delete ALL employees, shifts, and leave data? This cannot be undone.')) return;
+  if(!confirm('Really delete everything?')) return;
+  localStorage.removeItem(STORE);
+  state = loadState();
+  setQuickRange('month');
+  save(); renderAll();
+  toast('All data deleted');
+});
+
+// ============================================================
+// INIT
+// ============================================================
+if(!state.rangeFrom || !state.rangeTo){
+  setQuickRange(state.rangeQuick || 'month');
+}
+$('range-from').value = state.rangeFrom;
+$('range-to').value = state.rangeTo;
+$('range-quick').value = state.rangeQuick || 'month';
+$('std-hours').value = state.settings.stdHours || 40;
+$('shift-date').value = today();
+$('leave-start').value = today();
+$('leave-end').value = today();
+
+renderAll();
+
+})();
+</script>
+
+</body>
+</html>
