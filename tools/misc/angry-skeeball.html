@@ -821,7 +821,7 @@ var LEVEL_DEFS = [
   },
   // Level 28: Minefield
   {
-    name:'Gravity Minefield', stars:[2500,5000,8000], theme:{bg:'#30000a',accent:'#ff0066'},
+    name:'Gravity Minefield', stars:[2500,5000,8000], theme:{bg:'#30000a',accent:'#ff0066'}, centerGravity: 0.3,
     balls:['standard','standard','bomb','standard','standard'], wind:0, obstacles:[
       {type:'bumper', fx:0.50, fy:0.50, fr:0.03},
       {type:'bumper', fx:0.25, fy:0.25, fr:0.028},
@@ -836,7 +836,7 @@ var LEVEL_DEFS = [
   },
   // Level 29: Vortex
   {
-    name:'Vortex Descent', stars:[2800,5500,9000], theme:{bg:'#0a0a30',accent:'#9966ff'},
+    name:'Vortex Descent', stars:[2800,5500,9000], theme:{bg:'#0a0a30',accent:'#9966ff'}, centerGravity: 0.5,
     balls:['standard','curve','standard','curve','bomb'], wind:-0.5, obstacles:[
       {type:'windmill', fx:0.25, fy:0.25, fw:0.14, fh:0.02, speed:5},
       {type:'windmill', fx:0.75, fy:0.75, fw:0.14, fh:0.02, speed:-5},
@@ -852,7 +852,7 @@ var LEVEL_DEFS = [
   },
   // Level 30: THE FINAL BOSS LEVEL
   {
-    name:'Singularity', stars:[3500,7000,12000], theme:{bg:'#000000',accent:'#ff0033'},
+    name:'Singularity', stars:[3500,7000,12000], theme:{bg:'#000000',accent:'#ff0033'}, centerGravity: 0.9,
     balls:['standard','curve','standard','bomb','standard','standard','curve','standard','standard','standard'], wind:0.7, obstacles:[
       {type:'steel', fx:0.50, fy:0.10, fw:0.02, fh:0.16},
       {type:'steel', fx:0.50, fy:0.90, fw:0.02, fh:0.16},
@@ -2989,6 +2989,24 @@ function updateBallPhysics() {
   // White holes (repulsors)
   applyWhiteHoleForces(b, pos);
 
+  // CENTER SINGULARITY — optional per-level radial pull toward screen center.
+  // Only engages on boss-tier levels (centerGravity > 0 in LEVEL_DEFS).
+  // Keeps the force weak so it bends shots rather than trapping them.
+  var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
+  if(def && def.centerGravity && def.centerGravity > 0){
+    var cgX = W * 0.5, cgY = H * 0.5;
+    var cdx = cgX - pos.x, cdy = cgY - pos.y;
+    var cdist = Math.sqrt(cdx*cdx + cdy*cdy);
+    // Dead zone around the slingshot so launches aren't cancelled out
+    if(cdist > 80){
+      var cForce = def.centerGravity * 0.0006 * b.mass;
+      MBody.applyForce(b, pos, {
+        x: (cdx / cdist) * cForce,
+        y: (cdy / cdist) * cForce
+      });
+    }
+  }
+
   // Black holes - stronger gravitational pull + consumption
   for(var bhi=0;bhi<G.blackHoles.length;bhi++) {
     var bh = G.blackHoles[bhi];
@@ -3176,6 +3194,46 @@ function applyWhiteHoleForces(b, pos) {
       });
     }
   }
+}
+
+// Visual singularity at screen center on levels with centerGravity
+function drawCenterSingularity(t){
+  var def = G.endlessMode ? G.currentEndlessDef : LEVEL_DEFS[G.level];
+  if(!def || !def.centerGravity || def.centerGravity <= 0) return;
+  var cx = W * 0.5, cy = H * 0.5;
+  var strength = def.centerGravity;
+  var baseR = 30 + strength * 60;
+  ctx.save();
+  ctx.translate(cx, cy);
+  // Slow-rotating swirl rings
+  for(var ring = 0; ring < 4; ring++){
+    var pulse = Math.sin(t * 1.2 - ring * 0.8) * 0.5 + 0.5;
+    var r = baseR * (0.3 + ring * 0.3 + pulse * 0.12);
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(153, 102, 255,' + (0.12 + strength * 0.1) + ')';
+    ctx.lineWidth = 2;
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Faint radial glow
+  var grd = ctx.createRadialGradient(0, 0, 0, 0, 0, baseR * 2);
+  grd.addColorStop(0, 'rgba(153, 102, 255,' + (0.06 + strength * 0.08) + ')');
+  grd.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(0, 0, baseR * 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Dead-zone indicator (ring at 80px radius where gravity doesn't apply)
+  if(strength >= 0.5){
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = 'rgba(153, 102, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, 80, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
 }
 
 function drawWhiteHoles(t) {
@@ -4020,6 +4078,7 @@ function gameLoop(ts) {
     drawHoles(t);
     drawBlackHoles(t);
     drawWhiteHoles(t);
+    drawCenterSingularity(t);
     drawObstacles(t);
     drawPowerups(t);
     drawSlingshot(t);
@@ -4037,6 +4096,7 @@ function gameLoop(ts) {
     drawHoles(t);
     drawBlackHoles(t);
     drawWhiteHoles(t);
+    drawCenterSingularity(t);
     drawObstacles(t);
     drawSlingshot(t);
   } else if(G.screen === 'results' || G.screen === 'endless-results') {
