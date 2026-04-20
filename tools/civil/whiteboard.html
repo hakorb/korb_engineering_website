@@ -176,6 +176,40 @@ border:2px solid transparent;
 }
 .sticky-cswatch:hover,.sticky-cswatch.active{border-color:var(--cyan);}
 
+/* Brush size picker */
+.brush-row{display:flex;gap:4px;margin-top:4px;align-items:center;}
+.brush-swatch{
+width:28px;height:28px;border-radius:50%;border:1px solid var(--border);
+display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--bg);
+transition:all .12s;
+}
+.brush-swatch:hover{border-color:var(--cyan);}
+.brush-swatch.active{border-color:var(--cyan);background:rgba(0,212,255,.12);}
+.brush-swatch .dot{background:var(--cyan);border-radius:50%;display:block;}
+
+/* Empty state hint */
+#emptyHint{
+position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+z-index:80;color:#94a3b8;font-size:13px;pointer-events:none;
+text-align:center;font-family:'JetBrains Mono',monospace;
+opacity:0.65;line-height:1.7;letter-spacing:0.05em;
+transition:opacity .3s;
+}
+#emptyHint .big{font-size:14px;color:#334155;font-weight:500;letter-spacing:.15em;text-transform:uppercase;}
+#emptyHint .kbd{display:inline-block;padding:2px 7px;border:1px solid #cbd5e1;border-radius:3px;font-size:11px;background:#f1f5f9;color:#475569;margin:0 2px;}
+#emptyHint.hidden{opacity:0;}
+
+/* Mobile quick-pen */
+#mobilePen{
+display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+z-index:95;background:var(--cyan);color:#0a1018;border:none;border-radius:30px;
+padding:14px 22px;font-family:inherit;font-weight:600;font-size:13px;letter-spacing:.1em;
+box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer;text-transform:uppercase;
+}
+@media(max-width:768px){
+/* keep floating pen available on mobile */
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
@@ -191,8 +225,8 @@ border:2px solid transparent;
 <div id="boardTabs"></div>
 <div class="sep"></div>
 <div class="tb-group">
-<button class="tb-btn active" data-tool="select" title="Select (V)"><svg><path d="M3 3l7 18 3-7 7-3z"/></svg></button>
-<button class="tb-btn" data-tool="draw" title="Draw (D)"><svg><path d="M3 17l4-4 4 4M12 3l-1 14"/></svg></button>
+<button class="tb-btn" data-tool="select" title="Select (V)"><svg><path d="M3 3l7 18 3-7 7-3z"/></svg></button>
+<button class="tb-btn active" data-tool="draw" title="Draw / Pen (D)"><svg><path d="M3 17l4-4 4 4M12 3l-1 14"/></svg></button>
 <button class="tb-btn" data-tool="line" title="Line (L)"><svg><line x1="3" y1="13" x2="13" y2="3"/></svg></button>
 <button class="tb-btn" data-tool="arrow" title="Arrow (A)"><svg><line x1="3" y1="13" x2="13" y2="3"/><polyline points="7 3 13 3 13 9"/></svg></button>
 <button class="tb-btn" data-tool="rect" title="Rectangle (R)"><svg><rect x="3" y="3" width="10" height="10" rx="1"/></svg></button>
@@ -223,11 +257,16 @@ border:2px solid transparent;
 <input type="text" id="customFill" placeholder="#hex or 'none'" maxlength="7">
 </div>
 <div>
-<label>Stroke Width</label>
+<label>Brush Size</label>
+<div class="brush-row" id="brushPresets"></div>
 <div class="slider-row">
-<input type="range" id="strokeWidth" min="1" max="20" value="2">
-<span id="strokeVal">2</span>
+<input type="range" id="strokeWidth" min="1" max="40" value="3">
+<span id="strokeVal">3</span>
 </div>
+</div>
+<div>
+<label><input type="checkbox" id="pressureToggle" checked style="vertical-align:middle;"> Pen pressure</label>
+<label style="margin-top:6px;"><input type="checkbox" id="smoothToggle" checked style="vertical-align:middle;"> Smooth strokes</label>
 </div>
 <div>
 <label>Font Size (text)</label>
@@ -261,6 +300,11 @@ border:2px solid transparent;
 <!-- CANVAS -->
 <div id="canvasWrap">
 <canvas id="mainCanvas"></canvas>
+<div id="emptyHint">
+<div class="big">draw anywhere</div>
+<div>click &amp; drag to sketch · <span class="kbd">D</span> pen · <span class="kbd">R</span> rectangle · <span class="kbd">T</span> text</div>
+<div>hold <span class="kbd">Shift</span> to constrain · <span class="kbd">Space</span> + drag to pan · scroll to zoom</div>
+</div>
 </div>
 
 <!-- MINIMAP -->
@@ -277,7 +321,8 @@ border:2px solid transparent;
 "use strict";
 
 // ---- CONSTANTS ----
-const PRESET_COLORS = ['#00d4ff','#ff6600','#10b981','#ef4444','#8b5cf6','#f59e0b','#ec4899','#e2e8f0','#ffffff','#64748b'];
+const PRESET_COLORS = ['#1a1a1a','#1e40af','#dc2626','#059669','#ea580c','#7c3aed','#db2777','#64748b','#ca8a04','#0891b2'];
+const BRUSH_SIZES = [1, 3, 6, 12, 20];
 const STICKY_COLORS = ['#fef3c7','#fce7f3','#dbeafe','#d1fae5','#ede9fe','#ffedd5'];
 const MAX_UNDO = 30;
 const GRID_COLOR = 'rgba(200,210,220,0.5)';
@@ -285,10 +330,10 @@ const GRID_COLOR = 'rgba(200,210,220,0.5)';
 // ---- STATE ----
 let boards = [];
 let activeBoardIdx = 0;
-let tool = 'select';
-let strokeColor = '#00d4ff';
+let tool = 'draw';
+let strokeColor = '#1e40af';
 let fillColor = 'none';
-let strokeWidth = 2;
+let strokeWidth = 3;
 let fontSize = 16;
 let stickyColor = STICKY_COLORS[0];
 let snapGrid = false;
@@ -302,7 +347,9 @@ let selectionRect = null;
 let dragOffset = null;
 let isDragging = false;
 let spaceHeld = false;
+let shiftHeld = false;
 let undoStack = [], redoStack = [];
+let pressureSupported = false;
 
 // ---- DOM ----
 const wrap = document.getElementById('canvasWrap');
@@ -316,12 +363,15 @@ function init(){
 resizeCanvas();
 initColorPresets();
 initStickyColors();
+initBrushPresets();
 loadFromStorage();
 if(boards.length === 0) boards.push({name:'Board 1', items:[]});
 activeBoardIdx = 0;
 pushUndo();
 renderBoardTabs();
+updateEmptyHint();
 render();
+setTool('draw');
 }
 
 function resizeCanvas(){
@@ -368,6 +418,43 @@ const id = type==='stroke'?'colorPresets':'fillPresets';
 document.querySelectorAll('#'+id+' .color-swatch').forEach(s => {
 s.classList.toggle('active', s.dataset.color === (type==='stroke'?strokeColor:fillColor));
 });
+}
+
+function initBrushPresets(){
+const row = document.getElementById('brushPresets');
+if(!row) return;
+row.innerHTML = '';
+BRUSH_SIZES.forEach(s => {
+const d = document.createElement('div');
+d.className = 'brush-swatch' + (strokeWidth===s?' active':'');
+d.title = s + 'px';
+d.dataset.size = s;
+const dot = document.createElement('span');
+dot.className = 'dot';
+const px = Math.max(4, Math.min(18, s));
+dot.style.width = px + 'px';
+dot.style.height = px + 'px';
+d.appendChild(dot);
+d.onclick = () => {
+strokeWidth = s;
+document.getElementById('strokeWidth').value = s;
+document.getElementById('strokeVal').textContent = s;
+updateBrushActive();
+};
+row.appendChild(d);
+});
+}
+function updateBrushActive(){
+document.querySelectorAll('.brush-swatch').forEach(s => {
+s.classList.toggle('active', parseInt(s.dataset.size) === strokeWidth);
+});
+}
+
+function updateEmptyHint(){
+const hint = document.getElementById('emptyHint');
+if(!hint) return;
+const hasContent = boards.some(b => b.items && b.items.length > 0);
+hint.classList.toggle('hidden', hasContent);
 }
 
 function initStickyColors(){
@@ -475,10 +562,34 @@ ctx.restore();
 // preview current drawing
 if(isDrawing && tool==='draw' && drawPoints.length > 1){
 ctx.save();ctx.translate(panX,panY);ctx.scale(zoom,zoom);
-ctx.strokeStyle=strokeColor;ctx.lineWidth=strokeWidth;ctx.lineCap='round';ctx.lineJoin='round';
+ctx.strokeStyle=strokeColor;ctx.lineCap='round';ctx.lineJoin='round';
+const useSmooth = document.getElementById('smoothToggle')?.checked;
+const usePressure = document.getElementById('pressureToggle')?.checked;
+if(usePressure && drawPoints.some(p => p.p != null && p.p !== 0.5)){
+for(let i=1;i<drawPoints.length;i++){
+const p0=drawPoints[i-1], p1=drawPoints[i];
+const pr = p0.p != null ? p0.p : 0.5;
+ctx.lineWidth = strokeWidth * (0.35 + pr * 1.1);
+ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.stroke();
+}
+} else if(useSmooth && drawPoints.length > 2){
+ctx.lineWidth=strokeWidth;
+ctx.beginPath();
+ctx.moveTo(drawPoints[0].x,drawPoints[0].y);
+for(let i=1;i<drawPoints.length-1;i++){
+const xc=(drawPoints[i].x+drawPoints[i+1].x)/2;
+const yc=(drawPoints[i].y+drawPoints[i+1].y)/2;
+ctx.quadraticCurveTo(drawPoints[i].x,drawPoints[i].y,xc,yc);
+}
+ctx.lineTo(drawPoints[drawPoints.length-1].x,drawPoints[drawPoints.length-1].y);
+ctx.stroke();
+} else {
+ctx.lineWidth=strokeWidth;
 ctx.beginPath();ctx.moveTo(drawPoints[0].x,drawPoints[0].y);
 for(let i=1;i<drawPoints.length;i++) ctx.lineTo(drawPoints[i].x,drawPoints[i].y);
-ctx.stroke();ctx.restore();
+ctx.stroke();
+}
+ctx.restore();
 }
 if(isDrawing && shapeStart && (tool==='line'||tool==='arrow'||tool==='rect'||tool==='ellipse')){
 ctx.save();ctx.translate(panX,panY);ctx.scale(zoom,zoom);
@@ -505,13 +616,36 @@ ctx.stroke();
 function drawItem(c, item, selected){
 c.save();
 if(item.type==='draw'){
-c.strokeStyle=item.color;c.lineWidth=item.width;c.lineCap='round';c.lineJoin='round';
-c.beginPath();
-if(item.points.length>0){
-c.moveTo(item.points[0].x,item.points[0].y);
-for(let i=1;i<item.points.length;i++) c.lineTo(item.points[i].x,item.points[i].y);
+c.strokeStyle=item.color;c.lineCap='round';c.lineJoin='round';
+const pts = item.points;
+if(pts.length > 0){
+if(item.pressure && pts.length > 1){
+// variable-width stroke: draw small segments between points with pressure-modulated width
+for(let i=1;i<pts.length;i++){
+const p0 = pts[i-1], p1 = pts[i];
+const pr = (p0.p != null ? p0.p : 0.5);
+c.lineWidth = item.width * (0.35 + pr * 1.1);
+c.beginPath();c.moveTo(p0.x,p0.y);c.lineTo(p1.x,p1.y);c.stroke();
 }
+} else if(item.smooth && pts.length > 2){
+c.lineWidth = item.width;
+c.beginPath();
+c.moveTo(pts[0].x, pts[0].y);
+for(let i=1;i<pts.length-1;i++){
+const xc = (pts[i].x + pts[i+1].x)/2;
+const yc = (pts[i].y + pts[i+1].y)/2;
+c.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+}
+c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
 c.stroke();
+} else {
+c.lineWidth = item.width;
+c.beginPath();
+c.moveTo(pts[0].x,pts[0].y);
+for(let i=1;i<pts.length;i++) c.lineTo(pts[i].x,pts[i].y);
+c.stroke();
+}
+}
 } else if(item.type==='line'){
 c.strokeStyle=item.color;c.lineWidth=item.width;
 c.beginPath();c.moveTo(item.x1,item.y1);c.lineTo(item.x2,item.y2);c.stroke();
@@ -706,7 +840,9 @@ render();
 }
 } else if(tool==='draw'){
 isDrawing=true;
-drawPoints=[{x:snap(w.x),y:snap(w.y)}];
+const pr = (e.pointerType === 'pen' && e.pressure > 0) ? e.pressure : 0.5;
+if(e.pointerType === 'pen') pressureSupported = true;
+drawPoints=[{x:snap(w.x),y:snap(w.y),p:pr}];
 } else if(tool==='line'||tool==='arrow'||tool==='rect'||tool==='ellipse'){
 isDrawing=true;
 shapeStart={x:snap(w.x),y:snap(w.y),_end:null};
@@ -718,7 +854,7 @@ currentBoard().items.push({
 type:'sticky',x:snap(w.x)-60,y:snap(w.y)-40,w:120,h:80,
 bg:stickyColor,text:''
 });
-render();
+updateEmptyHint();render();
 // open edit
 editSticky(currentBoard().items.length-1);
 } else if(tool==='eraser'){
@@ -758,10 +894,27 @@ moveItem(it, dx, dy);
 dragOffset = {x:w.x,y:w.y};
 render();
 } else if(tool==='draw' && isDrawing){
-drawPoints.push({x:snap(w.x),y:snap(w.y)});
+const pr = (e.pointerType === 'pen' && e.pressure > 0) ? e.pressure : (e.pressure || 0.5);
+drawPoints.push({x:snap(w.x),y:snap(w.y),p:pr});
 render();
 } else if(isDrawing && shapeStart){
-shapeStart._end = {x:snap(w.x),y:snap(w.y)};
+let ex = snap(w.x), ey = snap(w.y);
+if(shiftHeld){
+const dx = ex - shapeStart.x, dy = ey - shapeStart.y;
+if(tool==='line' || tool==='arrow'){
+// constrain to 0 / 45 / 90
+const ang = Math.atan2(dy, dx);
+const snapAng = Math.round(ang / (Math.PI/4)) * (Math.PI/4);
+const len = Math.hypot(dx, dy);
+ex = shapeStart.x + len * Math.cos(snapAng);
+ey = shapeStart.y + len * Math.sin(snapAng);
+} else if(tool==='rect' || tool==='ellipse'){
+const s = Math.max(Math.abs(dx), Math.abs(dy));
+ex = shapeStart.x + (dx<0?-s:s);
+ey = shapeStart.y + (dy<0?-s:s);
+}
+}
+shapeStart._end = {x:ex, y:ey};
 render();
 } else if(tool==='eraser' && e.buttons===1){
 const hit = hitTest(w.x, w.y);
@@ -799,7 +952,17 @@ isDragging=false;dragOffset=null;
 } else if(tool==='draw' && isDrawing){
 if(drawPoints.length>1){
 pushUndo();
-currentBoard().items.push({type:'draw',points:[...drawPoints],color:strokeColor,width:strokeWidth});
+const usePressure = document.getElementById('pressureToggle')?.checked;
+const useSmooth = document.getElementById('smoothToggle')?.checked;
+currentBoard().items.push({
+type:'draw',
+points:[...drawPoints],
+color:strokeColor,
+width:strokeWidth,
+pressure: !!usePressure && drawPoints.some(p => p.p != null && p.p !== 0.5),
+smooth: !!useSmooth
+});
+updateEmptyHint();
 }
 isDrawing=false;drawPoints=[];render();
 } else if(isDrawing && shapeStart && shapeStart._end){
@@ -814,6 +977,7 @@ currentBoard().items.push({type:'rect',x:Math.min(p.x,e2.x),y:Math.min(p.y,e2.y)
 } else if(tool==='ellipse'){
 currentBoard().items.push({type:'ellipse',cx:(p.x+e2.x)/2,cy:(p.y+e2.y)/2,rx:Math.abs(e2.x-p.x)/2,ry:Math.abs(e2.y-p.y)/2,color:strokeColor,width:strokeWidth,fill:fillColor});
 }
+updateEmptyHint();
 isDrawing=false;shapeStart=null;render();
 } else {
 isDrawing=false;shapeStart=null;
@@ -856,7 +1020,7 @@ ta.addEventListener('blur', ()=>{
 if(ta.value.trim()){
 pushUndo();
 currentBoard().items.push({type:'text',x:wx,y:wy,text:ta.value,color:strokeColor,fontSize:fontSize});
-render();
+updateEmptyHint();render();
 }
 ta.remove();
 });
@@ -955,12 +1119,13 @@ if(e.touches.length<2) isPanning=false;
 // ---- KEYBOARD ----
 document.addEventListener('keydown', e=>{
 if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT') return;
+if(e.key==='Shift'){shiftHeld=true;}
 if(e.key===' '){spaceHeld=true;canvas.style.cursor='grab';e.preventDefault();}
 if(e.key==='Delete'||e.key==='Backspace'){
 if(selectedItems.length>0){
 pushUndo();
 selectedItems.sort((a,b)=>b-a).forEach(i=>currentBoard().items.splice(i,1));
-selectedItems=[];render();
+selectedItems=[];updateEmptyHint();render();
 }
 }
 if(e.ctrlKey||e.metaKey){
@@ -979,6 +1144,7 @@ setTool(shortcuts[e.key]);
 }
 });
 document.addEventListener('keyup', e=>{
+if(e.key==='Shift'){shiftHeld=false;}
 if(e.key===' '){spaceHeld=false;canvas.style.cursor='crosshair';}
 });
 
@@ -999,6 +1165,7 @@ b.addEventListener('click',()=>setTool(b.dataset.tool));
 document.getElementById('strokeWidth').addEventListener('input', e=>{
 strokeWidth=parseInt(e.target.value);
 document.getElementById('strokeVal').textContent=strokeWidth;
+updateBrushActive();
 });
 document.getElementById('fontSize').addEventListener('input', e=>{
 fontSize=parseInt(e.target.value);
@@ -1043,7 +1210,7 @@ document.getElementById('clearBtn').onclick=()=>{
 if(confirm('Clear the entire board? This cannot be undone.')){
 pushUndo();
 currentBoard().items=[];
-selectedItems=[];render();
+selectedItems=[];updateEmptyHint();render();
 }
 };
 

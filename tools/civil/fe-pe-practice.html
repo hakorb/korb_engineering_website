@@ -277,6 +277,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   <button class="tab" data-tab="exam">Exam Simulator</button>
   <button class="tab" data-tab="progress">Progress</button>
   <button class="tab" data-tab="formulas">Formula Sheet</button>
+  <button class="tab" data-tab="notes">My Notes</button>
   <button class="tab" data-tab="about">About</button>
 </div>
 
@@ -484,6 +485,23 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     <h2>// Formula Reference</h2>
     <p class="muted" style="font-size:11px;margin-bottom:12px">Key formulas by topic. This is study aid only — the actual FE exam provides its own NCEES reference.</p>
     <div class="formula-sheet" id="formula-sheet"></div>
+  </div>
+</div>
+
+<!-- ========= MY NOTES ========= -->
+<div class="pane" id="pane-notes">
+  <div class="panel">
+    <h2>// My FE Civil Notes</h2>
+    <p class="muted" style="font-size:11px;margin-bottom:8px">Personal study notes compiled while prepping for the FE Civil exam. Raw, compact, heavy on mnemonics — the stuff that actually stuck. Use alongside the NCEES handbook, not instead of it.</p>
+
+    <div class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:6px">
+      <input type="text" id="notes-search" placeholder="Search notes..." style="flex:1;min-width:180px">
+      <button onclick="document.getElementById('notes-search').value='';filterNotes('')">Clear</button>
+    </div>
+
+    <div id="notes-toc" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;margin-bottom:16px;font-size:10px"></div>
+
+    <div id="notes-body"></div>
   </div>
 </div>
 
@@ -1875,6 +1893,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     if(t.dataset.tab==='formulas') renderFormulas();
     if(t.dataset.tab==='study') renderStudyList();
     if(t.dataset.tab==='flash') initFlash();
+    if(t.dataset.tab==='notes') renderNotes();
   });
 });
 
@@ -2475,6 +2494,371 @@ function renderFormulas(){
         ${arr.map(f=>`<li><span class="name">${escHtml(f.n)}</span><span class="eq">${escHtml(f.e)}</span></li>`).join('')}
       </ul>`;
   }).join('');
+}
+
+/* ============================================================
+   MY NOTES (curated FE Civil prep notes)
+   ============================================================ */
+const MY_NOTES = [
+  {id:'test-day', title:'Test-Day Tips', icon:'⏱', body:[
+    '120 questions, roughly 3 minutes per question. Budget time — don\'t stall.',
+    'Morning section is largely math-heavy. Afternoon is specific engineering.',
+    'TI-36X Pro is allowed and powerful. Learn it cold before the exam — especially math > R↔P (polar ↔ rectangular) and fraction/scientific modes.',
+    'Expect heavy materials questions: brittle vs. ductile vs. elastic behavior.',
+    'Expect concrete & aggregate questions.',
+    'Know shear diagrams, moment diagrams, free-body diagrams inside out.',
+    'Expect traffic flow theory problems.',
+    'Probability & statistics shows up: binomial distribution, standard deviation, Poisson distribution. The classic "colored balls in a bag" probability question is common.',
+    'Surprisingly few wind-load questions, if any.',
+    'Crashworthiness (impact / energy absorption) may come up.',
+    'Ethics questions are conceptual and tricky — read each option carefully.',
+    'Free-body diagram memory aid: the correct answer ends in a circle (arrows form a closed loop back to origin).',
+  ]},
+
+  {id:'memorize', title:'Commit to Memory', icon:'★', body:[
+    '26 letters in the alphabet (useful for counting combinatorics).',
+    '1 meter = 3.28 feet.',
+    '1 acre = 43,560 ft².',
+    '1 gallon = 0.134 ft³ = 3.785 L.',
+    '1000 L = 1 m³.',
+    '1 gallon of water = 8.345 lb.',
+    'Water: γ = 1000 kg/m³ = 62.4 lb/ft³ ≈ 9.81 kN/m³.',
+    'Avogadro\'s number: 6.022 × 10²³ atoms/mol.',
+    '1 atm = 101.3 kPa. "Room temp" conventions ≈ 16 °C.',
+    'Kelvin = 273 + Celsius.',
+    'PPM (metric volume) = 10⁻⁶ m³.',
+    'SI prefixes (big to small): yotta, zetta, exa, peta, tera, giga, mega, kilo, hecto, deka, base, deci, centi, milli, micro, nano, pico, femto, atto, zepto, yocto.',
+    'Perception-Reaction time = 2.5 s. Peripheral vision normal limit = 160°. Max light-intensity contrast ratio = 3:1.',
+  ]},
+
+  {id:'math', title:'Mathematics', icon:'∑', body:[
+    'Law of sines: a/sin A = b/sin B = c/sin C.',
+    'Gradient is a scalar field operator; the gradient of f(x,y,z) = ∂f/∂x·i + ∂f/∂y·j + ∂f/∂z·k (vector result).',
+    'Orthogonal = at right angles.',
+    'Conic sections Ax² + Bxy + Cy² + Dx + Ey + F = 0: B² − 4AC < 0 → ellipse, > 0 → hyperbola, = 0 → parabola, A = C and B = 0 → circle.',
+    'Area of circle = (π/4)·d² = πr².',
+    'Sphere: V = (4/3)πr³, SA = 4πr². (Integrating SA gives V — useful sanity check.)',
+    'Cone: SA = πr·√(r² + h²), V = (1/3)πr²h.',
+    'Cylinder: V = πr²h, SA = 2πr(h + r).',
+    'Polar: r = √(x² + y²), θ = arctan(y/x). Use TI-36X R↔P under math menu.',
+    'Fibonacci: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55…',
+    'Angle between 3D vectors: cos θ = (a·b) / (|a|·|b|).',
+    'ODE solution form: y = y_h + y_p (homogeneous + particular).',
+    'Line: y = mx + b. Perpendicular lines: m₁ = −1/m₂. Parallel: m₁ = m₂.',
+    'Trig identity cheat: reciprocal, Pythagorean (sin²+cos²=1), sum/difference, double-angle, half-angle. Keep the unit-circle picture of 0, π/6, π/4, π/3, π/2 on call.',
+    'Hypothesis testing: used to determine whether a dataset came from a population whose mean and std dev are known.',
+  ]},
+
+  {id:'prob-stats', title:'Probability & Statistics', icon:'σ', body:[
+    'Know binomial distribution, Poisson distribution, and standard deviation cold.',
+    'Classic exam prompt: colored-balls-in-a-bag probability problem — work with and without replacement carefully.',
+    'Hypothesis tests compare a sample to a known population parameter.',
+  ]},
+
+  {id:'statics', title:'Statics', icon:'⚖', body:[
+    'F = ma.',
+    'Moment = Force × perpendicular distance.',
+    'Moment of inertia = resistance to rotation.',
+    'Belt/pulley (the "pulley & bucket" problem): F₁/F₂ = e^(μθ) — ratio of tight-side to loose-side tension.',
+    'Truss/frame statical determinacy: 3M + r < 3J + e_c → unstable; 3M + r = 3J + e_c → determinate; 3M + r > 3J + e_c → indeterminate. (M = members, r = reactions, J = joints, e_c = hinges.)',
+    'Joints separate members. Free ends are joints. Hinges are joints. Hinges don\'t count as reactions.',
+  ]},
+
+  {id:'dynamics', title:'Dynamics', icon:'➤', body:[
+    'Kinematics with constant a: v = v₀ + at; Δx = (v + v₀)/2·t; Δx = v₀t + ½at²; v² = v₀² + 2aΔx.',
+    'Projectile vertical component: V_y = V₀·sin θ − g·t.',
+    'Banking angle (no friction required): θ = arctan(v²/(g·r)). Depends only on speed and curve radius — not mass.',
+    'Ice-skater effect: as arms come in, mass moment of inertia and radius of gyration drop while angular momentum is conserved → angular velocity increases.',
+    'Mass moment of inertia of a rod about end: I_rod = mL²/3.',
+    'Connected-block velocity through a rigid bar: ω = v_A/CA = v_B/BC (depends on the bar\'s angle and length).',
+    'Centripetal force F_c = mv²/r.   Friction force F_f = μN = μmg.',
+    'Kinetic energy of a spring = ½kx². Kinetic energy of a moving mass = ½mv².',
+    'When computing energy dissipated by braking, friction is NOT separately accounted for (all kinetic energy is assumed to go to brakes).',
+    'Impulse-Momentum is for Force, Velocity, and time: Imp = Δp = m(v₁ − v₂).',
+  ]},
+
+  {id:'mechmat', title:'Mechanics of Materials', icon:'⊓', body:[
+    'Stress σ = F/A.   σ = E·ε (Hooke).   δ = ε·L.   Decrease in length ΔL = F·L₀/(A₀·E).',
+    'Longitudinal strain ε_l = ΔL/L.   Transverse strain ε_t = ΔD/D.   Poisson\'s ratio ν = −ε_t/ε_l (material property — note the minus sign).',
+    'Principal stresses: σ₁,₂ = (σ_x + σ_y)/2 ± √[((σ_x − σ_y)/2)² + τ_xy²].',
+    'Max shear τ_max = √[((σ_x − σ_y)/2)² + τ_xy²] = (σ₁ − σ₂)/2.',
+    'Angle of principal planes: tan(2θ_p) = 2τ_xy/(σ_x − σ_y), so θ = ½·arctan[2τ_xy/(σ_x − σ_y)].',
+    'Polar moment of inertia (solid circle): J = (π/2)·r⁴. Torsional shear stress τ = T·r/J.',
+    'For a rectangular cross-section: τ_max (shear) = 3V/(2A).',
+    'Torque from twist: T = φ·G·J / L.',
+    'Thermal strain ε_t = α·ΔT. Thermal stress σ_t = E·ε_t. Change in length δ_t = α·L_initial·(T − T₀). Change in area ΔA = 2α·A₀·ΔT.',
+    'Combined axial + bending: σ_max = P/A + M·c/I.',
+    'Simply-supported beam moments: M_D = w_D·L²/8 (distributed dead load), M_L = P_L·L/4 (center point live load).',
+    'Pressure vessels: longitudinal & radial (hoop) stresses depend on tank radius. Thin-wall hoop: σ_t = P·d_o/(2t). t/r ratio and thickness t = P·d_o/(2σ_t).',
+    'Tangential stress = radial stress = hoop stress (in context of thin-walled cylinder).',
+  ]},
+
+  {id:'columns', title:'Columns & Buckling', icon:'▌', body:[
+    'Euler critical buckling load: P_cr = π²·E·I / (K·L)².',
+    'Effective length factor K: Pin-Pin = 1, Fixed-Free = 2, Fixed-Fixed = 0.5, Pin-Fixed = 0.7. K = 1 for "free-free / unrestrained" ends.',
+    'AISC Table C-A-7.1 recommended-for-design K values (slightly higher than theoretical): 0.65, 0.80, 1.2, 1.0, 2.10, 2.0.',
+    'Square column loaded with central ⅛ area: b = √(2.2F/σ).',
+  ]},
+
+  {id:'fluids', title:'Fluid Mechanics', icon:'≈', body:[
+    'Continuity: A₁V₁ = A₂V₂.   Hydrostatic: P = ρgh.',
+    'Bernoulli: P₁ + ½ρv₁² + ρgh₁ = P₂ + ½ρv₂² + ρgh₂ (energy per unit volume conserved). Where speed increases, pressure drops — the "Bernoulli effect".',
+    'Orifice velocity: v = √(2gh). Discharge: Q = C·A₀·√(2gh). Coefficient of discharge C = C_c·C_v ≈ 0.6076.',
+    'Average pressure on a submerged vertical surface: p̄ = ½·ρg·(h₁ + h₂).',
+    'Pitot tube gives stagnation pressure → velocity.',
+    'Capillary rise: h = 4σ·cos β / (γ·d).',
+    'Newton\'s law of viscosity: τ = μ·(du/dy).',
+    'Kinematic viscosity units: m²/s.',
+    'Specific volume = 1/density.',
+    'Ideal gas: PV = nRT. Also PV = M·(R/MW)·T. R = 8.314 J/(K·mol) (or from sheet).',
+  ]},
+
+  {id:'hydraulics', title:'Hydraulics & Hydrology', icon:'≋', body:[
+    'Manning (open channel): V = (K/n)·R^(2/3)·S^(1/2). K = 1.0 SI / 1.486 US.',
+    'Hydraulic radius R_H = cross-sectional area / wetted perimeter.',
+    'Rational Method: Q = C·I·A (runoff coefficient × intensity × area).',
+    'Darcy\'s Law (flow through porous media): Q = −K·A·(dh/dx). dh = change in head, dx = length of soil.',
+    'Transmissivity: T = K·D.',
+    'Dupuit\'s equation for aquifer discharge: Q = π·k·(h₂² − h₁²) / ln(r₂/r₁).',
+    'A flow net is constructed of isobars and streamlines — they intersect to form a pattern of "squares".',
+  ]},
+
+  {id:'enviro', title:'Environmental Engineering', icon:'♲', body:[
+    'Criteria pollutants (EPA): CO, Pb, NO₂, O₃, SO₂. (Carbon monoxide, Lead, Nitrogen dioxide, Ozone, Sulfur dioxide.)',
+    'VOC = Volatile Organic Compound.',
+    'Acid rain chemistry: SO₃ + H₂O → H₂SO₄.',
+    'Minimum inhalable particle ≈ 10 μm. Air cyclones are least effective on fly ash.',
+    'Activated carbon adsorption is physical and reversible.',
+    'Stabilization ponds: DEPTH is the primary factor determining aerobic vs. anaerobic. Facultative ponds are the most common for small communities. Aerobic needs O₂; anaerobic = absence of O₂.',
+    'Rotating biological contactors & biological beds are secondary wastewater treatment.',
+    'Electrodialysis and air stripping are tertiary treatments.',
+    'Primary treatment = removing solids and particles of various sizes.',
+    'Methane is produced from sludge digestion.',
+    'Most phosphorus is removed via flocculation and sedimentation.',
+    'Treated wastewater can be used for irrigation, fire-fighting, road maintenance — NOT for bathing or drinking.',
+    'Water hardness: caused by polyvalent metallic cations (Ca, Mg, // Al, Fe, Mn). Hardness disrupts foam/bubble formation. Acidity is typically measured in terms of CaCO₃.',
+    'Soften hard water with lime & soda ash, or ion exchange (replace Ca²⁺ with Na⁺). Non-carbonate hardness removed by precipitation softening or ion exchange.',
+    'Water is recarbonated after softening to lower pH and reduce scale-forming potential.',
+    'Titration measures the amount of acid in water.',
+    'Spectrophotometry: shine a light through a sample to determine NTU (turbidity). At ~5 NTU the naked eye can see suspended solids.',
+    'Color in water sources: copper, iron, manganese, industrial colloidal solids.',
+    'Every public water supply serving 15 or more service connections must meet the National Primary Drinking Water Regulations.',
+    'Ideal algae growth N:P molar ratio = 16:1.',
+    'Excess nitrate → methemoglobinemia ("blue baby syndrome"). Runoff from fertilizers is a main source.',
+    'Equivalent weight = molecular weight / oxidation number. Equivalent weight of CaCO₃ = 50 g/mol. Oxidation number = charge × number of elements. Charges skip carbon\'s column.',
+    'Dilution: EW₁·C₁ = EW₂·C₂.',
+    'Fungi does NOT aid phosphorus recycling; many other organisms do.',
+    'Environmental engineers on water-supply projects should know Legionnaires\' disease and Hepatitis A.',
+    'Volumetric flow rate: Q_w = Q_A·H′ = Q_A·H/(R·T). Solids loading rate = QX/A.',
+  ]},
+
+  {id:'geotech', title:'Geotechnical', icon:'▣', body:[
+    'γ_water = 1000 kg/m³ = 62.4 lb/ft³.',
+    'Effective unit weight: γ′ = γ_sat − γ_water.',
+    'Dry unit weight (saturated soil): γ_D = γ_sat − γ_W·n.',
+    'Phase relationships: e = V_v/V_s (void ratio). n = V_v/V (porosity). n = e/(1+e); e = n/(1−n). Specific volume v = 1 + e = V/V_s.',
+    'Gradation: coefficient of uniformity C_u = D₆₀/D₁₀. Coefficient of gradation / concavity C_c = (D₃₀)² / (D₁₀·D₆₀). Effective grain size = D₁₀.',
+    'Atterberg limits: from wet to dry — Liquid Limit (LL), Plastic Limit (PL), Shrinkage Limit (SL). Plasticity index PI = LL − PL.',
+    'Compression index (Terzaghi): C_c = 0.009·(LL − 10).',
+    'Terzaghi ultimate bearing capacity: q_u = c·N_c + γ′·D_f·N_q + ½·γ′·B·N_γ.',
+    'Earth pressure coefficients: K_a = tan²(45 − φ/2) active, K_p = tan²(45 + φ/2) passive.',
+    'Active earth pressure: σ = ½·K_a·γ·H².',
+    'Vertical stress below a point load (Boussinesq): σ_z = 3·P·z³ / [2π·(r² + z²)^(5/2)]. (P = load, z = depth, r = radial distance.)',
+    'Liquefaction = loss of bearing capacity, severe reduction in effective stress.',
+    'Failure at sheeting is rare; base heave is common in excavations.',
+    'Soil classification: know USCS (coarse vs. fine-grained) and AASHTO (A-1 through A-7 highway subgrade) tables.',
+  ]},
+
+  {id:'struct-design', title:'Structural Design (Concrete)', icon:'▨', body:[
+    'Reinforced concrete fails in compression at ε_c = 0.003 (at nominal positive moment, by assumption).',
+    'Compression block: C = 0.85·f′_c·a·b. Tension: T = A_s·f_y. Equilibrium (no axial load): C = T → 0.85·f′_c·a·b = A_s·f_y.',
+    'Depth of stress block: a = β₁·c.',
+    'Strain in steel (similar triangles): c/d = 0.003/(ε_s + 0.003), so ε_s = 0.003·(d/c − 1). Assume steel yields; check.',
+    'Flexural reduction factor φ = 0.90. Ultimate moment M_u = φ·M_n = φ·A_s·f_y·(d − a/2).',
+    'Simple-span moments: M_D = w_D·L²/8 (dead load distributed), M_L = P_L·L/4 (live point load at midspan).',
+    'Shear reduction factor φ = 0.75. If V_u > φ·V_c/2, shear reinforcement is required.',
+    'Nominal concrete shear strength V_c = 2·b_w·d·√f′_c.',
+    'Factored shear V_u = 1.2·V_D + 1.6·V_L.',
+    'Stirrup area A_v ≥ 50·b_w·s / f_y. Also A_v = (V_u − φ·V_c) / (φ·f_y·d/s). Reinforcement shear V_s = A_v·f_y·d / s. Minimum stirrup spacing is 12 in.',
+    'Minimum steel A_s,min = 3·√f′_c·b_w·d. Total steel A_s = ρ_g·A_g.',
+    'Effective T-beam flange width = smallest of: span length, b_w + 16·h_f, beam-centerline spacing. For T-beams, base width = effective flange width.',
+    'Nominal axial compressive capacity: P_n = 0.80·P_o = 0.80·(0.85·f′_c·(A_g − A_s) + f_y·A_s).',
+    'Concrete modulus of elasticity: E_c = 33·w_c^1.5·√f′_c.',
+    'Compressive strength test: no single test below 10% of design strength; average of three must equal or exceed design strength.',
+    'Fly ash: reacts with Ca(OH)₂ to increase binding, acts as microfiller, improves scaling resistance.',
+    'Area per bar: A = A_s / n_bars.',
+    'Bending moment = Force × distance. If under-reinforced, use compressive-strength force for analysis.',
+  ]},
+
+  {id:'struct-analysis', title:'Structural Analysis & Steel', icon:'▬', body:[
+    'Flat plate = two-way slab supported on a column grid without beams.',
+    'For one-way shear, the critical section is a distance d from the face of the column.',
+    'Plastic design: M_n = M_p = M_u/φ = F_y·Z_x. Z_x = required plastic section modulus.',
+    'Slenderness ratio = K·L/r.   I = moment of inertia = A·r².',
+    'Effective radius of gyration for lateral-torsional buckling: r_ts = ⁴√(I_y·C_w / S_x²).',
+    'Net area (bolted connection): A_n = (b_g − Σ(d_h + 1/16 in))·t.',
+    'Combined axial + bending interaction: if P_r/(φ·P_n) < 0.2 → small axial; check P_r/(2·φ·P_n) + M_c/(φ·M_nx) ≥ 1 → inadequate. Otherwise use the full H-1 equation.',
+    'Carbon steel categories: low < 0.15%, mild 0.15–0.29%, medium 0.30–0.59%, high 0.60–1.70%.',
+    'Ductility = steel\'s ability to undergo large inelastic deformation without fracture.',
+    'Martensite = hard austenite; martensite is the hardest form of steel.',
+    'Dislocations and defects characterize cold-worked steel.',
+    'Influence lines — worth a dedicated review pass.',
+  ]},
+
+  {id:'materials', title:'Materials & Testing', icon:'◉', body:[
+    'Impact test → toughness. Tensile test → stress-strain curve (elastic → yield → ultimate → necking → fracture). Rotating-beam test → endurance / fatigue strength.',
+    'Malleable materials: plastic-deform under hammering/rolling without fracture. Examples: mild steel, gold, lead.',
+    'Brittle materials: elastic stage then immediate fracture, no plastic deformation. Examples: glass, concrete, ceramics, stone, gray cast iron.',
+    'Ductile materials: plastic-elongate >15% before fracture. Examples: copper, mild steel, thermoplastics.',
+    'Ductility spec (percent elongation): D_L = 100% · (L_f − L₀)/L₀.',
+    'Zn → Zn²⁺ + 2e⁻ (classic half-reaction).',
+    'Diffusion = intermingling of substances.',
+    'Phase diagrams (α/β): know solidus/liquidus lines and how to read wt% composition.',
+  ]},
+
+  {id:'transportation', title:'Transportation & Surveying', icon:'⇆', body:[
+    'Queueing: μ = service rate (trucks/hr), λ = arrival rate (trucks/hr). Waiting time W = 1/(μ − λ). Average number in system L = λ/(μ − λ).',
+    'Traffic volume capacity q = K·V (density × velocity).',
+    'Trapezoidal rule: Area = w·[(h₁ + h_n)/2 + h₂ + h₃ + … + h_{n-1}]. Works when irregular sides are straight or nearly straight.',
+    'Simpson\'s rule: requires an even number of intervals; better for curvy irregular sides.',
+    'Horizontal curves: PC = PI − T. PT = PC + L. T = R·tan(I/2). Arc length L ≠ long chord LC.',
+    '19 mm Superpave mix limits: air voids 4.0%, minimum VMA 13%, VFA 65–75%, dust-to-binder 0.6–1.2; at N_int = 8 gyrations max G_mm = 89%, at N_max = 174 gyrations max G_mm = 98%.',
+    'Pavement design: LEF = load equivalency factor (from tables). ESAL = (no. of axles) · LEF.',
+    'Structural number: SN = a₁·D₁ + a₂·D₂ + a₃·D₃ (layer coefficients × thicknesses).',
+    'Work zones account for ~2% of roadway fatalities each year.',
+  ]},
+
+  {id:'construction', title:'Construction Management', icon:'▤', body:[
+    'PERT (Program Evaluation & Review Technique): schedules activity durations and critical path. Queueing is NOT part of PERT.',
+    'Float time = Latest Start − Earliest Start = Latest Finish − Earliest Finish. Float = 0 on the critical path.',
+    'Learning curve explains the usual increase in production rate as workers gain skill at a repetitive task.',
+    'Arrow network = arrows are activities, nodes are events. Bubble/precedence network = nodes are activities.',
+    'CSI MasterFormat divisions (broad strokes): 00 Procurement, 01 General Reqs, 02 Existing, 03 Concrete, 04 Masonry, 05 Metals, 06 Wood/Plastics, 07 Thermal & Moisture, 08 Openings, 09 Finishes, 10 Specialties, 11 Equipment, 12 Furnishings, 13 Special, 14 Conveying, 21 Fire Suppression, 22 Plumbing, 23 HVAC, 25 Integrated Automation, 26 Electrical, 27 Communications, 28 Electronic Safety & Security, 31 Earthwork, 32 Exterior Improvements, 33 Utilities, 34 Transportation, 35 Waterway & Marine, 40–49 Process Equipment & Utilities.',
+    'Estimation does NOT include tracking costs or recording actual expenses.',
+    'Design-build = client interacts with a single entity (not separate A/E + GC).',
+    'Low-bid award goes to the "responsible bidder" — lowest AND responsive/capable.',
+    'Cities, municipalities, and DOTs have standard specs for concrete, fire hydrants, manhole structures, and curb requirements.',
+    'OSHA: within a construction zone, high-visibility apparel is not considered PPE. Only flaggers working OUTSIDE the work zone are required to wear hi-vis.',
+    'Construction noise: 8-hr exposure limited to 90 dBa, general noise limit 115 dBa, impact sound limit 140 dBa.',
+    'Eccentric boom reeving → danger of boom twisting.',
+  ]},
+
+  {id:'ethics', title:'Ethics & Professional Practice', icon:'§', body:[
+    'Model Rules three sections: (1) Licensee\'s obligation to the Public, (2) to Employers/Clients, (3) to other Licensees.',
+    'Public safety above all else — when in doubt, this wins every ethics question.',
+    'Report violations of the state\'s rule of professional conduct to the state engineering registration board.',
+    'Engineering firms cannot reveal project facts/data/info without client consent unless required by law.',
+    'Guidelines of ethical behavior exist because the public is easily taken advantage of.',
+    'A state-regulating agency can: revoke licensure, publish an article in the local paper, require restitution, require an ethics course.',
+    'A firm may belong to self-serving groups (rotary club, chamber of commerce, research foundations, lobbying groups) — this alone is not unethical.',
+    'Do NOT bill for future time (time you haven\'t spent).',
+    'If a design is partitioned into groups, each group leader must sign and seal their portion.',
+    'Engineers cannot use proprietary production-technique info from one company and apply it at another job (don\'t start a consulting firm on another employer\'s dime).',
+    'A building owner may recover the cost of repairing a leaking roof due to the statute of limitations — know it exists and runs.',
+    'Date and time are the FIRST things to record in a lab notebook.',
+    'Receiving bids from a former employer → inform your current employer and remain objective.',
+    'In dealing with suppliers, an engineer may spend personal time outside the contract to ensure adequate performance.',
+    'Plan-stamping (sealing plans you didn\'t develop or verify personally) is NOT permitted, no matter how experienced the PE.',
+    'A licensed engineer must not do anything illegal in their personal life — you cannot separate a person from their profession.',
+    'Scenario: engineer discovers a leaking hazardous pipeline, reports it, returns months later to find it worse → ANSWER: speak directly to the director of maintenance and insist on high priority. (Don\'t jump to the EPA first; don\'t wait silently; don\'t simply re-ask the supervisor.)',
+  ]},
+
+  {id:'ip-law', title:'IP, Contracts & Liability', icon:'©', body:[
+    'Four intellectual-property protections: (1) Trademarks, (2) Patents, (3) Copyrights, (4) Industrial Designs.',
+    'Trademark: brand name — word, name, symbol, or device identifying source of a good/service. Registration grants exclusive use.',
+    'Patent: legally protected rights over a new, useful, and inventive item. Granted to the first applicant.',
+    'Copyright: original literary, dramatic, musical, or artistic works. Protected from the moment of creation; registration is proof of ownership.',
+    'Industrial design: protects new products\' appearance — shapes, colors, visual features.',
+    'Tort: a civil wrong causing damage to another\'s person, property, emotional well-being, or reputation.',
+    'Strict liability in tort: injured party wins if injury is proven; no need to prove negligence, breach of warranty, or privity. Most common in product-liability cases — a defect, however it got there, is sufficient.',
+    'Privity = legally recognized relation between two parties.',
+    'Boilerplate clause: specific contract wording not meant to be altered, usually at the end.',
+    'The U.S. DOJ successfully challenged competitive bidding for engineering services on the basis of anti-trust statutes.',
+    'Material breach occurs when: owner becomes insolvent (bankruptcy), contractor walks off or is substantially off-schedule, owner causes delays.',
+    'Nominal damages are awarded for inconsequential/insignificant injuries.',
+    'Retainer fee = non-returnable advance paid to a consultant.',
+  ]},
+
+  {id:'fees', title:'Consulting Fee Structures', icon:'$', body:[
+    'Lump-sum fee: predetermined fee. Best for small projects with clearly defined scope.',
+    'Unit price: fees based on estimated quantities × unit prices. Works when materials are well-defined. Often combined with lump-sum.',
+    'Cost plus fixed fee: all costs (labor, material, travel) reimbursed, plus a fixed profit fee. Good when scope is uncertain — requires meticulous record-keeping.',
+    'Per diem fee: fixed $/day; direct expenses (travel, reproduction) billed separately.',
+    'Salary plus: client pays the employees on an engineer\'s payroll plus a percentage for overhead and profit, plus certain direct expenses.',
+    'Retainer: minimum advance payment for expected work over an agreed period. Non-returnable.',
+  ]},
+
+  {id:'econ', title:'Engineering Economics', icon:'%', body:[
+    'Rate of return = annual interest rate that makes the present worth of the investment equal to ZERO.',
+    'Cash-flow sign convention: receipts (money coming in) are positive; disbursements (money going out) are negative.',
+    'Capitalized cost: P = A/i.   P = present worth, A = annual cost of maintenance or profit.',
+    'Future worth: F = P·(1 + i)^n.   Present worth from future: P = F·(1 + d)^(−n).',
+    'Equivalent Uniform Annual Cost (EUAC) = A_initial + A_maintenance + A_pump − A_salvage.',
+    'Present worth ≠ EUAC — PW accounts for time value of money more fully in comparisons.',
+    '(A/F), (P/F), etc. notation: "first letter is what you WANT, second letter is what you HAVE." So (A/F, i, n) gives annual from future.',
+    'MACRS (Modified ACRS) depreciation: look up recovery period and year in the table, multiply initial cost by the percentage.',
+    'Straight-line depreciation: D = (P − S)/n (principal minus salvage over n years).',
+  ]},
+
+  {id:'comp-chem', title:'Computational Tools & Chemistry', icon:'⌨', body:[
+    'A recursive function calls itself. Recursion generally uses less code but more memory than iteration.',
+    'Spreadsheets: work from the innermost dependency outward when tracing formulas. ABS(), MIN(), AVERAGE(), SUM() behave as expected.',
+    'Chemistry quick refs: 6.022 × 10²³ atoms/mol (Avogadro), "M" is shorthand for moles, HO⁻ = hydroxide, H₂SO₄ = sulfuric acid.',
+    'Periodic table families: Group 1 = Alkali Metals, Group 2 = Alkaline Earth, Groups 3–12 = Transition Metals, Group 17 = Halogens, Group 18 = Noble Gases. Same column → similar chemical properties.',
+  ]},
+
+  {id:'review', title:'Sections to Review Extra', icon:'⚑', body:[
+    'Probability & Statistics — especially distribution families and hypothesis tests.',
+    'Centroids & moments of inertia — composite shapes.',
+    'Kinetics of rotating bodies.',
+    'Structural design — especially steel beam-columns and connectors.',
+    'Water supply treatment & distribution.',
+    'Activated sludge & sludge processing.',
+    'Influence lines.',
+  ]},
+];
+
+function renderNotes(){
+  const toc = document.getElementById('notes-toc');
+  const body = document.getElementById('notes-body');
+  toc.innerHTML = MY_NOTES.map(s =>
+    `<a href="#note-${s.id}" class="topic-chip" style="text-decoration:none;color:var(--fg);">
+      <span style="color:var(--amber);margin-right:4px">${s.icon}</span>${escHtml(s.title)}
+    </a>`
+  ).join('');
+
+  body.innerHTML = MY_NOTES.map(s =>
+    `<div class="note-section" id="note-${s.id}" style="margin-bottom:20px;scroll-margin-top:20px">
+      <h3 style="color:var(--amber);font-size:13px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px dashed var(--border-bright)">
+        <span style="color:var(--cyan);margin-right:6px">${s.icon}</span>${escHtml(s.title)}
+      </h3>
+      <ul style="list-style:none;padding:0">
+        ${s.body.map(line=>`<li style="padding:5px 0 5px 14px;border-left:2px solid var(--border);margin:3px 0;font-size:12px;line-height:1.55;color:var(--fg-bright)">${escHtml(line)}</li>`).join('')}
+      </ul>
+    </div>`
+  ).join('');
+
+  const search = document.getElementById('notes-search');
+  if(search && !search._wired){
+    search._wired = true;
+    search.addEventListener('input', e => filterNotes(e.target.value));
+  }
+}
+
+function filterNotes(q){
+  q = (q||'').toLowerCase().trim();
+  document.querySelectorAll('.note-section').forEach(sec=>{
+    if(!q){ sec.style.display=''; sec.querySelectorAll('li').forEach(li=>li.style.display=''); return; }
+    let anyMatch = false;
+    sec.querySelectorAll('li').forEach(li=>{
+      const hit = li.textContent.toLowerCase().includes(q);
+      li.style.display = hit ? '' : 'none';
+      if(hit) anyMatch = true;
+    });
+    const h3hit = sec.querySelector('h3').textContent.toLowerCase().includes(q);
+    sec.style.display = (anyMatch || h3hit) ? '' : 'none';
+    if(h3hit && !anyMatch) sec.querySelectorAll('li').forEach(li=>li.style.display='');
+  });
 }
 
 /* ============================================================
